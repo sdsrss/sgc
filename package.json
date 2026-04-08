@@ -1,0 +1,26 @@
+{
+  "name": "unified-agent",
+  "version": "1.0.0",
+  "description": "Unified engineering agent: plan, execute, review, QA, ship, and compound knowledge. Merges the best of Superpowers, gstack, and Compound Engineering into a single coherent system.",
+  "type": "module",
+  "bin": {
+    "unified-agent": "./src/index.ts",
+    "browse": "./plugins/unified/browse/dist/browse"
+  },
+  "scripts": {
+    "build:browse": "bun build ./plugins/unified/browse/src/cli.ts --compile --outfile ./plugins/unified/browse/dist/browse",
+    "test": "bun test",
+    "release:validate": "bun run src/release/validate.ts",
+    "release:sync-metadata": "bun run src/release/sync-metadata.ts"
+  },
+  "author": {
+    "name": "SDS"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "dependencies": {
+    "playwright": "^1.52.0"
+  }
+}

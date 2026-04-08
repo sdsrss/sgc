@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.tmp/
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+
+# Browse binary (built from source)
+plugins/unified/browse/dist/
+
+# Runtime state (project-specific, not plugin code)
+.unified/
+.context/

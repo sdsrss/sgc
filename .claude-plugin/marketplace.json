@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "plugins": [
+    {
+      "name": "unified-agent",
+      "path": "plugins/unified",
+      "description": "Unified engineering agent: plan, execute, review, QA, ship, and compound knowledge.",
+      "metadata": {
+        "version": "1.0.0",
+        "skills_count": 9,
+        "agents_count": 19,
+        "commands_count": 8
+      }
+    }
+  ]
+}

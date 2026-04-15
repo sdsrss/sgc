@@ -20,6 +20,7 @@ import {
   type ClassifierOutput,
 } from "../dispatcher/agents/classifier-level"
 import { plannerEng, type PlannerEngOutput } from "../dispatcher/agents/planner-eng"
+import { validateClassifierRationale } from "../dispatcher/rationale"
 import {
   ensureSgcStructure,
   writeCurrentTask,
@@ -91,6 +92,8 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
     { user_request: taskDescription },
     { stateRoot, inlineStub: (i) => classifierLevel(i as { user_request: string }) },
   )
+  // Invariant §11: rationale must be concrete (D-1.2).
+  validateClassifierRationale(classRes.output.rationale)
   let level = classRes.output.level
   log(`classifier verdict: ${level} — ${classRes.output.rationale}`)
 

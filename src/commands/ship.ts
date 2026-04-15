@@ -19,25 +19,38 @@
 //
 // --pr flag and gh integration ship in D-5.2.
 
-import { readCurrentTask, readFeatureList, writeCurrentTask, writeShip } from "../dispatcher/state"
+import {
+  readCurrentTask,
+  readFeatureList,
+  readIntent,
+  writeCurrentTask,
+  writeShip,
+} from "../dispatcher/state"
 import {
   hasQaEvidence,
   intentPath,
   listReviewsForStage,
 } from "../dispatcher/state"
 import { existsSync } from "node:fs"
+import { defaultGhRunner, type GhRunner } from "../dispatcher/gh-runner"
 import type { ShipDoc, TaskId } from "../dispatcher/types"
 
 export interface ShipOptions {
   stateRoot?: string
   autoConfirm?: boolean  // --auto flag; refused at L3 per §4
   readConfirmation?: () => Promise<string>  // test hook for L3 stdin gate
+  /** Create a GitHub PR via `gh pr create` after writing ship.md. */
+  createPr?: boolean
+  prTitle?: string
+  prBody?: string
+  ghRunner?: GhRunner  // test hook for PR creation
   log?: (msg: string) => void
 }
 
 export interface ShipResult {
   taskId: TaskId
   shipPath: string | null  // null for L0
+  prUrl?: string
 }
 
 function nowIso(): string {
@@ -169,6 +182,41 @@ export async function runShip(opts: ShipOptions = {}): Promise<ShipResult> {
     stateRoot,
   )
 
+  // Optional: create a PR via `gh pr create`
+  let prUrl: string | undefined
+  if (opts.createPr) {
+    if (level === "L0") {
+      log(`L0 task: skipping PR creation (L0 tasks typically don't merit a PR)`)
+    } else {
+      const runner = opts.ghRunner ?? defaultGhRunner
+      const intent = readIntent(taskId, stateRoot)
+      const title = opts.prTitle ?? `sgc ship: ${intent.title}`.slice(0, 200)
+      const body =
+        opts.prBody ??
+        [
+          `Automated PR from \`sgc ship\`.`,
+          ``,
+          `- **Task**: \`${taskId}\``,
+          `- **Level**: ${level}`,
+          `- **Code reviews**: ${codeReviews.length}`,
+          shipFilePath ? `- **Ship record**: \`${shipFilePath}\`` : "",
+          ``,
+          `See \`decisions/${taskId}/intent.md\` for the full plan.`,
+        ]
+          .filter(Boolean)
+          .join("\n")
+      log(`creating PR via gh pr create…`)
+      try {
+        const res = await runner.createPr({ title, body })
+        prUrl = res.url
+        log(`PR: ${prUrl}`)
+      } catch (e) {
+        log(`PR creation failed: ${(e as Error).message}`)
+        throw e
+      }
+    }
+  }
+
   log(`shipped ${taskId} (${level})`)
-  return { taskId, shipPath: shipFilePath }
+  return { taskId, shipPath: shipFilePath, prUrl }
 }

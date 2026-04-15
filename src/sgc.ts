@@ -164,10 +164,30 @@ const ship = defineCommand({
       required: false,
       description: "Skip interactive confirmation. REFUSED at L3 (Invariant §4).",
     },
+    pr: {
+      type: "boolean",
+      required: false,
+      description: "Create a GitHub PR via `gh pr create` after writing ship.md",
+    },
+    "pr-title": {
+      type: "string",
+      required: false,
+      description: "PR title override (default: 'sgc ship: <intent.title>')",
+    },
+    "pr-body": {
+      type: "string",
+      required: false,
+      description: "PR body override (default: auto-generated summary)",
+    },
   },
   async run({ args }) {
     const { runShip } = await import("./commands/ship")
-    await runShip({ autoConfirm: args.auto as boolean | undefined })
+    await runShip({
+      autoConfirm: args.auto as boolean | undefined,
+      createPr: args.pr as boolean | undefined,
+      prTitle: args["pr-title"] as string | undefined,
+      prBody: args["pr-body"] as string | undefined,
+    })
   },
 })
 

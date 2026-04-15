@@ -344,3 +344,21 @@ export function readReview(
   const { data, body } = parseFrontmatter<ReviewReport>(readFileSync(path, "utf8"))
   return { report: data, body }
 }
+
+/**
+ * True if any QA review exists for this task.
+ *
+ * Used by the ship gate (D-phase Step 5) to confirm L2+ tasks have qa
+ * evidence before ship.md is written. D-4.2 introduces this helper; the
+ * ship check wires it in Step 5.
+ */
+export function hasQaEvidence(taskId: TaskId, stateRoot?: string): boolean {
+  const { readdirSync } = require("node:fs") as typeof import("node:fs")
+  const qaDir = resolve(root(stateRoot), "reviews", taskId, "qa")
+  if (!existsSync(qaDir)) return false
+  try {
+    return readdirSync(qaDir).some((f) => f.endsWith(".md"))
+  } catch {
+    return false
+  }
+}

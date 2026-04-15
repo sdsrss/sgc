@@ -121,12 +121,34 @@ const review = defineCommand({
 })
 
 const qa = defineCommand({
-  meta: { name: "qa", description: "Real-browser end-to-end QA via the browse module" },
-  args: {
-    target: { type: "positional", required: false, description: "URL or local path" },
+  meta: {
+    name: "qa",
+    description: "Real-browser end-to-end QA via the browse module",
   },
-  run() {
-    throw new NotImplementedYet("qa")
+  args: {
+    target: {
+      type: "positional",
+      required: false,
+      description: "URL or local path to test (e.g. http://localhost:3000)",
+    },
+    flows: {
+      type: "string",
+      required: false,
+      description:
+        "Comma-separated user flow descriptions (e.g. 'login,dashboard-load,logout')",
+    },
+  },
+  async run({ args }) {
+    const { runQa } = await import("./commands/qa")
+    await runQa({
+      target: args.target as string | undefined,
+      flows: args.flows
+        ? String(args.flows)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : undefined,
+    })
   },
 })
 

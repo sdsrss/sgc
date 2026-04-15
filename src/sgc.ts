@@ -68,9 +68,25 @@ const plan = defineCommand({
 })
 
 const work = defineCommand({
-  meta: { name: "work", description: "Execute the active plan with TDD discipline" },
-  run() {
-    throw new NotImplementedYet("work")
+  meta: { name: "work", description: "Track feature-list progress for the active task" },
+  args: {
+    add: {
+      type: "string",
+      required: false,
+      description: "Append a new feature to feature-list with this title",
+    },
+    done: {
+      type: "string",
+      required: false,
+      description: "Mark feature with this id as done",
+    },
+  },
+  async run({ args }) {
+    const { runWork } = await import("./commands/work")
+    await runWork({
+      add: args.add as string | undefined,
+      done: args.done as string | undefined,
+    })
   },
 })
 

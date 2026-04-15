@@ -40,8 +40,8 @@ describe("sgc CLI smoke", () => {
     expect(stdout.trim()).toBe("1.0.0")
   })
 
-  test("work throws NotImplementedYet (helpful message)", async () => {
-    const { stderr, exitCode } = await runSgc(["work"])
+  test("discover throws NotImplementedYet (helpful message)", async () => {
+    const { stderr, exitCode } = await runSgc(["discover"])
     expect(exitCode).not.toBe(0)
     expect(stderr).toContain("not yet implemented")
     expect(stderr).toContain("docs/c-phase-dispatcher.md")

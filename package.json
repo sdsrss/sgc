@@ -4,6 +4,7 @@
   "description": "SGC — engineering agent: plan, execute, review, QA, ship, and compound knowledge. Merges the best of Superpowers, gstack, and Compound Engineering into a single coherent system.",
   "type": "module",
   "bin": {
+    "sgc": "./src/sgc.ts",
     "sgc-convert": "./src/index.ts",
     "browse": "./plugins/sgc/browse/dist/browse"
   },

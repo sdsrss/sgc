@@ -38,6 +38,8 @@ import type {
   IntentDoc,
   ReviewReport,
   ShipDoc,
+  SolutionCategory,
+  SolutionEntry,
   Stage,
   TaskId,
 } from "./types"
@@ -50,7 +52,8 @@ export class StateError extends Error {
       | "IntentImmutable"
       | "ShipImmutable"
       | "AppendOnly"
-      | "NotFound",
+      | "NotFound"
+      | "SolutionDeleteForbidden",
     message: string,
   ) {
     super(message)
@@ -367,6 +370,200 @@ export function hasQaEvidence(taskId: TaskId, stateRoot?: string): boolean {
   } catch {
     return false
   }
+}
+
+// Solutions: append-or-update-existing, delete forbidden ────────────────────
+
+const SOLUTION_CATEGORIES: ReadonlySet<SolutionCategory> = new Set([
+  "runtime",
+  "build",
+  "auth",
+  "data",
+  "perf",
+  "ui",
+  "infra",
+  "other",
+])
+
+const REQUIRED_SOLUTION_FIELDS = [
+  "id",
+  "signature",
+  "category",
+  "problem",
+  "symptoms",
+  "what_didnt_work",
+  "solution",
+  "prevention",
+  "tags",
+  "first_seen",
+  "last_updated",
+  "times_referenced",
+  "source_task_ids",
+] as const
+
+function validateSolution(entry: SolutionEntry): void {
+  for (const f of REQUIRED_SOLUTION_FIELDS) {
+    const v = entry[f as keyof SolutionEntry]
+    if (v === undefined || v === null) {
+      throw new StateError("SchemaViolation", `solution missing required field: ${f}`)
+    }
+  }
+  if (!SOLUTION_CATEGORIES.has(entry.category)) {
+    throw new StateError(
+      "SchemaViolation",
+      `solution.category '${entry.category}' not in {${Array.from(SOLUTION_CATEGORIES).join(", ")}}`,
+    )
+  }
+  if (!Array.isArray(entry.tags) || entry.tags.length < 1) {
+    throw new StateError("SchemaViolation", "solution.tags must be a non-empty array")
+  }
+  if (!Array.isArray(entry.symptoms) || entry.symptoms.length < 1) {
+    throw new StateError("SchemaViolation", "solution.symptoms must be a non-empty array")
+  }
+  if (!Array.isArray(entry.source_task_ids) || entry.source_task_ids.length < 1) {
+    throw new StateError(
+      "SchemaViolation",
+      "solution.source_task_ids must be a non-empty array",
+    )
+  }
+}
+
+export function solutionPath(
+  category: SolutionCategory,
+  slug: string,
+  stateRoot?: string,
+): string {
+  return resolve(root(stateRoot), "solutions", category, `${slug}.md`)
+}
+
+/**
+ * Write or update a solution entry.
+ *   - New path   → fresh write
+ *   - Existing   → update-existing semantics (Invariant §3):
+ *                   • append new source_task_ids (dedup preserved)
+ *                   • refresh last_updated
+ *                   • merge new what_didnt_work entries (dedup by `approach`)
+ *                   • DO NOT overwrite existing solution / prevention fields
+ *                   • bump times_referenced by 1
+ * Returns the canonical path and the final (merged) entry written.
+ */
+export function writeSolution(
+  entry: SolutionEntry,
+  slug: string,
+  body = "",
+  stateRoot?: string,
+): { path: string; entry: SolutionEntry } {
+  validateSolution(entry)
+  const path = solutionPath(entry.category, slug, stateRoot)
+
+  let finalEntry = entry
+  let finalBody = body
+  if (existsSync(path)) {
+    const existing = parseFrontmatter<SolutionEntry>(readFileSync(path, "utf8"))
+    const mergedTasks = Array.from(
+      new Set([...(existing.data.source_task_ids ?? []), ...entry.source_task_ids]),
+    )
+    const mergedWdw = [
+      ...(existing.data.what_didnt_work ?? []),
+      ...entry.what_didnt_work.filter(
+        (nw) => !(existing.data.what_didnt_work ?? []).some((ew) => ew.approach === nw.approach),
+      ),
+    ]
+    finalEntry = {
+      ...existing.data,
+      source_task_ids: mergedTasks,
+      what_didnt_work: mergedWdw,
+      last_updated: entry.last_updated,
+      times_referenced: (existing.data.times_referenced ?? 0) + 1,
+      // Preserve existing solution + prevention (do NOT overwrite)
+    }
+    finalBody = existing.body
+  }
+
+  const { body: _bodyField, ...fm } = finalEntry as SolutionEntry & { body?: string }
+  writeAtomic(
+    path,
+    serializeFrontmatter(fm as unknown as Record<string, unknown>, finalBody),
+  )
+  return { path, entry: finalEntry }
+}
+
+export function readSolution(
+  category: SolutionCategory,
+  slug: string,
+  stateRoot?: string,
+): { entry: SolutionEntry; body: string } | null {
+  const path = solutionPath(category, slug, stateRoot)
+  if (!existsSync(path)) return null
+  const { data, body } = parseFrontmatter<SolutionEntry>(readFileSync(path, "utf8"))
+  return { entry: data, body }
+}
+
+export interface SolutionFile {
+  category: SolutionCategory
+  slug: string
+  path: string
+  entry: SolutionEntry
+  body: string
+}
+
+/**
+ * Walk solutions/ and return every entry. Malformed files are silently
+ * skipped (logged in debug mode; see D-6.2 transaction rollback).
+ */
+export function listSolutions(stateRoot?: string): SolutionFile[] {
+  const dir = resolve(root(stateRoot), "solutions")
+  if (!existsSync(dir)) return []
+  const out: SolutionFile[] = []
+  let categories: string[]
+  try {
+    categories = readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+  } catch {
+    return []
+  }
+  for (const cat of categories) {
+    if (!SOLUTION_CATEGORIES.has(cat as SolutionCategory)) continue
+    const catDir = resolve(dir, cat)
+    let files: string[]
+    try {
+      files = readdirSync(catDir).filter((f) => f.endsWith(".md"))
+    } catch {
+      continue
+    }
+    for (const f of files) {
+      const fpath = resolve(catDir, f)
+      try {
+        const { data, body } = parseFrontmatter<SolutionEntry>(readFileSync(fpath, "utf8"))
+        out.push({
+          category: cat as SolutionCategory,
+          slug: f.replace(/\.md$/, ""),
+          path: fpath,
+          entry: data,
+          body,
+        })
+      } catch {
+        // Skip unparseable
+      }
+    }
+  }
+  return out
+}
+
+/**
+ * Invariant §3-adjacent: solutions/ is delete-forbidden.
+ * This helper exists so callers get a typed error rather than touching fs.
+ */
+export function deleteSolution(
+  _category: SolutionCategory,
+  _slug: string,
+  _stateRoot?: string,
+): never {
+  throw new StateError(
+    "SolutionDeleteForbidden",
+    "solutions/ is delete-forbidden per sgc-state.schema.yaml (delete_policy: forbidden)",
+  )
 }
 
 /**

@@ -2,19 +2,27 @@
 
 A single engineering workflow combining process discipline, real-world QA, and knowledge compounding.
 
-## Implementation Status
+## Implementation Status (v1.1, D-phase complete)
 
-Dispatcher (`src/dispatcher/`) is executable as of C-phase. The L1 closed loop runs end-to-end via `bun src/sgc.ts <cmd>`. See [README.md](../../README.md) and [docs/c-phase-demo.md](../../docs/c-phase-demo.md) for a worked example.
+The full L0→L3 pipeline is executable end-to-end via `bun src/sgc.ts <cmd>`. All 12 invariants enforced at runtime. See [README.md](../../README.md) for the command table and [docs/c-phase-demo.md](../../docs/c-phase-demo.md) for a worked run.
 
 | Command | Status | CLI |
 |---------|--------|-----|
-| `/plan` | ✅ L0-L3 classification + planner.eng (stub) | `sgc plan <task> [--level Lx] [--signed-by id]` |
+| `/plan` | ✅ L0-L3 + planner cluster (eng/ceo/adversarial) + researcher.history | `sgc plan <task> [--motivation\|--signed-by\|--level]` |
 | `/work` | ✅ feature-list tracker | `sgc work [--add\|--done <id>]` |
-| `/review` | ✅ reviewer.correctness (stub) on git diff | `sgc review [--base <ref>]` |
+| `/review` | ✅ reviewer.correctness on git diff | `sgc review [--base <ref>]` |
+| `/qa` | ✅ qa.browser stub; real browse binary opt-in | `sgc qa [<target>] [--flows a,b,c]` |
+| `/ship` | ✅ 8-gate ship + writeShip + optional `gh pr create` + auto-janitor | `sgc ship [--auto\|--pr\|--no-janitor\|--force-compound]` |
+| `/compound` | ✅ 4-agent cluster + dedup + writeSolution | `sgc compound [--force\|--slug]` |
 | `/status` | ✅ active task + level + last_activity | `sgc status` |
-| `/discover`, `/qa`, `/ship`, `/compound` | ⏸ stub — D-phase | `sgc <cmd>` → NotImplementedYet |
+| `/agent-loop` | ✅ file-poll submission helper (non-SDK path) | `sgc agent-loop [--list\|--show\|--submit]` |
+| `/discover` | ⏸ stub — deferred | `sgc discover <topic>` → NotImplementedYet |
 
-Stub agents (classifier/planner/reviewer) use heuristics, not LLM. D-phase swaps stubs for real Claude subagents using the same file-based prompt protocol (`SGC_USE_FILE_AGENTS=1` already exercises the polling path).
+Agent modes (auto-detected per priority):
+  `ANTHROPIC_API_KEY` set → anthropic-sdk (SDK + prompt caching)
+  `claude` in PATH → claude-cli (subscription-friendly shell-out)
+  inlineStub provided → inline (tests + MVP heuristic stubs)
+  default → file-poll (manual submission via `sgc agent-loop`)
 
 ## Commands
 

@@ -6,10 +6,10 @@
       "path": "plugins/sgc",
       "description": "SGC — engineering agent: plan, execute, review, QA, ship, and compound knowledge.",
       "metadata": {
-        "version": "1.0.0",
+        "version": "1.1.0",
         "skills_count": 9,
         "agents_count": 19,
-        "commands_count": 8
+        "commands_count": 9
       }
     }
   ]

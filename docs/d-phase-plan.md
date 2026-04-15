@@ -17,6 +17,37 @@ Turn the MVP into a shippable tool by covering every invariant in runtime:
 …and by making the existing 8 invariants (enforced in C-phase) robust under
 real LLM I/O rather than hardcoded stubs.
 
+## Delivery vs plan (post-hoc)
+
+Plan-step → actual commit mapping:
+
+| Plan step | Plan deliverable | Actual delivery |
+|-----------|-----------------|-----------------|
+| D-1.1 | file-poll hardening + agent-loop | commit `cf50863` (as planned) |
+| D-1.2 | §11 classifier rationale strict check | commit `4a643c5` (as planned) |
+| D-1.3 | Anthropic SDK path | **commit `781ca65` — revised to claude CLI shell-out** per subscription-auth finding (Anthropic ToS prohibits SDK-with-subscription-OAuth). |
+| D-1.4 | (unplanned) | **commit `514fd9a` — Anthropic SDK + auto-detect** added per user ask: "API key present → SDK; else subscription path". D-1.3 and D-1.4 together close the original D-1.3 intent. |
+| D-2.1 | planner.ceo stub + L2 parallel | commit `1792711` (as planned) |
+| D-2.2 | researcher.history + L2 3-way | commit `24bdd15` (as planned) |
+| D-3.1 + D-3.2 | planner.adversarial + interactive gate | **commit `f1772fb` — combined** because the intent body building interleaved naturally across both |
+| D-4.1 + D-4.2 | sgc qa + hasQaEvidence helper | **commit `75d8029` — combined** (tightly coupled) |
+| D-5.1 | ship gate + writeShip | commit `896386f` (as planned) |
+| D-5.2 | --pr + gh runner | commit `6c7303e` (as planned) |
+| D-6.1 | solution state layer | commit `86beba7` (as planned) |
+| D-6.2 | 4 compound agents + dedup + transaction | commit `d3e8f25` (as planned) — discovered + fixed `validateOutputShape` bug where manifests without declared outputs rejected all fields as "undeclared" |
+| D-6.3 | janitor auto-trigger | commit `8b80733` (as planned) |
+| D-7.1 | eval framework skeleton + 2 scenarios | commit `1574bbb` (as planned) |
+| D-8.1 | docs + v1.1.0 | this commit |
+
+Patterns vs C-phase:
+- 2-step merges (D-3, D-4) where the halves were tightly coupled — same rationale as C-4.2 being inline with feature commits.
+- Plan drift at D-1.3 (Anthropic SDK → claude CLI) driven by an external
+  constraint (ToS) that only surfaced during research via
+  claude-code-guide. D-1.4 was added live rather than retrofitted.
+- `validateOutputShape` bug discovered only when D-6.2 stub outputs hit
+  the path without declared manifest outputs — covered by a runtime
+  test + fix in the same commit.
+
 ## Out of Scope (E-phase+)
 
 - Multi-repo orchestration

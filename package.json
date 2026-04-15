@@ -1,6 +1,6 @@
 {
   "name": "sgc",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "SGC — engineering agent: plan, execute, review, QA, ship, and compound knowledge. Merges the best of Superpowers, gstack, and Compound Engineering into a single coherent system.",
   "type": "module",
   "bin": {

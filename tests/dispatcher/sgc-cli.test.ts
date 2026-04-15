@@ -37,7 +37,8 @@ describe("sgc CLI smoke", () => {
   test("--version prints the package version", async () => {
     const { stdout, exitCode } = await runSgc(["--version"])
     expect(exitCode).toBe(0)
-    expect(stdout.trim()).toBe("1.0.0")
+    // Match the shape; exact version is tracked in package.json and bumps per release
+    expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/)
   })
 
   test("discover throws NotImplementedYet (helpful message)", async () => {

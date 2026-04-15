@@ -2,7 +2,7 @@
 
 A single Claude Code workflow combining process discipline (Superpowers), real-world QA + ship pipeline (gstack), and knowledge compounding (Compound Engineering). One CLI, one state layer, one set of invariants.
 
-**Status**: dispatcher MVP — L1 closed loop executable. L2/L3 clusters, compound, qa.browser, ship are stubs. See [docs/c-phase-dispatcher.md](docs/c-phase-dispatcher.md) for roadmap.
+**Status**: v1.1 — full L0→L3 pipeline with stub agents end-to-end. All 8 sgc commands, 9 agent stubs, all 12 invariants enforced at runtime. Real LLM integration via `ANTHROPIC_API_KEY` (Anthropic SDK) or local `claude` binary (subscription) — auto-detected. See [docs/c-phase-dispatcher.md](docs/c-phase-dispatcher.md) + [docs/d-phase-plan.md](docs/d-phase-plan.md) for the build history; roadmap (E-phase) in [#/] TBD.
 
 ---
 
@@ -47,14 +47,15 @@ State files land under `.sgc/` in the project (override via `SGC_STATE_ROOT`). T
 
 | Command | Status | Purpose |
 |---------|--------|---------|
-| `sgc plan <task> [--motivation \| --signed-by]` | ✅ | Classify L0-L3, run planners, write `decisions/{id}/intent.md` (immutable). L0 skips intent. L1+ needs ≥20-word motivation. L3 needs `--signed-by`. |
+| `sgc plan <task> [--motivation\|--signed-by\|--level]` | ✅ | Classify L0-L3; L1+ runs planner cluster (L2 adds ceo+researcher; L3 adds adversarial); writes immutable `decisions/{id}/intent.md` |
 | `sgc work [--add\|--done]` | ✅ | Track `feature-list.md` progress |
-| `sgc review [--base <ref>]` | ✅ | Reviewer.correctness on git diff → `reviews/{id}/code/correctness.md` |
-| `sgc status` | ✅ | Show active task + level + last activity |
-| `sgc discover <topic>` | ⏸ stub | Requirements clarification |
-| `sgc qa <target>` | ⏸ stub | Real-browser QA via the bundled `browse` binary |
-| `sgc ship` | ⏸ stub | Ship gate + janitor.compound trigger |
-| `sgc compound` | ⏸ stub | Knowledge dedup + write to `solutions/` |
+| `sgc review [--base <ref>]` | ✅ | reviewer.correctness on git diff → append-only review report |
+| `sgc qa [<target>] [--flows a,b,c]` | ✅ | qa.browser agent writes review report; L2+ ship requires this |
+| `sgc ship [--auto\|--pr\|--no-janitor\|--force-compound]` | ✅ | 8-gate ship; writeShip; optional `gh pr create`; auto-janitor invokes compound |
+| `sgc compound [--force\|--slug]` | ✅ | 4-agent compound cluster + dedup (0.85 threshold) + write `solutions/{cat}/{slug}.md` |
+| `sgc status` | ✅ | Active task + level + last activity |
+| `sgc agent-loop [--list\|--show\|--submit]` | ✅ | File-poll fulfillment helper (for external Claude session) |
+| `sgc discover <topic>` | ⏸ stub | Requirements clarification (deferred) |
 
 Two more CLIs from the same repo:
 
@@ -68,15 +69,15 @@ Two more CLIs from the same repo:
 ```
 .sgc/
 ├── decisions/{task_id}/
-│   ├── intent.md          ← immutable (Invariant §2). Written by /plan.
-│   └── ship.md            ← immutable. Written by /ship (when implemented).
+│   ├── intent.md          ← immutable (Invariant §2). Written by /plan (L1+).
+│   └── ship.md            ← immutable. Written by /ship (L1+).
 ├── progress/
 │   ├── current-task.md    ← mutable. Active task + last_activity.
 │   ├── feature-list.md    ← mutable. Checklist managed by /work.
 │   ├── handoff.md         ← session-to-session continuity (manual write).
 │   ├── agent-prompts/     ← audit trail. Each spawn writes one prompt file.
 │   └── agent-results/     ← audit trail. Mirrors prompts.
-├── solutions/{cat}/{slug}.md     ← compound knowledge (D-phase).
+├── solutions/{cat}/{slug}.md     ← compound knowledge (delete-forbidden, dedup 0.85).
 └── reviews/{task_id}/{stage}/
     └── {reviewer}.md      ← append-only per (task, stage, reviewer) (Invariant §6).
 ```
@@ -122,25 +123,34 @@ The skills under `plugins/sgc/skills/{discover,plan,work,review,qa,ship,compound
 | 7 | Schema validation precedes write | field-presence checks in all writers |
 | 8 | Scope tokens pinned at spawn | `spawn.ts` calls `computeSubagentTokens` first |
 | 9 | Subagents output only declared shape | `spawn.ts` `validateOutputShape` after stub return |
+| 3 | Solutions writes pass dedup | `compound.related` dedup_stamp + `dedup.ts` 0.85 threshold |
+| 10 | Compound cluster is a transaction | `runCompound` sequential order — `writeSolution` is the final step; any earlier throw = natural rollback |
+| 11 | Classifier rationale must be concrete | `rationale.ts` regex + keyword check post-classifier |
+| 6 | Every janitor decision logged | `writeJanitorDecision` after `sgc ship` (including skips) |
+| 12 | Eval framework authoritative | `tests/eval/` (L0 + L1 scenarios; 8 more in backlog) |
 
-§3 (dedup), §10 (compound transaction), §11 (classifier rationale required), §12 (eval framework authoritative) — D-phase.
+All 12 invariants now enforced at runtime as of D-phase.
 
 ## Test
 
 ```bash
-bun test tests/dispatcher/    # 120 tests, ~500ms
+bun test tests/             # 308 tests (303 dispatcher + 5 eval), ~650ms
+bun test tests/dispatcher/  # unit/integration for each module
+bun test tests/eval/        # end-to-end L0/L1 scenarios (Invariant §12)
 ```
 
-Coverage:
-- `preprocessor.test.ts` (18) — DSL transforms, idempotency, block-scalar passthrough
-- `schema.test.ts` (12) — cache, manifest lookups, YAML anchor expansion
-- `capabilities.test.ts` (27) — pattern match, forbidden_for, narrow-token-doesn't-imply-wide
-- `state.test.ts` (20) — mutability, schema validate (incl. motivation min_words), atomic writes
-- `spawn.test.ts` (9) — inline + file-poll, missing/unknown/wrong-type field rejection
-- `sgc-cli.test.ts` (7) — CLI smoke + status states
-- `sgc-plan.test.ts` (9) — L0-L3 classification, L0 skips intent, L1+ motivation gate, L3 signature gate
-- `sgc-work.test.ts` (8) — feature-list mutations
-- `sgc-review.test.ts` (10) — reviewer stub + full review flow + append-only
+Dispatcher tests (303 across 22 files):
+- `preprocessor.test.ts`, `schema.test.ts`, `capabilities.test.ts`, `state.test.ts`, `validation.ts`-driven `spawn.test.ts` — foundations
+- `rationale.test.ts` — §11 concrete-reference check
+- `sgc-cli.test.ts`, `sgc-plan.test.ts`, `sgc-work.test.ts`, `sgc-review.test.ts` — L0/L1 loop
+- `planner-ceo.test.ts`, `researcher-history.test.ts`, `planner-adversarial.test.ts` — L2/L3 cluster
+- `qa-browser.test.ts`, `sgc-ship.test.ts`, `gh-runner.test.ts` — qa + ship
+- `solutions-state.test.ts`, `compound.test.ts`, `janitor-compound.test.ts` — compound + janitor
+- `claude-cli-agent.test.ts`, `anthropic-sdk-agent.test.ts`, `agent-loop.test.ts` — real LLM modes
+
+Eval scenarios (5 tests across 2 files):
+- `L0-typo.test.ts` — fast path (no intent, no ship, janitor skip)
+- `L1-bugfix.test.ts` — single-file with review + §2/§7/§11 holistic checks
 
 ## Agent dispatch modes
 

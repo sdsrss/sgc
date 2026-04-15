@@ -21,6 +21,10 @@ import {
 } from "../dispatcher/agents/classifier-level"
 import { plannerEng, type PlannerEngOutput } from "../dispatcher/agents/planner-eng"
 import { plannerCeo, type PlannerCeoOutput } from "../dispatcher/agents/planner-ceo"
+import {
+  researcherHistory,
+  type ResearcherHistoryOutput,
+} from "../dispatcher/agents/researcher-history"
 import { validateClassifierRationale } from "../dispatcher/rationale"
 import {
   ensureSgcStructure,
@@ -109,12 +113,13 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
     log(`level overridden to ${level} (upgrade)`)
   }
 
-  // Step 3: planner cluster — L1 gets eng only; L2+ adds ceo in parallel.
+  // Step 3: planner cluster — L1 gets eng only; L2+ adds ceo + researcher in parallel.
   let plannerEngOut: PlannerEngOutput | null = null
   let plannerCeoOut: PlannerCeoOutput | null = null
+  let researcherOut: ResearcherHistoryOutput | null = null
   if (LEVEL_RANK[level] >= 2) {
-    // Parallel dispatch for L2/L3 (Invariant §8 scope tokens pinned per spawn)
-    const [engRes, ceoRes] = await Promise.all([
+    // 3-way parallel dispatch for L2/L3 (Invariant §8 scope tokens pinned per spawn)
+    const [engRes, ceoRes, histRes] = await Promise.all([
       spawn<unknown, PlannerEngOutput>(
         "planner.eng",
         { intent_draft: taskDescription },
@@ -125,9 +130,19 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
         { intent_draft: taskDescription },
         { stateRoot, inlineStub: (i) => plannerCeo(i as { intent_draft: string }) },
       ),
+      spawn<unknown, ResearcherHistoryOutput>(
+        "researcher.history",
+        { intent_draft: taskDescription },
+        {
+          stateRoot,
+          inlineStub: (i) =>
+            researcherHistory(i as { intent_draft: string }, { stateRoot }),
+        },
+      ),
     ])
     plannerEngOut = engRes.output
     plannerCeoOut = ceoRes.output
+    researcherOut = histRes.output
     log(`planner.eng verdict: ${plannerEngOut.verdict}`)
     if (plannerEngOut.concerns.length > 0) {
       for (const c of plannerEngOut.concerns) log(`  eng concern: ${c}`)
@@ -139,6 +154,12 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
     if (plannerCeoOut.rewrite_hints.length > 0) {
       for (const h of plannerCeoOut.rewrite_hints) log(`  ceo hint: ${h}`)
     }
+    log(
+      `researcher.history: ${researcherOut.prior_art.length} prior art entries${
+        researcherOut.warnings.length ? `, ${researcherOut.warnings.length} warning(s)` : ""
+      }`,
+    )
+    for (const w of researcherOut.warnings) log(`  research warning: ${w}`)
   } else if (LEVEL_RANK[level] >= 1) {
     // L1: eng only
     const planRes = await spawn<unknown, PlannerEngOutput>(
@@ -197,7 +218,21 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
               ? `### CEO concerns\n\n${plannerCeoOut.concerns.map((c) => `- ${c}`).join("\n")}\n\n`
               : "") +
             (plannerCeoOut.rewrite_hints.length
-              ? `### CEO rewrite hints\n\n${plannerCeoOut.rewrite_hints.map((h) => `- ${h}`).join("\n")}\n`
+              ? `### CEO rewrite hints\n\n${plannerCeoOut.rewrite_hints.map((h) => `- ${h}`).join("\n")}\n\n`
+              : "")
+          : "") +
+        (researcherOut
+          ? `## Prior art (researcher.history)\n\n` +
+            (researcherOut.prior_art.length === 0
+              ? `_No prior art found._\n\n`
+              : researcherOut.prior_art
+                  .map(
+                    (p) =>
+                      `- **${p.solution_ref ?? p.source}** (score ${p.relevance_score.toFixed(2)}): ${p.excerpt}`,
+                  )
+                  .join("\n") + "\n\n") +
+            (researcherOut.warnings.length
+              ? `### Research warnings\n\n${researcherOut.warnings.map((w) => `- ${w}`).join("\n")}\n`
               : "")
           : ""),
     }

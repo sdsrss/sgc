@@ -52,7 +52,16 @@ export interface ShipOptions {
   prTitle?: string
   prBody?: string
   ghRunner?: GhRunner  // test hook for PR creation
-  /** Default: true. Set to false to skip post-ship janitor invocation. */
+  /**
+   * Explicit opt-out for janitor invocation. The CLI no longer exposes a
+   * plain --no-janitor (that would silently violate Invariant §6). Instead,
+   * callers pass a ≥40-char reason and a synthetic skip decision is logged
+   * with reason_code=user_opt_out. Tests may also pass `runJanitor: false`
+   * to fully skip — that path is reserved for harness code that doesn't
+   * depend on §6 auditability.
+   */
+  janitorSkipReason?: string
+  /** Test-only: fully suppress janitor (and the §6 log write). */
   runJanitor?: boolean
   /** Pass --force to janitor (bypass decision_rules into always-compound). */
   forceCompound?: boolean
@@ -234,7 +243,37 @@ export async function runShip(opts: ShipOptions = {}): Promise<ShipResult> {
   // Janitor.compound auto-trigger (Invariant §6 — decision always logged)
   let janitorDecision: JanitorCompoundOutput | undefined
   let compoundAction: "compound" | "update_existing" | "skip" | undefined
-  if (opts.runJanitor !== false) {
+
+  // User opt-out via --janitor-skip-reason still writes a synthetic decision
+  // (§6 honesty: skips are logged). Only harness code that doesn't care about
+  // §6 auditability may pass runJanitor=false.
+  if (opts.janitorSkipReason !== undefined) {
+    const reason = opts.janitorSkipReason.trim()
+    if (reason.length < 40) {
+      throw new Error(
+        `--janitor-skip-reason must be ≥40 chars (got ${reason.length}). Invariant §6 forbids silent skips; supply a real justification.`,
+      )
+    }
+    const inputs_hash = createHash("sha256")
+      .update(`user_opt_out:${reason}`)
+      .digest("hex")
+    const skipDecision: JanitorDecision = {
+      task_id: taskId,
+      decision: "skip",
+      reason_code: "user_opt_out",
+      reason_human: reason,
+      inputs_hash,
+      created_at: nowIso(),
+    }
+    const decisionPath = writeJanitorDecision(skipDecision, "", stateRoot)
+    janitorDecision = {
+      decision: "skip",
+      reason_code: "user_opt_out",
+      reason_human: reason,
+    }
+    log(`janitor.compound: skip (user_opt_out) — reason logged`)
+    log(`  logged to: ${decisionPath}`)
+  } else if (opts.runJanitor !== false) {
     const janitorInput = {
       task_id: taskId,
       level,

@@ -105,7 +105,8 @@ src/
 plugins/sgc/               ← Claude Code plugin (skills + agents + hooks, markdown)
 └── browse/                ← headless browser source (TypeScript, compiles to single binary)
 
-tests/dispatcher/          ← 107 unit + integration tests (bun test)
+tests/dispatcher/          ← 311 unit + integration tests (bun test)
+tests/eval/                ← 5 end-to-end scenarios per Invariant §12
 docs/                      ← C-phase plan + demo run
 ```
 
@@ -113,33 +114,41 @@ The skills under `plugins/sgc/skills/{discover,plan,work,review,qa,ship,compound
 
 ## Invariants enforced today
 
-| § | Rule | Where enforced |
-|---|------|----------------|
-| 1 | Reviewers/QA cannot read `solutions/` | `capabilities.ts` `forbidden_for` + manifest scope_tokens |
-| 2 | Decisions immutable | `state.ts` `writeIntent` / `writeShip` throw on existing |
-| 4 | L3 needs human signature | `commands/plan.ts` refuses without `--signed-by` |
-| 5 | Reviewer override needs reason ≥40 chars | `state.ts` `appendReview` validates |
-| 6 | Reviews append-only per (task,stage,reviewer) | `state.ts` `appendReview` throws on duplicate |
-| 7 | Schema validation precedes write | field-presence checks in all writers |
-| 8 | Scope tokens pinned at spawn | `spawn.ts` calls `computeSubagentTokens` first |
-| 9 | Subagents output only declared shape | `spawn.ts` `validateOutputShape` after stub return |
-| 3 | Solutions writes pass dedup | `compound.related` dedup_stamp + `dedup.ts` 0.85 threshold |
-| 10 | Compound cluster is a transaction | `runCompound` sequential order — `writeSolution` is the final step; any earlier throw = natural rollback |
-| 11 | Classifier rationale must be concrete | `rationale.ts` regex + keyword check post-classifier |
-| 6 | Every janitor decision logged | `writeJanitorDecision` after `sgc ship` (including skips) |
-| 12 | Eval framework authoritative | `tests/eval/` (L0 + L1 scenarios; 8 more in backlog) |
+| § | Rule | Where enforced | Trust model |
+|---|------|----------------|-------------|
+| 1 | Reviewers/QA cannot read `solutions/` | `capabilities.ts` `forbidden_for` + manifest `scope_tokens` — the manifest declaration is validated at every spawn | **advisory for real-LLM modes** (see below) |
+| 2 | Decisions immutable | `state.ts` `writeIntent` / `writeShip` throw on existing | filesystem-enforced |
+| 3 | Solutions writes pass dedup | `state.ts` `writeSolution` requires `DedupStamp` produced by a prior `compound.related` spawn — direct write without stamp throws `DedupStampMissing` | filesystem-enforced |
+| 4 | L3 needs human signature + interactive yes | `commands/plan.ts` + `commands/ship.ts` refuse without `--signed-by` AND stdin `yes`; `--auto` refused | flag-enforced |
+| 5 | Reviewer override needs reason ≥40 chars | `state.ts` `appendReview` validates | filesystem-enforced |
+| 6 | Every janitor decision logged | `writeJanitorDecision` always; `--janitor-skip-reason "<≥40 chars>"` still writes a synthetic skip decision | flag-enforced |
+| 7 | Schema validation precedes write | field-presence + dedup-stamp checks in all writers | filesystem-enforced |
+| 8 | Scope tokens pinned at spawn | `spawn.ts` calls `computeSubagentTokens` first; pinned set written to prompt audit | **advisory for real-LLM modes** (see below) |
+| 9 | Subagents output only declared shape | `spawn.ts` `validateOutputShape` after agent output (rejects undeclared fields and type-mismatches) | filesystem-enforced |
+| 10 | Compound cluster is a transaction | `runCompound` sequential — `writeSolution` is the final step; earlier throw = no write; `forceError` test hook exercises this | filesystem-enforced |
+| 11 | Classifier rationale must be concrete | `rationale.ts` regex check post-classifier; refuses generic rationales | flag-enforced |
+| 12 | Eval framework authoritative | `tests/eval/` (L0 + L1; 8 more in backlog per D-dec-6) | eval-authored |
 
-All 12 invariants now enforced at runtime as of D-phase.
+### Trust model — real-LLM modes
+
+§1 (reviewers no `read:solutions`) and §8 (scope pinned at spawn) are **fully enforced only in `inline` mode** — the in-process stubs can only do what their code permits, and `validateOutputShape` filters their output.
+
+In **`claude-cli`** and **`anthropic-sdk`** modes the LLM is free to use whatever tools its runtime grants it. sgc embeds the pinned tokens + forbidden-tokens list in the prompt, but that's **advisory**. A malicious or confused LLM running under `claude-cli` could, for example, `bash cat /.sgc/solutions/*.md` — no sandbox is applied. A production deployment that needs §1/§8 runtime-enforced against an arbitrary LLM response would need either:
+
+- a filesystem sandbox around the spawned `claude` process, or
+- a follow-up validator that diff-checks the LLM's observable actions against the pinned scope
+
+Both are E-phase concerns. Today: if you need ironclad §1/§8, run in `inline` mode (stubs) or dispatch to a Claude main session via `file-poll` where you manually review what the agent produces before submitting via `sgc agent-loop`.
 
 ## Test
 
 ```bash
-bun test tests/             # 308 tests (303 dispatcher + 5 eval), ~650ms
+bun test tests/             # 316 tests (311 dispatcher + 5 eval), ~650ms
 bun test tests/dispatcher/  # unit/integration for each module
 bun test tests/eval/        # end-to-end L0/L1 scenarios (Invariant §12)
 ```
 
-Dispatcher tests (303 across 22 files):
+Dispatcher tests (311 across 22 files):
 - `preprocessor.test.ts`, `schema.test.ts`, `capabilities.test.ts`, `state.test.ts`, `validation.ts`-driven `spawn.test.ts` — foundations
 - `rationale.test.ts` — §11 concrete-reference check
 - `sgc-cli.test.ts`, `sgc-plan.test.ts`, `sgc-work.test.ts`, `sgc-review.test.ts` — L0/L1 loop

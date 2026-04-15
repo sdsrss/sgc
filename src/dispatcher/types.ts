@@ -185,3 +185,23 @@ export interface SpawnId {
 export function formatSpawnId(s: SpawnId): string {
   return `${s.ulid}-${s.agent_name}`
 }
+
+// Dedup stamp — Invariant §3 authorization token ─────────────────────────────
+// writeSolution requires one. Produced by compound.related after it has
+// scanned existing solutions/. Without a stamp, writeSolution refuses.
+// This is the state-layer enforcement point for §3 — any caller (future
+// real-LLM agents, scripts) bypassing runCompound is rejected.
+
+export type DedupStampReason =
+  | "new_entry"              // no duplicate match found; writing fresh entry
+  | "update_existing_dedup"  // similarity ≥ threshold; merging into existing
+  | "user_forced"            // --force bypass; requires explicit authorization
+
+export interface DedupStamp {
+  /** spawn_id of the compound.related invocation that produced this stamp. */
+  compound_related_spawn_id: string
+  /** True iff compound.related authorized the write OR user forced. */
+  threshold_met_or_forced: boolean
+  /** Machine-readable reason for the stamp. */
+  reason: DedupStampReason
+}

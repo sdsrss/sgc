@@ -37,7 +37,9 @@ Plan-step → actual commit mapping:
 | D-6.2 | 4 compound agents + dedup + transaction | commit `d3e8f25` (as planned) — discovered + fixed `validateOutputShape` bug where manifests without declared outputs rejected all fields as "undeclared" |
 | D-6.3 | janitor auto-trigger | commit `8b80733` (as planned) |
 | D-7.1 | eval framework skeleton + 2 scenarios | commit `1574bbb` (as planned) |
-| D-8.1 | docs + v1.1.0 | this commit |
+| D-8.1 | docs + v1.1.0 | commit `1c534c5` |
+| (post) | audit fix: §3 stamp + §6 skip-reason + §9 compound outputs + §10 fault injection + trust-model doc | this commit — addresses 3 Critical + 4 Important from post-D-phase code review |
+| (n/a) | `sgc discover` | **NOT implemented in D-phase**. Fell through the plan — opening paragraph listed it as a scoped command but the delivery steps D-1..D-6 never had a row for it. Deferred to E-phase as a low-priority stub (clarifying-questions flow). The CLI stub in `src/sgc.ts` still throws `NotImplementedYet`. |
 
 Patterns vs C-phase:
 - 2-step merges (D-3, D-4) where the halves were tightly coupled — same rationale as C-4.2 being inline with feature commits.

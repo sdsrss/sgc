@@ -33,6 +33,7 @@ import { dirname, resolve } from "node:path"
 import { dump as yamlDump, load as yamlLoad } from "js-yaml"
 import type {
   CurrentTask,
+  DedupStamp,
   FeatureList,
   Handoff,
   IntentDoc,
@@ -54,7 +55,8 @@ export class StateError extends Error {
       | "ShipImmutable"
       | "AppendOnly"
       | "NotFound"
-      | "SolutionDeleteForbidden",
+      | "SolutionDeleteForbidden"
+      | "DedupStampMissing",
     message: string,
   ) {
     super(message)
@@ -437,8 +439,48 @@ export function solutionPath(
   return resolve(root(stateRoot), "solutions", category, `${slug}.md`)
 }
 
+function validateDedupStamp(stamp: DedupStamp | undefined): asserts stamp is DedupStamp {
+  if (!stamp || typeof stamp !== "object") {
+    throw new StateError(
+      "DedupStampMissing",
+      "writeSolution requires a dedup_stamp (Invariant §3). " +
+        "Callers must route through runCompound or construct a stamp from " +
+        "an explicit compound.related spawn.",
+    )
+  }
+  if (typeof stamp.compound_related_spawn_id !== "string" || stamp.compound_related_spawn_id.length === 0) {
+    throw new StateError(
+      "DedupStampMissing",
+      "dedup_stamp.compound_related_spawn_id is required and must reference an on-disk spawn",
+    )
+  }
+  if (stamp.threshold_met_or_forced !== true) {
+    throw new StateError(
+      "DedupStampMissing",
+      `dedup_stamp.threshold_met_or_forced is false — compound.related denied the write (Invariant §3)`,
+    )
+  }
+  const allowedReasons: DedupStamp["reason"][] = [
+    "new_entry",
+    "update_existing_dedup",
+    "user_forced",
+  ]
+  if (!allowedReasons.includes(stamp.reason)) {
+    throw new StateError(
+      "DedupStampMissing",
+      `dedup_stamp.reason must be one of ${allowedReasons.join(", ")}`,
+    )
+  }
+}
+
 /**
  * Write or update a solution entry.
+ *
+ * Requires a `dedup_stamp` — Invariant §3 enforcement. The stamp must be
+ * produced by a prior compound.related spawn (or an explicit --force
+ * authorization). Direct writes without a stamp are refused with
+ * StateError("DedupStampMissing"). See types.ts DedupStamp.
+ *
  *   - New path   → fresh write
  *   - Existing   → update-existing semantics (Invariant §3):
  *                   • append new source_task_ids (dedup preserved)
@@ -451,9 +493,11 @@ export function solutionPath(
 export function writeSolution(
   entry: SolutionEntry,
   slug: string,
+  dedupStamp: DedupStamp,
   body = "",
   stateRoot?: string,
 ): { path: string; entry: SolutionEntry } {
+  validateDedupStamp(dedupStamp)
   validateSolution(entry)
   const path = solutionPath(entry.category, slug, stateRoot)
 

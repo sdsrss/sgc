@@ -75,6 +75,13 @@ export interface SpawnOptions {
   claudeCliRunner?: SubprocessRunner  // test hook for claude-cli mode
   anthropicClientFactory?: AnthropicClientFactory  // test hook for anthropic-sdk mode
   hasClaudeCli?: () => boolean  // test hook for resolveMode auto-detect
+  /**
+   * Test-only fault injection — if set, throw this error after writing
+   * the prompt file but before producing the result. Used by Invariant §10
+   * (compound transaction atomicity) tests to prove runCompound rolls
+   * back cleanly when a mid-cluster spawn fails.
+   */
+  forceError?: Error
 }
 
 const root = (custom?: string): string =>
@@ -223,6 +230,13 @@ export async function spawn<I = unknown, O = unknown>(
   const resultPath = getResultPath(spawnId, stateRoot)
 
   writeAtomic(promptPath, formatPrompt(spawnId, manifest, input, tokens, resultPath))
+
+  // Test-only fault injection — after prompt write, before result.
+  // Mirrors a mid-spawn failure (e.g. LLM timeout). The prompt audit trail
+  // remains on disk; the result file is not written.
+  if (opts.forceError) {
+    throw opts.forceError
+  }
 
   const mode = resolveMode(opts)
   let output: unknown

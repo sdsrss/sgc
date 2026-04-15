@@ -33,7 +33,7 @@ import {
   readIntent,
   writeSolution,
 } from "../dispatcher/state"
-import type { SolutionEntry, TaskId } from "../dispatcher/types"
+import type { DedupStamp, SolutionEntry, TaskId } from "../dispatcher/types"
 
 export interface CompoundOptions {
   stateRoot?: string
@@ -133,7 +133,12 @@ export async function runCompound(opts: CompoundOptions = {}): Promise<CompoundR
         `compound.related returned ref ${related.duplicate_match.ref} but entry not on disk`,
       )
     }
-    // writeSolution's update-existing semantics handle the merge
+    // Invariant §3 stamp: update_existing authorized because related found a match
+    const stamp: DedupStamp = {
+      compound_related_spawn_id: relRes.spawnId,
+      threshold_met_or_forced: true,
+      reason: "update_existing_dedup",
+    }
     const updated = writeSolution(
       {
         ...existingFile.entry,
@@ -141,6 +146,7 @@ export async function runCompound(opts: CompoundOptions = {}): Promise<CompoundR
         last_updated: nowIso(),
       },
       existingFile.slug,
+      stamp,
       "",
       stateRoot,
     )
@@ -211,7 +217,14 @@ export async function runCompound(opts: CompoundOptions = {}): Promise<CompoundR
   const slug =
     opts.slug ??
     (slugify(context.problem_summary) || `task-${taskId.slice(0, 8).toLowerCase()}`)
-  const written = writeSolution(entry, slug, "", stateRoot)
+
+  // Invariant §3 stamp: new entry, no duplicate at threshold (or forced)
+  const stamp: DedupStamp = {
+    compound_related_spawn_id: relRes.spawnId,
+    threshold_met_or_forced: true,
+    reason: opts.force && related.duplicate_match ? "user_forced" : "new_entry",
+  }
+  const written = writeSolution(entry, slug, stamp, "", stateRoot)
 
   log(
     `compound: action=compound category=${context.category} slug=${slug} related=${related.related_entries.length}`,

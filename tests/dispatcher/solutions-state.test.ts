@@ -11,7 +11,13 @@ import {
   solutionPath,
   writeSolution,
 } from "../../src/dispatcher/state"
-import type { SolutionEntry } from "../../src/dispatcher/types"
+import type { DedupStamp, SolutionEntry } from "../../src/dispatcher/types"
+
+const OK_STAMP: DedupStamp = {
+  compound_related_spawn_id: "01TESTSTAMP0000000000-compound.related",
+  threshold_met_or_forced: true,
+  reason: "new_entry",
+}
 
 let tmp: string
 beforeEach(() => {
@@ -48,13 +54,13 @@ function makeEntry(overrides: Partial<SolutionEntry> = {}): SolutionEntry {
 
 describe("writeSolution — new write", () => {
   test("writes path + returns entry", () => {
-    const r = writeSolution(makeEntry(), "empty-password-500", "", tmp)
+    const r = writeSolution(makeEntry(), "empty-password-500", OK_STAMP, "", tmp)
     expect(existsSync(r.path)).toBe(true)
     expect(r.entry.source_task_ids.length).toBe(1)
     expect(r.path).toMatch(/solutions\/runtime\/empty-password-500\.md$/)
   })
   test("readSolution round-trip", () => {
-    writeSolution(makeEntry(), "foo", "# Body", tmp)
+    writeSolution(makeEntry(), "foo", OK_STAMP, "# Body", tmp)
     const back = readSolution("runtime", "foo", tmp)
     expect(back?.entry.signature).toBe("a".repeat(64))
     expect(back?.body).toBe("# Body")
@@ -67,6 +73,7 @@ describe("writeSolution — schema validation", () => {
       writeSolution(
         { ...makeEntry(), problem: undefined as unknown as string },
         "x",
+        OK_STAMP,
         "",
         tmp,
       ),
@@ -77,29 +84,31 @@ describe("writeSolution — schema validation", () => {
       writeSolution(
         { ...makeEntry(), category: "nope" as unknown as SolutionEntry["category"] },
         "x",
+        OK_STAMP,
         "",
         tmp,
       ),
     ).toThrow(/not in/)
   })
   test("empty tags throws", () => {
-    expect(() => writeSolution(makeEntry({ tags: [] }), "x", "", tmp)).toThrow(
+    expect(() => writeSolution(makeEntry({ tags: [] }), "x", OK_STAMP, "", tmp)).toThrow(
       /non-empty array/,
     )
   })
   test("empty source_task_ids throws", () => {
     expect(() =>
-      writeSolution(makeEntry({ source_task_ids: [] }), "x", "", tmp),
+      writeSolution(makeEntry({ source_task_ids: [] }), "x", OK_STAMP, "", tmp),
     ).toThrow(/source_task_ids/)
   })
 })
 
 describe("writeSolution — update-existing semantics (Invariant §3)", () => {
   test("second write appends source_task_ids (deduplicated)", () => {
-    writeSolution(makeEntry({ source_task_ids: ["T1"] }), "dup", "", tmp)
+    writeSolution(makeEntry({ source_task_ids: ["T1"] }), "dup", OK_STAMP, "", tmp)
     const r = writeSolution(
       makeEntry({ source_task_ids: ["T2"] }),
       "dup",
+      OK_STAMP,
       "",
       tmp,
     )
@@ -108,6 +117,7 @@ describe("writeSolution — update-existing semantics (Invariant §3)", () => {
     const r2 = writeSolution(
       makeEntry({ source_task_ids: ["T1"] }),
       "dup",
+      OK_STAMP,
       "",
       tmp,
     )
@@ -118,12 +128,14 @@ describe("writeSolution — update-existing semantics (Invariant §3)", () => {
     writeSolution(
       makeEntry({ solution: "ORIGINAL sol", prevention: "ORIGINAL prev" }),
       "preserve",
+      OK_STAMP,
       "",
       tmp,
     )
     const r = writeSolution(
       makeEntry({ solution: "NEW sol", prevention: "NEW prev" }),
       "preserve",
+      OK_STAMP,
       "",
       tmp,
     )
@@ -137,6 +149,7 @@ describe("writeSolution — update-existing semantics (Invariant §3)", () => {
         what_didnt_work: [{ approach: "A", reason_failed: "a" }],
       }),
       "wdw",
+      OK_STAMP,
       "",
       tmp,
     )
@@ -148,6 +161,7 @@ describe("writeSolution — update-existing semantics (Invariant §3)", () => {
         ],
       }),
       "wdw",
+      OK_STAMP,
       "",
       tmp,
     )
@@ -157,10 +171,10 @@ describe("writeSolution — update-existing semantics (Invariant §3)", () => {
   })
 
   test("times_referenced bumps on update", () => {
-    writeSolution(makeEntry({ times_referenced: 0 }), "counter", "", tmp)
-    const r2 = writeSolution(makeEntry({ times_referenced: 0 }), "counter", "", tmp)
+    writeSolution(makeEntry({ times_referenced: 0 }), "counter", OK_STAMP, "", tmp)
+    const r2 = writeSolution(makeEntry({ times_referenced: 0 }), "counter", OK_STAMP, "", tmp)
     expect(r2.entry.times_referenced).toBe(1)
-    const r3 = writeSolution(makeEntry({ times_referenced: 0 }), "counter", "", tmp)
+    const r3 = writeSolution(makeEntry({ times_referenced: 0 }), "counter", OK_STAMP, "", tmp)
     expect(r3.entry.times_referenced).toBe(2)
   })
 
@@ -168,12 +182,14 @@ describe("writeSolution — update-existing semantics (Invariant §3)", () => {
     writeSolution(
       makeEntry({ last_updated: "2026-04-01T00:00:00Z" }),
       "ts",
+      OK_STAMP,
       "",
       tmp,
     )
     const r = writeSolution(
       makeEntry({ last_updated: "2026-05-01T00:00:00Z" }),
       "ts",
+      OK_STAMP,
       "",
       tmp,
     )
@@ -186,8 +202,8 @@ describe("listSolutions + solutionPath + deleteSolution", () => {
     expect(listSolutions(tmp)).toEqual([])
   })
   test("returns written entries with category/slug/path", () => {
-    writeSolution(makeEntry({ category: "auth" }), "login-500", "", tmp)
-    writeSolution(makeEntry({ category: "perf", id: "01HX2" }), "slow-query", "", tmp)
+    writeSolution(makeEntry({ category: "auth" }), "login-500", OK_STAMP, "", tmp)
+    writeSolution(makeEntry({ category: "perf", id: "01HX2" }), "slow-query", OK_STAMP, "", tmp)
     const all = listSolutions(tmp)
     expect(all.length).toBe(2)
     const cats = all.map((s) => s.category).sort()
@@ -208,5 +224,60 @@ describe("listSolutions + solutionPath + deleteSolution", () => {
   test("deleteSolution throws (Invariant §3 delete-forbidden)", () => {
     expect(() => deleteSolution("runtime", "foo", tmp)).toThrow(StateError)
     expect(() => deleteSolution("runtime", "foo", tmp)).toThrow(/delete-forbidden/)
+  })
+})
+
+describe("writeSolution — §3 dedup stamp enforcement (audit C1)", () => {
+  test("missing stamp throws DedupStampMissing", () => {
+    // Cast around the required param to exercise the runtime guard
+    expect(() =>
+      (writeSolution as unknown as (...a: unknown[]) => unknown)(
+        makeEntry(),
+        "no-stamp",
+        undefined,
+        "",
+        tmp,
+      ),
+    ).toThrow(/dedup_stamp/)
+  })
+
+  test("stamp with threshold_met_or_forced=false is rejected", () => {
+    const badStamp: DedupStamp = {
+      compound_related_spawn_id: "01X-compound.related",
+      threshold_met_or_forced: false,
+      reason: "new_entry",
+    }
+    expect(() =>
+      writeSolution(makeEntry(), "denied", badStamp, "", tmp),
+    ).toThrow(/threshold_met_or_forced is false/)
+  })
+
+  test("stamp missing compound_related_spawn_id rejected", () => {
+    const badStamp = { threshold_met_or_forced: true, reason: "new_entry" } as unknown as DedupStamp
+    expect(() =>
+      writeSolution(makeEntry(), "orphan", badStamp, "", tmp),
+    ).toThrow(/compound_related_spawn_id/)
+  })
+
+  test("stamp with unknown reason rejected", () => {
+    const badStamp = {
+      compound_related_spawn_id: "01X-compound.related",
+      threshold_met_or_forced: true,
+      reason: "not_a_valid_reason",
+    } as unknown as DedupStamp
+    expect(() =>
+      writeSolution(makeEntry(), "bad-reason", badStamp, "", tmp),
+    ).toThrow(/reason must be one of/)
+  })
+
+  test("user_forced stamp is accepted", () => {
+    const forcedStamp: DedupStamp = {
+      compound_related_spawn_id: "01X-compound.related",
+      threshold_met_or_forced: true,
+      reason: "user_forced",
+    }
+    expect(() =>
+      writeSolution(makeEntry(), "forced", forcedStamp, "", tmp),
+    ).not.toThrow()
   })
 })

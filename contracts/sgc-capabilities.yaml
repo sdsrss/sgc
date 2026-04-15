@@ -350,10 +350,32 @@ subagents:
       - "read:reviews"
     token_budget: 5000
     timeout_s: 180
+    outputs:
+      category: enum[runtime, build, auth, data, perf, ui, infra, other]
+      tags: array[string]
+      problem_summary: markdown
+      symptoms: array[string]
 
-  compound.solution:    { <<: *compound_base, purpose: "Extract what worked / didn't" }
-  compound.related:     { <<: *compound_base, purpose: "Dedup check — MUST run before any write" }
-  compound.prevention:  { <<: *compound_base, purpose: "Derive prevention strategy" }
+  compound.solution:
+    <<: *compound_base
+    purpose: "Extract what worked / didn't"
+    outputs:
+      solution: markdown
+      what_didnt_work: array[{approach, reason_failed}]
+
+  compound.related:
+    <<: *compound_base
+    purpose: "Dedup check — MUST run before any write"
+    outputs:
+      duplicate_match: object
+      related_entries: array[string]
+      dedup_stamp: object
+
+  compound.prevention:
+    <<: *compound_base
+    purpose: "Derive prevention strategy"
+    outputs:
+      prevention: markdown
 
   # ---- Janitors ----
   janitor.compound:

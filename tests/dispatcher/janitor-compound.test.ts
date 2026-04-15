@@ -138,12 +138,43 @@ describe("ship → janitor → compound integration (Invariant §6)", () => {
     expect(listSolutions(tmp).length).toBe(1)
   })
 
-  test("--no-janitor skips janitor entirely (decision NOT logged)", async () => {
+  test("--janitor-skip-reason still logs a synthetic decision (Invariant §6, audit C3)", async () => {
+    await l1Ready()
+    const reason =
+      "skip requested: follow-up ticket XYZ-42 is handling compound separately"
+    const r = await runShip({
+      stateRoot: tmp,
+      janitorSkipReason: reason,
+      log: () => {},
+    })
+    expect(r.janitorDecision?.decision).toBe("skip")
+    expect(r.janitorDecision?.reason_code).toBe("user_opt_out")
+    const logged = readJanitorDecision(r.taskId, tmp)
+    expect(logged).not.toBeNull()
+    expect(logged?.decision).toBe("skip")
+    expect(logged?.reason_code).toBe("user_opt_out")
+    expect(logged?.reason_human).toBe(reason)
+    expect(listSolutions(tmp).length).toBe(0)
+  })
+
+  test("--janitor-skip-reason with <40 chars throws (Invariant §6)", async () => {
+    await l1Ready()
+    await expect(
+      runShip({
+        stateRoot: tmp,
+        janitorSkipReason: "too short",
+        log: () => {},
+      }),
+    ).rejects.toThrow(/≥40 chars/)
+  })
+
+  test("runJanitor=false (test-only harness path) suppresses without logging", async () => {
+    // This path exists for harness code that knows it's bypassing §6.
+    // Production CLI has no corresponding flag — users must provide a reason.
     await l1Ready()
     const r = await runShip({ stateRoot: tmp, runJanitor: false, log: () => {} })
     expect(r.janitorDecision).toBeUndefined()
     expect(readJanitorDecision(r.taskId, tmp)).toBeNull()
-    expect(listSolutions(tmp).length).toBe(0)
   })
 
   test("--force-compound → janitor compounds + runCompound writes entry even for L1 clean", async () => {

@@ -179,10 +179,11 @@ const ship = defineCommand({
       required: false,
       description: "PR body override (default: auto-generated summary)",
     },
-    "no-janitor": {
-      type: "boolean",
+    "janitor-skip-reason": {
+      type: "string",
       required: false,
-      description: "Skip post-ship janitor.compound invocation (default: run)",
+      description:
+        "Opt out of janitor.compound invocation. Writes a synthetic skip decision (reason_code=user_opt_out) with your ≥40-char justification. Required field — there is no silent-skip flag (Invariant §6).",
     },
     "force-compound": {
       type: "boolean",
@@ -198,7 +199,7 @@ const ship = defineCommand({
       createPr: args.pr as boolean | undefined,
       prTitle: args["pr-title"] as string | undefined,
       prBody: args["pr-body"] as string | undefined,
-      runJanitor: args["no-janitor"] ? false : undefined,
+      janitorSkipReason: args["janitor-skip-reason"] as string | undefined,
       forceCompound: args["force-compound"] as boolean | undefined,
     })
   },

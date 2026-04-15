@@ -95,6 +95,29 @@ describe("spawn — inline-stub mode", () => {
     ).rejects.toThrow(/expected array/)
   })
 
+  test("forceError fault injection throws after prompt written, before result", async () => {
+    // §10 transaction test harness: ensures the prompt audit file is
+    // on disk (the spawn REQUEST was made) but no result file exists
+    // (the spawn did NOT complete). runCompound relies on this property
+    // to roll back — if a mid-cluster agent throws, writeSolution is
+    // never called and solutions/ is untouched.
+    const err = new Error("injected failure for §10 test")
+    await expect(
+      spawn("classifier.level", { user_request: "x" }, {
+        stateRoot: tmp,
+        ulid: "01FAULT0000000000000000000",
+        forceError: err,
+        inlineStub: () => ({ level: "L0", rationale: "x", affected_readers_candidates: [] }),
+      }),
+    ).rejects.toBe(err)
+    // Prompt file WAS written (we saw the spawn request in the audit)
+    const { existsSync } = require("node:fs")
+    const pp = resolve(tmp, "progress/agent-prompts", "01FAULT0000000000000000000-classifier.level.md")
+    const rp = resolve(tmp, "progress/agent-results", "01FAULT0000000000000000000-classifier.level.md")
+    expect(existsSync(pp)).toBe(true)
+    expect(existsSync(rp)).toBe(false)
+  })
+
   test("valid stub output passes all type checks", async () => {
     const r = await spawn("reviewer.correctness", {}, {
       stateRoot: tmp,

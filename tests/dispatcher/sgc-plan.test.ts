@@ -62,16 +62,41 @@ describe("runPlan — full L1 plan flow", () => {
     ).rejects.toThrow(/L3 plan requires human signature/)
   })
 
-  test("L3 with --signed-by succeeds", async () => {
+  test("L3 with --signed-by + 'yes' confirmation succeeds", async () => {
     const r = await runPlan("add a database migration to rename column", {
       stateRoot: tmp,
       motivation: LONG_MOTIVATION,
       userSignature: { signed_at: "2026-04-15T10:00:00Z", signer_id: "alice" },
+      readConfirmation: async () => "yes",
       log: () => {},
     })
     expect(r.level).toBe("L3")
     const intent = readIntent(r.taskId, tmp)
     expect(intent.user_signature?.signer_id).toBe("alice")
+  })
+
+  test("L3 without 'yes' confirmation throws + does NOT write intent (D-3.2)", async () => {
+    await expect(
+      runPlan("add a database migration to rename column", {
+        stateRoot: tmp,
+        motivation: LONG_MOTIVATION,
+        userSignature: { signed_at: "2026-04-15T10:00:00Z", signer_id: "alice" },
+        readConfirmation: async () => "no",
+        log: () => {},
+      }),
+    ).rejects.toThrow(/not confirmed/)
+  })
+
+  test("L3 refuses --auto even with --signed-by (Invariant §4)", async () => {
+    await expect(
+      runPlan("add a database migration to rename column", {
+        stateRoot: tmp,
+        motivation: LONG_MOTIVATION,
+        userSignature: { signed_at: "2026-04-15T10:00:00Z", signer_id: "alice" },
+        autoConfirm: true,
+        log: () => {},
+      }),
+    ).rejects.toThrow(/refuses --auto/)
   })
 
   test("classifies API change as L2", async () => {

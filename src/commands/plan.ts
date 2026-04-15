@@ -25,6 +25,10 @@ import {
   researcherHistory,
   type ResearcherHistoryOutput,
 } from "../dispatcher/agents/researcher-history"
+import {
+  plannerAdversarial,
+  type PlannerAdversarialOutput,
+} from "../dispatcher/agents/planner-adversarial"
 import { validateClassifierRationale } from "../dispatcher/rationale"
 import {
   ensureSgcStructure,
@@ -44,6 +48,11 @@ export interface PlanOptions {
   // Explicit motivation; defaults to taskDescription. Must be ≥20 words for
   // L1+ tasks (audit C-phase C3, sgc-state.schema.yaml:52 min_words rule).
   motivation?: string
+  // --auto flag; REFUSED at L3 per Invariant §4.
+  autoConfirm?: boolean
+  // Test hook: inject the interactive confirmation reader (returns user
+  // input, e.g. "yes"). Default reads one line from process.stdin.
+  readConfirmation?: () => Promise<string>
   // Logger sink; defaults to console.log
   log?: (msg: string) => void
 }
@@ -75,6 +84,11 @@ async function readLineSync(): Promise<string> {
     }
     stdin.on("data", onData)
   })
+}
+
+/** Default stdin reader for L3 interactive confirmation (D-3.2). */
+async function defaultReadConfirmation(): Promise<string> {
+  return readLineSync()
 }
 
 export async function runPlan(taskDescription: string, opts: PlanOptions = {}): Promise<{
@@ -113,13 +127,18 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
     log(`level overridden to ${level} (upgrade)`)
   }
 
-  // Step 3: planner cluster — L1 gets eng only; L2+ adds ceo + researcher in parallel.
+  // Step 3: planner cluster
+  //   L0 → skip
+  //   L1 → planner.eng
+  //   L2 → planner.eng + planner.ceo + researcher.history (3-way parallel)
+  //   L3 → L2 cluster + planner.adversarial (4-way parallel)
+  // Every spawn gets its own pinned scope tokens (Invariant §8).
   let plannerEngOut: PlannerEngOutput | null = null
   let plannerCeoOut: PlannerCeoOutput | null = null
   let researcherOut: ResearcherHistoryOutput | null = null
+  let adversarialOut: PlannerAdversarialOutput | null = null
   if (LEVEL_RANK[level] >= 2) {
-    // 3-way parallel dispatch for L2/L3 (Invariant §8 scope tokens pinned per spawn)
-    const [engRes, ceoRes, histRes] = await Promise.all([
+    const tasks: Promise<unknown>[] = [
       spawn<unknown, PlannerEngOutput>(
         "planner.eng",
         { intent_draft: taskDescription },
@@ -139,10 +158,28 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
             researcherHistory(i as { intent_draft: string }, { stateRoot }),
         },
       ),
-    ])
-    plannerEngOut = engRes.output
-    plannerCeoOut = ceoRes.output
-    researcherOut = histRes.output
+    ]
+    if (level === "L3") {
+      tasks.push(
+        spawn<unknown, PlannerAdversarialOutput>(
+          "planner.adversarial",
+          { intent_draft: taskDescription },
+          {
+            stateRoot,
+            inlineStub: (i) => plannerAdversarial(i as { intent_draft: string }),
+          },
+        ),
+      )
+    }
+    const results = (await Promise.all(tasks)) as {
+      output: unknown
+    }[]
+    plannerEngOut = results[0]!.output as PlannerEngOutput
+    plannerCeoOut = results[1]!.output as PlannerCeoOutput
+    researcherOut = results[2]!.output as ResearcherHistoryOutput
+    if (level === "L3") {
+      adversarialOut = results[3]!.output as PlannerAdversarialOutput
+    }
     log(`planner.eng verdict: ${plannerEngOut.verdict}`)
     if (plannerEngOut.concerns.length > 0) {
       for (const c of plannerEngOut.concerns) log(`  eng concern: ${c}`)
@@ -160,6 +197,12 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
       }`,
     )
     for (const w of researcherOut.warnings) log(`  research warning: ${w}`)
+    if (adversarialOut) {
+      log(`planner.adversarial: ${adversarialOut.failure_modes.length} failure mode(s)`)
+      for (const fm of adversarialOut.failure_modes) {
+        log(`  [${fm.probability}/${fm.impact}] ${fm.scenario}`)
+      }
+    }
   } else if (LEVEL_RANK[level] >= 1) {
     // L1: eng only
     const planRes = await spawn<unknown, PlannerEngOutput>(
@@ -180,6 +223,39 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
       `L3 plan requires human signature. Re-run with --signed-by <signer_id> ` +
         `to acknowledge architecture-level scope.`,
     )
+  }
+  // Invariant §4: L3 refuses --auto. Human must confirm interactively even
+  // with --signed-by (D-3.2 gate).
+  if (level === "L3" && opts.autoConfirm) {
+    throw new Error(
+      `L3 plan refuses --auto (Invariant §4). Human confirmation at stdin is required.`,
+    )
+  }
+  if (level === "L3") {
+    log("")
+    log("=== L3 PLAN SUMMARY — confirm before intent.md is written (immutable) ===")
+    log(`  task_id:    ${taskId}`)
+    log(`  task:       ${taskDescription.slice(0, 120)}`)
+    log(`  classifier: ${classRes.output.rationale}`)
+    if (plannerEngOut)
+      log(`  eng:        ${plannerEngOut.verdict} (${plannerEngOut.concerns.length} concerns)`)
+    if (plannerCeoOut)
+      log(`  ceo:        ${plannerCeoOut.verdict} (${plannerCeoOut.concerns.length} concerns)`)
+    if (researcherOut)
+      log(`  research:   ${researcherOut.prior_art.length} prior art entries`)
+    if (adversarialOut)
+      log(`  pre-mortem: ${adversarialOut.failure_modes.length} failure mode(s)`)
+    log(`  signer:     ${opts.userSignature!.signer_id}`)
+    log("")
+    log("Type 'yes' to commit intent.md (or Ctrl+C to abort):")
+    const reader = opts.readConfirmation ?? defaultReadConfirmation
+    const answer = (await reader()).trim().toLowerCase()
+    if (answer !== "yes") {
+      throw new Error(
+        `L3 plan not confirmed at stdin (got '${answer || "(empty)"}'); intent.md NOT written.`,
+      )
+    }
+    log("confirmed — writing intent.md")
   }
 
   // L0 skips intent.md per sgc-state.schema.yaml:31 — "L0 tasks do NOT write
@@ -232,8 +308,18 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
                   )
                   .join("\n") + "\n\n") +
             (researcherOut.warnings.length
-              ? `### Research warnings\n\n${researcherOut.warnings.map((w) => `- ${w}`).join("\n")}\n`
+              ? `### Research warnings\n\n${researcherOut.warnings.map((w) => `- ${w}`).join("\n")}\n\n`
               : "")
+          : "") +
+        (adversarialOut
+          ? `## Pre-mortem (planner.adversarial)\n\n` +
+            adversarialOut.failure_modes
+              .map(
+                (fm) =>
+                  `### [${fm.probability}/${fm.impact}] ${fm.scenario}\n` +
+                  `Early signal: ${fm.early_signal}\n`,
+              )
+              .join("\n")
           : ""),
     }
     intentPath = writeIntent(intent, stateRoot)

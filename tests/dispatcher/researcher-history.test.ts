@@ -159,6 +159,7 @@ describe("runPlan — researcher.history wiring (D-2.2)", () => {
       stateRoot: tmp,
       motivation: LONG_MOTIVATION,
       userSignature: { signed_at: "2026-04-15T10:00:00Z", signer_id: "alice" },
+      readConfirmation: async () => "yes",
       log: () => {},
     })
     expect(r.level).toBe("L3")

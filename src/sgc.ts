@@ -60,6 +60,11 @@ const plan = defineCommand({
       required: false,
       description: "Long-form rationale (≥20 words; required for L1+ if task description is short)",
     },
+    auto: {
+      type: "boolean",
+      required: false,
+      description: "Skip interactive confirmation. REFUSED at L3 (Invariant §4).",
+    },
   },
   async run({ args }) {
     const { runPlan } = await import("./commands/plan")
@@ -72,6 +77,7 @@ const plan = defineCommand({
       forceLevel: force,
       userSignature,
       motivation: args.motivation as string | undefined,
+      autoConfirm: args.auto as boolean | undefined,
     })
   },
 })

@@ -9,7 +9,7 @@ import sync from "./commands/sync"
 
 const main = defineCommand({
   meta: {
-    name: "compound-plugin",
+    name: "sgc-convert",
     version: packageJson.version,
     description: "Convert Claude Code plugins into other agent formats",
   },

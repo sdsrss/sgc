@@ -17,7 +17,7 @@ const PI_AGENTS_BLOCK_END = "<!-- END COMPOUND PI TOOL MAP -->"
 
 const PI_AGENTS_BLOCK_BODY = `## Compound Engineering (Pi compatibility)
 
-This block is managed by compound-plugin.
+This block is managed by sgc-convert.
 
 Compatibility notes:
 - Claude Task(agent, args) maps to the subagent extension tool

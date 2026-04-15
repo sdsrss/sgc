@@ -194,7 +194,7 @@ function generateEntryPoint(commands: OpenClawCommandRegistration[]): string {
     .join("\n\n")
 
   return `// Auto-generated OpenClaw plugin entry point
-// Converted from Claude Code plugin format by compound-plugin CLI
+// Converted from Claude Code plugin format by sgc-convert CLI
 import { promises as fs } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";

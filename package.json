@@ -4,14 +4,12 @@
   "description": "SGC — engineering agent: plan, execute, review, QA, ship, and compound knowledge. Merges the best of Superpowers, gstack, and Compound Engineering into a single coherent system.",
   "type": "module",
   "bin": {
-    "sgc": "./src/index.ts",
+    "sgc-convert": "./src/index.ts",
     "browse": "./plugins/sgc/browse/dist/browse"
   },
   "scripts": {
     "build:browse": "bun build ./plugins/sgc/browse/src/cli.ts --compile --outfile ./plugins/sgc/browse/dist/browse",
-    "test": "bun test",
-    "release:validate": "bun run src/release/validate.ts",
-    "release:sync-metadata": "bun run src/release/sync-metadata.ts"
+    "test": "bun test"
   },
   "author": {
     "name": "SDS"
@@ -21,6 +19,8 @@
     "@types/bun": "latest"
   },
   "dependencies": {
+    "citty": "^0.1.6",
+    "diff": "^5.2.0",
     "playwright": "^1.52.0"
   }
 }

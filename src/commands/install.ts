@@ -280,7 +280,7 @@ async function resolveBundledPluginPath(pluginName: string): Promise<string | nu
 }
 
 async function resolveGitHubPluginPath(pluginName: string, branch?: string): Promise<ResolvedPluginPath> {
-  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "compound-plugin-"))
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "sgc-convert-"))
   const source = resolveGitHubSource()
   try {
     await cloneGitHubRepo(source, tempRoot, branch)

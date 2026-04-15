@@ -44,7 +44,7 @@ Dispatch `sgc:classifier:level` to classify the task. The classifier evaluates:
 
 Present the classification to the user: "Classified as **L{n}** because: {reason}. Agree?"
 
-If the user disagrees, re-classify with their input.
+If the user disagrees, re-classify with their input. **Level may only be upgraded, not downgraded** — if the classifier says L2 and the user asks for L1, refuse and proceed at L2 (the risk of under-reviewing an architectural change is strictly worse than the minutes saved). Upgrades (L1 → L2, L2 → L3) are always honored.
 
 ### Step 2: Route by Level
 

@@ -14,3 +14,7 @@ plugins/sgc/browse/dist/
 # Runtime state (project-specific, not plugin code)
 .sgc/
 .context/
+
+# IDE / editor / Claude session metadata
+.claude/
+bun.lock

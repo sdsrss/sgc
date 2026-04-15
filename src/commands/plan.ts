@@ -20,6 +20,7 @@ import {
   type ClassifierOutput,
 } from "../dispatcher/agents/classifier-level"
 import { plannerEng, type PlannerEngOutput } from "../dispatcher/agents/planner-eng"
+import { plannerCeo, type PlannerCeoOutput } from "../dispatcher/agents/planner-ceo"
 import { validateClassifierRationale } from "../dispatcher/rationale"
 import {
   ensureSgcStructure,
@@ -108,18 +109,47 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
     log(`level overridden to ${level} (upgrade)`)
   }
 
-  // Step 3: L1+ runs planner.eng
-  let plannerOut: PlannerEngOutput | null = null
-  if (LEVEL_RANK[level] >= 1) {
+  // Step 3: planner cluster — L1 gets eng only; L2+ adds ceo in parallel.
+  let plannerEngOut: PlannerEngOutput | null = null
+  let plannerCeoOut: PlannerCeoOutput | null = null
+  if (LEVEL_RANK[level] >= 2) {
+    // Parallel dispatch for L2/L3 (Invariant §8 scope tokens pinned per spawn)
+    const [engRes, ceoRes] = await Promise.all([
+      spawn<unknown, PlannerEngOutput>(
+        "planner.eng",
+        { intent_draft: taskDescription },
+        { stateRoot, inlineStub: (i) => plannerEng(i as { intent_draft: string }) },
+      ),
+      spawn<unknown, PlannerCeoOutput>(
+        "planner.ceo",
+        { intent_draft: taskDescription },
+        { stateRoot, inlineStub: (i) => plannerCeo(i as { intent_draft: string }) },
+      ),
+    ])
+    plannerEngOut = engRes.output
+    plannerCeoOut = ceoRes.output
+    log(`planner.eng verdict: ${plannerEngOut.verdict}`)
+    if (plannerEngOut.concerns.length > 0) {
+      for (const c of plannerEngOut.concerns) log(`  eng concern: ${c}`)
+    }
+    log(`planner.ceo verdict: ${plannerCeoOut.verdict}`)
+    if (plannerCeoOut.concerns.length > 0) {
+      for (const c of plannerCeoOut.concerns) log(`  ceo concern: ${c}`)
+    }
+    if (plannerCeoOut.rewrite_hints.length > 0) {
+      for (const h of plannerCeoOut.rewrite_hints) log(`  ceo hint: ${h}`)
+    }
+  } else if (LEVEL_RANK[level] >= 1) {
+    // L1: eng only
     const planRes = await spawn<unknown, PlannerEngOutput>(
       "planner.eng",
       { intent_draft: taskDescription },
       { stateRoot, inlineStub: (i) => plannerEng(i as { intent_draft: string }) },
     )
-    plannerOut = planRes.output
-    log(`planner.eng verdict: ${plannerOut.verdict}`)
-    if (plannerOut.concerns.length > 0) {
-      for (const c of plannerOut.concerns) log(`  concern: ${c}`)
+    plannerEngOut = planRes.output
+    log(`planner.eng verdict: ${plannerEngOut.verdict}`)
+    if (plannerEngOut.concerns.length > 0) {
+      for (const c of plannerEngOut.concerns) log(`  concern: ${c}`)
     }
   }
 
@@ -155,10 +185,19 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
       user_signature: opts.userSignature,
       body:
         `## Classifier rationale\n\n${classRes.output.rationale}\n\n` +
-        (plannerOut
-          ? `## Planner.eng verdict\n\n${plannerOut.verdict}\n\n` +
-            (plannerOut.concerns.length
-              ? `### Concerns\n\n${plannerOut.concerns.map((c) => `- ${c}`).join("\n")}\n`
+        (plannerEngOut
+          ? `## Planner.eng verdict\n\n${plannerEngOut.verdict}\n\n` +
+            (plannerEngOut.concerns.length
+              ? `### Eng concerns\n\n${plannerEngOut.concerns.map((c) => `- ${c}`).join("\n")}\n\n`
+              : "")
+          : "") +
+        (plannerCeoOut
+          ? `## Planner.ceo verdict\n\n${plannerCeoOut.verdict}\n\n` +
+            (plannerCeoOut.concerns.length
+              ? `### CEO concerns\n\n${plannerCeoOut.concerns.map((c) => `- ${c}`).join("\n")}\n\n`
+              : "") +
+            (plannerCeoOut.rewrite_hints.length
+              ? `### CEO rewrite hints\n\n${plannerCeoOut.rewrite_hints.map((h) => `- ${h}`).join("\n")}\n`
               : "")
           : ""),
     }

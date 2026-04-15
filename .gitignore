@@ -9,8 +9,8 @@ dist/
 Thumbs.db
 
 # Browse binary (built from source)
-plugins/unified/browse/dist/
+plugins/sgc/browse/dist/
 
 # Runtime state (project-specific, not plugin code)
-.unified/
+.sgc/
 .context/

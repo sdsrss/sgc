@@ -1,0 +1,404 @@
+# SGC Capabilities Contract
+# Version: 0.1
+#
+# This file defines WHAT each actor in the system is allowed to do.
+# The dispatcher consults this file before every subagent spawn and
+# every state write. Attempts to exceed granted scope are rejected
+# at dispatch time, not at execution time.
+#
+# Three sections:
+#   1. scope_tokens     — the capability vocabulary
+#   2. permissions      — command-level RW matrix
+#   3. subagents        — per-subagent manifests (contracts)
+
+schema_version: "0.1"
+
+# ============================================================================
+# 1. SCOPE TOKENS  —  the capability vocabulary
+# ============================================================================
+# Every capability in the system is named here. Subagents may only hold
+# tokens listed below. Introducing a new capability requires a new token
+# declaration — no ad-hoc permissions.
+
+scope_tokens:
+
+  # ---- State layer: read ----
+  "read:decisions":
+    description: Read decisions/ for the current task and its ancestors
+    scoped_to: task_id
+    default_ttl: task_lifetime
+
+  "read:decisions:*":
+    description: Read ALL decisions, including archived
+    scoped_to: none
+    notes: |
+      Broad access. Grant only to planner.history, researcher.history,
+      planner.adversarial, and janitor.archive.
+
+  "read:progress":
+    description: Read current progress/
+    scoped_to: session
+
+  "read:solutions":
+    description: Read solutions/ knowledge base
+    scoped_to: none
+    forbidden_for:
+      - "reviewer.*"
+      - "qa.*"
+    rationale: |
+      See sgc-invariants.md §1 (generator-evaluator separation).
+      A reviewer that knows "we've seen this before" is biased toward
+      confirming historical judgments. Reviewers must be amnesiac.
+
+  "read:reviews":
+    scoped_to: task_id
+
+  # ---- State layer: write ----
+  "write:decisions":
+    description: Append to decisions/{task_id}/
+    scoped_to: task_id
+    constraints:
+      - append-only
+      - schema-validated
+      - no edits after creation
+
+  "write:progress":
+    description: Read-write on progress/
+    scoped_to: session
+    constraints:
+      - schema-validated
+
+  "write:solutions":
+    description: Create or update-existing solution entries
+    scoped_to: none
+    constraints:
+      - dedup-checked (compound.related must run first)
+      - no-delete
+      - schema-validated
+    granted_to:
+      - "compound.*"
+
+  "write:reviews":
+    description: Append review reports
+    scoped_to: "task_id + stage"
+    constraints:
+      - append-only
+      - schema-validated
+
+  # ---- Execution capabilities ----
+  "exec:shell":
+    description: Run shell commands in the project workspace
+    requires: explicit user grant for any network egress
+  "exec:browser":
+    description: Launch real browser for end-to-end testing
+    granted_to: ["qa.browser"]
+  "exec:git:read":
+    description: Read git history, refs, diffs
+  "exec:git:write":
+    description: Create commits and branches
+    scoped_to: branch_pattern
+    granted_to: ["/work", "/ship"]
+
+  # ---- Spawn capabilities ----
+  "spawn:planner.*":
+    granted_to: ["/plan"]
+  "spawn:researcher.*":
+    granted_to: ["/plan"]
+    constraints: ["level >= L2"]
+  "spawn:reviewer.*":
+    granted_to: ["/review"]
+    constraints:
+      - max_concurrent: 10
+  "spawn:qa.*":
+    granted_to: ["/qa"]
+  "spawn:compound.*":
+    granted_to: ["/compound", "janitor.compound"]
+
+# ============================================================================
+# 2. PERMISSIONS  —  command-level RW matrix
+# ============================================================================
+# This is the authoritative form of the permission table. The dispatcher
+# uses this to compute the initial scope_token set granted to each
+# subagent invocation. Any row change requires an invariant review.
+
+permissions:
+
+  /plan:
+    decisions: ["read:decisions:*", "write:decisions"]
+    progress:  ["write:progress"]
+    solutions: ["read:solutions"]
+    reviews:   ["read:reviews"]
+    spawn:     ["spawn:planner.*", "spawn:researcher.*"]
+
+  /work:
+    decisions: ["read:decisions"]
+    progress:  ["write:progress"]
+    solutions: ["read:solutions"]
+    reviews:   []
+    exec:      ["exec:shell", "exec:git:read", "exec:git:write"]
+
+  /review:
+    decisions: ["read:decisions"]
+    progress:  ["read:progress"]
+    solutions: []  # INTENTIONAL — see invariants §1
+    reviews:   ["write:reviews"]
+    spawn:     ["spawn:reviewer.*"]
+
+  /qa:
+    decisions: ["read:decisions"]
+    progress:  ["read:progress"]
+    solutions: []  # same invariant as /review
+    reviews:   ["write:reviews"]
+    spawn:     ["spawn:qa.*"]
+    exec:      ["exec:browser"]
+
+  /compound:
+    decisions: ["read:decisions"]
+    progress:  ["read:progress"]
+    solutions: ["read:solutions", "write:solutions"]
+    reviews:   ["read:reviews"]
+    spawn:     ["spawn:compound.*"]
+
+  /ship:
+    decisions: ["read:decisions:*", "write:decisions"]
+    progress:  ["read:progress"]
+    solutions: []
+    reviews:   ["read:reviews", "write:reviews"]
+    exec:      ["exec:git:read", "exec:git:write"]
+
+  /discover:
+    progress:  ["read:progress"]
+    # /discover is a lightweight inspection command. It reads only the
+    # current progress state to show what task is active and what features
+    # exist. No write permissions, no spawn capabilities.
+
+  /status:
+    decisions: ["read:decisions:*"]
+    progress:  ["read:progress"]
+    solutions: ["read:solutions"]
+    reviews:   ["read:reviews"]
+    # /status is a read-only dashboard command. It reads across all state
+    # layers to present a comprehensive view of the current task, its
+    # decisions, progress, solutions, and review history.
+    # No write permissions, no spawn capabilities.
+
+# ============================================================================
+# 3. SUBAGENT MANIFESTS  —  per-subagent contracts
+# ============================================================================
+# Each manifest is a contract that the dispatcher enforces:
+#   - inputs:  what the subagent may receive
+#   - outputs: what it MUST produce (shape-checked)
+#   - scope_tokens: the only capabilities it holds
+#   - token_budget: hard ceiling; overage aborts the subagent
+#   - timeout_s:   hard ceiling; overage aborts the subagent
+#
+# A subagent that requests a file not covered by its scope_tokens is
+# terminated by the dispatcher. This is the scope binding from v3.8
+# applied to the subagent layer.
+
+subagents:
+
+  # ---- Classifier ----
+  classifier.level:
+    version: "0.1"
+    purpose: Classify incoming task into L0 / L1 / L2 / L3
+    inputs:
+      user_request: string
+      repo_summary: string
+    outputs:
+      level: enum[L0, L1, L2, L3]
+      rationale: markdown
+      affected_readers_candidates: array[string]
+    scope_tokens: ["read:progress"]
+    token_budget: 2000
+    timeout_s: 30
+    notes: |
+      Must refuse L1+ if it cannot name at least one affected reader.
+      This is the L1 bugfix-validation fix.
+
+  # ---- Planners (gstack lineage) ----
+  planner.ceo:
+    version: "0.1"
+    source: gstack/plan-ceo-review (re-authored, not vendored)
+    purpose: Product gate — "is this worth doing?"
+    inputs:
+      intent_draft: markdown
+    outputs:
+      verdict: enum[approve, revise, reject]
+      concerns: array[string]
+      rewrite_hints: array[string]
+    scope_tokens: ["read:decisions", "read:progress"]
+    token_budget: 4000
+    timeout_s: 120
+
+  planner.eng:
+    version: "0.1"
+    source: gstack/plan-eng-review (re-authored)
+    purpose: Architecture gate — "will this break later?"
+    inputs:
+      intent_draft: markdown
+      repo_map: string
+    outputs:
+      verdict: enum[approve, revise, reject]
+      concerns: array[string]
+      structural_risks: array[{area, risk, mitigation}]
+    scope_tokens: ["read:decisions", "read:progress", "exec:git:read"]
+    token_budget: 4000
+    timeout_s: 120
+
+  planner.adversarial:
+    version: "0.1"
+    purpose: L3 pre-mortem. "What is the most likely way this fails?"
+    inputs:
+      intent_draft: markdown
+      repo_map: string
+    outputs:
+      failure_modes:
+        type: array
+        items: [scenario, probability, impact, early_signal]
+    scope_tokens: ["read:decisions:*", "read:progress", "exec:git:read"]
+    token_budget: 6000
+    timeout_s: 180
+
+  # ---- Researcher (CE lineage) ----
+  researcher.history:
+    version: "0.1"
+    source: CE /ce:plan research spawner (re-authored)
+    purpose: Mine git history and solutions/ for prior art
+    inputs:
+      intent_draft: markdown
+    outputs:
+      prior_art:
+        type: array
+        items: [source, relevance_score, excerpt, solution_ref?]
+      warnings: array[string]
+    scope_tokens:
+      - "read:decisions:*"
+      - "read:solutions"
+      - "exec:git:read"
+    token_budget: 8000
+    timeout_s: 240
+
+  # ---- Reviewers (CE lineage, reduced set) ----
+  reviewer.correctness:   &reviewer_base
+    version: "0.1"
+    source: CE reviewer cluster (re-authored)
+    inputs:
+      diff: string
+      intent: markdown
+    outputs:
+      verdict: enum[pass, concern, fail]
+      severity: enum[none, low, medium, high, critical]
+      findings: array[{location, description, suggestion?}]
+    scope_tokens: ["read:decisions", "read:progress", "write:reviews", "exec:git:read"]
+    token_budget: 5000
+    timeout_s: 180
+
+  reviewer.security:        { <<: *reviewer_base }
+  reviewer.performance:     { <<: *reviewer_base }
+  reviewer.tests:           { <<: *reviewer_base }
+  reviewer.maintainability: { <<: *reviewer_base }
+  reviewer.adversarial:     { <<: *reviewer_base }
+
+  reviewer.spec:
+    version: "0.1"
+    source: Superpowers spec reviewer (ONLY retained Superpowers component)
+    purpose: Detect drift between shipped code and declared intent
+    inputs:
+      diff: string
+      intent: markdown
+    outputs:
+      verdict: enum[pass, concern, fail]
+      drift_points: array[{claimed, actual, severity}]
+    scope_tokens: ["read:decisions", "read:progress", "write:reviews"]
+    token_budget: 4000
+    timeout_s: 120
+
+  # ---- QA (gstack lineage) ----
+  qa.browser:
+    version: "0.1"
+    source: gstack /qa (re-authored)
+    purpose: Real-browser end-to-end user simulation
+    inputs:
+      target_url: string
+      user_flows: array[string]
+    outputs:
+      verdict: enum[pass, concern, fail]
+      evidence_refs: array[string]
+      failed_flows: array[{flow, step, observed}]
+    scope_tokens: ["read:decisions", "read:progress", "write:reviews", "exec:browser"]
+    token_budget: 10000
+    timeout_s: 600
+
+  # ---- Compound (CE lineage, four-agent cluster) ----
+  compound.context:     &compound_base
+    version: "0.1"
+    source: CE /ce:compound stage-1 cluster
+    purpose: |
+      Build context for compound extraction AND assign tags/category.
+      This subagent is responsible for both gathering the surrounding
+      context (decisions, progress, reviews) that inform the solution
+      entry, and for classifying the entry with appropriate tags and
+      category. The tagging/classification step runs as the final
+      phase of context building, ensuring tags are informed by the
+      full context rather than surface-level heuristics.
+    scope_tokens:
+      - "read:decisions"
+      - "read:progress"
+      - "read:solutions"
+      - "write:solutions"
+      - "read:reviews"
+    token_budget: 5000
+    timeout_s: 180
+
+  compound.solution:    { <<: *compound_base, purpose: "Extract what worked / didn't" }
+  compound.related:     { <<: *compound_base, purpose: "Dedup check — MUST run before any write" }
+  compound.prevention:  { <<: *compound_base, purpose: "Derive prevention strategy" }
+
+  # ---- Janitors ----
+  janitor.compound:
+    version: "0.1"
+    purpose: Decide whether /compound should fire after /ship
+    inputs:
+      task_meta:
+        level: string
+        diff_stats: object
+        reviewer_flags: array[string]
+        outcome: string
+      recent_solutions_index: string
+    outputs:
+      decision: enum[compound, skip, update_existing]
+      reason_code: string
+      reason_human: markdown
+    scope_tokens: ["read:decisions", "read:reviews", "read:solutions", "write:reviews"]
+    token_budget: 3000
+    timeout_s: 60
+    decision_rules:
+      skip_if:
+        - "level == L0"
+        - "diff.lines < 20 AND no reviewer flagged novel"
+        - "similarity_to_existing > 0.85  # routes to update_existing instead"
+        - "outcome == failed AND no new knowledge extracted"
+      compound_if:
+        - "reviewer.adversarial.severity >= medium"
+        - "level >= L2 AND outcome == success"
+        - "novel_bug_signature (not in solutions/ index)"
+        - "user forced with --force"
+      default: skip
+    notes: |
+      Janitor MUST log every decision, including skips, to
+      reviews/{task_id}/janitor/compound-decision.md. The evaluation
+      framework depends on this log for regression diagnosis.
+
+  janitor.archive:
+    version: "0.1"
+    purpose: Epoch-boundary archival of closed decisions/
+    inputs:
+      epoch_cutoff: iso8601
+    outputs:
+      archived_task_ids: array[string]
+      skipped: array[{task_id, reason}]
+    scope_tokens: ["read:decisions:*", "write:decisions"]
+    token_budget: 2000
+    timeout_s: 120
+    trigger: manual only (never auto)

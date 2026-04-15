@@ -2,9 +2,9 @@
   "schema_version": "1",
   "plugins": [
     {
-      "name": "unified-agent",
-      "path": "plugins/unified",
-      "description": "Unified engineering agent: plan, execute, review, QA, ship, and compound knowledge.",
+      "name": "sgc",
+      "path": "plugins/sgc",
+      "description": "SGC — engineering agent: plan, execute, review, QA, ship, and compound knowledge.",
       "metadata": {
         "version": "1.0.0",
         "skills_count": 9,

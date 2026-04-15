@@ -1,0 +1,281 @@
+# SGC State Layer Schema
+# Version: 0.1 (week-1 foundation)
+#
+# This is the single source of truth for every file that lives under .sgc/.
+# The dispatcher MUST validate every write against this schema and reject
+# writes that do not conform. No command or subagent may bypass validation.
+#
+# Design principles:
+#   1. Single ownership per directory — no shared write paths.
+#   2. Mutability is declared, not assumed.
+#   3. Generator-evaluator separation is enforced at the permission layer
+#      (see sgc-capabilities.yaml) AND at the schema layer (reviewers
+#      cannot declare solutions/ as an input).
+#   4. Every mutation is traceable to a task_id.
+
+schema_version: "0.1"
+
+# ============================================================================
+# DECISIONS  —  append-only intent and outcome log
+# ============================================================================
+# Purpose: immutable record of "what did we decide to do, and how did it end"
+# Lifetime: permanent (archived at epoch boundaries, never deleted)
+# Anti-pattern: editing an intent.md after work has begun. If intent changes,
+#   create a new task with parent_decision pointing to the old one.
+#
+# NOTE: L0 tasks do NOT write to decisions/ — they skip it entirely.
+#   L0 tasks are trivial (docs/comments/style/config) and do not warrant
+#   an intent record or ship record. The classifier routes L0 tasks
+#   directly to /work, bypassing /plan's decision-writing stage.
+#   Only L1+ tasks produce decisions/ entries.
+
+decisions:
+  path: .sgc/decisions/{task_id}/
+  mutability: append-only
+  owners: [/plan, /ship]
+  files:
+
+    intent:
+      filename: intent.md
+      created_by: /plan
+      created_when: task enters L1 path or higher
+      editable_after_creation: false
+      format:
+        frontmatter: yaml
+        body: markdown
+      required_fields:
+        task_id:             { type: string, format: ulid }
+        level:               { type: enum, values: [L0, L1, L2, L3] }
+        created_at:          { type: string, format: iso8601 }
+        title:               { type: string, max_length: 120 }
+        motivation:          { type: markdown, min_words: 20 }
+        affected_readers:    { type: array[string], min_items: 1 }
+        scope_tokens:        { type: array[string] }
+        rejected_alternatives:
+          type: array
+          items:
+            option:          { type: string, required: true }
+            reason:          { type: string, required: true }
+          min_items: 0
+      optional_fields:
+        parent_decision:     { type: string, format: task_id }
+        user_signature:
+          type: object
+          required_when: "level == L3"
+          fields: [signed_at, signer_id]
+      notes:
+        - |
+          affected_readers is the field you previously lost on L1 bugfix
+          validation. It is REQUIRED even at L1. The level classifier must
+          refuse to emit L1 if it cannot list at least one reader.
+
+    ship:
+      filename: ship.md
+      created_by: /ship
+      created_when: ship gate returns pass OR human override
+      editable_after_creation: false
+      format:
+        frontmatter: yaml
+        body: markdown
+      required_fields:
+        task_id:             { type: string, format: ulid }
+        shipped_at:          { type: string, format: iso8601 }
+        outcome:             { type: enum, values: [success, partial, reverted] }
+        deviations:          { type: array[string] }
+        residuals:           { type: array[string] }
+        linked_reviews:      { type: array, items: { format: report_id } }
+      optional_fields:
+        rollback_ref:
+          type: string
+          required_when: "outcome == reverted"
+          format: git_ref
+
+  archive:
+    trigger: epoch boundary (manual, quarterly recommended)
+    destination: .sgc/decisions/_archive/{epoch}/{task_id}/
+    actor: janitor.archive
+    effect: moves closed task directories out of the hot path; preserves them
+            as read-only reference for planner.history
+
+# ============================================================================
+# PROGRESS  —  mutable working state, task-boundary lifecycle
+# ============================================================================
+# Purpose: the scratch surface that Claude and subagents read/write during
+#   active work. Corresponds to Anthropic harness feature-list / progress.txt.
+# Lifetime: task-scoped. Overwritten on task transitions. NOT a knowledge base.
+#
+# NOTE: progress/ is the only state layer that L0 tasks touch.
+#   L0 tasks write to progress/ (current-task, feature-list) but skip
+#   decisions/, solutions/, and reviews/ entirely. This keeps L0 fast
+#   and avoids polluting the audit trail with trivial changes.
+
+progress:
+  path: .sgc/progress/
+  mutability: read-write
+  owners: [/plan, /work]
+  lifecycle: task-boundary
+  files:
+
+    feature_list:
+      filename: feature-list.md
+      required_fields:
+        features:
+          type: array
+          items:
+            id:              { type: string, scope: task-local }
+            title:           { type: string, max_length: 200 }
+            status:
+              type: enum
+              values: [pending, in_progress, blocked, done]
+            depends_on:      { type: array[string], optional: true }
+            blocked_by:      { type: string, optional: true }
+
+    current_task:
+      filename: current-task.md
+      required_fields:
+        task_id:             { type: string, format: ulid }
+        level:               { type: enum, values: [L0, L1, L2, L3] }
+        active_feature:      { type: string, references: feature.id }
+        session_start:       { type: string, format: iso8601 }
+        last_activity:       { type: string, format: iso8601 }
+      optional_fields:
+        checkpoint:          { type: opaque_blob }
+
+    handoff:
+      filename: handoff.md
+      purpose: linear session-to-session continuity (Anthropic harness style)
+      required_fields:
+        from_session:        { type: string }
+        to_session_hint:     { type: string, description: "what to read first" }
+        summary:             { type: markdown, max_words: 500 }
+        open_questions:      { type: array[string] }
+      notes:
+        - |
+          Handoff is NOT the knowledge base. It is ephemeral. Any durable
+          lesson must go through /compound and land in solutions/.
+
+# ============================================================================
+# SOLUTIONS  —  compound knowledge, dedup-enforced
+# ============================================================================
+# Purpose: the permanent knowledge surface. The reason this whole system
+#   exists over the base harness.
+# Lifetime: permanent. Never deleted. Only janitor.archive may move entries.
+# Read restriction: NOT readable by any reviewer.* or qa.* subagent.
+#   See sgc-invariants.md §1 for the rationale.
+
+solutions:
+  path: .sgc/solutions/{category}/{slug}.md
+  mutability: append-or-update-existing
+  owners: [/compound]
+  delete_policy: forbidden
+  files:
+
+    entry:
+      format:
+        frontmatter: yaml
+        body: markdown
+      required_fields:
+        id:                  { type: string, format: ulid }
+        signature:
+          type: string
+          format: sha256
+          description: |
+            Hash of normalize(problem + error_fingerprint). This is the
+            primary dedup key. Two entries with the same signature MUST
+            merge, not coexist.
+        category:
+          type: enum
+          values: [runtime, build, auth, data, perf, ui, infra, other]
+        problem:             { type: markdown, max_words: 300 }
+        symptoms:            { type: array[string], min_items: 1 }
+        what_didnt_work:
+          type: array
+          items:
+            approach:        { type: string, required: true }
+            reason_failed:   { type: string, required: true }
+        solution:            { type: markdown }
+        prevention:          { type: markdown }
+        tags:                { type: array[string], min_items: 1 }
+        first_seen:          { type: string, format: iso8601 }
+        last_updated:        { type: string, format: iso8601 }
+        times_referenced:    { type: integer, default: 0 }
+        source_task_ids:     { type: array[string], min_items: 1 }
+      optional_fields:
+        related_entries:     { type: array[string], items: { format: solution_id } }
+        confidence:
+          type: enum
+          values: [provisional, confirmed, canonical]
+          default: provisional
+
+  dedup:
+    enforced_by: compound.related
+    similarity_threshold: 0.85
+    on_match: update_existing
+    update_semantics:
+      - append new task_id to source_task_ids
+      - refresh last_updated
+      - merge new what_didnt_work entries
+      - do NOT overwrite existing solution or prevention fields
+    similarity_method:
+      - exact signature match (weight: 1.0)
+      - fallback: cosine similarity over tag_vector + problem embedding
+    invariant: no write to solutions/ may bypass this check
+
+# ============================================================================
+# REVIEWS  —  append-only audit trail
+# ============================================================================
+# Purpose: every judgment rendered by every reviewer, qa run, and ship gate
+#   is permanently logged here. This is what makes the system auditable.
+# Lifetime: permanent (archived with parent task).
+
+reviews:
+  path: .sgc/reviews/{task_id}/{stage}/{reviewer_id}.md
+  mutability: append-only
+  owners: [/review, /qa, /ship, janitor.compound]
+  stages: [plan, code, qa, ship]
+  files:
+
+    report:
+      format:
+        frontmatter: yaml
+        body: markdown
+      required_fields:
+        report_id:           { type: string, format: ulid }
+        task_id:             { type: string, format: ulid }
+        stage:               { type: enum, values: [plan, code, qa, ship] }
+        reviewer_id:         { type: string }
+        reviewer_version:    { type: string, description: "pinned manifest version" }
+        verdict:             { type: enum, values: [pass, concern, fail] }
+        severity:            { type: enum, values: [none, low, medium, high, critical] }
+        findings:
+          type: array
+          items:
+            location:        { type: string, optional: true }
+            description:     { type: string, required: true }
+            suggestion:      { type: string, optional: true }
+        created_at:          { type: string, format: iso8601 }
+      optional_fields:
+        evidence_refs:       { type: array[string], description: "e.g. screenshot paths from qa.browser" }
+        override:
+          type: object
+          required_when: "verdict == fail AND ship proceeded"
+          fields:
+            by:              { type: string }
+            at:              { type: string, format: iso8601 }
+            reason:          { type: string, min_length: 40 }
+
+    janitor_decision:
+      path: .sgc/reviews/{task_id}/janitor/compound-decision.md
+      created_by: janitor.compound
+      required_fields:
+        task_id:             { type: string }
+        decision:            { type: enum, values: [compound, skip, update_existing] }
+        reason_code:         { type: string, description: "machine-readable" }
+        reason_human:        { type: markdown }
+        inputs_hash:         { type: string, format: sha256 }
+        created_at:          { type: string, format: iso8601 }
+      notes:
+        - |
+          Even skip decisions MUST be logged. Audit requirement: given any
+          task where compound did not fire, we must be able to reconstruct
+          why. This is how the evaluation framework diagnoses regressions.

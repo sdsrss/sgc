@@ -1,0 +1,14 @@
+{
+  "hooks": [
+    {
+      "matcher": "SessionStart",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "cat \"${CLAUDE_PLUGIN_ROOT}/skills/bootstrap/SKILL.md\" 2>/dev/null || echo 'SGC bootstrap not found'",
+          "async": false
+        }
+      ]
+    }
+  ]
+}

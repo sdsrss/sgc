@@ -1,0 +1,20 @@
+{
+  "name": "sgc",
+  "version": "1.0.0",
+  "description": "SGC — engineering agent with 8 commands, 19 specialized agents, L0-L3 task routing, real browser QA, and compound knowledge. Absorbs the best of Superpowers (process discipline), gstack (runtime/QA/deploy), and CE (knowledge compounding).",
+  "author": {
+    "name": "SDS"
+  },
+  "license": "MIT",
+  "keywords": [
+    "sgc",
+    "engineering-workflow",
+    "code-review",
+    "qa-testing",
+    "knowledge-compounding",
+    "browser-automation",
+    "tdd",
+    "planning",
+    "deployment"
+  ]
+}

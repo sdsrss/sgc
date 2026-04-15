@@ -21,7 +21,14 @@
 // Schema validation is field-presence only for MVP. Full typebox decoding
 // is a D-phase concern.
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs"
 import { dirname, resolve } from "node:path"
 import { dump as yamlDump, load as yamlLoad } from "js-yaml"
 import type {
@@ -353,7 +360,6 @@ export function readReview(
  * ship check wires it in Step 5.
  */
 export function hasQaEvidence(taskId: TaskId, stateRoot?: string): boolean {
-  const { readdirSync } = require("node:fs") as typeof import("node:fs")
   const qaDir = resolve(root(stateRoot), "reviews", taskId, "qa")
   if (!existsSync(qaDir)) return false
   try {
@@ -361,4 +367,35 @@ export function hasQaEvidence(taskId: TaskId, stateRoot?: string): boolean {
   } catch {
     return false
   }
+}
+
+/**
+ * List every review report for a (task, stage) pair. Returns parsed
+ * ReviewReport objects, silently skipping files that fail to parse.
+ * Used by the ship gate to enforce review coverage + override rules.
+ */
+export function listReviewsForStage(
+  taskId: TaskId,
+  stage: Stage,
+  stateRoot?: string,
+): ReviewReport[] {
+  const dir = resolve(root(stateRoot), "reviews", taskId, stage)
+  if (!existsSync(dir)) return []
+  let files: string[]
+  try {
+    files = readdirSync(dir).filter((f) => f.endsWith(".md"))
+  } catch {
+    return []
+  }
+  const reports: ReviewReport[] = []
+  for (const f of files) {
+    try {
+      const text = readFileSync(resolve(dir, f), "utf8")
+      const { data } = parseFrontmatter<ReviewReport>(text)
+      reports.push(data)
+    } catch {
+      // Skip unparseable file; not fatal for the list
+    }
+  }
+  return reports
 }

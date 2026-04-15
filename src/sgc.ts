@@ -153,9 +153,21 @@ const qa = defineCommand({
 })
 
 const ship = defineCommand({
-  meta: { name: "ship", description: "Ship gate: verify evidence + trigger compound decision" },
-  run() {
-    throw new NotImplementedYet("ship")
+  meta: {
+    name: "ship",
+    description:
+      "Ship gate: verify evidence (reviews, qa, feature-list) and write ship.md",
+  },
+  args: {
+    auto: {
+      type: "boolean",
+      required: false,
+      description: "Skip interactive confirmation. REFUSED at L3 (Invariant §4).",
+    },
+  },
+  async run({ args }) {
+    const { runShip } = await import("./commands/ship")
+    await runShip({ autoConfirm: args.auto as boolean | undefined })
   },
 })
 

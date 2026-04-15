@@ -196,8 +196,24 @@ const compound = defineCommand({
     name: "compound",
     description: "Extract and store knowledge into solutions/ (usually janitor-triggered)",
   },
-  run() {
-    throw new NotImplementedYet("compound")
+  args: {
+    force: {
+      type: "boolean",
+      required: false,
+      description: "Bypass dedup threshold; force a new write even if similarity ≥ 0.85",
+    },
+    slug: {
+      type: "string",
+      required: false,
+      description: "Override the solution filename slug (default: slugify(problem_summary))",
+    },
+  },
+  async run({ args }) {
+    const { runCompound } = await import("./commands/compound")
+    await runCompound({
+      force: args.force as boolean | undefined,
+      slug: args.slug as string | undefined,
+    })
   },
 })
 

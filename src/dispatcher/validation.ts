@@ -65,6 +65,12 @@ export function validateValueAgainstDecl(
 
 /**
  * Full Invariant §9 check: presence, undeclared-rejection, type.
+ *
+ * When the manifest does NOT declare `outputs`, the agent's shape is
+ * unconstrained (MVP behavior — e.g. compound.* which share a base
+ * template without explicit output types). Non-object results still
+ * throw because "result not an object" is a protocol violation, not
+ * a schema gap.
  */
 export function validateOutputShape(manifest: SubagentManifest, result: unknown): void {
   if (typeof result !== "object" || result === null) {
@@ -73,7 +79,15 @@ export function validateOutputShape(manifest: SubagentManifest, result: unknown)
       Object.keys((manifest.outputs ?? {}) as object),
     )
   }
-  const expected = (manifest.outputs ?? {}) as Record<string, unknown>
+  const hasDeclaredOutputs =
+    manifest.outputs !== undefined &&
+    manifest.outputs !== null &&
+    Object.keys(manifest.outputs as object).length > 0
+  if (!hasDeclaredOutputs) {
+    // Manifest didn't declare any outputs — nothing to validate against.
+    return
+  }
+  const expected = manifest.outputs as Record<string, unknown>
   const required = Object.keys(expected)
   const present = Object.keys(result as Record<string, unknown>)
 

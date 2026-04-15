@@ -110,6 +110,20 @@ describe("tokensAllow + assertScope", () => {
   test("assertScope passes on allowed op", () => {
     expect(() => assertScope(["read:progress"], "read:progress")).not.toThrow()
   })
+  // Negative tests for the C-phase audit C2 fix: narrow pinned token must
+  // not authorize a broader request. Bidirectional match would have allowed
+  // these — they must now be denied.
+  test("narrow token does NOT allow wildcard request (C2 fix)", () => {
+    expect(tokensAllow(["write:reviews"], "*:*")).toBe(false)
+    expect(tokensAllow(["write:reviews"], "write:*")).toBe(false)
+    expect(tokensAllow(["read:decisions"], "read:*")).toBe(false)
+  })
+  test("narrow token does NOT allow forbidden op via wildcard (C2 fix)", () => {
+    // pinned reviewer-style tokens
+    const reviewerTokens = ["read:decisions", "read:progress", "write:reviews", "exec:git:read"]
+    expect(tokensAllow(reviewerTokens, "read:solutions")).toBe(false)
+    expect(tokensAllow(reviewerTokens, "*")).toBe(false)
+  })
 })
 
 describe("canSpawn / assertCanSpawn", () => {

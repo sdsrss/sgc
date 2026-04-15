@@ -82,12 +82,62 @@ function quoteOptionalTokens(input: string): string {
 }
 
 /**
- * Apply DSL → strict YAML transformations. Idempotent.
+ * Detect a line that opens a block scalar:
+ *   key: |       (literal)
+ *   key: >       (folded)
+ *   key: |-      (chomp)
+ *   key: |+      (keep)
+ * Returns the parent-key indent so callers can detect when the block ends
+ * (any line indented MORE belongs to the block; less or equal exits it).
+ */
+function blockScalarOpenIndent(line: string): number | null {
+  // Match: leading whitespace, key chars, ":", optional space, `|` or `>`,
+  // optional `-` or `+`, trailing space, then end-of-line or comment.
+  const m = /^(\s*)\S[^:]*:\s*[|>][-+]?\s*(#.*)?$/.exec(line)
+  if (!m) return null
+  return m[1]!.length
+}
+
+/**
+ * Apply DSL → strict YAML transformations. Line-by-line so block scalars
+ * (`key: |` / `key: >`) can pass through untouched — preserves literal
+ * `array[X]` or `name?` text appearing in documentation/notes/rationale
+ * fields. Audit C-phase I1 fix.
+ *
+ * Idempotent.
  */
 export function preprocess(yamlText: string): string {
-  let s = quoteArrayPatterns(yamlText)
-  s = quoteOptionalTokens(s)
-  return s
+  const lines = yamlText.split("\n")
+  const out: string[] = []
+  let blockIndent: number | null = null
+
+  for (const line of lines) {
+    const indent = line.length - line.trimStart().length
+    const isBlank = line.trim() === ""
+
+    if (blockIndent !== null) {
+      // Inside a block scalar: pass through as-is until indent retreats.
+      if (isBlank || indent > blockIndent) {
+        out.push(line)
+        continue
+      }
+      blockIndent = null
+      // Fall through to process this line normally.
+    }
+
+    const open = blockScalarOpenIndent(line)
+    if (open !== null) {
+      blockIndent = open
+      out.push(line)
+      continue
+    }
+
+    let processed = quoteArrayPatterns(line)
+    processed = quoteOptionalTokens(processed)
+    out.push(processed)
+  }
+
+  return out.join("\n")
 }
 
 /**

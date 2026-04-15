@@ -15,8 +15,15 @@ afterEach(() => {
   rmSync(tmp, { recursive: true, force: true })
 })
 
+const LONG_MOTIVATION =
+  "We need this change because the existing flow lacks a critical structural element that downstream readers depend on for clarity and discoverability of the underlying behavior contract."
+
 async function freshTask() {
-  return runPlan("simple change", { stateRoot: tmp, log: () => {} })
+  return runPlan("simple change", {
+    stateRoot: tmp,
+    motivation: LONG_MOTIVATION,
+    log: () => {},
+  })
 }
 
 describe("reviewerCorrectness — stub heuristic", () => {

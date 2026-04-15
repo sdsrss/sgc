@@ -97,15 +97,15 @@ export function computeSubagentTokens(subagent: string): ScopeToken[] {
 /**
  * Does the pinned token set allow the requested op?
  *
- * Match in BOTH directions to handle wildcards:
- *   - requested may be exact ("read:decisions:abc123") and token a wildcard
- *     ("read:decisions:*")
- *   - or requested may be a category ("write:solutions") matched literally
+ * One-way match: the *requested* op must match a pinned token (treated as a
+ * glob). A narrow pinned token MUST NOT imply a broader request — e.g.
+ * holding `write:reviews` must not allow `write:*`. The previous bidirectional
+ * match was a latent bug (review C-phase audit C2): it widened every token
+ * into a wildcard request authorization, which fails closed-world semantics
+ * the first time `assertScope` runs against an attacker-controlled string.
  */
 export function tokensAllow(tokens: ScopeToken[], requested: string): boolean {
-  return tokens.some(
-    (t) => matchesPattern(requested, t) || matchesPattern(t, requested),
-  )
+  return tokens.some((t) => matchesPattern(requested, t))
 }
 
 /**

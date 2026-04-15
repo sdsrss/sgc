@@ -145,6 +145,30 @@ This file-based protocol replaces a real subagent spawn for MVP. Future D-phase:
 
 ~11 commits, ~5 days estimated.
 
+## Delivery vs plan (post-hoc)
+
+Plan-step → actual commit mapping:
+
+| Plan step | Plan deliverable | Actual delivery |
+|-----------|-----------------|-----------------|
+| C-1.1 | types + preprocessor | commit `9152a2c` (as planned) |
+| C-1.2 | schema + capabilities | commit `bbe922e` (as planned) |
+| C-1.3 | state | commit `9846df0` (as planned) |
+| C-2.1 | CLI skeleton | commit `37c9040` — **also folded in `sgc status` implementation** (was planned for C-3.1) |
+| C-3.1 | sgc status | (delivered in C-2.1; no separate commit) |
+| C-3.2 | sgc plan + spawn protocol | commit `75e7d8f` (as planned) |
+| C-3.3 | sgc work | commit `15f70c1` (as planned) |
+| C-3.4 | sgc review | commit `2fc5a3e` (as planned) |
+| C-4.1 | demo doc | commit `3eccaf2` (as planned) |
+| C-4.2 | unit tests | (delivered inline with C-1.1/1.2/1.3/3.2/3.3/3.4 — tests-with-features rather than separate commit) |
+| C-5.1 | README + CLAUDE.md | commits `92e11af` + `cce58ba` |
+| (post) | code-review fixes | commit (forthcoming): C-phase audit C1/C2/C3/I1 + I4 |
+
+Tests + features shipping together is an improvement over the original plan;
+recording it here so future readers don't search for missing C-3.1/C-4.2
+commits. The plan above (Steps 1-5) remains the historical plan; this
+section is the as-built record.
+
 ## Out of Scope (D-phase candidates)
 
 - L2 cluster (planner.ceo + planner.eng + researcher.history)

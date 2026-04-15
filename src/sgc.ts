@@ -55,6 +55,11 @@ const plan = defineCommand({
       required: false,
       description: "Human signer_id required for L3 intents (Invariant §4)",
     },
+    motivation: {
+      type: "string",
+      required: false,
+      description: "Long-form rationale (≥20 words; required for L1+ if task description is short)",
+    },
   },
   async run({ args }) {
     const { runPlan } = await import("./commands/plan")
@@ -63,7 +68,11 @@ const plan = defineCommand({
     const userSignature = signedBy
       ? { signed_at: new Date().toISOString(), signer_id: signedBy }
       : undefined
-    await runPlan(args.task as string, { forceLevel: force, userSignature })
+    await runPlan(args.task as string, {
+      forceLevel: force,
+      userSignature,
+      motivation: args.motivation as string | undefined,
+    })
   },
 })
 

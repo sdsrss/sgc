@@ -24,7 +24,10 @@ Lockfile: `package-lock.json` (npm). Bun reads it fine.
 
 ```bash
 # 1. Plan a task (classifier → planner.eng → write intent)
-bun src/sgc.ts plan "add an Example section to plan/SKILL.md"
+#    L1+ requires --motivation ≥20 words (sgc-state.schema.yaml min_words);
+#    L0 tasks (typo/format/comment) skip intent.md entirely.
+bun src/sgc.ts plan "add an Example section to plan/SKILL.md" \
+  --motivation "Newcomers can't verify the skill end-to-end without sample input/output, so add a runnable Example block matching the format used elsewhere in the repo."
 
 # 2. Track progress (no LLM here — you implement, dispatcher tracks)
 bun src/sgc.ts work                    # list features, highlight active
@@ -44,7 +47,7 @@ State files land under `.sgc/` in the project (override via `SGC_STATE_ROOT`). T
 
 | Command | Status | Purpose |
 |---------|--------|---------|
-| `sgc plan <task>` | ✅ | Classify L0-L3, run planners, write `decisions/{id}/intent.md` (immutable) |
+| `sgc plan <task> [--motivation \| --signed-by]` | ✅ | Classify L0-L3, run planners, write `decisions/{id}/intent.md` (immutable). L0 skips intent. L1+ needs ≥20-word motivation. L3 needs `--signed-by`. |
 | `sgc work [--add\|--done]` | ✅ | Track `feature-list.md` progress |
 | `sgc review [--base <ref>]` | ✅ | Reviewer.correctness on git diff → `reviews/{id}/code/correctness.md` |
 | `sgc status` | ✅ | Show active task + level + last activity |
@@ -125,17 +128,17 @@ The skills under `plugins/sgc/skills/{discover,plan,work,review,qa,ship,compound
 ## Test
 
 ```bash
-bun test tests/dispatcher/    # 107 tests, ~500ms
+bun test tests/dispatcher/    # 120 tests, ~500ms
 ```
 
 Coverage:
-- `preprocessor.test.ts` (13) — DSL transformations + idempotency
+- `preprocessor.test.ts` (18) — DSL transforms, idempotency, block-scalar passthrough
 - `schema.test.ts` (12) — cache, manifest lookups, YAML anchor expansion
-- `capabilities.test.ts` (25) — pattern match, forbidden_for, computeCommandTokens, canSpawn
-- `state.test.ts` (19) — mutability, schema validate, atomic writes
-- `spawn.test.ts` (5) — inline-stub + file-poll modes, OutputShapeMismatch, SpawnTimeout
+- `capabilities.test.ts` (27) — pattern match, forbidden_for, narrow-token-doesn't-imply-wide
+- `state.test.ts` (20) — mutability, schema validate (incl. motivation min_words), atomic writes
+- `spawn.test.ts` (9) — inline + file-poll, missing/unknown/wrong-type field rejection
 - `sgc-cli.test.ts` (7) — CLI smoke + status states
-- `sgc-plan.test.ts` (8) — full L0-L3 classification + L3 signature gate
+- `sgc-plan.test.ts` (9) — L0-L3 classification, L0 skips intent, L1+ motivation gate, L3 signature gate
 - `sgc-work.test.ts` (8) — feature-list mutations
 - `sgc-review.test.ts` (10) — reviewer stub + full review flow + append-only
 

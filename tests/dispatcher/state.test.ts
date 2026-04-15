@@ -36,7 +36,7 @@ function makeIntent(overrides: Partial<IntentDoc> = {}): IntentDoc {
     level: "L1",
     created_at: "2026-04-15T10:00:00Z",
     title: "Test task",
-    motivation: "Sufficient motivation text describing this work to satisfy schema requirements.",
+    motivation: "Sufficient motivation text describing this work to satisfy schema requirements which mandate twenty words minimum so this string is comfortably longer than the threshold for validation purposes",
     affected_readers: ["alice"],
     scope_tokens: ["read:decisions", "write:progress"],
     ...overrides,
@@ -98,6 +98,12 @@ describe("intent.md — Invariant §2 (immutable)", () => {
   test("missing affected_readers throws SchemaViolation", () => {
     ensureSgcStructure(tmp)
     expect(() => writeIntent(makeIntent({ affected_readers: [] }), tmp)).toThrow(StateError)
+  })
+  test("motivation <20 words throws SchemaViolation (audit C3 fix)", () => {
+    ensureSgcStructure(tmp)
+    expect(() =>
+      writeIntent(makeIntent({ motivation: "too short rationale text" }), tmp),
+    ).toThrow(/≥20 words/)
   })
   test("L3 without user_signature throws", () => {
     ensureSgcStructure(tmp)

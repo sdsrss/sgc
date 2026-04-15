@@ -53,8 +53,8 @@ export class SpawnTimeout extends Error {
 }
 
 export class OutputShapeMismatch extends Error {
-  constructor(agent: string, missing: string[]) {
-    super(`agent ${agent} output missing required fields: ${missing.join(", ")}`)
+  constructor(agent: string, fields: string[], detail?: string) {
+    super(detail ?? `agent ${agent} output missing required fields: ${fields.join(", ")}`)
     this.name = "OutputShapeMismatch"
   }
 }
@@ -88,15 +88,101 @@ function expectedOutputFields(manifest: SubagentManifest): string[] {
   return Object.keys(out)
 }
 
+/**
+ * Type-check a single value against its declared type. Returns null on OK,
+ * an error string otherwise. Declarations are the post-preprocessor strings
+ * from the manifest (e.g. "enum[A, B]", "array[string]", "markdown").
+ *
+ * MVP scope: enum-membership, array-ness, string/number primitives. Complex
+ * object declarations (e.g. structural_risks: array[{area, risk, mitigation}])
+ * pass through with array-only check.
+ */
+function validateValueAgainstDecl(value: unknown, decl: unknown, fieldName: string): string | null {
+  if (typeof decl !== "string") return null  // complex declaration — defer
+
+  const enumMatch = /^enum\[(.+)\]$/.exec(decl)
+  if (enumMatch) {
+    const values = enumMatch[1]!.split(",").map((v) => v.trim())
+    if (typeof value !== "string" || !values.includes(value)) {
+      return `field ${fieldName}: expected one of [${values.join(", ")}], got ${JSON.stringify(value)}`
+    }
+    return null
+  }
+
+  if (/^array\[(.+)\]$/.test(decl)) {
+    if (!Array.isArray(value)) {
+      return `field ${fieldName}: expected array, got ${typeof value}`
+    }
+    return null
+  }
+
+  if (decl === "string" || decl === "markdown") {
+    if (typeof value !== "string") {
+      return `field ${fieldName}: expected string, got ${typeof value}`
+    }
+    return null
+  }
+
+  if (decl === "integer" || decl === "number") {
+    if (typeof value !== "number") {
+      return `field ${fieldName}: expected number, got ${typeof value}`
+    }
+    return null
+  }
+
+  return null  // unknown declaration form — don't reject
+}
+
+/**
+ * Validate subagent output against manifest.outputs (Invariant §9).
+ *
+ * Three layers (audit C-phase C1):
+ *   1. Result is a non-null object.
+ *   2. All declared fields are present (missing → throw).
+ *   3. No undeclared fields are present (unknown → throw).
+ *      "The dispatcher discards any produced content that does not match
+ *       the declared output shape" — we throw rather than silently strip,
+ *       so the bug is visible at dev time.
+ *   4. Each value matches its declared type form (enum members, arrayness,
+ *      string/number primitives).
+ */
 function validateOutputShape(manifest: SubagentManifest, result: unknown): void {
   if (typeof result !== "object" || result === null) {
     throw new OutputShapeMismatch(manifest.name, expectedOutputFields(manifest))
   }
-  const required = expectedOutputFields(manifest)
-  const present = new Set(Object.keys(result as Record<string, unknown>))
-  const missing = required.filter((k) => !present.has(k))
+  const expected = (manifest.outputs ?? {}) as Record<string, unknown>
+  const required = Object.keys(expected)
+  const present = Object.keys(result as Record<string, unknown>)
+
+  const missing = required.filter((k) => !present.includes(k))
   if (missing.length > 0) {
     throw new OutputShapeMismatch(manifest.name, missing)
+  }
+
+  const unknown = present.filter((k) => !required.includes(k))
+  if (unknown.length > 0) {
+    throw new OutputShapeMismatch(
+      manifest.name,
+      unknown,
+      `agent ${manifest.name} returned undeclared output fields: ${unknown.join(", ")} (Invariant §9)`,
+    )
+  }
+
+  const typeErrors: string[] = []
+  for (const [field, decl] of Object.entries(expected)) {
+    const err = validateValueAgainstDecl(
+      (result as Record<string, unknown>)[field],
+      decl,
+      field,
+    )
+    if (err) typeErrors.push(err)
+  }
+  if (typeErrors.length > 0) {
+    throw new OutputShapeMismatch(
+      manifest.name,
+      typeErrors,
+      `agent ${manifest.name} output type errors: ${typeErrors.join("; ")}`,
+    )
   }
 }
 

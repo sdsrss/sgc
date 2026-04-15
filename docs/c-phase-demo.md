@@ -14,7 +14,8 @@ rm -rf $SGC_STATE_ROOT && mkdir -p $SGC_STATE_ROOT
 ## Run
 
 ```bash
-$ bun src/sgc.ts plan "add an Example section to plan/SKILL.md"
+$ bun src/sgc.ts plan "add an Example section to plan/SKILL.md" \
+    --motivation "The skill currently lacks a runnable example showing input and expected output for newcomers; add a self-contained example block so first-time readers can verify their understanding without inferring from prose."
 task_id = FA04331266A0434A8C8B851FA7
 classifier verdict: L1 — default classification — single-file or simple change with no keyword hits for L0/L2/L3
 planner.eng verdict: approve
@@ -199,11 +200,12 @@ they live above the L1 closed-loop scope.
 git clone <repo> sgc && cd sgc
 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install
 unset NODE_ENV
-SGC_STATE_ROOT=/tmp/sgc-demo bun src/sgc.ts plan "your task here"
+SGC_STATE_ROOT=/tmp/sgc-demo bun src/sgc.ts plan "your task here" \
+  --motivation "<≥20 word rationale; required for L1+; L0 tasks may omit>"
 SGC_STATE_ROOT=/tmp/sgc-demo bun src/sgc.ts work
 # … iterate work --done
 SGC_STATE_ROOT=/tmp/sgc-demo bun src/sgc.ts review
 SGC_STATE_ROOT=/tmp/sgc-demo bun src/sgc.ts status
 ```
 
-107 dispatcher unit tests cover each layer (`bun test tests/dispatcher/`).
+120 dispatcher unit tests cover each layer (`bun test tests/dispatcher/`).

@@ -35,6 +35,9 @@ export interface PlanOptions {
   forceLevel?: Level
   // Required when level is L3 (Invariant §4). { signer_id } from CLI flag.
   userSignature?: { signed_at: string; signer_id: string }
+  // Explicit motivation; defaults to taskDescription. Must be ≥20 words for
+  // L1+ tasks (audit C-phase C3, sgc-state.schema.yaml:52 min_words rule).
+  motivation?: string
   // Logger sink; defaults to console.log
   log?: (msg: string) => void
 }
@@ -125,29 +128,42 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
     )
   }
 
-  // Step 4: write intent.md (immutable)
-  const intent: IntentDoc = {
-    task_id: taskId,
-    level,
-    created_at: createdAt,
-    title: taskDescription.slice(0, 120),
-    motivation: taskDescription.length >= 20
-      ? taskDescription
-      : `${taskDescription} (motivation auto-padded; refine via decisions immutability rule by creating a new task if needed)`,
-    affected_readers: classRes.output.affected_readers_candidates,
-    scope_tokens: computeCommandTokens("/plan"),
-    user_signature: opts.userSignature,
-    body:
-      `## Classifier rationale\n\n${classRes.output.rationale}\n\n` +
-      (plannerOut
-        ? `## Planner.eng verdict\n\n${plannerOut.verdict}\n\n` +
-          (plannerOut.concerns.length
-            ? `### Concerns\n\n${plannerOut.concerns.map((c) => `- ${c}`).join("\n")}\n`
-            : "")
-        : ""),
+  // L0 skips intent.md per sgc-state.schema.yaml:31 — "L0 tasks do NOT write
+  // to decisions/ — they skip it entirely". Audit C3 adjacent fix.
+  let intentPath = "(skipped — L0)"
+  if (level !== "L0") {
+    const motivation = opts.motivation ?? taskDescription
+    const motivationWords = motivation.trim().split(/\s+/).filter(Boolean).length
+    if (motivationWords < 20) {
+      throw new Error(
+        `motivation must be ≥20 words (sgc-state.schema.yaml min_words rule); ` +
+          `got ${motivationWords} from task description. Re-run with ` +
+          `--motivation "<longer rationale describing why this matters and what changes>".`,
+      )
+    }
+    const intent: IntentDoc = {
+      task_id: taskId,
+      level,
+      created_at: createdAt,
+      title: taskDescription.slice(0, 120),
+      motivation,
+      affected_readers: classRes.output.affected_readers_candidates,
+      scope_tokens: computeCommandTokens("/plan"),
+      user_signature: opts.userSignature,
+      body:
+        `## Classifier rationale\n\n${classRes.output.rationale}\n\n` +
+        (plannerOut
+          ? `## Planner.eng verdict\n\n${plannerOut.verdict}\n\n` +
+            (plannerOut.concerns.length
+              ? `### Concerns\n\n${plannerOut.concerns.map((c) => `- ${c}`).join("\n")}\n`
+              : "")
+          : ""),
+    }
+    intentPath = writeIntent(intent, stateRoot)
+    log(`wrote ${intentPath}`)
+  } else {
+    log(`L0 task: skipping intent.md per schema (decisions/ not written for L0)`)
   }
-  const intentPath = writeIntent(intent, stateRoot)
-  log(`wrote ${intentPath}`)
 
   // Step 5: write feature-list (single placeholder for L0/L1 MVP)
   writeFeatureList(

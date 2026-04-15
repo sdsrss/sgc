@@ -46,13 +46,65 @@ describe("spawn — inline-stub mode", () => {
     expect(promptText).toContain("read:progress")
   })
 
-  test("OutputShapeMismatch when stub returns wrong shape", async () => {
+  test("OutputShapeMismatch when stub returns wrong shape (missing field)", async () => {
     await expect(
       spawn("classifier.level", {}, {
         stateRoot: tmp,
         inlineStub: () => ({ level: "L0" }),  // missing rationale + affected_readers_candidates
       }),
     ).rejects.toThrow(OutputShapeMismatch)
+  })
+
+  test("OutputShapeMismatch on undeclared field (audit C1 fix)", async () => {
+    await expect(
+      spawn("classifier.level", {}, {
+        stateRoot: tmp,
+        inlineStub: () => ({
+          level: "L0",
+          rationale: "ok",
+          affected_readers_candidates: ["alice"],
+          surprise: "I am a sneaky extra field",
+        }),
+      }),
+    ).rejects.toThrow(/undeclared output fields/)
+  })
+
+  test("OutputShapeMismatch when enum value is invalid (audit C1 fix)", async () => {
+    await expect(
+      spawn("classifier.level", {}, {
+        stateRoot: tmp,
+        inlineStub: () => ({
+          level: "L99",  // not in enum[L0, L1, L2, L3]
+          rationale: "ok",
+          affected_readers_candidates: ["alice"],
+        }),
+      }),
+    ).rejects.toThrow(/expected one of/)
+  })
+
+  test("OutputShapeMismatch when array field is not an array (audit C1 fix)", async () => {
+    await expect(
+      spawn("classifier.level", {}, {
+        stateRoot: tmp,
+        inlineStub: () => ({
+          level: "L0",
+          rationale: "ok",
+          affected_readers_candidates: "not an array",
+        }),
+      }),
+    ).rejects.toThrow(/expected array/)
+  })
+
+  test("valid stub output passes all type checks", async () => {
+    const r = await spawn("reviewer.correctness", {}, {
+      stateRoot: tmp,
+      inlineStub: () => ({
+        verdict: "pass",
+        severity: "none",
+        findings: [],
+      }),
+    })
+    expect((r.output as { verdict: string }).verdict).toBe("pass")
   })
 
   test("Invariant §1: reviewer.* manifest declaring read:solutions would fail", async () => {

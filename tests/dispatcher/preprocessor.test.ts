@@ -37,6 +37,48 @@ describe("preprocess — array[T] quoting", () => {
   })
 })
 
+describe("preprocess — block scalar passthrough (audit I1 fix)", () => {
+  test("array[X] inside `key: |` literal block is preserved", () => {
+    const input = "notes: |\n  We support array[string] types.\n  See array[{a, b}].\n"
+    const out = preprocess(input)
+    expect(out).toContain("array[string]")
+    expect(out).toContain("array[{a, b}]")
+    expect(out).not.toContain('"array[string]"')
+  })
+
+  test("? inside `key: |` block is preserved", () => {
+    const input = "rationale: |\n  why does [source, ref?] fail?\n"
+    const out = preprocess(input)
+    expect(out).toContain("ref?")
+    expect(out).not.toContain('"ref?"')
+  })
+
+  test("block ends when indent retreats (next key at parent indent)", () => {
+    const input = [
+      "notes: |",
+      "  literal array[X] text",
+      "next_key: { type: array[string] }",
+    ].join("\n") + "\n"
+    const out = preprocess(input)
+    // Inside the block — preserved
+    expect(out).toContain("literal array[X] text")
+    // Outside the block — quoted
+    expect(out).toContain('"array[string]"')
+  })
+
+  test("`key: >` folded block also passthrough", () => {
+    const input = "purpose: >\n  flag with array[X]\n"
+    const out = preprocess(input)
+    expect(out).toContain("array[X]")
+    expect(out).not.toContain('"array[X]"')
+  })
+
+  test("regular flow-mapping array[T] still transformed", () => {
+    const out = preprocess("x: { type: array[string] }")
+    expect(out).toBe('x: { type: "array[string]" }')
+  })
+})
+
 describe("preprocess — optional ? marker in flow-sequence", () => {
   test("solution_ref? inside items list", () => {
     const out = preprocess("items: [source, excerpt, solution_ref?]")

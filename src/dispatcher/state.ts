@@ -116,6 +116,11 @@ const REQUIRED_INTENT_FIELDS = [
   "scope_tokens",
 ] as const
 
+/** Whitespace-separated word count. */
+function wordCount(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length
+}
+
 function validateIntent(intent: IntentDoc): void {
   for (const f of REQUIRED_INTENT_FIELDS) {
     const v = intent[f as keyof IntentDoc]
@@ -127,6 +132,16 @@ function validateIntent(intent: IntentDoc): void {
     throw new StateError(
       "SchemaViolation",
       "affected_readers must be a non-empty array (required even at L1)",
+    )
+  }
+  // sgc-state.schema.yaml:52 — motivation: { type: markdown, min_words: 20 }
+  // Audit C-phase C3: this was previously not enforced; auto-padding produced
+  // a 16-word motivation that was then immutably persisted.
+  const mwords = wordCount(intent.motivation)
+  if (mwords < 20) {
+    throw new StateError(
+      "SchemaViolation",
+      `motivation must be ≥20 words (got ${mwords}); pass --motivation "<longer rationale>"`,
     )
   }
   if (intent.level === "L3" && !intent.user_signature) {

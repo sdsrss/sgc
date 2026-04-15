@@ -2,6 +2,20 @@
 
 A single engineering workflow combining process discipline, real-world QA, and knowledge compounding.
 
+## Implementation Status
+
+Dispatcher (`src/dispatcher/`) is executable as of C-phase. The L1 closed loop runs end-to-end via `bun src/sgc.ts <cmd>`. See [README.md](../../README.md) and [docs/c-phase-demo.md](../../docs/c-phase-demo.md) for a worked example.
+
+| Command | Status | CLI |
+|---------|--------|-----|
+| `/plan` | ✅ L0-L3 classification + planner.eng (stub) | `sgc plan <task> [--level Lx] [--signed-by id]` |
+| `/work` | ✅ feature-list tracker | `sgc work [--add\|--done <id>]` |
+| `/review` | ✅ reviewer.correctness (stub) on git diff | `sgc review [--base <ref>]` |
+| `/status` | ✅ active task + level + last_activity | `sgc status` |
+| `/discover`, `/qa`, `/ship`, `/compound` | ⏸ stub — D-phase | `sgc <cmd>` → NotImplementedYet |
+
+Stub agents (classifier/planner/reviewer) use heuristics, not LLM. D-phase swaps stubs for real Claude subagents using the same file-based prompt protocol (`SGC_USE_FILE_AGENTS=1` already exercises the polling path).
+
 ## Commands
 
 | Command | Purpose |

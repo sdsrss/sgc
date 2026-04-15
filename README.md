@@ -142,6 +142,26 @@ Coverage:
 - `sgc-work.test.ts` (8) — feature-list mutations
 - `sgc-review.test.ts` (10) — reviewer stub + full review flow + append-only
 
+## Agent dispatch modes
+
+SGC supports four agent backends, auto-picked in this order:
+
+| Priority | Mode | When it's picked | Notes |
+|----------|------|------------------|-------|
+| 1 | `opts.mode` (programmatic) | explicit override | used by tests + embedding |
+| 2 | `SGC_AGENT_MODE=<mode>` env | explicit | one of `inline` / `file-poll` / `claude-cli` / `anthropic-sdk` |
+| 3 | `SGC_USE_FILE_AGENTS=1` (legacy) | explicit | forces `file-poll` |
+| 4 | `inline` stub | caller passes `inlineStub` | tests + demo |
+| 5 | `anthropic-sdk` | `ANTHROPIC_API_KEY` present | direct API calls, uses prompt caching, billed to API key |
+| 6 | `claude-cli` | `claude` binary in PATH | shells out to `claude -p`, uses your `claude login` (subscription-friendly) |
+| 7 | `file-poll` (default) | no key, no CLI | CLI blocks waiting for result file — you submit via `sgc agent-loop --submit <id>` |
+
+**Subscription users** (Claude Pro/Max, no API key): priority 6 activates automatically if `claude` is in PATH. Otherwise you fall back to `file-poll` and submit manually — useful in Claude Code sessions where you can have Claude read + reply in-session.
+
+**API users** (`ANTHROPIC_API_KEY` set): priority 5 activates automatically. Uses `claude-opus-4-6` with adaptive thinking and ephemeral prompt caching.
+
+Override with `SGC_AGENT_MODE=file-poll` at any time to fall back to manual submission (useful for debugging).
+
 ## Gotchas
 
 - **`bun install` is slow on this machine**: `bun add` doesn't honor `HTTP_PROXY` env. Use `npm install` instead. `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` skips the 100MB chromium fetch (bring your own at runtime).

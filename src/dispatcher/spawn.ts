@@ -33,6 +33,10 @@ import {
 import { promptPath as getPromptPath, resultPath as getResultPath } from "./spawn-protocol"
 import { validateOutputShape } from "./validation"
 import { runClaudeCliAgent, type SubprocessRunner } from "./claude-cli-agent"
+import {
+  runAnthropicSdkAgent,
+  type AnthropicClientFactory,
+} from "./anthropic-sdk-agent"
 import type { ScopeToken, SubagentManifest } from "./types"
 
 // Re-export for callers that referenced OutputShapeMismatch from spawn.ts
@@ -59,7 +63,7 @@ export class SpawnTimeout extends Error {
 
 export type InlineStub<I = unknown, O = unknown> = (input: I) => O | Promise<O>
 
-export type AgentMode = "inline" | "file-poll" | "claude-cli"
+export type AgentMode = "inline" | "file-poll" | "claude-cli" | "anthropic-sdk"
 
 export interface SpawnOptions {
   stateRoot?: string
@@ -69,6 +73,8 @@ export interface SpawnOptions {
   ulid?: string  // override for tests
   mode?: AgentMode  // explicit override; else resolved from env
   claudeCliRunner?: SubprocessRunner  // test hook for claude-cli mode
+  anthropicClientFactory?: AnthropicClientFactory  // test hook for anthropic-sdk mode
+  hasClaudeCli?: () => boolean  // test hook for resolveMode auto-detect
 }
 
 const root = (custom?: string): string =>
@@ -83,18 +89,32 @@ function generateUlid(): string {
 /**
  * Resolve which agent dispatch mode to use, in priority:
  *   1. explicit opts.mode
- *   2. SGC_AGENT_MODE env ("inline" | "file-poll" | "claude-cli")
+ *   2. SGC_AGENT_MODE env ("inline" | "file-poll" | "claude-cli" | "anthropic-sdk")
  *   3. SGC_USE_FILE_AGENTS=1 (legacy alias for file-poll)
- *   4. inline if caller provided a stub, else file-poll
+ *   4. opts.inlineStub provided → "inline"
+ *   5. ANTHROPIC_API_KEY present → "anthropic-sdk"
+ *   6. `claude` CLI in PATH → "claude-cli" (auto-detect for subscription users)
+ *   7. default → "file-poll"
+ *
+ * Exported for direct testing.
  */
-function resolveMode(opts: SpawnOptions): AgentMode {
+export function resolveMode(opts: SpawnOptions = {}): AgentMode {
   if (opts.mode) return opts.mode
   const envMode = process.env["SGC_AGENT_MODE"]
-  if (envMode === "inline" || envMode === "file-poll" || envMode === "claude-cli") {
+  if (
+    envMode === "inline" ||
+    envMode === "file-poll" ||
+    envMode === "claude-cli" ||
+    envMode === "anthropic-sdk"
+  ) {
     return envMode
   }
   if (process.env["SGC_USE_FILE_AGENTS"] === "1") return "file-poll"
-  return opts.inlineStub ? "inline" : "file-poll"
+  if (opts.inlineStub) return "inline"
+  if (process.env["ANTHROPIC_API_KEY"]) return "anthropic-sdk"
+  const hasCli = opts.hasClaudeCli ?? (() => Bun.which("claude") !== null)
+  if (hasCli()) return "claude-cli"
+  return "file-poll"
 }
 
 // validateOutputShape moved to src/dispatcher/validation.ts so agent-loop
@@ -214,6 +234,12 @@ export async function spawn<I = unknown, O = unknown>(
     )
   } else if (mode === "claude-cli") {
     output = await runClaudeCliAgent(promptPath, manifest, opts.claudeCliRunner)
+    writeAtomic(
+      resultPath,
+      serializeFrontmatter(output as Record<string, unknown>, ""),
+    )
+  } else if (mode === "anthropic-sdk") {
+    output = await runAnthropicSdkAgent(promptPath, manifest, opts.anthropicClientFactory)
     writeAtomic(
       resultPath,
       serializeFrontmatter(output as Record<string, unknown>, ""),

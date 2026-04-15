@@ -110,12 +110,30 @@ Implement the regex-based rationale validator (per decision D-dec-5). Applied in
 Updates: `src/commands/plan.ts`, `src/dispatcher/agents/classifier-level.ts` (stub to emit better rationale).
 Tests: +3 in `tests/dispatcher/sgc-plan.test.ts`.
 
-#### D-1.3: Anthropic SDK agent path (decision D-dec-1 tier 2)
-Add `--api` flag on commands that spawn agents. Wires `spawn()` through an HTTP call to Claude when flag set. Respects token_budget + timeout_s from manifest. Prompt caching enabled.
+#### D-1.3: `claude` CLI shell-out agent mode (revised)
+Originally planned as Anthropic SDK direct path — revised after discovering
+Anthropic's ToS (2026-02) prohibits subscription OAuth tokens with SDK.
+For subscription users, the path is `claude -p` shell-out instead.
 
-New: `src/dispatcher/anthropic-agent.ts`.
-Dep: `@anthropic-ai/sdk` (npm install).
-Tests: `tests/dispatcher/anthropic-agent.test.ts` (mocked HTTP).
+New: `src/dispatcher/claude-cli-agent.ts` — Bun.spawn to `claude -p`;
+parses `{type: "result", result: "...yaml..."}` JSON; extracts YAML from
+fenced/bare markdown; SubprocessRunner injectable for tests.
+spawn.ts: new AgentMode "claude-cli"; resolveMode reads SGC_AGENT_MODE env.
+Tests: 16 (extractYamlBody, success paths, error paths, spawn integration).
+
+#### D-1.4: Anthropic SDK path + auto-detect (added)
+Added per user request: "auto-detect ANTHROPIC_API_KEY; have key → SDK,
+no key → subscription way". Subscription users automatically fall through
+to claude-cli (priority 6) or file-poll (default).
+
+New: `src/dispatcher/anthropic-sdk-agent.ts` — @anthropic-ai/sdk direct
+call with adaptive thinking + ephemeral prompt caching + `claude-opus-4-6`.
+Typed exception handling via `Anthropic.APIError`. Client factory
+injectable for tests.
+Dep added: `@anthropic-ai/sdk ^0.89.0`.
+spawn.ts: new AgentMode "anthropic-sdk"; resolveMode priority chain
+documented (opts.mode → env → inlineStub → API key → claude CLI → file-poll).
+Tests: 17 (success + error paths, spawn integration, 8 priority cases).
 
 ### Step 2 — L2 Planner Cluster (2 commits)
 

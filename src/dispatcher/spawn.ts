@@ -32,6 +32,7 @@ import {
 } from "./state"
 import { promptPath as getPromptPath, resultPath as getResultPath } from "./spawn-protocol"
 import { validateOutputShape } from "./validation"
+import { runClaudeCliAgent, type SubprocessRunner } from "./claude-cli-agent"
 import type { ScopeToken, SubagentManifest } from "./types"
 
 // Re-export for callers that referenced OutputShapeMismatch from spawn.ts
@@ -58,12 +59,16 @@ export class SpawnTimeout extends Error {
 
 export type InlineStub<I = unknown, O = unknown> = (input: I) => O | Promise<O>
 
+export type AgentMode = "inline" | "file-poll" | "claude-cli"
+
 export interface SpawnOptions {
   stateRoot?: string
   inlineStub?: InlineStub
   timeoutMs?: number  // overrides manifest.timeout_s
   pollIntervalMs?: number
   ulid?: string  // override for tests
+  mode?: AgentMode  // explicit override; else resolved from env
+  claudeCliRunner?: SubprocessRunner  // test hook for claude-cli mode
 }
 
 const root = (custom?: string): string =>
@@ -75,8 +80,21 @@ function generateUlid(): string {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase()
 }
 
-function shouldUseFilePoll(): boolean {
-  return process.env["SGC_USE_FILE_AGENTS"] === "1"
+/**
+ * Resolve which agent dispatch mode to use, in priority:
+ *   1. explicit opts.mode
+ *   2. SGC_AGENT_MODE env ("inline" | "file-poll" | "claude-cli")
+ *   3. SGC_USE_FILE_AGENTS=1 (legacy alias for file-poll)
+ *   4. inline if caller provided a stub, else file-poll
+ */
+function resolveMode(opts: SpawnOptions): AgentMode {
+  if (opts.mode) return opts.mode
+  const envMode = process.env["SGC_AGENT_MODE"]
+  if (envMode === "inline" || envMode === "file-poll" || envMode === "claude-cli") {
+    return envMode
+  }
+  if (process.env["SGC_USE_FILE_AGENTS"] === "1") return "file-poll"
+  return opts.inlineStub ? "inline" : "file-poll"
 }
 
 // validateOutputShape moved to src/dispatcher/validation.ts so agent-loop
@@ -186,15 +204,22 @@ export async function spawn<I = unknown, O = unknown>(
 
   writeAtomic(promptPath, formatPrompt(spawnId, manifest, input, tokens, resultPath))
 
+  const mode = resolveMode(opts)
   let output: unknown
-  if (opts.inlineStub && !shouldUseFilePoll()) {
+  if (mode === "inline" && opts.inlineStub) {
     output = await opts.inlineStub(input)
-    // Persist result for audit trail
+    writeAtomic(
+      resultPath,
+      serializeFrontmatter(output as Record<string, unknown>, ""),
+    )
+  } else if (mode === "claude-cli") {
+    output = await runClaudeCliAgent(promptPath, manifest, opts.claudeCliRunner)
     writeAtomic(
       resultPath,
       serializeFrontmatter(output as Record<string, unknown>, ""),
     )
   } else {
+    // file-poll
     const timeoutMs = opts.timeoutMs ?? (manifest.timeout_s ?? 60) * 1000
     output = await pollForResult(resultPath, timeoutMs, opts.pollIntervalMs ?? 1000)
   }

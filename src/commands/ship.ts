@@ -24,6 +24,7 @@ import {
   readFeatureList,
   readIntent,
   writeCurrentTask,
+  writeJanitorDecision,
   writeShip,
 } from "../dispatcher/state"
 import {
@@ -31,9 +32,16 @@ import {
   intentPath,
   listReviewsForStage,
 } from "../dispatcher/state"
+import { createHash } from "node:crypto"
 import { existsSync } from "node:fs"
 import { defaultGhRunner, type GhRunner } from "../dispatcher/gh-runner"
-import type { ShipDoc, TaskId } from "../dispatcher/types"
+import { spawn } from "../dispatcher/spawn"
+import {
+  janitorCompound,
+  type JanitorCompoundOutput,
+} from "../dispatcher/agents/janitor-compound"
+import { runCompound } from "./compound"
+import type { JanitorDecision, ShipDoc, TaskId } from "../dispatcher/types"
 
 export interface ShipOptions {
   stateRoot?: string
@@ -44,6 +52,10 @@ export interface ShipOptions {
   prTitle?: string
   prBody?: string
   ghRunner?: GhRunner  // test hook for PR creation
+  /** Default: true. Set to false to skip post-ship janitor invocation. */
+  runJanitor?: boolean
+  /** Pass --force to janitor (bypass decision_rules into always-compound). */
+  forceCompound?: boolean
   log?: (msg: string) => void
 }
 
@@ -51,6 +63,8 @@ export interface ShipResult {
   taskId: TaskId
   shipPath: string | null  // null for L0
   prUrl?: string
+  janitorDecision?: JanitorCompoundOutput
+  compoundAction?: "compound" | "update_existing" | "skip"
 }
 
 function nowIso(): string {
@@ -217,6 +231,68 @@ export async function runShip(opts: ShipOptions = {}): Promise<ShipResult> {
     }
   }
 
+  // Janitor.compound auto-trigger (Invariant §6 — decision always logged)
+  let janitorDecision: JanitorCompoundOutput | undefined
+  let compoundAction: "compound" | "update_existing" | "skip" | undefined
+  if (opts.runJanitor !== false) {
+    const janitorInput = {
+      task_id: taskId,
+      level,
+      outcome: "success" as const,
+      reviewer_flags: codeReviews.map((r) => ({
+        severity: r.severity,
+        novel: undefined,
+      })),
+      force: opts.forceCompound ?? false,
+    }
+    const jRes = await spawn<unknown, JanitorCompoundOutput>(
+      "janitor.compound",
+      janitorInput,
+      {
+        stateRoot,
+        inlineStub: (i) => janitorCompound(i as typeof janitorInput),
+      },
+    )
+    janitorDecision = jRes.output
+
+    // Invariant §6: log every decision (including skips)
+    const inputs_hash = createHash("sha256")
+      .update(JSON.stringify(janitorInput))
+      .digest("hex")
+    const decisionRecord: JanitorDecision = {
+      task_id: taskId,
+      decision: janitorDecision.decision,
+      reason_code: janitorDecision.reason_code,
+      reason_human: janitorDecision.reason_human,
+      inputs_hash,
+      created_at: nowIso(),
+    }
+    const decisionPath = writeJanitorDecision(decisionRecord, "", stateRoot)
+    log(`janitor.compound: ${janitorDecision.decision} (${janitorDecision.reason_code})`)
+    log(`  logged to: ${decisionPath}`)
+
+    // If decision is compound or update_existing, invoke runCompound.
+    // Compound runs its own dedup; its final `action` may differ from
+    // janitor's suggestion (e.g. janitor says compound, runCompound finds
+    // a match and returns update_existing).
+    if (janitorDecision.decision === "compound" || janitorDecision.decision === "update_existing") {
+      try {
+        const c = await runCompound({
+          stateRoot,
+          force: opts.forceCompound,
+          log: () => {},
+        })
+        compoundAction = c.action
+        log(`compound: action=${c.action}${c.duplicateRef ? ` ref=${c.duplicateRef}` : ""}`)
+      } catch (e) {
+        // §10: if compound fails, no partial write happened (writeSolution
+        // is the final step). Log the error but don't fail ship — ship.md
+        // is already committed.
+        log(`compound failed: ${(e as Error).message}`)
+      }
+    }
+  }
+
   log(`shipped ${taskId} (${level})`)
-  return { taskId, shipPath: shipFilePath, prUrl }
+  return { taskId, shipPath: shipFilePath, prUrl, janitorDecision, compoundAction }
 }

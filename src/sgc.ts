@@ -179,6 +179,17 @@ const ship = defineCommand({
       required: false,
       description: "PR body override (default: auto-generated summary)",
     },
+    "no-janitor": {
+      type: "boolean",
+      required: false,
+      description: "Skip post-ship janitor.compound invocation (default: run)",
+    },
+    "force-compound": {
+      type: "boolean",
+      required: false,
+      description:
+        "Force janitor.compound to decide 'compound' (bypass decision_rules). Also bypasses dedup inside runCompound.",
+    },
   },
   async run({ args }) {
     const { runShip } = await import("./commands/ship")
@@ -187,6 +198,8 @@ const ship = defineCommand({
       createPr: args.pr as boolean | undefined,
       prTitle: args["pr-title"] as string | undefined,
       prBody: args["pr-body"] as string | undefined,
+      runJanitor: args["no-janitor"] ? false : undefined,
+      forceCompound: args["force-compound"] as boolean | undefined,
     })
   },
 })

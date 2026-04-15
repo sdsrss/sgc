@@ -36,6 +36,7 @@ import type {
   FeatureList,
   Handoff,
   IntentDoc,
+  JanitorDecision,
   ReviewReport,
   ShipDoc,
   SolutionCategory,
@@ -564,6 +565,62 @@ export function deleteSolution(
     "SolutionDeleteForbidden",
     "solutions/ is delete-forbidden per sgc-state.schema.yaml (delete_policy: forbidden)",
   )
+}
+
+// Janitor decisions ──────────────────────────────────────────────────────────
+
+const REQUIRED_JANITOR_FIELDS = [
+  "task_id",
+  "decision",
+  "reason_code",
+  "reason_human",
+  "inputs_hash",
+  "created_at",
+] as const
+
+function validateJanitorDecision(d: JanitorDecision): void {
+  for (const f of REQUIRED_JANITOR_FIELDS) {
+    const v = d[f as keyof JanitorDecision]
+    if (v === undefined || v === null || (typeof v === "string" && v.length === 0)) {
+      throw new StateError("SchemaViolation", `janitor decision missing: ${f}`)
+    }
+  }
+}
+
+export function janitorDecisionPath(taskId: TaskId, stateRoot?: string): string {
+  return resolve(root(stateRoot), "reviews", taskId, "janitor", "compound-decision.md")
+}
+
+/**
+ * Write the janitor decision. Invariant §6: every janitor decision MUST
+ * be logged (including skips). One decision per task — duplicate writes
+ * throw AppendOnly.
+ */
+export function writeJanitorDecision(
+  decision: JanitorDecision,
+  body = "",
+  stateRoot?: string,
+): string {
+  const path = janitorDecisionPath(decision.task_id, stateRoot)
+  if (existsSync(path)) {
+    throw new StateError(
+      "AppendOnly",
+      `janitor decision already written for ${decision.task_id} (Invariant §6)`,
+    )
+  }
+  validateJanitorDecision(decision)
+  writeAtomic(path, serializeFrontmatter(decision as unknown as Record<string, unknown>, body))
+  return path
+}
+
+export function readJanitorDecision(
+  taskId: TaskId,
+  stateRoot?: string,
+): JanitorDecision | null {
+  const path = janitorDecisionPath(taskId, stateRoot)
+  if (!existsSync(path)) return null
+  const { data } = parseFrontmatter<JanitorDecision>(readFileSync(path, "utf8"))
+  return data
 }
 
 /**

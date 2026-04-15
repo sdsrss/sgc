@@ -45,9 +45,25 @@ const plan = defineCommand({
       required: true,
       description: "Task description (one sentence)",
     },
+    level: {
+      type: "string",
+      required: false,
+      description: "Override classifier level (upgrade only — L1→L2, L2→L3)",
+    },
+    "signed-by": {
+      type: "string",
+      required: false,
+      description: "Human signer_id required for L3 intents (Invariant §4)",
+    },
   },
-  run() {
-    throw new NotImplementedYet("plan")
+  async run({ args }) {
+    const { runPlan } = await import("./commands/plan")
+    const force = args.level as "L0" | "L1" | "L2" | "L3" | undefined
+    const signedBy = args["signed-by"] as string | undefined
+    const userSignature = signedBy
+      ? { signed_at: new Date().toISOString(), signer_id: signedBy }
+      : undefined
+    await runPlan(args.task as string, { forceLevel: force, userSignature })
   },
 })
 

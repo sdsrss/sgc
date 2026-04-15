@@ -92,8 +92,16 @@ const work = defineCommand({
 
 const review = defineCommand({
   meta: { name: "review", description: "Independent static review of the diff" },
-  run() {
-    throw new NotImplementedYet("review")
+  args: {
+    base: {
+      type: "string",
+      required: false,
+      description: "Git ref to diff against (default: HEAD)",
+    },
+  },
+  async run({ args }) {
+    const { runReview } = await import("./commands/review")
+    await runReview({ base: args.base as string | undefined })
   },
 })
 

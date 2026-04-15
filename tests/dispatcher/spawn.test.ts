@@ -107,9 +107,10 @@ describe("spawn — inline-stub mode", () => {
     expect((r.output as { verdict: string }).verdict).toBe("pass")
   })
 
-  test("Invariant §1: reviewer.* manifest declaring read:solutions would fail", async () => {
-    // The manifest as-shipped doesn't declare it (Invariant §1 enforced), so
-    // computeSubagentTokens passes. We spot-check tokens are in the prompt.
+  test("Invariant §1: reviewer prompt pins no read:solutions + lists it as forbidden", async () => {
+    // The manifest as-shipped doesn't declare read:solutions (Invariant §1
+    // enforced at manifest load). The prompt format (D-1.1) now explicitly
+    // lists forbidden tokens as a defense-in-depth reminder to the agent.
     const r = await spawn("reviewer.correctness", {}, {
       stateRoot: tmp,
       inlineStub: () => ({
@@ -119,8 +120,13 @@ describe("spawn — inline-stub mode", () => {
       }),
     })
     const prompt = readFileSync(r.promptPath, "utf8")
-    expect(prompt).not.toContain("read:solutions")
-    expect(prompt).toContain("write:reviews")
+    // Pinned tokens block (under `scope_tokens:` key) must NOT have read:solutions
+    const pinnedBlock = prompt.match(/scope_tokens:\n((?:  - .+\n)+)/)?.[1] ?? ""
+    expect(pinnedBlock).not.toContain("read:solutions")
+    expect(pinnedBlock).toContain("write:reviews")
+    // Forbidden list must INCLUDE read:solutions (new in D-1.1)
+    expect(prompt).toContain("forbidden_tokens")
+    expect(prompt).toMatch(/FORBIDDEN from:.*read:solutions/)
   })
 })
 

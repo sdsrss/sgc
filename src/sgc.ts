@@ -180,6 +180,47 @@ const status = defineCommand({
   },
 })
 
+// ── agent-loop (D-1.1) ─────────────────────────────────────────────────────
+
+const agentLoop = defineCommand({
+  meta: {
+    name: "agent-loop",
+    description:
+      "Helper for external actors (Claude main session, user) to fulfill pending agent spawns",
+  },
+  args: {
+    list: {
+      type: "boolean",
+      required: false,
+      description: "List all spawns with [x]/[ ] status markers",
+    },
+    show: {
+      type: "string",
+      required: false,
+      description: "Print the prompt file for a given spawn_id",
+    },
+    submit: {
+      type: "string",
+      required: false,
+      description: "Write the result file for a given spawn_id",
+    },
+    from: {
+      type: "string",
+      required: false,
+      description: "With --submit: read YAML from this file (else from stdin)",
+    },
+  },
+  async run({ args }) {
+    const { runAgentLoop } = await import("./commands/agent-loop")
+    await runAgentLoop({
+      list: args.list as boolean | undefined,
+      show: args.show as string | undefined,
+      submit: args.submit as string | undefined,
+      fromFile: args.from as string | undefined,
+    })
+  },
+})
+
 // ── main ────────────────────────────────────────────────────────────────────
 
 const main = defineCommand({
@@ -198,6 +239,7 @@ const main = defineCommand({
     ship: () => ship,
     compound: () => compound,
     status: () => status,
+    "agent-loop": () => agentLoop,
   },
 })
 

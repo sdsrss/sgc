@@ -21,22 +21,26 @@
 // stays unchanged.
 
 import { existsSync, readFileSync } from "node:fs"
-import { resolve } from "node:path"
 import { dump as yamlDump } from "js-yaml"
 import { computeSubagentTokens } from "./capabilities"
-import { getSubagentManifest } from "./schema"
+import { getCapabilities, getSubagentManifest } from "./schema"
 import {
   StateError,
   ensureSgcStructure,
   parseFrontmatter,
   serializeFrontmatter,
 } from "./state"
+import { promptPath as getPromptPath, resultPath as getResultPath } from "./spawn-protocol"
+import { validateOutputShape } from "./validation"
 import type { ScopeToken, SubagentManifest } from "./types"
+
+// Re-export for callers that referenced OutputShapeMismatch from spawn.ts
+export { OutputShapeMismatch } from "./validation"
 
 // node:fs writeFileSync via state.ts internal helper would be cleaner;
 // for now duplicate atomic write for spawn-specific paths.
 import { mkdirSync, renameSync, writeFileSync } from "node:fs"
-import { dirname } from "node:path"
+import { dirname, resolve } from "node:path"
 
 function writeAtomic(path: string, content: string): void {
   mkdirSync(dirname(path), { recursive: true })
@@ -49,13 +53,6 @@ export class SpawnTimeout extends Error {
   constructor(spawnId: string, timeoutMs: number) {
     super(`spawn ${spawnId} timed out waiting for result after ${timeoutMs}ms`)
     this.name = "SpawnTimeout"
-  }
-}
-
-export class OutputShapeMismatch extends Error {
-  constructor(agent: string, fields: string[], detail?: string) {
-    super(detail ?? `agent ${agent} output missing required fields: ${fields.join(", ")}`)
-    this.name = "OutputShapeMismatch"
   }
 }
 
@@ -82,108 +79,27 @@ function shouldUseFilePoll(): boolean {
   return process.env["SGC_USE_FILE_AGENTS"] === "1"
 }
 
-function expectedOutputFields(manifest: SubagentManifest): string[] {
-  const out = manifest.outputs
-  if (!out || typeof out !== "object") return []
-  return Object.keys(out)
-}
+// validateOutputShape moved to src/dispatcher/validation.ts so agent-loop
+// can share it without circular imports. Re-exported at top of this file.
 
 /**
- * Type-check a single value against its declared type. Returns null on OK,
- * an error string otherwise. Declarations are the post-preprocessor strings
- * from the manifest (e.g. "enum[A, B]", "array[string]", "markdown").
- *
- * MVP scope: enum-membership, array-ness, string/number primitives. Complex
- * object declarations (e.g. structural_risks: array[{area, risk, mitigation}])
- * pass through with array-only check.
+ * Compute the list of tokens explicitly forbidden for this subagent by the
+ * capabilities spec (so the prompt can remind the agent — defense in depth).
  */
-function validateValueAgainstDecl(value: unknown, decl: unknown, fieldName: string): string | null {
-  if (typeof decl !== "string") return null  // complex declaration — defer
-
-  const enumMatch = /^enum\[(.+)\]$/.exec(decl)
-  if (enumMatch) {
-    const values = enumMatch[1]!.split(",").map((v) => v.trim())
-    if (typeof value !== "string" || !values.includes(value)) {
-      return `field ${fieldName}: expected one of [${values.join(", ")}], got ${JSON.stringify(value)}`
+function forbiddenTokensFor(agentName: string): string[] {
+  const spec = getCapabilities()
+  const out: string[] = []
+  for (const [token, def] of Object.entries(spec.scope_tokens)) {
+    if (!def.forbidden_for) continue
+    for (const pat of def.forbidden_for) {
+      const re = pat.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")
+      if (new RegExp(`^${re}$`).test(agentName)) {
+        out.push(token)
+        break
+      }
     }
-    return null
   }
-
-  if (/^array\[(.+)\]$/.test(decl)) {
-    if (!Array.isArray(value)) {
-      return `field ${fieldName}: expected array, got ${typeof value}`
-    }
-    return null
-  }
-
-  if (decl === "string" || decl === "markdown") {
-    if (typeof value !== "string") {
-      return `field ${fieldName}: expected string, got ${typeof value}`
-    }
-    return null
-  }
-
-  if (decl === "integer" || decl === "number") {
-    if (typeof value !== "number") {
-      return `field ${fieldName}: expected number, got ${typeof value}`
-    }
-    return null
-  }
-
-  return null  // unknown declaration form — don't reject
-}
-
-/**
- * Validate subagent output against manifest.outputs (Invariant §9).
- *
- * Three layers (audit C-phase C1):
- *   1. Result is a non-null object.
- *   2. All declared fields are present (missing → throw).
- *   3. No undeclared fields are present (unknown → throw).
- *      "The dispatcher discards any produced content that does not match
- *       the declared output shape" — we throw rather than silently strip,
- *       so the bug is visible at dev time.
- *   4. Each value matches its declared type form (enum members, arrayness,
- *      string/number primitives).
- */
-function validateOutputShape(manifest: SubagentManifest, result: unknown): void {
-  if (typeof result !== "object" || result === null) {
-    throw new OutputShapeMismatch(manifest.name, expectedOutputFields(manifest))
-  }
-  const expected = (manifest.outputs ?? {}) as Record<string, unknown>
-  const required = Object.keys(expected)
-  const present = Object.keys(result as Record<string, unknown>)
-
-  const missing = required.filter((k) => !present.includes(k))
-  if (missing.length > 0) {
-    throw new OutputShapeMismatch(manifest.name, missing)
-  }
-
-  const unknown = present.filter((k) => !required.includes(k))
-  if (unknown.length > 0) {
-    throw new OutputShapeMismatch(
-      manifest.name,
-      unknown,
-      `agent ${manifest.name} returned undeclared output fields: ${unknown.join(", ")} (Invariant §9)`,
-    )
-  }
-
-  const typeErrors: string[] = []
-  for (const [field, decl] of Object.entries(expected)) {
-    const err = validateValueAgainstDecl(
-      (result as Record<string, unknown>)[field],
-      decl,
-      field,
-    )
-    if (err) typeErrors.push(err)
-  }
-  if (typeErrors.length > 0) {
-    throw new OutputShapeMismatch(
-      manifest.name,
-      typeErrors,
-      `agent ${manifest.name} output type errors: ${typeErrors.join("; ")}`,
-    )
-  }
+  return out
 }
 
 function formatPrompt(
@@ -193,20 +109,34 @@ function formatPrompt(
   tokens: ScopeToken[],
   resultPath: string,
 ): string {
+  const forbidden = forbiddenTokensFor(manifest.name)
   const fm = {
     spawn_id: spawnId,
     agent: manifest.name,
     version: manifest.version,
     scope_tokens: tokens,
+    forbidden_tokens: forbidden,
     timeout_s: manifest.timeout_s ?? 60,
     expected_outputs: manifest.outputs ?? {},
   }
   const body =
     `## Purpose\n\n${manifest.purpose ?? "(no purpose declared)"}\n\n` +
-    `## Input\n\n\`\`\`yaml\n${yamlDump(input).trimEnd()}\n\`\`\`\n\n` +
-    `## Instructions\n\n` +
-    `Write your response to: \`${resultPath}\`\n\n` +
-    `Format: YAML frontmatter matching expected_outputs above, plus optional markdown body.\n`
+    `## Your scope\n\n` +
+    `You hold these pinned tokens: ${tokens.map((t) => `\`${t}\``).join(", ") || "(none)"}.\n` +
+    (forbidden.length > 0
+      ? `You are FORBIDDEN from: ${forbidden.map((t) => `\`${t}\``).join(", ")} (Invariant §1).\n`
+      : "") +
+    `\n## Input\n\n\`\`\`yaml\n${yamlDump(input).trimEnd()}\n\`\`\`\n\n` +
+    `## Reply format\n\n` +
+    `Your response must be a YAML document whose frontmatter matches \`expected_outputs\` above — exact keys, matching types (enum members, array shapes, string/number primitives). Extra fields are rejected by the dispatcher (Invariant §9).\n\n` +
+    `## Submit\n\n` +
+    `Write your YAML to: \`${resultPath}\`\n\n` +
+    `Or use the helper:\n\n` +
+    `\`\`\`bash\n` +
+    `echo 'your YAML here' | bun src/sgc.ts agent-loop --submit ${spawnId}\n` +
+    `# or:\n` +
+    `bun src/sgc.ts agent-loop --submit ${spawnId} --from /path/to/result.yaml\n` +
+    `\`\`\`\n`
   return serializeFrontmatter(fm as Record<string, unknown>, body)
 }
 
@@ -251,8 +181,8 @@ export async function spawn<I = unknown, O = unknown>(
   const stateRoot = root(opts.stateRoot)
   const ulid = opts.ulid ?? generateUlid()
   const spawnId = `${ulid}-${agentName}`
-  const promptPath = resolve(stateRoot, "progress/agent-prompts", `${spawnId}.md`)
-  const resultPath = resolve(stateRoot, "progress/agent-results", `${spawnId}.md`)
+  const promptPath = getPromptPath(spawnId, stateRoot)
+  const resultPath = getResultPath(spawnId, stateRoot)
 
   writeAtomic(promptPath, formatPrompt(spawnId, manifest, input, tokens, resultPath))
 

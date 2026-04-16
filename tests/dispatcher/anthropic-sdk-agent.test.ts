@@ -9,7 +9,7 @@ import {
   splitPrompt,
   type AnthropicClientFactory,
 } from "../../src/dispatcher/anthropic-sdk-agent"
-import { spawn, resolveMode } from "../../src/dispatcher/spawn"
+import { formatPrompt, spawn, resolveMode } from "../../src/dispatcher/spawn"
 import { ensureSgcStructure } from "../../src/dispatcher/state"
 import { getSubagentManifest } from "../../src/dispatcher/schema"
 
@@ -151,6 +151,97 @@ describe("splitPrompt", () => {
     // No leading \n before ## Input, so not matched
     expect(systemPart).toBe("")
     expect(userPart).toBe(prompt)
+  })
+
+  test("tolerates CRLF line endings", () => {
+    const prompt = ["# Purpose", "x", "", "## Input", "y"].join("\r\n")
+    const { systemPart, userPart } = splitPrompt(prompt)
+    expect(systemPart).toContain("# Purpose")
+    expect(systemPart).not.toContain("## Input")
+    expect(userPart).toContain("## Input")
+  })
+
+  test("tolerates trailing whitespace after 'Input' heading", () => {
+    const prompt = "# Purpose\nx\n\n## Input   \ny"
+    const { systemPart, userPart } = splitPrompt(prompt)
+    expect(systemPart).toContain("# Purpose")
+    expect(userPart).toContain("## Input")
+  })
+
+  test("does not match '### Input' (level-3 heading)", () => {
+    const prompt = "# Purpose\nx\n\n### Input\ny"
+    const { systemPart, userPart } = splitPrompt(prompt)
+    // Only '## Input' is the marker; '### Input' stays on the user side
+    // via fallback (whole prompt in user part).
+    expect(systemPart).toBe("")
+    expect(userPart).toBe(prompt)
+  })
+})
+
+describe("prompt caching — byte-identical system block across calls", () => {
+  // This is the direct proof that cache_control=ephemeral on the system
+  // block will actually hit. formatPrompt must produce identical pre-`##
+  // Input` text for two calls of the same agent with different inputs /
+  // spawn_ids / scope_tokens. If this test regresses, the cache is dead.
+  test("two calls, same agent, different inputs → byte-identical systemPart", () => {
+    const manifest = getSubagentManifest("classifier.level")!
+    const prompt1 = formatPrompt(
+      "01SPAWN111111111111111111-classifier.level",
+      manifest,
+      { user_request: "task A", unrelated: "alpha" },
+      ["read:progress"],
+      "/tmp/.sgc/progress/agent-results/01SPAWN111111111111111111-classifier.level.md",
+    )
+    const prompt2 = formatPrompt(
+      "01SPAWN222222222222222222-classifier.level",
+      manifest,
+      { user_request: "task B — completely different", unrelated: "beta" },
+      ["read:progress"],
+      "/tmp/.sgc/progress/agent-results/01SPAWN222222222222222222-classifier.level.md",
+    )
+
+    const sys1 = splitPrompt(prompt1).systemPart
+    const sys2 = splitPrompt(prompt2).systemPart
+    const user1 = splitPrompt(prompt1).userPart
+    const user2 = splitPrompt(prompt2).userPart
+
+    expect(sys1.length).toBeGreaterThan(0)
+    // The critical invariant — cache key is keyed on system text bytes.
+    expect(sys1).toBe(sys2)
+
+    // Per-call varying content lives in the user block only.
+    expect(user1).toContain("01SPAWN111111111111111111")
+    expect(user2).toContain("01SPAWN222222222222222222")
+    expect(user1).not.toBe(user2)
+    // Spawn ids must NOT leak into the system block.
+    expect(sys1).not.toContain("01SPAWN")
+    expect(sys1).not.toContain("/tmp/.sgc/progress")
+    // Input payload must NOT leak into the system block.
+    expect(sys1).not.toContain("task A")
+    expect(sys1).not.toContain("alpha")
+  })
+
+  test("different scope_tokens still produce identical systemPart (scope lives in user block)", () => {
+    // Even if a future capability shift changes the pinned tokens for the
+    // same agent name, the cached system prefix stays stable because the
+    // scope reminder is below `## Input`.
+    const manifest = getSubagentManifest("classifier.level")!
+    const prompt1 = formatPrompt(
+      "01SAME-classifier.level",
+      manifest,
+      { x: 1 },
+      ["read:progress"],
+      "/tmp/r1.md",
+    )
+    const prompt2 = formatPrompt(
+      "01SAME-classifier.level",
+      manifest,
+      { x: 1 },
+      ["read:progress", "read:decisions"],
+      "/tmp/r1.md",
+    )
+    expect(splitPrompt(prompt1).systemPart).toBe(splitPrompt(prompt2).systemPart)
+    expect(splitPrompt(prompt1).userPart).not.toBe(splitPrompt(prompt2).userPart)
   })
 })
 

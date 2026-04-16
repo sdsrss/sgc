@@ -5,14 +5,24 @@
 // prohibits subscription OAuth tokens with SDK calls — see claude-cli-agent
 // for the subscription path).
 //
-// Defaults (per Anthropic's current best-practice guidance, 2026-04):
+// Prompt caching strategy:
+//   - System block = manifest-derived stable prefix (purpose + expected-output
+//     schema + reply-format guidance). Cached via cache_control: ephemeral.
+//     Keyed by manifest body content; byte-identical across calls for the
+//     same agent, so the cache actually hits. See formatPrompt in spawn.ts
+//     for the layout contract.
+//   - User block = per-call varying content (frontmatter with spawn_id +
+//     computed scope_tokens, scope reminder, task input YAML, resultPath).
+//     Not cached — every field here changes per spawn.
+//   - Split marker: `## Input` heading at start of a line. splitPrompt
+//     tolerates CRLF/LF line endings and trailing whitespace on the heading.
+//   - Fallback: no `## Input` heading → whole prompt stays in the user block
+//     and no system block is emitted (preserves legacy behavior for any
+//     external caller passing a non-conforming prompt file).
+//
+// Other defaults (per Anthropic's current best-practice guidance, 2026-04):
 //   - model: claude-opus-4-6
 //   - thinking: { type: "adaptive" } — Claude picks depth per request
-//   - prompt caching: ephemeral on the system block (stable prefix —
-//     purpose / scope / reply format). Split at the `## Input` heading;
-//     task-specific payload stays in the user block without cache_control.
-//     Fallback: no `## Input` heading → whole prompt in user block, no
-//     system block emitted (preserves legacy behavior).
 //   - typed exception handling via Anthropic.APIError subclasses
 
 import { readFileSync } from "node:fs"
@@ -41,19 +51,35 @@ const MAX_TOKENS_CAP = 8192
 
 /**
  * Split a prompt into stable (system) and variable (user) portions.
- * System = everything up to the `## Input` heading (purpose, scope, reply format).
- * User = the `## Input` section onward (task-specific payload).
- * If no `## Input` heading is found, whole prompt is user (fallback = previous behavior).
+ *
+ * System = everything up to the `## Input` heading (manifest-derived: purpose,
+ * expected output schema, reply-format guidance). This is the cache-stable
+ * prefix.
+ *
+ * User = the `## Input` section onward (per-call: frontmatter with spawn_id
+ * + scope_tokens, scope reminder, task input YAML, resultPath).
+ *
+ * Marker tolerates CRLF vs LF line endings and trailing whitespace on the
+ * heading line. Matches only `## Input` (level-2 heading), not `### Input`
+ * or `#### Input` — those are subheadings inside the user block in the
+ * current layout.
+ *
+ * First match wins if the marker appears multiple times (not expected in
+ * the current layout, but documented for safety).
+ *
+ * Both halves are trimmed. Fallback: no marker found → `systemPart: ""` and
+ * whole prompt returned as `userPart` (preserves legacy behavior for
+ * non-conforming prompt files).
  */
 export function splitPrompt(text: string): { systemPart: string; userPart: string } {
-  const marker = "\n## Input\n"
-  const idx = text.indexOf(marker)
-  if (idx === -1) {
+  const markerRe = /\r?\n##[ \t]+Input[ \t]*\r?\n/
+  const match = markerRe.exec(text)
+  if (!match) {
     return { systemPart: "", userPart: text }
   }
   return {
-    systemPart: text.slice(0, idx).trim(),
-    userPart: text.slice(idx).trim(),
+    systemPart: text.slice(0, match.index).trim(),
+    userPart: text.slice(match.index).trim(),
   }
 }
 

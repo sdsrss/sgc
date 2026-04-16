@@ -6,6 +6,7 @@ import Anthropic from "@anthropic-ai/sdk"
 import {
   AnthropicSdkError,
   runAnthropicSdkAgent,
+  splitPrompt,
   type AnthropicClientFactory,
 } from "../../src/dispatcher/anthropic-sdk-agent"
 import { spawn, resolveMode } from "../../src/dispatcher/spawn"
@@ -71,7 +72,7 @@ describe("runAnthropicSdkAgent — success paths", () => {
     expect(out.affected_readers_candidates).toEqual(["alice"])
   })
 
-  test("sends adaptive thinking + prompt caching + bounded max_tokens", async () => {
+  test("sends adaptive thinking + bounded max_tokens + system-block caching", async () => {
     const manifest = getSubagentManifest("reviewer.correctness")!
     let recorded: { body: unknown; opts: unknown } | null = null
     const client = fakeClient({
@@ -80,24 +81,152 @@ describe("runAnthropicSdkAgent — success paths", () => {
       },
       recordCall: (c) => { recorded = c },
     })
-    await runAnthropicSdkAgent(writePrompt(), manifest, client)
+    const structuredPrompt = [
+      "# Purpose",
+      "review correctness",
+      "",
+      "## Scope",
+      "diff-only",
+      "",
+      "## Input",
+      "diff: here",
+    ].join("\n")
+    await runAnthropicSdkAgent(writePrompt(structuredPrompt), manifest, client)
     expect(recorded).not.toBeNull()
     const body = recorded!.body as {
       model: string
       max_tokens: number
       thinking: { type: string }
+      system?: Array<{ type: string; text: string; cache_control?: unknown }>
       messages: Array<{ role: string; content: Array<{ type: string; cache_control?: unknown }> }>
     }
     expect(body.model).toBe("claude-opus-4-6")
     expect(body.thinking).toEqual({ type: "adaptive" })
     expect(body.max_tokens).toBeLessThanOrEqual(8192)  // capped
     expect(body.max_tokens).toBeGreaterThan(0)
-    // cache_control on the user message content block
-    const cacheCtl = body.messages[0]?.content[0]?.cache_control
-    expect(cacheCtl).toEqual({ type: "ephemeral" })
+    // cache_control lives on the system block (stable prefix), NOT on the user block.
+    expect(body.system).toBeDefined()
+    expect(body.system![0]?.cache_control).toEqual({ type: "ephemeral" })
+    expect(body.messages[0]?.content[0]?.cache_control).toBeUndefined()
     // timeout passed to SDK
     const opts = recorded!.opts as { timeout: number }
     expect(opts.timeout).toBe((manifest.timeout_s ?? 60) * 1000)
+  })
+})
+
+describe("splitPrompt", () => {
+  test("separates system and user at ## Input heading", () => {
+    const prompt = [
+      "# Purpose",
+      "classify task",
+      "",
+      "## Scope",
+      "foo",
+      "",
+      "## Input",
+      "yaml:",
+      "  here: true",
+      "",
+      "## Reply",
+    ].join("\n")
+
+    const { systemPart, userPart } = splitPrompt(prompt)
+    expect(systemPart).toContain("# Purpose")
+    expect(systemPart).toContain("## Scope")
+    expect(systemPart).not.toContain("## Input")
+    expect(userPart).toContain("## Input")
+    expect(userPart).toContain("yaml:")
+  })
+
+  test("fallback when no Input heading — whole prompt is user", () => {
+    const prompt = "simple prompt with no structure"
+    const { systemPart, userPart } = splitPrompt(prompt)
+    expect(systemPart).toBe("")
+    expect(userPart).toBe(prompt)
+  })
+
+  test("Input heading must be at line start (## Input at start of line)", () => {
+    const prompt = "This mentions ## Input in the middle but doesn't start a section"
+    const { systemPart, userPart } = splitPrompt(prompt)
+    // No leading \n before ## Input, so not matched
+    expect(systemPart).toBe("")
+    expect(userPart).toBe(prompt)
+  })
+})
+
+describe("runAnthropicSdkAgent cache_control placement", () => {
+  test("system block gets cache_control=ephemeral; user block does not", async () => {
+    const manifest = getSubagentManifest("classifier.level")!
+    let recorded: { body: unknown; opts: unknown } | null = null
+    const client = fakeClient({
+      response: {
+        content: [
+          {
+            type: "text",
+            text: "level: L1\nrationale: structured prompt path\naffected_readers_candidates: []",
+          },
+        ],
+      },
+      recordCall: (c) => { recorded = c },
+    })
+
+    const structuredPrompt = [
+      "# Purpose",
+      "classify",
+      "",
+      "## Scope",
+      "foo",
+      "",
+      "## Input",
+      "task: bar",
+      "",
+      "## Reply",
+      "yaml",
+    ].join("\n")
+
+    await runAnthropicSdkAgent(writePrompt(structuredPrompt), manifest, client)
+
+    const body = recorded!.body as {
+      system?: Array<{ type: string; text: string; cache_control?: unknown }>
+      messages: Array<{ role: string; content: Array<{ type: string; text: string; cache_control?: unknown }> }>
+    }
+
+    expect(body.system).toBeDefined()
+    expect(body.system![0]?.cache_control).toEqual({ type: "ephemeral" })
+    expect(body.system![0]?.text).toContain("# Purpose")
+    expect(body.system![0]?.text).toContain("## Scope")
+    expect(body.system![0]?.text).not.toContain("## Input")
+
+    // user block: no cache_control
+    expect(body.messages[0]?.content[0]?.cache_control).toBeUndefined()
+    expect(body.messages[0]?.content[0]?.text).toContain("## Input")
+  })
+
+  test("fallback: no Input heading → no system block, whole prompt in user", async () => {
+    const manifest = getSubagentManifest("classifier.level")!
+    let recorded: { body: unknown; opts: unknown } | null = null
+    const client = fakeClient({
+      response: {
+        content: [
+          {
+            type: "text",
+            text: "level: L0\nrationale: fallback\naffected_readers_candidates: []",
+          },
+        ],
+      },
+      recordCall: (c) => { recorded = c },
+    })
+
+    await runAnthropicSdkAgent(writePrompt("just a simple prompt"), manifest, client)
+
+    const body = recorded!.body as {
+      system?: unknown
+      messages: Array<{ role: string; content: Array<{ type: string; text: string; cache_control?: unknown }> }>
+    }
+    // system param must be OMITTED (not empty array, not null) when no stable prefix
+    expect(body.system).toBeUndefined()
+    expect(body.messages[0]?.content[0]?.text).toBe("just a simple prompt")
+    expect(body.messages[0]?.content[0]?.cache_control).toBeUndefined()
   })
 })
 

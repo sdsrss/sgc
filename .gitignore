@@ -18,6 +18,9 @@ plugins/sgc/browse/dist/
 # IDE / editor / Claude session metadata
 .claude/
 
+# Git worktrees (isolated feature branches)
+.worktrees/
+
 # bun.lock not used — project lockfile is package-lock.json (npm).
 # Bun is used as runtime (bun run, bun test, bun build) but reads package-lock.json fine.
 bun.lock

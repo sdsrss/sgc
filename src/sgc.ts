@@ -25,15 +25,14 @@ class NotImplementedYet extends Error {
   }
 }
 
-// ── unimplemented stubs ────────────────────────────────────────────────────
-
 const discover = defineCommand({
   meta: { name: "discover", description: "Clarify requirements before planning" },
   args: {
-    topic: { type: "positional", required: false, description: "What to clarify" },
+    topic: { type: "positional", required: true, description: "What to clarify" },
   },
-  run() {
-    throw new NotImplementedYet("discover")
+  async run({ args }) {
+    const { runDiscover } = await import("./commands/discover")
+    await runDiscover({ topic: args.topic as string })
   },
 })
 

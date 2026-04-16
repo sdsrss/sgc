@@ -16,7 +16,7 @@ The full L0→L3 pipeline is executable end-to-end via `bun src/sgc.ts <cmd>`. A
 | `/compound` | ✅ 4-agent cluster + dedup + writeSolution | `sgc compound [--force\|--slug]` |
 | `/status` | ✅ active task + level + last_activity | `sgc status` |
 | `/agent-loop` | ✅ file-poll submission helper (non-SDK path) | `sgc agent-loop [--list\|--show\|--submit]` |
-| `/discover` | ⏸ stub — deferred | `sgc discover <topic>` → NotImplementedYet |
+| `/discover` | ✅ clarifier.discover forcing-questions stub | `sgc discover <topic>` |
 
 Agent modes (auto-detected per priority):
   `ANTHROPIC_API_KEY` set → anthropic-sdk (SDK + prompt caching)

@@ -113,14 +113,15 @@ describe("loadSpec — full contract files", () => {
   test("sgc-capabilities.yaml has expected subagents", () => {
     const spec = loadSpec<CapabilitiesSpec>(capsYaml)
     const names = Object.keys(spec.subagents)
-    // 19 subagents per scaffold: 1 classifier + 3 planners + 1 researcher
+    // 20 subagents: 1 clarifier + 1 classifier + 3 planners + 1 researcher
     // + 7 reviewers + 1 qa + 4 compound + 2 janitors
+    expect(names).toContain("clarifier.discover")
     expect(names).toContain("classifier.level")
     expect(names).toContain("planner.eng")
     expect(names).toContain("reviewer.correctness")
     expect(names).toContain("reviewer.performance")  // not "perf" — A-phase fix
     expect(names).toContain("janitor.compound")
-    expect(names.length).toBe(19)
+    expect(names.length).toBe(20)
   })
 
   test("sgc-capabilities.yaml has expected commands", () => {

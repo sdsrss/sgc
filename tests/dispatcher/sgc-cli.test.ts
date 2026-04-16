@@ -41,11 +41,19 @@ describe("sgc CLI smoke", () => {
     expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/)
   })
 
-  test("discover throws NotImplementedYet (helpful message)", async () => {
+  test("discover runs end-to-end and prints forcing questions", async () => {
+    const { stdout, exitCode } = await runSgc(["discover", "add OAuth refresh"])
+    expect(exitCode).toBe(0)
+    expect(stdout).toContain("topic: add OAuth refresh")
+    expect(stdout).toContain("Goal:")
+    expect(stdout).toContain("Next:")
+    expect(stdout).toContain(`sgc plan "add OAuth refresh"`)
+  })
+
+  test("discover without topic fails with usage hint", async () => {
     const { stderr, exitCode } = await runSgc(["discover"])
     expect(exitCode).not.toBe(0)
-    expect(stderr).toContain("not yet implemented")
-    expect(stderr).toContain("docs/c-phase-dispatcher.md")
+    expect(stderr).toMatch(/topic/i)
   })
 
   test("plan --help shows positional task arg", async () => {

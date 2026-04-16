@@ -113,6 +113,8 @@ scope_tokens:
     granted_to: ["/qa"]
   "spawn:compound.*":
     granted_to: ["/compound", "janitor.compound"]
+  "spawn:clarifier.*":
+    granted_to: ["/discover"]
 
 # ============================================================================
 # 2. PERMISSIONS  —  command-level RW matrix
@@ -168,9 +170,11 @@ permissions:
 
   /discover:
     progress:  ["read:progress"]
-    # /discover is a lightweight inspection command. It reads only the
-    # current progress state to show what task is active and what features
-    # exist. No write permissions, no spawn capabilities.
+    spawn:     ["spawn:clarifier.*"]
+    # /discover clarifies a vague topic before /plan runs. It reads current
+    # progress for context, spawns clarifier.discover to produce structured
+    # forcing-questions, and prints the result. No state writes — the user
+    # hand-carries the discovery output into `sgc plan --motivation`.
 
   /status:
     decisions: ["read:decisions:*"]
@@ -197,6 +201,32 @@ permissions:
 # applied to the subagent layer.
 
 subagents:
+
+  # ---- Clarifier ----
+  clarifier.discover:
+    version: "0.1"
+    source: gstack/office-hours + CE discovery pattern (re-authored)
+    purpose: Turn vague topic into structured forcing-questions for /plan
+    inputs:
+      topic: string
+      current_task_summary: string
+    outputs:
+      topic: string
+      goal_question: string
+      constraint_questions: array[string]
+      scope_questions: array[string]
+      edge_case_questions: array[string]
+      acceptance_questions: array[string]
+      suggested_next: string
+    scope_tokens: ["read:progress"]
+    token_budget: 3000
+    timeout_s: 60
+    notes: |
+      The agent must produce one goal question, then up to 5 each of
+      constraints / scope / edge-cases / acceptance. Questions should be
+      specific enough that the user's answer can be dropped directly into
+      `sgc plan --motivation`. Suggested_next is the exact CLI command
+      for the follow-up.
 
   # ---- Classifier ----
   classifier.level:

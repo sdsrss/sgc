@@ -16,9 +16,9 @@ describe("schema cache", () => {
 })
 
 describe("getCapabilities — full structure", () => {
-  test("has 19 subagents (per Phase 3 plan)", () => {
+  test("has 20 subagents (Phase 3 scaffold + E-phase clarifier.discover)", () => {
     const spec = getCapabilities()
-    expect(Object.keys(spec.subagents).length).toBe(19)
+    expect(Object.keys(spec.subagents).length).toBe(20)
   })
   test("has 8 commands", () => {
     const spec = getCapabilities()

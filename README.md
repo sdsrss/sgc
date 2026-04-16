@@ -55,7 +55,7 @@ State files land under `.sgc/` in the project (override via `SGC_STATE_ROOT`). T
 | `sgc compound [--force\|--slug]` | ✅ | 4-agent compound cluster + dedup (0.85 threshold) + write `solutions/{cat}/{slug}.md` |
 | `sgc status` | ✅ | Active task + level + last activity |
 | `sgc agent-loop [--list\|--show\|--submit]` | ✅ | File-poll fulfillment helper (for external Claude session) |
-| `sgc discover <topic>` | ⏸ stub | Requirements clarification (deferred) |
+| `sgc discover <topic>` | ✅ | clarifier.discover forcing-questions; feeds into `sgc plan --motivation` |
 
 Two more CLIs from the same repo:
 
@@ -105,8 +105,8 @@ src/
 plugins/sgc/               ← Claude Code plugin (skills + agents + hooks, markdown)
 └── browse/                ← headless browser source (TypeScript, compiles to single binary)
 
-tests/dispatcher/          ← 311 unit + integration tests (bun test)
-tests/eval/                ← 5 end-to-end scenarios per Invariant §12
+tests/dispatcher/          ← unit + integration tests (bun test)
+tests/eval/                ← 8 end-to-end scenarios per Invariant §12
 docs/                      ← C-phase plan + demo run
 ```
 

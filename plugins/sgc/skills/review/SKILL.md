@@ -5,14 +5,14 @@ description: "Use after implementation to run independent code review - dispatch
 
 # Review
 
-Dispatch independent reviewer agents to evaluate completed work. Reviewers operate in separate contexts and MUST NOT access historical solutions.
+Dispatch reviewer agents (fresh context) against the current task's diff. Reviewers cannot read `solutions/` — this is Invariant §1, not a suggestion.
 
-**Core principle:** The author cannot review their own work. Reviewers must judge independently, without confirmation bias from past solutions.
+**Core principle:** the author cannot review their own work. Reviewers must judge without historical-solution bias.
 
 ## When to Use
 
 - User runs `/review` after `/work` is complete
-- Before `/ship` — review is a prerequisite for shipping
+- Before `/ship` (a code review is required for L1+)
 
 ## Permission
 
@@ -20,122 +20,25 @@ Dispatch independent reviewer agents to evaluate completed work. Reviewers opera
 |-----------|--------|
 | decisions | R |
 | progress | R |
-| solutions | **FORBIDDEN** |
+| solutions | **FORBIDDEN** (§1) |
 | reviews | W |
 
-**CRITICAL**: This skill MUST NOT read `solutions/`. This is Invariant #1 — Generator-Evaluator Separation. Violation is a hard error, not a warning.
+## Routing
 
-## Process
+- **Behavior**: [`src/commands/review.ts`](../../../../src/commands/review.ts) (`runReview`)
+- **Reviewer**: [`src/dispatcher/agents/reviewer-correctness.ts`](../../../../src/dispatcher/agents/reviewer-correctness.ts) (MVP; `reviewer.security` / `reviewer.performance` / `reviewer.adversarial` manifested in [`contracts/sgc-capabilities.yaml`](../../../../contracts/sgc-capabilities.yaml) but stubbed pending E-phase)
+- **Scope pin**: `spawn.ts` emits `scope_tokens:` + `FORBIDDEN from: read:solutions` in every reviewer prompt (holistically verified by [`tests/eval/reviewer-isolation.test.ts`](../../../../tests/eval/reviewer-isolation.test.ts))
+- **Invariants**: §1 reviewer no-solutions · §5 override reason ≥40 · §6 append-only per (task, stage, reviewer)
 
-### Step 1: Read Context
+## Invocation
 
-1. Read `decisions/{task_id}/intent.md` — understand what was planned.
-2. Read `progress/feature-list.md` — understand what was implemented.
-3. Read `progress/current-task.md` — check evidence collected during work.
-4. Run `git diff` against the base branch — this is what reviewers evaluate.
-
-### Step 2: Dispatch Reviewers
-
-Dispatch reviewer agents based on task level. Each reviewer runs in an independent context with ONLY the diff, intent, and feature list. Reviewers do NOT share context with each other or with the author session.
-
-#### Reviewer Dispatch Table
-
-| Level | Reviewers | Count |
-|-------|-----------|-------|
-| L0 | `sgc:reviewer:correctness` | 1 |
-| L1 | `sgc:reviewer:correctness`, `sgc:reviewer:tests` | 2 |
-| L2 | `sgc:reviewer:correctness`, `sgc:reviewer:security`, `sgc:reviewer:performance`, `sgc:reviewer:tests`, `sgc:reviewer:maintainability`, `sgc:reviewer:adversarial` | 6 |
-| L3 | L2 base + diff-conditional expansion | 6 + N (max 10) |
-
-#### Diff-Conditional Triggers (L3 Only) — Phase 2
-
-**Status: not yet implemented.** L3 tasks currently run the same 6-reviewer cluster as L2. Specialist variants (security-specialist, migration, performance-specialist, infra) are deferred until the dispatcher and agent manifests exist. Intended design below is preserved as a forward reference; do **not** dispatch these names — they have no backing `agents/reviewer/*.md`.
-
-| Diff Pattern | Intended Reviewer (Phase 2) |
-|--------------|-----------------------------|
-| `crypto`, `auth`, `jwt`, `token`, `session` | security-specialist |
-| `migration`, `ALTER`, `DROP`, `CREATE TABLE` | migration |
-| `perf`, `benchmark`, `cache`, `O(n)`, `index` | performance-specialist |
-| `deploy`, `Dockerfile`, `k8s`, `terraform` | infra |
-
-Maximum total reviewers when implemented: 10. Priority on overflow: security > migration > performance > infra.
-
-### Step 3: Reviewer Context
-
-Each reviewer agent receives:
-
-```
-You are sgc:reviewer:{type}.
-Review the following diff independently.
-You MUST NOT access solutions/ or any historical knowledge base.
-
-## Intent
-[contents of intent.md]
-
-## Feature List
-[contents of feature-list.md]
-
-## Diff
-[git diff output]
-
-## Your Focus
-[specific focus area for this reviewer type]
-
-Report: pass/fail, severity (low/medium/high/critical), findings with file:line references.
+```bash
+sgc review                       # auto-detect diff vs git HEAD~1
+sgc review --base <ref>          # diff against explicit base
 ```
 
-### Step 4: Collect Reports
+Re-running `review` for the same task throws `AppendOnly` — reviews are an audit trail, not a retry loop. To ship despite a `fail` verdict, supply `--override "<≥40-char reason>"` at `sgc ship`.
 
-Each reviewer writes its report to `reviews/{task_id}/review/{reviewer_type}.md`:
+## Planned (Phase 2)
 
-```markdown
-# Review: {reviewer_type}
-Task: {task_id}
-Verdict: PASS | FAIL
-Severity: low | medium | high | critical
-
-## Findings
-### [Finding Title]
-- File: path/to/file.ts:42
-- Severity: medium
-- Description: [what's wrong]
-- Suggestion: [how to fix]
-
-## Summary
-[One paragraph overall assessment]
-```
-
-### Step 5: Synthesize
-
-After all reviewers complete, produce a summary:
-
-```markdown
-## Review Summary
-- Total reviewers: {n}
-- Pass: {n}
-- Fail: {n}
-- Critical findings: {n}
-- High findings: {n}
-
-### Action Required
-[List of findings that must be addressed before shipping]
-
-### Recommendations
-[List of findings that are optional improvements]
-```
-
-Present the summary to the user.
-
-### Step 6: Route
-
-- **All pass, no critical/high findings**: "Review passed. Run `/ship` when ready."
-- **Any fail or critical finding**: "Review found issues. Address the findings, then re-run `/review`."
-- **Fail with user override**: User can force-proceed, but only with human signature + reason (>=40 chars). This override is logged to `reviews/{task_id}/review/override.md`.
-
-## Important Rules
-
-- **Independent context.** Each reviewer runs in a separate agent context. No shared state between reviewers.
-- **No solutions/ access.** Reviewers must judge the code on its own merits, not by comparison to past solutions. This prevents confirmation bias.
-- **Author-reviewer separation.** The same Claude session that wrote the code cannot be a reviewer. Reviewers are dispatched as subagents.
-- **Immutable reports.** Once a reviewer writes its report, the report cannot be edited. Re-review creates a new report.
-- **Override requires human.** If a reviewer fails and the user wants to proceed, they must provide a reason of at least 40 characters. This is logged permanently.
+L3 diff-conditional expansion (security-specialist / migration / performance-specialist / infra variants) to max 10 reviewers. Not implemented — current L3 runs the L2 cluster. Dispatching unmanifested names fails `computeSubagentTokens`, which is intended.

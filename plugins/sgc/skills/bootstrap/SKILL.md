@@ -5,81 +5,52 @@ description: "Use when starting any conversation - establishes SGC commands, rou
 
 # SGC Bootstrap
 
-Initialize the SGC system, verify state integrity, and route user intent to the correct command.
+Load SGC rules, verify `.sgc/` state integrity, route user intent to the correct command.
 
 ## When to Use
 
-At the start of every conversation. This skill runs before anything else.
+At the start of every conversation. Runs before any other SGC skill.
 
 ## Initialization Sequence
 
-1. **Read CLAUDE.md** to load system rules and invariants.
-2. **Check `.sgc/` directory** exists in the project root. If missing, create the structure:
-   ```
-   .sgc/
-     decisions/
-     progress/
-     solutions/
-     reviews/
-   ```
-3. **Read `progress/current-task.md`** if it exists. If a task is in-progress, inform the user and offer to resume or start fresh.
-4. **Read `tasks/lessons.md`** if it exists. Apply lessons silently.
+1. **Read [`plugins/sgc/CLAUDE.md`](../../CLAUDE.md)** — authoritative command table, permission matrix, task levels, and the 7 invariants.
+2. **Verify `.sgc/` structure** (`decisions/`, `progress/`, `solutions/`, `reviews/`). Auto-created by `ensureSgcStructure` in [`src/dispatcher/state.ts`](../../../../src/dispatcher/state.ts); no action needed unless missing in a non-dispatcher flow.
+3. **Check `progress/current-task.md`** — if present, offer to resume or start fresh.
+4. **Read `tasks/lessons.md`** (if present) — apply silently.
 
-## Master Routing Table
+## Routing Table
 
-| User Intent | Route To | Trigger Phrases |
-|-------------|----------|-----------------|
-| Requirements unclear, need to explore | `/discover` | "what should...", "I'm not sure...", "clarify", "requirements" |
-| Start a task, plan work | `/plan <task>` | "plan", "implement", "build", "add feature", "fix bug" |
-| Execute approved plan | `/work` | "start working", "execute", "begin", "do it" |
-| Review completed work | `/review` | "review", "check my code", "code review" |
-| Test in browser | `/qa <target>` | "test", "QA", "browser test", "check UI" |
-| Ready to release | `/ship` | "ship", "deploy", "release", "merge" |
-| Capture knowledge | `/compound` | "compound", "save knowledge", "document solution" |
-| Check state | `/status` | "status", "where am I", "what's current", "resume" |
+| User intent | Command | Trigger phrases |
+|-------------|---------|-----------------|
+| Requirements unclear | `/discover` (⏸ stub) | "what should...", "clarify", "I'm not sure..." |
+| Start / plan a task | `/plan <task>` | "plan", "implement", "build", "add", "fix" |
+| Execute approved plan | `/work` | "work", "execute", "begin" |
+| Review completed work | `/review` | "review", "check my code" |
+| Browser test | `/qa <url>` | "qa", "test the UI", "browser test" |
+| Release | `/ship` | "ship", "deploy", "release", "merge" |
+| Capture knowledge | `/compound` | "compound", "save solution" |
+| Check state | `/status` | "status", "where am I", "resume" |
 
-When the user's intent is ambiguous, ask one clarifying question. Do not guess.
+Ambiguous intent → ask one clarifying question, don't guess.
 
-## Red Flags Table
+## Invariant Reminders (authoritative: `plugins/sgc/CLAUDE.md`)
 
-Intercept and warn before executing:
+1. Reviewers + QA MUST NOT read `solutions/` (§1)
+2. `intent.md` immutable after write (§2)
+3. No `solutions/` write without `compound.related` dedup; threshold 0.85 (§3)
+4. L3 refuses `--auto`; requires `--signed-by` + interactive `yes` (§4)
+5. Reviewer-fail override needs ≥40-char reason (§5)
+6. Every janitor decision logged, including skips (§6)
+7. Schema validation on every `.sgc/` write (§7)
 
-| Pattern | Risk | Action |
-|---------|------|--------|
-| `rm -rf` with variables | Data loss | REFUSE without explicit confirmation |
-| `DROP TABLE`, `DELETE FROM` without WHERE | Data loss | REFUSE |
-| `git push --force` | History loss | REFUSE |
-| `git reset --hard` | Work loss | Warn, suggest `git stash` |
-| `git checkout .`, `git restore .` | Uncommitted work loss | Warn |
-| Plaintext secrets in code/logs/commits | Security breach | STOP, use placeholder, suggest rotation |
-| Disabling SSL verification | Security | REFUSE, no override |
-| Unknown remote scripts | Security | REFUSE, no override |
-| Committing `.env` or credentials | Security | REFUSE, no override |
+## Red Flags (shared with `~/.claude/CLAUDE.md` §8)
 
-## Invariant Reminders
+Intercept / refuse: `rm -rf $VAR`, `DROP`/`DELETE` without WHERE, `git push --force` to `main`, disabling SSL verification, committing `.env` / credentials, plaintext secrets in logs/commits. Full rules in the user's global spec — this skill does not duplicate them.
 
-These are non-negotiable. Verify compliance at every routing decision:
+## Agent Namespacing
 
-1. **Generator-Evaluator Separation**: `/review` and `/qa` MUST NOT read `solutions/`. No exceptions.
-2. **Decisions Are Immutable**: Once `intent.md` is written, it cannot be edited. Changed intent = new task.
-3. **Solutions Require Dedup**: No write to `solutions/` without `sgc:compound:related` running dedup first. Similarity threshold 0.85.
-4. **L3 Forbids --auto**: Any L3 command with `--auto` is refused. Human signature required.
-5. **Reviewer Override Requires Human**: When a reviewer returns fail and ship proceeds, override must include human signature + reason (>=40 chars).
-6. **Every Janitor Decision Is Logged**: Even skip decisions must be written to `reviews/{task_id}/janitor/`. Silent skips are forbidden.
-7. **Schema Validation on Every Write**: All writes to `.sgc/` are validated against schema before commit. No lenient mode.
-
-## Permission Matrix
-
-Before any command reads or writes `.sgc/` state, verify it has permission per the matrix in CLAUDE.md. Violations are hard errors, not warnings.
-
-## Automation Tiers
-
-| Tier | Default | Override | Examples |
-|------|---------|----------|----------|
-| Mechanical | Auto, no interruption | None | State file I/O, reviewer spawn, L0 full flow |
-| Decision | Confirm first | `--auto` skips | Level classification, compound trigger, L2 ship |
-| Forced | Always human | **No override** | L3 ship, solutions deletion, reviewer fail override |
+When the dispatcher writes a spawn prompt, the agent key in `contracts/sgc-capabilities.yaml` short form (e.g. `reviewer.correctness`) maps to the wire format `sgc:reviewer:correctness`. The dispatcher handles the translation; skills do not hand-assemble names.
 
 ## After Bootstrap
 
-Once initialized, route to the appropriate skill based on user intent. If the user provides no specific command, show the command table and ask what they want to do.
+Route to the appropriate command based on intent. If no clear command, show the routing table and ask.

@@ -61,6 +61,19 @@ export class SpawnTimeout extends Error {
   }
 }
 
+/**
+ * Misconfiguration of a subagent manifest — e.g. declared `prompt_path`
+ * points to a missing file, or the template is missing required markers.
+ * These are always programmer/config errors, not runtime LLM errors, so
+ * they are fatal and do not retry.
+ */
+export class SpawnError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "SpawnError"
+  }
+}
+
 export type InlineStub<I = unknown, O = unknown> = (input: I) => O | Promise<O>
 
 export type AgentMode = "inline" | "file-poll" | "claude-cli" | "anthropic-sdk"
@@ -174,6 +187,38 @@ export function formatPrompt(
   tokens: ScopeToken[],
   resultPath: string,
 ): string {
+  // Template-based path: when manifest.prompt_path is declared, load the
+  // external template and substitute <input_yaml/> with the per-call input
+  // YAML. The template itself owns the stable prefix (everything above
+  // `## Input`) — spawnId, tokens, resultPath are NOT injected; for audit
+  // they live in the prompt filename / scope-token computation instead.
+  // This keeps the system block byte-stable across calls so cache_control
+  // hits (anthropic-sdk mode). Template is authored to contain the
+  // `## Input` marker and `<input_yaml/>` placeholder.
+  if (manifest.prompt_path) {
+    const templatePath = resolve(process.cwd(), manifest.prompt_path)
+    if (!existsSync(templatePath)) {
+      throw new SpawnError(
+        `prompt_path declared (${manifest.prompt_path}) but file does not exist for agent ${manifest.name}`,
+      )
+    }
+    const template = readFileSync(templatePath, "utf8")
+    if (!template.includes("<input_yaml/>")) {
+      throw new SpawnError(
+        `prompt_path ${manifest.prompt_path} missing <input_yaml/> placeholder for agent ${manifest.name}`,
+      )
+    }
+    // Must contain a `## Input` heading at start of a line so splitPrompt
+    // can isolate the stable system prefix for cache_control.
+    if (!/(^|\r?\n)##[ \t]+Input[ \t]*\r?\n/.test(template)) {
+      throw new SpawnError(
+        `prompt_path ${manifest.prompt_path} missing '## Input' heading for agent ${manifest.name}`,
+      )
+    }
+    const inputYaml = yamlDump(input).trimEnd()
+    return template.replace("<input_yaml/>", inputYaml)
+  }
+
   const forbidden = forbiddenTokensFor(manifest.name)
   // Stable per-agent prefix — MUST NOT reference spawnId, tokens (computed
   // per call), resultPath, or the input payload. Anything added here breaks

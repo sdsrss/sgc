@@ -8,7 +8,11 @@
 // Defaults (per Anthropic's current best-practice guidance, 2026-04):
 //   - model: claude-opus-4-6
 //   - thinking: { type: "adaptive" } — Claude picks depth per request
-//   - prompt caching: ephemeral on the user-message content block
+//   - prompt caching: ephemeral on the system block (stable prefix —
+//     purpose / scope / reply format). Split at the `## Input` heading;
+//     task-specific payload stays in the user block without cache_control.
+//     Fallback: no `## Input` heading → whole prompt in user block, no
+//     system block emitted (preserves legacy behavior).
 //   - typed exception handling via Anthropic.APIError subclasses
 
 import { readFileSync } from "node:fs"
@@ -35,12 +39,31 @@ const DEFAULT_MODEL = "claude-opus-4-6"
  */
 const MAX_TOKENS_CAP = 8192
 
+/**
+ * Split a prompt into stable (system) and variable (user) portions.
+ * System = everything up to the `## Input` heading (purpose, scope, reply format).
+ * User = the `## Input` section onward (task-specific payload).
+ * If no `## Input` heading is found, whole prompt is user (fallback = previous behavior).
+ */
+export function splitPrompt(text: string): { systemPart: string; userPart: string } {
+  const marker = "\n## Input\n"
+  const idx = text.indexOf(marker)
+  if (idx === -1) {
+    return { systemPart: "", userPart: text }
+  }
+  return {
+    systemPart: text.slice(0, idx).trim(),
+    userPart: text.slice(idx).trim(),
+  }
+}
+
 export async function runAnthropicSdkAgent(
   promptPath: string,
   manifest: SubagentManifest,
   clientFactory?: AnthropicClientFactory,
 ): Promise<unknown> {
   const promptText = readFileSync(promptPath, "utf8")
+  const { systemPart, userPart } = splitPrompt(promptText)
   const client = clientFactory ? clientFactory() : new Anthropic()
 
   const maxTokens = Math.min(manifest.token_budget ?? 4096, MAX_TOKENS_CAP)
@@ -48,24 +71,35 @@ export async function runAnthropicSdkAgent(
 
   let response: Anthropic.Message
   try {
+    const createArgs: Anthropic.MessageCreateParamsNonStreaming = {
+      model: DEFAULT_MODEL,
+      max_tokens: maxTokens,
+      thinking: { type: "adaptive" },
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: userPart,
+            },
+          ],
+        },
+      ],
+    }
+    // Only set system when we actually have a stable prefix to cache.
+    // Empty systemPart → fallback behavior (whole prompt in user, no caching).
+    if (systemPart.length > 0) {
+      createArgs.system = [
+        {
+          type: "text",
+          text: systemPart,
+          cache_control: { type: "ephemeral" },
+        },
+      ]
+    }
     response = await (client.messages.create as typeof Anthropic.prototype.messages.create)(
-      {
-        model: DEFAULT_MODEL,
-        max_tokens: maxTokens,
-        thinking: { type: "adaptive" },
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: promptText,
-                cache_control: { type: "ephemeral" },
-              },
-            ],
-          },
-        ],
-      },
+      createArgs,
       { timeout: timeoutMs },
     )
   } catch (e) {

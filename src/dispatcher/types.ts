@@ -143,6 +143,13 @@ export interface CommandPermissions {
 // Subagent manifest from sgc-capabilities.yaml `subagents:` block.
 // Manifest keys are short-form (`reviewer.correctness`); dispatcher maps
 // `sgc:X:Y` ↔ `X.Y` per decision #8.
+//
+// `status` / `roadmap` annotate implementation state for each slot:
+//   - "implemented"  — wired end-to-end (stub or real LLM); safe to spawn
+//   - "slot-only"    — declared for forward-compat; NOT yet wired; do not spawn
+//   - "manual-only"  — never auto-spawned; invoked by explicit user/tool action
+// Slots without a status field are grandfathered as implemented (all
+// pre-2026-04-16 manifests). New manifests SHOULD set status explicitly.
 export interface SubagentManifest {
   name: string  // e.g. "classifier.level"
   version: string
@@ -156,6 +163,8 @@ export interface SubagentManifest {
   notes?: string
   decision_rules?: unknown
   trigger?: string
+  status?: "implemented" | "slot-only" | "manual-only"
+  roadmap?: string
 }
 
 // Loaded full spec ────────────────────────────────────────────────────────────

@@ -324,13 +324,13 @@ subagents:
     token_budget: 5000
     timeout_s: 180
 
-  reviewer.security:        { <<: *reviewer_base }
-  reviewer.performance:     { <<: *reviewer_base }
-  reviewer.tests:           { <<: *reviewer_base }
-  reviewer.maintainability: { <<: *reviewer_base }
-  reviewer.adversarial:     { <<: *reviewer_base }
-  reviewer.migration:       { <<: *reviewer_base }
-  reviewer.infra:           { <<: *reviewer_base }
+  reviewer.security:        { <<: *reviewer_base, status: implemented }
+  reviewer.performance:     { <<: *reviewer_base, status: implemented }
+  reviewer.tests:           { <<: *reviewer_base, status: slot-only, roadmap: "L2+ test-coverage review; deferred" }
+  reviewer.maintainability: { <<: *reviewer_base, status: slot-only, roadmap: "readability/complexity review; deferred" }
+  reviewer.adversarial:     { <<: *reviewer_base, status: slot-only, roadmap: "L3 pre-mortem reviewer; deferred" }
+  reviewer.migration:       { <<: *reviewer_base, status: implemented }
+  reviewer.infra:           { <<: *reviewer_base, status: implemented }
 
   reviewer.spec:
     version: "0.1"
@@ -345,6 +345,8 @@ subagents:
     scope_tokens: ["read:decisions", "read:progress", "write:reviews"]
     token_budget: 4000
     timeout_s: 120
+    status: slot-only
+    roadmap: "drift detection post-ship; deferred to v1.3+"
 
   # ---- QA (gstack lineage) ----
   qa.browser:
@@ -456,3 +458,4 @@ subagents:
     token_budget: 2000
     timeout_s: 120
     trigger: manual only (never auto)
+    status: manual-only

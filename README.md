@@ -4,6 +4,8 @@ A single Claude Code workflow combining process discipline (Superpowers), real-w
 
 **Status**: v1.1 — full L0→L3 pipeline with stub agents end-to-end. All 8 sgc commands, 9 agent stubs, all 12 invariants enforced at runtime. Real LLM integration via `ANTHROPIC_API_KEY` (Anthropic SDK) or local `claude` binary (subscription) — auto-detected. See [docs/c-phase-dispatcher.md](docs/c-phase-dispatcher.md) + [docs/d-phase-plan.md](docs/d-phase-plan.md) for the build history; roadmap (E-phase) in [#/] TBD.
 
+> **Positioning**: sgc is a 规范层 + 知识引擎 that coexists with `superpowers` (sp) and `gstack` (gs). See [docs/POSITIONING.md](docs/POSITIONING.md) for the delegate pattern.
+
 ---
 
 ## Install

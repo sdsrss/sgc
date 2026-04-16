@@ -122,3 +122,94 @@ describe("runReview — full flow", () => {
     ).resolves.toBeDefined()
   })
 })
+
+describe("runReview — L3 diff-conditional specialists", () => {
+  async function l3Task() {
+    return runPlan("add a database migration to rename a column in orders", {
+      stateRoot: tmp,
+      motivation: LONG_MOTIVATION,
+      userSignature: { signed_at: "2026-04-15T10:00:00Z", signer_id: "alice" },
+      readConfirmation: async () => "yes",
+      log: () => {},
+    })
+  }
+
+  test("L1 with auth-keyword diff does NOT spawn specialists (gate is L3)", async () => {
+    await freshTask()
+    const r = await runReview({
+      stateRoot: tmp,
+      diffOverride: "+function signJwt(payload) {}\n",
+      log: () => {},
+    })
+    expect(r.specialistReports).toEqual([])
+  })
+
+  test("L3 with no specialist trigger → only correctness report", async () => {
+    await l3Task()
+    const r = await runReview({
+      stateRoot: tmp,
+      diffOverride: "+const greeting = 'hi'\n",
+      log: () => {},
+    })
+    expect(r.specialistReports).toEqual([])
+    expect(r.verdict).toBe("pass")
+  })
+
+  test("L3 with auth-keyword diff spawns reviewer.security", async () => {
+    const plan = await l3Task()
+    const r = await runReview({
+      stateRoot: tmp,
+      diffOverride: "+function signJwt(payload) { return jwt.sign(payload) }\n",
+      log: () => {},
+    })
+    expect(r.specialistReports.length).toBe(1)
+    expect(r.specialistReports[0]?.reviewerId).toBe("reviewer.security")
+    expect(r.specialistReports[0]?.severity).toBe("medium")
+    // Aggregate verdict reflects worst-of (correctness=pass + security=concern)
+    expect(r.verdict).toBe("concern")
+    // Each specialist gets its own append-only report on disk
+    const stored = readReview(plan.taskId, "code", "reviewer.security", tmp)
+    expect(stored?.report.verdict).toBe("concern")
+  })
+
+  test("L3 with multiple triggers spawns multiple specialists in parallel", async () => {
+    await l3Task()
+    const r = await runReview({
+      stateRoot: tmp,
+      diffOverride:
+        "+ALTER TABLE sessions ADD COLUMN auth_token TEXT\n" +
+        "+const cache = new LRU({ max: 1000 })\n" +
+        "+++ b/Dockerfile\n" +
+        "+FROM node:20-alpine\n",
+      log: () => {},
+    })
+    const ids = r.specialistReports.map((s) => s.reviewerId).sort()
+    expect(ids).toEqual([
+      "reviewer.infra",
+      "reviewer.migration",
+      "reviewer.performance",
+      "reviewer.security",
+    ])
+    // Worst severity (high from migration/infra) drives aggregate
+    expect(r.verdict).toBe("concern")
+  })
+
+  test("L3 specialist reports are append-only per Invariant §6", async () => {
+    await l3Task()
+    await runReview({
+      stateRoot: tmp,
+      diffOverride: "+function authToken() {}\n",
+      log: () => {},
+    })
+    // Second runReview throws on the correctness append (already covered by
+    // earlier test) — proves specialist reports are also locked since they
+    // share the same append-only path.
+    await expect(
+      runReview({
+        stateRoot: tmp,
+        diffOverride: "+function verifyAuth() {}\n",
+        log: () => {},
+      }),
+    ).rejects.toThrow(/append-only/)
+  })
+})

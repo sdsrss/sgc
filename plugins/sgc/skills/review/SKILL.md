@@ -26,7 +26,9 @@ Dispatch reviewer agents (fresh context) against the current task's diff. Review
 ## Routing
 
 - **Behavior**: [`src/commands/review.ts`](../../../../src/commands/review.ts) (`runReview`)
-- **Reviewer**: [`src/dispatcher/agents/reviewer-correctness.ts`](../../../../src/dispatcher/agents/reviewer-correctness.ts) (MVP; `reviewer.security` / `reviewer.performance` / `reviewer.adversarial` manifested in [`contracts/sgc-capabilities.yaml`](../../../../contracts/sgc-capabilities.yaml) but stubbed pending E-phase)
+- **Base reviewer**: [`src/dispatcher/agents/reviewer-correctness.ts`](../../../../src/dispatcher/agents/reviewer-correctness.ts) — runs at every level
+- **L3 specialists**: [`src/dispatcher/agents/reviewer-specialists.ts`](../../../../src/dispatcher/agents/reviewer-specialists.ts) — `reviewer.{security,migration,performance,infra}` spawn in parallel when the diff matches their trigger keywords. Aggregate verdict = worst-of (`pass < concern < fail`)
+- **Manifest**: 9 reviewers in [`contracts/sgc-capabilities.yaml`](../../../../contracts/sgc-capabilities.yaml) (correctness/security/performance/tests/maintainability/adversarial/spec/migration/infra). `tests`/`maintainability`/`adversarial`/`spec` are manifested as forward-references — not yet wired into `runReview`
 - **Scope pin**: `spawn.ts` emits `scope_tokens:` + `FORBIDDEN from: read:solutions` in every reviewer prompt (holistically verified by [`tests/eval/reviewer-isolation.test.ts`](../../../../tests/eval/reviewer-isolation.test.ts))
 - **Invariants**: §1 reviewer no-solutions · §5 override reason ≥40 · §6 append-only per (task, stage, reviewer)
 
@@ -39,6 +41,15 @@ sgc review --base <ref>          # diff against explicit base
 
 Re-running `review` for the same task throws `AppendOnly` — reviews are an audit trail, not a retry loop. To ship despite a `fail` verdict, supply `--override "<≥40-char reason>"` at `sgc ship`.
 
-## Planned (Phase 2)
+## L3 specialist trigger table
 
-L3 diff-conditional expansion (security-specialist / migration / performance-specialist / infra variants) to max 10 reviewers. Not implemented — current L3 runs the L2 cluster. Dispatching unmanifested names fails `computeSubagentTokens`, which is intended.
+At L3 the dispatcher scans the diff and spawns matching specialists alongside `reviewer.correctness`:
+
+| Specialist | Trigger keywords (loose match, identifier-friendly) | Severity on hit |
+|------------|-----------------------------------------------------|-----------------|
+| `reviewer.security` | auth · jwt · token · session · crypto · password · secret · signature · encrypt/decrypt | medium |
+| `reviewer.migration` | migration · ALTER/DROP/CREATE TABLE · ALTER/RENAME COLUMN · backfill | high |
+| `reviewer.performance` | perf · cache · memoize · index · benchmark · n+1 · O(n) · p95/p99 | medium |
+| `reviewer.infra` | Dockerfile · FROM · kubectl · k8s · terraform · helm · fly.toml · vercel.json · render.yaml · github/workflows | high |
+
+Patterns are deliberately loose (no word boundaries) so camelCase / snake_case identifiers like `signJwt` or `auth_token` still match — false positives are acceptable for a keyword stub; precision is the LLM path's job.

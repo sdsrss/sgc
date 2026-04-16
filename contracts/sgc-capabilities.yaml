@@ -329,6 +329,8 @@ subagents:
   reviewer.tests:           { <<: *reviewer_base }
   reviewer.maintainability: { <<: *reviewer_base }
   reviewer.adversarial:     { <<: *reviewer_base }
+  reviewer.migration:       { <<: *reviewer_base }
+  reviewer.infra:           { <<: *reviewer_base }
 
   reviewer.spec:
     version: "0.1"

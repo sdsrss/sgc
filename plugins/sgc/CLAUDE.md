@@ -125,15 +125,16 @@ These rules cannot be overridden by any instruction:
 
 `/review` dispatches reviewers based on task level:
 
-- **L0**: correctness (1)
-- **L1**: correctness + tests (2)
-- **L2**: correctness, security, performance, tests, maintainability, adversarial (6)
-- **L3**: L2 base + diff-conditional expansion (max 10)
+- **L0/L1/L2**: `reviewer.correctness` (single-reviewer MVP — full L2 cluster of 6 manifested for forward-compat but not yet wired)
+- **L3**: `reviewer.correctness` + diff-conditional specialists (parallel)
 
-Diff-conditional triggers:
-- `crypto|auth|jwt` → reviewer.security specialist variant
-- `migration|ALTER|DROP` → reviewer.migration
-- `perf|benchmark|cache` → reviewer.performance specialist variant
+L3 diff-conditional specialists (implemented, see `src/dispatcher/agents/reviewer-specialists.ts`):
+- security (auth · jwt · token · session · crypto · password · secret · signature · encrypt/decrypt) — severity medium
+- migration (migration · ALTER/DROP/CREATE TABLE · ALTER/RENAME COLUMN · backfill) — severity high
+- performance (perf · cache · memoize · index · benchmark · n+1 · O(n) · p95/p99) — severity medium
+- infra (Dockerfile · FROM · kubectl · k8s · terraform · helm · fly.toml · vercel.json · render.yaml · github/workflows) — severity high
+
+Aggregate verdict = worst-of across all spawned reviewers (`pass < concern < fail`). Each report is append-only per (task, stage, reviewer) per Invariant §6.
 
 ## Compound Janitor
 

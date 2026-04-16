@@ -12,15 +12,8 @@ async function runSgc(
   // Strip NODE_ENV=test (set by `bun test`); when it propagates to the
   // child bun process, citty silences stdout. Doesn't affect the child's
   // actual behavior — sgc CLI doesn't read NODE_ENV.
-  //
-  // Strip CI=true (set by GitHub Actions runners): when set, bun prefixes
-  // `console.log` stdout with "[log] ", breaking exact-match assertions on
-  // --version. Hermetic test env > preserving CI detection inside the
-  // child. (The workflow itself still runs under CI=true — only the
-  // child bun subprocess is shielded.)
   const childEnv = { ...process.env, ...env }
   delete childEnv["NODE_ENV"]
-  delete childEnv["CI"]
   const proc = Bun.spawn(["bun", cli, ...args], {
     env: childEnv,
     stdout: "pipe",
@@ -44,8 +37,12 @@ describe("sgc CLI smoke", () => {
   test("--version prints the package version", async () => {
     const { stdout, exitCode } = await runSgc(["--version"])
     expect(exitCode).toBe(0)
-    // Match the shape; exact version is tracked in package.json and bumps per release
-    expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/)
+    // Match the shape; exact version is tracked in package.json and bumps per release.
+    // Tolerant of consola's CI-mode "[log] " prefix (citty's --version uses
+    // consola.log, which prepends a level tag when is-ci detects any of ~10
+    // CI env vars on the runner). Strip an optional leading "[log] " before
+    // matching so the test is hermetic to runner env.
+    expect(stdout.trim().replace(/^\[log\] /, "")).toMatch(/^\d+\.\d+\.\d+$/)
   })
 
   test("discover runs end-to-end and prints forcing questions", async () => {

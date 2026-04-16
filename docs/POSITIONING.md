@@ -1,4 +1,4 @@
-# SGC Positioning (as of v1.2.0)
+# SGC Positioning
 
 ## Role: 规范层 + 知识引擎
 

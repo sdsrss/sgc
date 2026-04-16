@@ -232,6 +232,7 @@ subagents:
   classifier.level:
     version: "0.1"
     purpose: Classify incoming task into L0 / L1 / L2 / L3
+    prompt_path: prompts/classifier-level.md
     inputs:
       user_request: string
       repo_summary: string

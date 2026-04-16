@@ -165,6 +165,12 @@ export interface SubagentManifest {
   trigger?: string
   status?: "implemented" | "slot-only" | "manual-only"
   roadmap?: string
+  /** Optional external prompt template path, relative to repo root.
+   *  When set, spawn.ts loads this file and substitutes <input_yaml/> with
+   *  per-call input, replacing the synthesized prompt prefix from manifest.
+   *  The template must contain a '## Input' heading so the system/user split
+   *  (for cache_control) works correctly. */
+  prompt_path?: string
 }
 
 // Loaded full spec ────────────────────────────────────────────────────────────

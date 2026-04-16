@@ -5,7 +5,6 @@
   "type": "module",
   "bin": {
     "sgc": "./src/sgc.ts",
-    "sgc-convert": "./src/index.ts",
     "browse": "./plugins/sgc/browse/dist/browse"
   },
   "scripts": {
@@ -22,10 +21,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.89.0",
-    "@mariozechner/pi-coding-agent": "^0.67.2",
-    "@sinclair/typebox": "^0.34.49",
     "citty": "^0.1.6",
-    "diff": "^5.2.0",
     "js-yaml": "^4.1.1",
     "playwright": "^1.52.0"
   }

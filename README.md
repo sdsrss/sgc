@@ -57,11 +57,10 @@ State files land under `.sgc/` in the project (override via `SGC_STATE_ROOT`). T
 | `sgc agent-loop [--list\|--show\|--submit]` | ✅ | File-poll fulfillment helper (for external Claude session) |
 | `sgc discover <topic>` | ✅ | clarifier.discover forcing-questions; feeds into `sgc plan --motivation` |
 
-Two more CLIs from the same repo:
+One more CLI from the same repo:
 
 | Command | Purpose |
 |---------|---------|
-| `sgc-convert` | Convert Claude Code plugins → 10 platforms (Codex, Copilot, Droid, Gemini, Kiro, OpenClaw, OpenCode, Pi, Qwen, Windsurf) |
 | `browse` | Headless browser CLI for QA testing (compiled binary, `bun run build:browse`) |
 
 ## State layout
@@ -91,16 +90,17 @@ contracts/                 ← spec source-of-truth (YAML + markdown, human-read
 └── sgc-invariants.md      ← 12 non-negotiable rules
 
 src/
-├── sgc.ts                 ← citty CLI (8 subcommands)
-├── commands/              ← per-command implementations (plan, work, review)
+├── sgc.ts                 ← citty CLI (9 subcommands)
+├── commands/              ← per-command implementations (discover/plan/work/review/qa/ship/compound/agent-loop; status inline in sgc.ts)
 └── dispatcher/
     ├── types.ts           ← TaskId, Level, ScopeToken, IntentDoc, …
     ├── preprocessor.ts    ← DSL → strict YAML (array[T], name?)
     ├── schema.ts          ← cached spec loader
     ├── capabilities.ts    ← scope token computation + Invariant §1 enforcement
     ├── state.ts           ← .sgc/ I/O with mutability rules + atomic writes
-    ├── spawn.ts           ← subagent spawn protocol (inline-stub + file-poll modes)
-    └── agents/            ← stub agents (classifier-level, planner-eng, reviewer-correctness)
+    ├── spawn.ts           ← subagent spawn protocol (inline-stub + file-poll + claude-cli + anthropic-sdk)
+    ├── dedup.ts           ← signature + Jaccard similarity (Invariant §3)
+    └── agents/            ← stub agents for all 20 manifested subagents
 
 plugins/sgc/               ← Claude Code plugin (skills + agents + hooks, markdown)
 └── browse/                ← headless browser source (TypeScript, compiles to single binary)
@@ -143,23 +143,23 @@ Both are E-phase concerns. Today: if you need ironclad §1/§8, run in `inline` 
 ## Test
 
 ```bash
-bun test tests/             # 316 tests (311 dispatcher + 5 eval), ~650ms
-bun test tests/dispatcher/  # unit/integration for each module
-bun test tests/eval/        # end-to-end L0/L1 scenarios (Invariant §12)
+bun test tests/dispatcher tests/eval     # 357 tests across 32 files, ~700ms
 ```
 
-Dispatcher tests (311 across 22 files):
-- `preprocessor.test.ts`, `schema.test.ts`, `capabilities.test.ts`, `state.test.ts`, `validation.ts`-driven `spawn.test.ts` — foundations
+CI runs the same on every push/PR via [`.github/workflows/test.yml`](.github/workflows/test.yml).
+
+Dispatcher tests (24 files):
+- `preprocessor.test.ts`, `schema.test.ts`, `capabilities.test.ts`, `state.test.ts`, `spawn.test.ts` — foundations
 - `rationale.test.ts` — §11 concrete-reference check
-- `sgc-cli.test.ts`, `sgc-plan.test.ts`, `sgc-work.test.ts`, `sgc-review.test.ts` — L0/L1 loop
-- `planner-ceo.test.ts`, `researcher-history.test.ts`, `planner-adversarial.test.ts` — L2/L3 cluster
+- `sgc-cli.test.ts`, `sgc-plan.test.ts`, `sgc-work.test.ts`, `sgc-review.test.ts`, `sgc-discover.test.ts` — command loop
+- `planner-ceo.test.ts`, `researcher-history.test.ts`, `planner-adversarial.test.ts`, `clarifier-discover.test.ts` — agent cluster
 - `qa-browser.test.ts`, `sgc-ship.test.ts`, `gh-runner.test.ts` — qa + ship
 - `solutions-state.test.ts`, `compound.test.ts`, `janitor-compound.test.ts` — compound + janitor
 - `claude-cli-agent.test.ts`, `anthropic-sdk-agent.test.ts`, `agent-loop.test.ts` — real LLM modes
 
-Eval scenarios (5 tests across 2 files):
-- `L0-typo.test.ts` — fast path (no intent, no ship, janitor skip)
-- `L1-bugfix.test.ts` — single-file with review + §2/§7/§11 holistic checks
+Eval scenarios (8 files per Invariant §12):
+- `L0-typo.test.ts`, `L1-bugfix.test.ts`, `L2-cross-file.test.ts`, `L3-migration.test.ts` — full pipeline by level
+- `qa-browser.test.ts`, `compound-happy.test.ts`, `dedup.test.ts`, `reviewer-isolation.test.ts` — invariant + supporting-agent
 
 ## Agent dispatch modes
 

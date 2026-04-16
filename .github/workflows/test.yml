@@ -35,4 +35,18 @@ jobs:
         run: npm ci
 
       - name: Run dispatcher + eval tests
-        run: bun test tests/dispatcher tests/eval
+        id: run_tests
+        run: |
+          set -o pipefail
+          bun test tests/dispatcher tests/eval 2>&1 | tee test-output.log
+
+      - name: Publish test output to step summary (on failure)
+        if: always() && steps.run_tests.outcome == 'failure'
+        run: |
+          {
+            echo "## bun test output (failed run)"
+            echo ""
+            echo '```'
+            tail -200 test-output.log || echo "(no test-output.log captured)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

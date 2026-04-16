@@ -12,8 +12,15 @@ async function runSgc(
   // Strip NODE_ENV=test (set by `bun test`); when it propagates to the
   // child bun process, citty silences stdout. Doesn't affect the child's
   // actual behavior — sgc CLI doesn't read NODE_ENV.
+  //
+  // Strip CI=true (set by GitHub Actions runners): when set, bun prefixes
+  // `console.log` stdout with "[log] ", breaking exact-match assertions on
+  // --version. Hermetic test env > preserving CI detection inside the
+  // child. (The workflow itself still runs under CI=true — only the
+  // child bun subprocess is shielded.)
   const childEnv = { ...process.env, ...env }
   delete childEnv["NODE_ENV"]
+  delete childEnv["CI"]
   const proc = Bun.spawn(["bun", cli, ...args], {
     env: childEnv,
     stdout: "pipe",

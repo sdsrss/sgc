@@ -32,12 +32,16 @@ Run the 4-agent compound cluster (`context` / `solution` / `related` / `preventi
 - **State**: `writeSolution` in [`src/dispatcher/state.ts`](../../../../src/dispatcher/state.ts) — refuses writes without a valid `dedup_stamp`
 - **Invariants**: §3 dedup required · §10 cluster is a transaction (any throw = no write)
 
-## Invocation
+## Execution
+
+When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-sgc compound                        # auto-slug from problem summary
-sgc compound --slug <custom-slug>
-sgc compound --force                # write even if similarity ≥ 0.85
+bun src/sgc.ts compound $ARGUMENTS
 ```
 
 Outcomes: `compound` (new entry) · `update_existing` (dedup hit; `source_task_ids` merged, `times_referenced` bumped) · `skip` (only via janitor's decision).
+
+## Delegation hint
+
+Automatic after ship via janitor. Manual for reruns when you need to re-extract knowledge from a completed task.

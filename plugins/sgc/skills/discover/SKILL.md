@@ -33,13 +33,20 @@ Plus `spawn:clarifier.*`. No writes — `discover` cannot mutate `.sgc/` state b
 - **Agent**: [`src/dispatcher/agents/clarifier-discover.ts`](../../../../src/dispatcher/agents/clarifier-discover.ts) — heuristic stub keys off auth / data / ui / perf / api keywords to tune the question set
 - **Contract**: `clarifier.discover` manifest in [`contracts/sgc-capabilities.yaml`](../../../../contracts/sgc-capabilities.yaml)
 
-## Invocation
+## Execution
+
+When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-sgc discover "<vague topic>"
+bun src/sgc.ts discover "$ARGUMENTS"
 ```
 
 Output is structured text with sections Goal / Constraints / Scope / Edge cases / Acceptance / Next. The last section contains the exact `sgc plan ...` command to run after answering.
+
+## Delegation hint
+
+For product-fuzzy requirements exploration beyond sgc's forcing questions:
+- `gs:/office-hours` — YC-style brainstorming for demand reality, wedge identification, and design docs
 
 ## Pattern (what the agent emits)
 

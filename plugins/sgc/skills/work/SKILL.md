@@ -34,12 +34,17 @@ Execute an approved plan; track completion in `progress/feature-list.md`.
   not duplicated here.
 - **System overview**: [`plugins/sgc/CLAUDE.md`](../../CLAUDE.md)
 
-## Invocation
+## Execution
+
+When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-sgc work --add "<feature description>"   # append a feature to progress/feature-list.md
-sgc work --done <feature_id>               # mark a feature complete
-sgc work                                   # show current feature-list status
+bun src/sgc.ts work $ARGUMENTS
 ```
 
 `work` does NOT spawn review agents. Call `sgc review` (and `sgc qa` for L2+) when all features are done.
+
+## Delegation hint
+
+For TDD discipline during implementation:
+- `sp:test-driven-development` — write failing test first, then implement

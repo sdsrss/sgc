@@ -34,10 +34,12 @@ Plus `exec:browser` for the headless chromium launch.
 - **Evidence helper**: `hasQaEvidence` in [`src/dispatcher/state.ts`](../../../../src/dispatcher/state.ts)
 - **Invariants**: §1 qa no-solutions · §6 append-only (one qa review per task)
 
-## Invocation
+## Execution
+
+When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-sgc qa <target_url> --flows <f1,f2,f3>
+bun src/sgc.ts qa $ARGUMENTS
 ```
 
 ## Console classification (reference)
@@ -47,3 +49,8 @@ sgc qa <target_url> --flows <f1,f2,f3>
 ## Environmental note
 
 If chromium sandbox is broken (Ubuntu 23.10+ AppArmor user-namespace restriction, RHEL SELinux), the binary still launches with `--no-sandbox` fallback. Tests that must stay hermetic use the injectable `browseRunner` rather than the binary — see `tests/eval/qa-browser.test.ts`.
+
+## Delegation hint
+
+For rich interactive browser testing beyond sgc's headless qa.browser:
+- `gs:/browse` — full headless browser with navigation, screenshots, and element interaction

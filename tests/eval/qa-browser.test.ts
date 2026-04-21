@@ -43,7 +43,7 @@ async function seedL2() {
 }
 
 describe("qa.browser eval (eval §12)", () => {
-  test("pass path: runQa writes qa review + hasQaEvidence becomes true", async () => {
+  test("stub path: runQa writes qa review with concern + hasQaEvidence becomes true", async () => {
     const plan = await seedL2()
     const r = await runQa({
       stateRoot: tmp,
@@ -51,7 +51,7 @@ describe("qa.browser eval (eval §12)", () => {
       flows: ["home", "login"],
       log: () => {},
     })
-    expect(r.verdict).toBe("pass")
+    expect(r.verdict).toBe("concern")
     const stored = readReview(plan.taskId, "qa", "qa.browser", tmp)
     expect(stored?.report.stage).toBe("qa")
     expect(stored?.report.reviewer_id).toBe("qa.browser")

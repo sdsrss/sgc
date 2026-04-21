@@ -1,8 +1,14 @@
-// reviewer.correctness — stub.
+// reviewer.correctness — heuristic fallback + LLM path.
 //
-// Real reviewer would semantically analyze the diff against the intent.
-// MVP scans for unresolved markers (TODO|FIXME|XXX) in added lines and
-// flags an empty diff. Otherwise pass.
+// Two modes:
+//   1. reviewerCorrectnessHeuristic (default fallback) — scans for unresolved
+//      markers (TODO|FIXME|XXX) in added lines + flags empty diffs.
+//   2. LLM path — when prompt_path is set in the manifest and an API key is
+//      available, spawn.ts routes through prompts/reviewer-correctness.md for
+//      semantic analysis (intent alignment, null deref, missing error paths…).
+//
+// The heuristic is intentionally shallow: it catches marker noise but misses
+// semantic bugs (off-by-one, null deref, missing error handling).
 
 import type { Finding, Severity, Verdict } from "../types"
 
@@ -19,7 +25,7 @@ export interface ReviewerCorrectnessOutput {
 
 const MARKER_RE = /\b(TODO|FIXME|XXX)\b/
 
-export function reviewerCorrectness(
+export function reviewerCorrectnessHeuristic(
   input: ReviewerCorrectnessInput,
 ): ReviewerCorrectnessOutput {
   const diff = input.diff ?? ""
@@ -45,3 +51,6 @@ export function reviewerCorrectness(
     findings,
   }
 }
+
+/** Backward-compat alias — callers importing reviewerCorrectness keep working. */
+export const reviewerCorrectness = reviewerCorrectnessHeuristic

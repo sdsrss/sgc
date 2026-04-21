@@ -135,10 +135,11 @@ describe("spawn — inline-stub mode", () => {
   })
 
   test("Invariant §1: reviewer prompt pins no read:solutions + lists it as forbidden", async () => {
-    // The manifest as-shipped doesn't declare read:solutions (Invariant §1
-    // enforced at manifest load). The prompt format (D-1.1) now explicitly
-    // lists forbidden tokens as a defense-in-depth reminder to the agent.
-    const r = await spawn("reviewer.correctness", {}, {
+    // Use reviewer.security (synthesized prompt) to test that the FORBIDDEN
+    // directive appears. reviewer.correctness now uses prompt_path (external
+    // template) — its isolation is covered by computeSubagentTokens tests +
+    // the eval/reviewer-isolation.test.ts manifest-layer checks.
+    const r = await spawn("reviewer.security", {}, {
       stateRoot: tmp,
       inlineStub: () => ({
         verdict: "pass",

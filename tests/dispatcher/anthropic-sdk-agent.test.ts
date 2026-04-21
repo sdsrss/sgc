@@ -430,11 +430,13 @@ describe("resolveMode — auto-detect priority", () => {
       SGC_AGENT_MODE: process.env["SGC_AGENT_MODE"],
       SGC_USE_FILE_AGENTS: process.env["SGC_USE_FILE_AGENTS"],
       OPENROUTER_API_KEY: process.env["OPENROUTER_API_KEY"],
+      SGC_FORCE_INLINE: process.env["SGC_FORCE_INLINE"],
     }
     delete process.env["ANTHROPIC_API_KEY"]
     delete process.env["SGC_AGENT_MODE"]
     delete process.env["SGC_USE_FILE_AGENTS"]
     delete process.env["OPENROUTER_API_KEY"]
+    delete process.env["SGC_FORCE_INLINE"]
   })
   afterEach(() => {
     for (const [k, v] of Object.entries(savedEnv)) {
@@ -482,8 +484,19 @@ describe("resolveMode — auto-detect priority", () => {
   test("nothing set + no claude CLI → file-poll", () => {
     expect(resolveMode({ hasClaudeCli: noClaudeCli })).toBe("file-poll")
   })
-  test("inlineStub beats both ANTHROPIC_API_KEY and claude CLI (subscription/test path)", () => {
+  test("inlineStub beats ANTHROPIC_API_KEY when no prompt_path (no manifest)", () => {
     process.env["ANTHROPIC_API_KEY"] = "sk-xxx"
+    // Without manifest.prompt_path, inlineStub wins — agents without templates use heuristic
     expect(resolveMode({ inlineStub: () => ({}), hasClaudeCli })).toBe("inline")
+  })
+  test("ANTHROPIC_API_KEY beats inlineStub when manifest has prompt_path", () => {
+    process.env["ANTHROPIC_API_KEY"] = "sk-xxx"
+    const manifest = { name: "test", prompt_path: "prompts/test.md" } as any
+    expect(resolveMode({ inlineStub: () => ({}), hasClaudeCli }, manifest)).toBe("anthropic-sdk")
+  })
+  test("OPENROUTER beats inlineStub when manifest has prompt_path", () => {
+    process.env["OPENROUTER_API_KEY"] = "sk-or-xxx"
+    const manifest = { name: "test", prompt_path: "prompts/test.md" } as any
+    expect(resolveMode({ inlineStub: () => ({}), hasClaudeCli: noClaudeCli }, manifest)).toBe("openrouter")
   })
 })

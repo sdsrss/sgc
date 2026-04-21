@@ -24,6 +24,7 @@ import {
   readFeatureList,
   readIntent,
   writeCurrentTask,
+  writeHandoff,
   writeJanitorDecision,
   writeShip,
 } from "../dispatcher/state"
@@ -41,7 +42,7 @@ import {
   type JanitorCompoundOutput,
 } from "../dispatcher/agents/janitor-compound"
 import { runCompound } from "./compound"
-import type { JanitorDecision, ShipDoc, TaskId } from "../dispatcher/types"
+import type { Handoff, JanitorDecision, ShipDoc, TaskId } from "../dispatcher/types"
 
 export interface ShipOptions {
   stateRoot?: string
@@ -331,6 +332,16 @@ export async function runShip(opts: ShipOptions = {}): Promise<ShipResult> {
       }
     }
   }
+
+  // Write handoff marker so a new session knows the task was shipped (audit:
+  // writeHandoff was exported but never called from commands).
+  const handoff: Handoff = {
+    from_session: taskId,
+    to_session_hint: "next task",
+    summary: `Task ${taskId} shipped at level ${level}.`,
+    open_questions: [],
+  }
+  writeHandoff(handoff, `Task ${taskId} shipped. Ready for next task.\n`, stateRoot)
 
   log(`shipped ${taskId} (${level})`)
   return { taskId, shipPath: shipFilePath, prUrl, janitorDecision, compoundAction }

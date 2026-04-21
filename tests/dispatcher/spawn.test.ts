@@ -207,12 +207,12 @@ describe("spawn — file-poll mode (SGC_USE_FILE_AGENTS=1)", () => {
       await expect(
         spawn("classifier.level", {}, {
           stateRoot: tmp,
-          timeoutMs: 100,
+          timeoutMs: 30_000, // MIN_TIMEOUT_MS — clamp floor
           pollIntervalMs: 30,
         }),
       ).rejects.toThrow(SpawnTimeout)
     } finally {
       delete process.env["SGC_USE_FILE_AGENTS"]
     }
-  })
+  }, 40_000)
 })

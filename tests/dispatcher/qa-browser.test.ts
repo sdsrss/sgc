@@ -19,13 +19,14 @@ describe("qaBrowser stub", () => {
     expect(r.verdict).toBe("concern")
     expect(r.failed_flows[0]?.observed).toMatch(/no user_flows/)
   })
-  test("valid target + flows → pass", async () => {
+  test("valid target + flows → concern (stub mode)", async () => {
     const r = await qaBrowser({
       target_url: "http://localhost:3000",
       user_flows: ["login", "dashboard"],
     })
-    expect(r.verdict).toBe("pass")
-    expect(r.failed_flows).toEqual([])
+    expect(r.verdict).toBe("concern")
+    expect(r.failed_flows).toHaveLength(1)
+    expect(r.failed_flows[0]?.observed).toMatch(/no browser runner/)
     expect(r.evidence_refs).toEqual([])
   })
   test("injected browseRunner overrides the stub", async () => {
@@ -71,7 +72,7 @@ describe("runQa — integration", () => {
     await expect(runQa({ stateRoot: tmp, log: () => {} })).rejects.toThrow(/sgc plan/)
   })
 
-  test("pass path: writes qa review + hasQaEvidence=true", async () => {
+  test("stub path: writes qa review with concern + hasQaEvidence=true", async () => {
     const plan = await freshTask()
     const r = await runQa({
       stateRoot: tmp,
@@ -79,10 +80,10 @@ describe("runQa — integration", () => {
       flows: ["login", "dashboard"],
       log: () => {},
     })
-    expect(r.verdict).toBe("pass")
+    expect(r.verdict).toBe("concern")
     expect(r.taskId).toBe(plan.taskId)
     const stored = readReview(plan.taskId, "qa", "qa.browser", tmp)
-    expect(stored?.report.verdict).toBe("pass")
+    expect(stored?.report.verdict).toBe("concern")
     expect(stored?.report.stage).toBe("qa")
     expect(stored?.report.reviewer_id).toBe("qa.browser")
     expect(hasQaEvidence(plan.taskId, tmp)).toBe(true)

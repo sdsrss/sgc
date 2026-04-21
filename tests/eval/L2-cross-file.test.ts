@@ -86,7 +86,7 @@ describe("L2 cross-file scenario (eval §12)", () => {
       flows: ["home", "api-extra-field"],
       log: () => {},
     })
-    expect(qa.verdict).toBe("pass")
+    expect(qa.verdict).toBe("concern")
 
     // STEP 5: ship — expect janitor=compound + compoundAction
     const ship = await runShip({ stateRoot: tmp, log: () => {} })

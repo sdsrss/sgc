@@ -8,7 +8,7 @@
 // Stub verdicts:
 //   - no user_flows given → concern (can't validate nothing)
 //   - target_url empty → fail (setup broken)
-//   - otherwise → pass (placeholder until real binary bridge)
+//   - otherwise → concern (stub mode — prevents L2+ QA gate rubber-stamp)
 //
 // Real binary bridge: inject opts.browseRunner that spawns
 // plugins/sgc/browse/dist/browse with JSON flow input and returns the
@@ -73,9 +73,17 @@ export async function qaBrowser(
       ],
     }
   }
+  // Stub: no browser runner — return concern, not pass.
+  // Prevents L2+ QA gate from being a rubber stamp.
   return {
-    verdict: "pass",
+    verdict: "concern",
     evidence_refs: [],
-    failed_flows: [],
+    failed_flows: [
+      {
+        flow: "(all)",
+        step: "runner",
+        observed: "no browser runner — QA skipped (stub mode)",
+      },
+    ],
   }
 }

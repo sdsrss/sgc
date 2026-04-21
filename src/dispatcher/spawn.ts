@@ -54,6 +54,17 @@ function writeAtomic(path: string, content: string): void {
   renameSync(tmp, path)
 }
 
+/** Minimum timeout for any spawn (prevents instant-timeout from misconfigured manifests). */
+export const MIN_TIMEOUT_MS = 30_000 // 30 seconds
+
+/** Maximum timeout for any spawn (prevents indefinite hangs). */
+export const MAX_TIMEOUT_MS = 300_000 // 5 minutes
+
+/** Clamp raw timeout to [MIN_TIMEOUT_MS, MAX_TIMEOUT_MS]. Exported for unit testing. */
+export function clampTimeout(rawMs: number): number {
+  return Math.max(MIN_TIMEOUT_MS, Math.min(MAX_TIMEOUT_MS, rawMs))
+}
+
 export class SpawnTimeout extends Error {
   constructor(spawnId: string, timeoutMs: number) {
     super(`spawn ${spawnId} timed out waiting for result after ${timeoutMs}ms`)
@@ -88,6 +99,8 @@ export interface SpawnOptions {
   claudeCliRunner?: SubprocessRunner  // test hook for claude-cli mode
   anthropicClientFactory?: AnthropicClientFactory  // test hook for anthropic-sdk mode
   hasClaudeCli?: () => boolean  // test hook for resolveMode auto-detect
+  /** Max retry attempts for file-poll mode on SpawnTimeout. Default 0 (no retry). */
+  maxRetries?: number
   /**
    * Test-only fault injection — if set, throw this error after writing
    * the prompt file but before producing the result. Used by Invariant §10
@@ -335,9 +348,26 @@ export async function spawn<I = unknown, O = unknown>(
       serializeFrontmatter(output as Record<string, unknown>, ""),
     )
   } else {
-    // file-poll
-    const timeoutMs = opts.timeoutMs ?? (manifest.timeout_s ?? 60) * 1000
-    output = await pollForResult(resultPath, timeoutMs, opts.pollIntervalMs ?? 1000)
+    // file-poll with timeout clamp + optional retry
+    const rawTimeoutMs = opts.timeoutMs ?? (manifest.timeout_s ?? 60) * 1000
+    const timeoutMs = clampTimeout(rawTimeoutMs)
+    const maxRetries = opts.maxRetries ?? 0
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        output = await pollForResult(resultPath, timeoutMs, opts.pollIntervalMs ?? 1000)
+        break
+      } catch (e) {
+        if (e instanceof SpawnTimeout && attempt < maxRetries) {
+          // Exponential backoff: 2^attempt seconds with ±20% jitter
+          const baseMs = Math.pow(2, attempt) * 1000
+          const jitter = baseMs * 0.2 * (2 * Math.random() - 1)
+          await new Promise((r) => setTimeout(r, Math.max(100, baseMs + jitter)))
+          continue
+        }
+        throw e
+      }
+    }
   }
 
   validateOutputShape(manifest, output)

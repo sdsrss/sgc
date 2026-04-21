@@ -429,10 +429,12 @@ describe("resolveMode — auto-detect priority", () => {
       ANTHROPIC_API_KEY: process.env["ANTHROPIC_API_KEY"],
       SGC_AGENT_MODE: process.env["SGC_AGENT_MODE"],
       SGC_USE_FILE_AGENTS: process.env["SGC_USE_FILE_AGENTS"],
+      OPENROUTER_API_KEY: process.env["OPENROUTER_API_KEY"],
     }
     delete process.env["ANTHROPIC_API_KEY"]
     delete process.env["SGC_AGENT_MODE"]
     delete process.env["SGC_USE_FILE_AGENTS"]
+    delete process.env["OPENROUTER_API_KEY"]
   })
   afterEach(() => {
     for (const [k, v] of Object.entries(savedEnv)) {
@@ -463,6 +465,15 @@ describe("resolveMode — auto-detect priority", () => {
   })
   test("ANTHROPIC_API_KEY → anthropic-sdk (no stub)", () => {
     process.env["ANTHROPIC_API_KEY"] = "sk-xxx"
+    expect(resolveMode({ hasClaudeCli: noClaudeCli })).toBe("anthropic-sdk")
+  })
+  test("OPENROUTER_API_KEY → anthropic-sdk (no ANTHROPIC_API_KEY)", () => {
+    process.env["OPENROUTER_API_KEY"] = "sk-or-xxx"
+    expect(resolveMode({ hasClaudeCli: noClaudeCli })).toBe("anthropic-sdk")
+  })
+  test("ANTHROPIC_API_KEY wins over OPENROUTER_API_KEY", () => {
+    process.env["ANTHROPIC_API_KEY"] = "sk-ant-xxx"
+    process.env["OPENROUTER_API_KEY"] = "sk-or-xxx"
     expect(resolveMode({ hasClaudeCli: noClaudeCli })).toBe("anthropic-sdk")
   })
   test("claude CLI present → claude-cli (no key, no stub)", () => {

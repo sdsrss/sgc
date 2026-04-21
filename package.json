@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build:browse": "bun build ./plugins/sgc/browse/src/cli.ts --compile --outfile ./plugins/sgc/browse/dist/browse",
-    "test": "bun test"
+    "test": "SGC_FORCE_INLINE=1 bun test"
   },
   "author": {
     "name": "SDS"

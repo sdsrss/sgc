@@ -127,17 +127,19 @@ function generateUlid(): string {
 /**
  * Resolve which agent dispatch mode to use, in priority:
  *   1. explicit opts.mode
- *   2. SGC_AGENT_MODE env ("inline" | "file-poll" | "claude-cli" | "anthropic-sdk")
+ *   2. SGC_AGENT_MODE env ("inline" | "file-poll" | "claude-cli" | "anthropic-sdk" | "openrouter")
  *   3. SGC_USE_FILE_AGENTS=1 (legacy alias for file-poll)
- *   4. opts.inlineStub provided → "inline"
- *   5. ANTHROPIC_API_KEY present → "anthropic-sdk"
- *   5b. OPENROUTER_API_KEY present → "openrouter" (chat/completions via fetch)
- *   6. `claude` CLI in PATH → "claude-cli" (auto-detect for subscription users)
- *   7. default → "file-poll"
+ *   4. manifest.prompt_path + ANTHROPIC_API_KEY → "anthropic-sdk" (LLM only for agents with templates)
+ *   5. manifest.prompt_path + OPENROUTER_API_KEY → "openrouter" (chat/completions via fetch)
+ *   6. opts.inlineStub provided → "inline" (fallback: agents without prompt_path always use stubs)
+ *   7. ANTHROPIC_API_KEY (no prompt_path) → "anthropic-sdk" (catch-all for templateless agents if no stub)
+ *   8. OPENROUTER_API_KEY (no prompt_path) → "openrouter"
+ *   9. `claude` CLI in PATH → "claude-cli" (auto-detect for subscription users)
+ *   10. default → "file-poll"
  *
  * Exported for direct testing.
  */
-export function resolveMode(opts: SpawnOptions = {}): AgentMode {
+export function resolveMode(opts: SpawnOptions = {}, manifest?: SubagentManifest): AgentMode {
   if (opts.mode) return opts.mode
   const envMode = process.env["SGC_AGENT_MODE"]
   if (
@@ -150,7 +152,16 @@ export function resolveMode(opts: SpawnOptions = {}): AgentMode {
     return envMode
   }
   if (process.env["SGC_USE_FILE_AGENTS"] === "1") return "file-poll"
+  // Test escape hatch: SGC_FORCE_INLINE=1 forces inline stubs regardless of API keys.
+  // Used by test runner to prevent real API calls during CI/eval.
+  if (process.env["SGC_FORCE_INLINE"] === "1" && opts.inlineStub) return "inline"
+  // When the agent has a prompt template (prompt_path), prefer LLM over inline stub.
+  // Agents WITHOUT prompt_path always fall through to inlineStub — heuristic fallback.
+  const hasTemplate = !!manifest?.prompt_path
+  if (hasTemplate && process.env["ANTHROPIC_API_KEY"]) return "anthropic-sdk"
+  if (hasTemplate && process.env["OPENROUTER_API_KEY"]) return "openrouter"
   if (opts.inlineStub) return "inline"
+  // Catch-all for agents without stubs: try LLM keys, then CLI, then poll
   if (process.env["ANTHROPIC_API_KEY"]) return "anthropic-sdk"
   if (process.env["OPENROUTER_API_KEY"]) return "openrouter"
   const hasCli = opts.hasClaudeCli ?? (() => Bun.which("claude") !== null)
@@ -335,7 +346,7 @@ export async function spawn<I = unknown, O = unknown>(
     throw opts.forceError
   }
 
-  const mode = resolveMode(opts)
+  const mode = resolveMode(opts, manifest)
   let output: unknown
   if (mode === "inline" && opts.inlineStub) {
     output = await opts.inlineStub(input)

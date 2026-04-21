@@ -103,11 +103,12 @@ describe("runAgentLoop — --list", () => {
 
 describe("runAgentLoop — --show", () => {
   test("prints prompt file content", async () => {
-    // Use reviewer.correctness (no prompt_path) so the prompt file carries
+    // Use reviewer.security (no prompt_path) so the prompt file carries
     // the synthesized frontmatter (spawn_id, scope_tokens) being asserted
-    // here. classifier.level now uses an external template (prompt_path)
-    // where those markers don't appear — covered by the prompt-path tests.
-    const spawnRes = await spawn("reviewer.correctness", {}, {
+    // here. classifier.level and reviewer.correctness now use external
+    // templates (prompt_path) where those markers don't appear — covered
+    // by the prompt-path tests.
+    const spawnRes = await spawn("reviewer.security", {}, {
       stateRoot: tmp,
       inlineStub: () => ({
         verdict: "pass",
@@ -123,7 +124,7 @@ describe("runAgentLoop — --show", () => {
     })
     const out = logs.join("\n")
     expect(out).toContain("spawn_id:")
-    expect(out).toContain("reviewer.correctness")
+    expect(out).toContain("reviewer.security")
     expect(out).toContain("scope_tokens:")
   })
   test("throws on unknown spawn_id", async () => {

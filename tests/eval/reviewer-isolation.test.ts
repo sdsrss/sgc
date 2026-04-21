@@ -58,7 +58,7 @@ describe("reviewer isolation — manifest + capabilities (eval §12)", () => {
 })
 
 describe("reviewer isolation — live spawn prompts (eval §12)", () => {
-  test("review prompt: pinned tokens omit read:solutions + FORBIDDEN line present", async () => {
+  test("review prompt: does not grant read:solutions (template or synthesized)", async () => {
     await runPlan("add a new field to the public API response payload", {
       stateRoot: tmp,
       motivation: LONG_MOTIVATION_FIXTURE,
@@ -71,9 +71,10 @@ describe("reviewer isolation — live spawn prompts (eval §12)", () => {
     const reviewPrompt = files.find((f) => f.includes("reviewer.correctness"))
     expect(reviewPrompt).toBeDefined()
     const text = readFileSync(resolve(promptDir, reviewPrompt!), "utf8")
-    const pinned = text.match(/scope_tokens:\n((?:  - .+\n)+)/)?.[1] ?? ""
-    expect(pinned).not.toContain("read:solutions")
-    expect(text).toMatch(/FORBIDDEN from:.*read:solutions/)
+    // reviewer.correctness uses prompt_path (external template). The template
+    // never mentions read:solutions, and computeSubagentTokens strips it at
+    // the capability layer (tested above in the manifest+capabilities block).
+    expect(text).not.toContain("read:solutions")
   })
 
   test("qa.browser prompt: pinned tokens omit read:solutions + FORBIDDEN line present", async () => {

@@ -314,6 +314,7 @@ subagents:
   reviewer.correctness:   &reviewer_base
     version: "0.1"
     source: CE reviewer cluster (re-authored)
+    prompt_path: prompts/reviewer-correctness.md
     inputs:
       diff: string
       intent: markdown
@@ -325,13 +326,15 @@ subagents:
     token_budget: 5000
     timeout_s: 180
 
-  reviewer.security:        { <<: *reviewer_base, status: implemented }
-  reviewer.performance:     { <<: *reviewer_base, status: implemented }
-  reviewer.tests:           { <<: *reviewer_base, status: slot-only, roadmap: "L2+ test-coverage review; deferred" }
-  reviewer.maintainability: { <<: *reviewer_base, status: slot-only, roadmap: "readability/complexity review; deferred" }
-  reviewer.adversarial:     { <<: *reviewer_base, status: slot-only, roadmap: "L3 pre-mortem reviewer; deferred" }
-  reviewer.migration:       { <<: *reviewer_base, status: implemented }
-  reviewer.infra:           { <<: *reviewer_base, status: implemented }
+  # Derived reviewers: override prompt_path to null so they use synthesized
+  # prompts (the anchor carries prompt_path from reviewer.correctness).
+  reviewer.security:        { <<: *reviewer_base, prompt_path: null, status: implemented }
+  reviewer.performance:     { <<: *reviewer_base, prompt_path: null, status: implemented }
+  reviewer.tests:           { <<: *reviewer_base, prompt_path: null, status: slot-only, roadmap: "L2+ test-coverage review; deferred" }
+  reviewer.maintainability: { <<: *reviewer_base, prompt_path: null, status: slot-only, roadmap: "readability/complexity review; deferred" }
+  reviewer.adversarial:     { <<: *reviewer_base, prompt_path: null, status: slot-only, roadmap: "L3 pre-mortem reviewer; deferred" }
+  reviewer.migration:       { <<: *reviewer_base, prompt_path: null, status: implemented }
+  reviewer.infra:           { <<: *reviewer_base, prompt_path: null, status: implemented }
 
   reviewer.spec:
     version: "0.1"

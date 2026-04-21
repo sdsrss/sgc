@@ -34,10 +34,11 @@ import {
   ensureSgcStructure,
   writeCurrentTask,
   writeFeatureList,
+  writeHandoff,
   writeIntent,
 } from "../dispatcher/state"
 import { computeCommandTokens } from "../dispatcher/capabilities"
-import type { IntentDoc, Level } from "../dispatcher/types"
+import type { Handoff, IntentDoc, Level } from "../dispatcher/types"
 
 export interface PlanOptions {
   stateRoot?: string
@@ -355,6 +356,16 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
     "",
     stateRoot,
   )
+
+  // Write handoff marker so a new session can resume (audit: writeHandoff was
+  // exported but never called from commands).
+  const handoff: Handoff = {
+    from_session: taskId,
+    to_session_hint: "sgc work",
+    summary: `Plan created for task ${taskId} at level ${level}.`,
+    open_questions: [],
+  }
+  writeHandoff(handoff, `Plan written for task ${taskId}. Level ${level}. Resume via 'sgc work'.\n`, stateRoot)
 
   log(``)
   log(`Plan complete. Run \`sgc work\` to begin execution.`)

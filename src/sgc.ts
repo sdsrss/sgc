@@ -64,6 +64,11 @@ const plan = defineCommand({
       required: false,
       description: "Skip interactive confirmation. REFUSED at L3 (Invariant §4).",
     },
+    "force-new-task": {
+      type: "boolean",
+      required: false,
+      description: "Override active handoff and start a new task",
+    },
   },
   async run({ args }) {
     const { runPlan } = await import("./commands/plan")
@@ -77,6 +82,7 @@ const plan = defineCommand({
       userSignature,
       motivation: args.motivation as string | undefined,
       autoConfirm: args.auto as boolean | undefined,
+      forceNewTask: args["force-new-task"] as boolean | undefined,
     })
   },
 })

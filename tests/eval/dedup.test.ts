@@ -44,7 +44,7 @@ describe("dedup match scenario (eval §12)", () => {
     // Second task with the same problem text → signature matches exactly
     const p2 = await runPlan(
       "refactor the auth token validation middleware for the public API",
-      { stateRoot: tmp, motivation: LONG_MOTIVATION_FIXTURE, log: () => {} },
+      { stateRoot: tmp, motivation: LONG_MOTIVATION_FIXTURE, forceNewTask: true, log: () => {} },
     )
     const r2 = await runCompound({ stateRoot: tmp, log: () => {} })
     expect(r2.action).toBe("update_existing")
@@ -72,7 +72,7 @@ describe("dedup miss scenario (eval §12)", () => {
     // auth-middleware refactor (after tokenize strips stopwords).
     await runPlan(
       "fix null pointer crash in startup config loader module",
-      { stateRoot: tmp, motivation: LONG_MOTIVATION_FIXTURE, log: () => {} },
+      { stateRoot: tmp, motivation: LONG_MOTIVATION_FIXTURE, forceNewTask: true, log: () => {} },
     )
     const r2 = await runCompound({ stateRoot: tmp, log: () => {} })
     expect(r2.action).toBe("compound")

@@ -32,6 +32,7 @@ import {
 import { validateClassifierRationale } from "../dispatcher/rationale"
 import {
   ensureSgcStructure,
+  readHandoff,
   writeCurrentTask,
   writeFeatureList,
   writeHandoff,
@@ -49,6 +50,8 @@ export interface PlanOptions {
   // Explicit motivation; defaults to taskDescription. Must be ≥20 words for
   // L1+ tasks (audit C-phase C3, sgc-state.schema.yaml:52 min_words rule).
   motivation?: string
+  // --force-new-task: override active handoff and start a new task.
+  forceNewTask?: boolean
   // --auto flag; REFUSED at L3 per Invariant §4.
   autoConfirm?: boolean
   // Test hook: inject the interactive confirmation reader (returns user
@@ -101,6 +104,28 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
   const stateRoot = opts.stateRoot
 
   ensureSgcStructure(stateRoot)
+
+  // Resume guard: refuse new task when an active handoff exists (audit gap).
+  const existingHandoff = readHandoff(stateRoot)
+  if (existingHandoff) {
+    const { handoff } = existingHandoff
+    // "Completed" handoffs (ship finished, session closed) don't block.
+    const isCompleted =
+      handoff.to_session_hint === "next task" ||
+      handoff.summary?.includes("shipped") ||
+      handoff.summary?.includes("Ready for next task")
+    if (!isCompleted && !opts.forceNewTask) {
+      log(
+        `Active task detected in handoff: ${handoff.from_session}.\n` +
+          `Summary: ${handoff.summary}\n` +
+          `Pass --force-new-task to start a new task anyway.`,
+      )
+      throw new Error(
+        `active task in handoff.md — complete it or pass --force-new-task`,
+      )
+    }
+  }
+
   const taskId = generateTaskId()
   const createdAt = nowIso()
 

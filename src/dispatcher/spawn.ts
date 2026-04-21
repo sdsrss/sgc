@@ -126,6 +126,7 @@ function generateUlid(): string {
  *   3. SGC_USE_FILE_AGENTS=1 (legacy alias for file-poll)
  *   4. opts.inlineStub provided → "inline"
  *   5. ANTHROPIC_API_KEY present → "anthropic-sdk"
+ *   5b. OPENROUTER_API_KEY present → "anthropic-sdk" (via OpenRouter proxy)
  *   6. `claude` CLI in PATH → "claude-cli" (auto-detect for subscription users)
  *   7. default → "file-poll"
  *
@@ -145,6 +146,7 @@ export function resolveMode(opts: SpawnOptions = {}): AgentMode {
   if (process.env["SGC_USE_FILE_AGENTS"] === "1") return "file-poll"
   if (opts.inlineStub) return "inline"
   if (process.env["ANTHROPIC_API_KEY"]) return "anthropic-sdk"
+  if (process.env["OPENROUTER_API_KEY"]) return "anthropic-sdk"
   const hasCli = opts.hasClaudeCli ?? (() => Bun.which("claude") !== null)
   if (hasCli()) return "claude-cli"
   return "file-poll"

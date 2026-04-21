@@ -50,6 +50,23 @@ const DEFAULT_MODEL = "claude-opus-4-6"
 const MAX_TOKENS_CAP = 8192
 
 /**
+ * Create the default Anthropic client with automatic key/baseURL resolution:
+ *   1. ANTHROPIC_API_KEY → direct Anthropic API (default)
+ *   2. OPENROUTER_API_KEY → OpenRouter proxy (Anthropic Messages API compatible)
+ *   3. Neither → Anthropic() constructor throws (caller should have checked)
+ */
+function createDefaultClient(): Anthropic {
+  const openRouterKey = process.env["OPENROUTER_API_KEY"]
+  if (openRouterKey && !process.env["ANTHROPIC_API_KEY"]) {
+    return new Anthropic({
+      apiKey: openRouterKey,
+      baseURL: "https://openrouter.ai/api/v1",
+    })
+  }
+  return new Anthropic()
+}
+
+/**
  * Split a prompt into stable (system) and variable (user) portions.
  *
  * System = everything up to the `## Input` heading (manifest-derived: purpose,
@@ -90,7 +107,7 @@ export async function runAnthropicSdkAgent(
 ): Promise<unknown> {
   const promptText = readFileSync(promptPath, "utf8")
   const { systemPart, userPart } = splitPrompt(promptText)
-  const client = clientFactory ? clientFactory() : new Anthropic()
+  const client = clientFactory ? clientFactory() : createDefaultClient()
 
   const maxTokens = Math.min(manifest.token_budget ?? 4096, MAX_TOKENS_CAP)
   const timeoutMs = (manifest.timeout_s ?? 60) * 1000

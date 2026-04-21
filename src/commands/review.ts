@@ -65,7 +65,7 @@ function captureDiff(base: string, cwd?: string): string {
 
 const VERDICT_ORDER: Record<Verdict, number> = { pass: 0, concern: 1, fail: 2 }
 
-function worstVerdict(verdicts: Verdict[]): Verdict {
+export function worstVerdict(verdicts: Verdict[]): Verdict {
   return verdicts.reduce<Verdict>(
     (acc, v) => (VERDICT_ORDER[v] > VERDICT_ORDER[acc] ? v : acc),
     "pass",

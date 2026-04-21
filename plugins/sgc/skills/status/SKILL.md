@@ -32,10 +32,16 @@ Read-only across the board (the only write is `progress/handoff.md` on explicit 
 - **Graceful degradation**: missing file = skipped section, never an error
 - **Invariants**: n/a (read-only)
 
-## Invocation
+## Execution
+
+When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-sgc status
+bun src/sgc.ts status
 ```
 
 For richer views (reviews per task, knowledge-base stats), read the files directly — `status` intentionally stays minimal and fast.
+
+## Delegation hint
+
+No delegation — read-only command. Use `/plan`, `/work`, `/review` etc. to take action.

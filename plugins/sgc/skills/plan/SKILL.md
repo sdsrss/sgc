@@ -35,13 +35,21 @@ This skill invokes the dispatcher; process is authoritative in code, not prose.
 - **Invariants**: §2 intent immutable · §4 L3 requires `--signed-by` + interactive `yes` · §11 classifier rationale specific
 - **Levels, permissions, escalation**: [`plugins/sgc/CLAUDE.md`](../../CLAUDE.md)
 
-## Invocation
+## Execution
+
+When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-sgc plan "<task description>" \
-  [--motivation "<≥20 words>"] \
-  [--signed-by <id>] \        # L3 only (refused otherwise = OK because classifier picks level)
-  [--level L0|L1|L2|L3]        # upgrade-only; downgrades refused
+bun src/sgc.ts plan "$ARGUMENTS"
 ```
 
-L3 also prompts interactively for `yes` confirmation and refuses `--auto`.
+For L3 tasks, the CLI will prompt for `--signed-by` and require interactive `yes`.
+To override auto-classified level: `--level L0|L1|L2|L3` (upgrade-only).
+
+## Delegation hint
+
+sgc plan produces intent.md + feature-list.md. For deep **implementation** planning:
+- `sp:writing-plans` — task-by-task execution plan
+- `sp:brainstorming` — clarify ambiguous scope before planning
+
+sgc owns classification + intent; sp owns the deep plan body.

@@ -1,10 +1,10 @@
-// classifier.level — heuristic stub.
+// classifier.level — heuristic fallback + LLM dispatch path.
 //
-// Replaces a real LLM call with keyword-based classification for MVP.
-// Returns level + rationale + affected_readers_candidates per the
-// manifest's outputs schema.
+// When spawn mode is inline (MVP, tests) → heuristic keyword classifier below.
+// When mode is anthropic-sdk / claude-cli / file-poll → real LLM via
+// prompts/classifier-level.md (routed by spawn.ts when manifest.prompt_path is set).
 //
-// Heuristic precedence (HARD escalation rules per skill spec):
+// Heuristic precedence (HARD escalation rules):
 //   1. migration / infra / DB schema → L3
 //   2. public API / auth / payment → at least L2
 //   3. typo / format / comment / config-only → L0
@@ -50,20 +50,23 @@ const L0_KEYWORDS = [
   /^(fix|update) (a |the )?(typo|formatting|comment|whitespace|spelling)/i,
 ]
 
-export function classifierLevel(input: ClassifierInput): ClassifierOutput {
+/** Heuristic fallback — used when no LLM is available (tests, inline mode). */
+export function classifierLevelHeuristic(input: ClassifierInput): ClassifierOutput {
   const req = input.user_request
 
   if (L3_KEYWORDS.some((re) => re.test(req))) {
     return {
       level: "L3",
-      rationale: "request mentions architecture/migration/infra keywords; minimum L3 per HARD escalation rule",
+      rationale:
+        "request mentions architecture/migration/infra keywords; minimum L3 per HARD escalation rule",
       affected_readers_candidates: ["dispatcher", "future maintainers"],
     }
   }
   if (L2_KEYWORDS.some((re) => re.test(req))) {
     return {
       level: "L2",
-      rationale: "request involves public API/auth/payment surface; minimum L2 per HARD escalation rule",
+      rationale:
+        "request involves public API/auth/payment surface; minimum L2 per HARD escalation rule",
       affected_readers_candidates: ["dispatcher", "downstream callers"],
     }
   }
@@ -76,7 +79,11 @@ export function classifierLevel(input: ClassifierInput): ClassifierOutput {
   }
   return {
     level: "L1",
-    rationale: "default classification — single-file or simple change with no keyword hits for L0/L2/L3",
+    rationale:
+      "default classification — single-file or simple change with no keyword hits for L0/L2/L3",
     affected_readers_candidates: ["dispatcher"],
   }
 }
+
+/** Backward-compat alias. Prefer the heuristic-specific name in new code. */
+export const classifierLevel = classifierLevelHeuristic

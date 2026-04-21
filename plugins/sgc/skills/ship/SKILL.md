@@ -32,15 +32,12 @@ Run the ship gate, write immutable `decisions/{id}/ship.md`, optionally open a P
 - **Auto-janitor**: [`src/dispatcher/agents/janitor-compound.ts`](../../../../src/dispatcher/agents/janitor-compound.ts) — decision logged even on skip (§6)
 - **Invariants**: §4 L3 no-auto · §5 override ≥40 · §6 janitor always logged · §10 compound atomic
 
-## Invocation
+## Execution
+
+When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-sgc ship                                       # interactive at L3
-sgc ship --auto                                # L0/L1/L2; refused at L3
-sgc ship --pr                                  # + gh pr create
-sgc ship --override "<≥40 char reason>"         # ship despite a fail review
-sgc ship --janitor-skip-reason "<≥40>"         # §6-compliant skip log
-sgc ship --force-compound                      # bypass janitor decision_rules
+bun src/sgc.ts ship $ARGUMENTS
 ```
 
 ## Gate failure behavior
@@ -50,3 +47,9 @@ Each gate names itself in the error (`features not done`, `no code reviews`, `qa
 ## Compound branch (post-ship)
 
 If the janitor decides `compound` or `update_existing`, `runCompound` executes inside ship. Failure there is **non-fatal** to ship — `ship.md` is already committed; the compound failure is logged but the ship decision stands. §10 atomicity guarantees no partial solution write.
+
+## Delegation hint
+
+For git/PR/deploy workflows beyond sgc's ship gate:
+- `gs:/ship` — detect base branch, run tests, bump VERSION, update CHANGELOG, create PR
+- `gs:/land-and-deploy` — merge the PR, wait for CI, verify production health

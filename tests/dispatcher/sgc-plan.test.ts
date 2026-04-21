@@ -144,7 +144,7 @@ describe("runPlan — full L1 plan flow", () => {
     // called with immutability and would catch collisions. We rely on the
     // state.test.ts coverage of IntentImmutable.
     const r1 = await runPlan("first task", { stateRoot: tmp, motivation: LONG_MOTIVATION, log: () => {} })
-    const r2 = await runPlan("second task", { stateRoot: tmp, motivation: LONG_MOTIVATION, log: () => {} })
+    const r2 = await runPlan("second task", { stateRoot: tmp, motivation: LONG_MOTIVATION, forceNewTask: true, log: () => {} })
     expect(r1.taskId).not.toBe(r2.taskId)
     expect(existsSync(resolve(tmp, "decisions", r1.taskId, "intent.md"))).toBe(true)
     expect(existsSync(resolve(tmp, "decisions", r2.taskId, "intent.md"))).toBe(true)

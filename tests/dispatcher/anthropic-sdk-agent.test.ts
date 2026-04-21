@@ -6,9 +6,10 @@ import Anthropic from "@anthropic-ai/sdk"
 import {
   AnthropicSdkError,
   runAnthropicSdkAgent,
+  splitPrompt,
   type AnthropicClientFactory,
 } from "../../src/dispatcher/anthropic-sdk-agent"
-import { spawn, resolveMode } from "../../src/dispatcher/spawn"
+import { formatPrompt, spawn, resolveMode } from "../../src/dispatcher/spawn"
 import { ensureSgcStructure } from "../../src/dispatcher/state"
 import { getSubagentManifest } from "../../src/dispatcher/schema"
 
@@ -71,7 +72,7 @@ describe("runAnthropicSdkAgent — success paths", () => {
     expect(out.affected_readers_candidates).toEqual(["alice"])
   })
 
-  test("sends adaptive thinking + prompt caching + bounded max_tokens", async () => {
+  test("sends adaptive thinking + bounded max_tokens + system-block caching", async () => {
     const manifest = getSubagentManifest("reviewer.correctness")!
     let recorded: { body: unknown; opts: unknown } | null = null
     const client = fakeClient({
@@ -80,24 +81,249 @@ describe("runAnthropicSdkAgent — success paths", () => {
       },
       recordCall: (c) => { recorded = c },
     })
-    await runAnthropicSdkAgent(writePrompt(), manifest, client)
+    const structuredPrompt = [
+      "# Purpose",
+      "review correctness",
+      "",
+      "## Scope",
+      "diff-only",
+      "",
+      "## Input",
+      "diff: here",
+    ].join("\n")
+    await runAnthropicSdkAgent(writePrompt(structuredPrompt), manifest, client)
     expect(recorded).not.toBeNull()
     const body = recorded!.body as {
       model: string
       max_tokens: number
       thinking: { type: string }
+      system?: Array<{ type: string; text: string; cache_control?: unknown }>
       messages: Array<{ role: string; content: Array<{ type: string; cache_control?: unknown }> }>
     }
     expect(body.model).toBe("claude-opus-4-6")
     expect(body.thinking).toEqual({ type: "adaptive" })
     expect(body.max_tokens).toBeLessThanOrEqual(8192)  // capped
     expect(body.max_tokens).toBeGreaterThan(0)
-    // cache_control on the user message content block
-    const cacheCtl = body.messages[0]?.content[0]?.cache_control
-    expect(cacheCtl).toEqual({ type: "ephemeral" })
+    // cache_control lives on the system block (stable prefix), NOT on the user block.
+    expect(body.system).toBeDefined()
+    expect(body.system![0]?.cache_control).toEqual({ type: "ephemeral" })
+    expect(body.messages[0]?.content[0]?.cache_control).toBeUndefined()
     // timeout passed to SDK
     const opts = recorded!.opts as { timeout: number }
     expect(opts.timeout).toBe((manifest.timeout_s ?? 60) * 1000)
+  })
+})
+
+describe("splitPrompt", () => {
+  test("separates system and user at ## Input heading", () => {
+    const prompt = [
+      "# Purpose",
+      "classify task",
+      "",
+      "## Scope",
+      "foo",
+      "",
+      "## Input",
+      "yaml:",
+      "  here: true",
+      "",
+      "## Reply",
+    ].join("\n")
+
+    const { systemPart, userPart } = splitPrompt(prompt)
+    expect(systemPart).toContain("# Purpose")
+    expect(systemPart).toContain("## Scope")
+    expect(systemPart).not.toContain("## Input")
+    expect(userPart).toContain("## Input")
+    expect(userPart).toContain("yaml:")
+  })
+
+  test("fallback when no Input heading — whole prompt is user", () => {
+    const prompt = "simple prompt with no structure"
+    const { systemPart, userPart } = splitPrompt(prompt)
+    expect(systemPart).toBe("")
+    expect(userPart).toBe(prompt)
+  })
+
+  test("Input heading must be at line start (## Input at start of line)", () => {
+    const prompt = "This mentions ## Input in the middle but doesn't start a section"
+    const { systemPart, userPart } = splitPrompt(prompt)
+    // No leading \n before ## Input, so not matched
+    expect(systemPart).toBe("")
+    expect(userPart).toBe(prompt)
+  })
+
+  test("tolerates CRLF line endings", () => {
+    const prompt = ["# Purpose", "x", "", "## Input", "y"].join("\r\n")
+    const { systemPart, userPart } = splitPrompt(prompt)
+    expect(systemPart).toContain("# Purpose")
+    expect(systemPart).not.toContain("## Input")
+    expect(userPart).toContain("## Input")
+  })
+
+  test("tolerates trailing whitespace after 'Input' heading", () => {
+    const prompt = "# Purpose\nx\n\n## Input   \ny"
+    const { systemPart, userPart } = splitPrompt(prompt)
+    expect(systemPart).toContain("# Purpose")
+    expect(userPart).toContain("## Input")
+  })
+
+  test("does not match '### Input' (level-3 heading)", () => {
+    const prompt = "# Purpose\nx\n\n### Input\ny"
+    const { systemPart, userPart } = splitPrompt(prompt)
+    // Only '## Input' is the marker; '### Input' stays on the user side
+    // via fallback (whole prompt in user part).
+    expect(systemPart).toBe("")
+    expect(userPart).toBe(prompt)
+  })
+})
+
+describe("prompt caching — byte-identical system block across calls", () => {
+  // This is the direct proof that cache_control=ephemeral on the system
+  // block will actually hit. formatPrompt must produce identical pre-`##
+  // Input` text for two calls of the same agent with different inputs /
+  // spawn_ids / scope_tokens. If this test regresses, the cache is dead.
+  //
+  // Uses reviewer.security (no prompt_path) — exercises the SYNTHESIZED
+  // prefix path (manifest.purpose + manifest.outputs → stable prefix). The
+  // companion template-path cache-stability test lives in prompt-path.test.ts.
+  // (reviewer.correctness now uses prompt_path; reviewer.security still uses
+  // synthesized prompts and has the same output schema.)
+  test("two calls, same agent, different inputs → byte-identical systemPart", () => {
+    const manifest = getSubagentManifest("reviewer.security")!
+    const prompt1 = formatPrompt(
+      "01SPAWN111111111111111111-reviewer.security",
+      manifest,
+      { diff: "task A", unrelated: "alpha" },
+      ["read:progress"],
+      "/tmp/.sgc/progress/agent-results/01SPAWN111111111111111111-reviewer.security.md",
+    )
+    const prompt2 = formatPrompt(
+      "01SPAWN222222222222222222-reviewer.security",
+      manifest,
+      { diff: "task B — completely different", unrelated: "beta" },
+      ["read:progress"],
+      "/tmp/.sgc/progress/agent-results/01SPAWN222222222222222222-reviewer.security.md",
+    )
+
+    const sys1 = splitPrompt(prompt1).systemPart
+    const sys2 = splitPrompt(prompt2).systemPart
+    const user1 = splitPrompt(prompt1).userPart
+    const user2 = splitPrompt(prompt2).userPart
+
+    expect(sys1.length).toBeGreaterThan(0)
+    // The critical invariant — cache key is keyed on system text bytes.
+    expect(sys1).toBe(sys2)
+
+    // Per-call varying content lives in the user block only.
+    expect(user1).toContain("01SPAWN111111111111111111")
+    expect(user2).toContain("01SPAWN222222222222222222")
+    expect(user1).not.toBe(user2)
+    // Spawn ids must NOT leak into the system block.
+    expect(sys1).not.toContain("01SPAWN")
+    expect(sys1).not.toContain("/tmp/.sgc/progress")
+    // Input payload must NOT leak into the system block.
+    expect(sys1).not.toContain("task A")
+    expect(sys1).not.toContain("alpha")
+  })
+
+  test("different scope_tokens still produce identical systemPart (scope lives in user block)", () => {
+    // Even if a future capability shift changes the pinned tokens for the
+    // same agent name, the cached system prefix stays stable because the
+    // scope reminder is below `## Input`.
+    const manifest = getSubagentManifest("reviewer.security")!
+    const prompt1 = formatPrompt(
+      "01SAME-reviewer.security",
+      manifest,
+      { x: 1 },
+      ["read:progress"],
+      "/tmp/r1.md",
+    )
+    const prompt2 = formatPrompt(
+      "01SAME-reviewer.security",
+      manifest,
+      { x: 1 },
+      ["read:progress", "read:decisions"],
+      "/tmp/r1.md",
+    )
+    expect(splitPrompt(prompt1).systemPart).toBe(splitPrompt(prompt2).systemPart)
+    expect(splitPrompt(prompt1).userPart).not.toBe(splitPrompt(prompt2).userPart)
+  })
+})
+
+describe("runAnthropicSdkAgent cache_control placement", () => {
+  test("system block gets cache_control=ephemeral; user block does not", async () => {
+    const manifest = getSubagentManifest("classifier.level")!
+    let recorded: { body: unknown; opts: unknown } | null = null
+    const client = fakeClient({
+      response: {
+        content: [
+          {
+            type: "text",
+            text: "level: L1\nrationale: structured prompt path\naffected_readers_candidates: []",
+          },
+        ],
+      },
+      recordCall: (c) => { recorded = c },
+    })
+
+    const structuredPrompt = [
+      "# Purpose",
+      "classify",
+      "",
+      "## Scope",
+      "foo",
+      "",
+      "## Input",
+      "task: bar",
+      "",
+      "## Reply",
+      "yaml",
+    ].join("\n")
+
+    await runAnthropicSdkAgent(writePrompt(structuredPrompt), manifest, client)
+
+    const body = recorded!.body as {
+      system?: Array<{ type: string; text: string; cache_control?: unknown }>
+      messages: Array<{ role: string; content: Array<{ type: string; text: string; cache_control?: unknown }> }>
+    }
+
+    expect(body.system).toBeDefined()
+    expect(body.system![0]?.cache_control).toEqual({ type: "ephemeral" })
+    expect(body.system![0]?.text).toContain("# Purpose")
+    expect(body.system![0]?.text).toContain("## Scope")
+    expect(body.system![0]?.text).not.toContain("## Input")
+
+    // user block: no cache_control
+    expect(body.messages[0]?.content[0]?.cache_control).toBeUndefined()
+    expect(body.messages[0]?.content[0]?.text).toContain("## Input")
+  })
+
+  test("fallback: no Input heading → no system block, whole prompt in user", async () => {
+    const manifest = getSubagentManifest("classifier.level")!
+    let recorded: { body: unknown; opts: unknown } | null = null
+    const client = fakeClient({
+      response: {
+        content: [
+          {
+            type: "text",
+            text: "level: L0\nrationale: fallback\naffected_readers_candidates: []",
+          },
+        ],
+      },
+      recordCall: (c) => { recorded = c },
+    })
+
+    await runAnthropicSdkAgent(writePrompt("just a simple prompt"), manifest, client)
+
+    const body = recorded!.body as {
+      system?: unknown
+      messages: Array<{ role: string; content: Array<{ type: string; text: string; cache_control?: unknown }> }>
+    }
+    // system param must be OMITTED (not empty array, not null) when no stable prefix
+    expect(body.system).toBeUndefined()
+    expect(body.messages[0]?.content[0]?.text).toBe("just a simple prompt")
+    expect(body.messages[0]?.content[0]?.cache_control).toBeUndefined()
   })
 })
 

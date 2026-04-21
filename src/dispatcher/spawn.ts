@@ -61,6 +61,19 @@ export class SpawnTimeout extends Error {
   }
 }
 
+/**
+ * Misconfiguration of a subagent manifest — e.g. declared `prompt_path`
+ * points to a missing file, or the template is missing required markers.
+ * These are always programmer/config errors, not runtime LLM errors, so
+ * they are fatal and do not retry.
+ */
+export class SpawnError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "SpawnError"
+  }
+}
+
 export type InlineStub<I = unknown, O = unknown> = (input: I) => O | Promise<O>
 
 export type AgentMode = "inline" | "file-poll" | "claude-cli" | "anthropic-sdk"
@@ -147,14 +160,78 @@ function forbiddenTokensFor(agentName: string): string[] {
   return out
 }
 
-function formatPrompt(
+/**
+ * Render the prompt file for a subagent spawn.
+ *
+ * Layout is split into two sections around the `## Input` heading so the
+ * anthropic-sdk agent mode can cache the stable prefix (Anthropic
+ * cache_control: ephemeral):
+ *
+ *   Pre-`## Input` (stable per agent — system block, cached):
+ *     Derived ONLY from the manifest — purpose + expected-output schema +
+ *     reply-format guidance. Byte-identical across calls for the same agent,
+ *     so the cache key is stable and hits.
+ *
+ *   `## Input` onward (varies per call — user block, not cached):
+ *     Frontmatter with spawn_id + computed scope_tokens, the task input YAML,
+ *     the per-spawn scope reminder, and the resultPath (which embeds
+ *     spawn_id). Cannot be cached because every field here is per-call.
+ *
+ * Exported for tests that need to verify caching invariants without writing
+ * prompt files to disk.
+ */
+export function formatPrompt(
   spawnId: string,
   manifest: SubagentManifest,
   input: unknown,
   tokens: ScopeToken[],
   resultPath: string,
 ): string {
+  // Template-based path: when manifest.prompt_path is declared, load the
+  // external template and substitute <input_yaml/> with the per-call input
+  // YAML. The template itself owns the stable prefix (everything above
+  // `## Input`) — spawnId, tokens, resultPath are NOT injected; for audit
+  // they live in the prompt filename / scope-token computation instead.
+  // This keeps the system block byte-stable across calls so cache_control
+  // hits (anthropic-sdk mode). Template is authored to contain the
+  // `## Input` marker and `<input_yaml/>` placeholder.
+  if (manifest.prompt_path) {
+    const templatePath = resolve(process.cwd(), manifest.prompt_path)
+    if (!existsSync(templatePath)) {
+      throw new SpawnError(
+        `prompt_path declared (${manifest.prompt_path}) but file does not exist for agent ${manifest.name}`,
+      )
+    }
+    const template = readFileSync(templatePath, "utf8")
+    if (!template.includes("<input_yaml/>")) {
+      throw new SpawnError(
+        `prompt_path ${manifest.prompt_path} missing <input_yaml/> placeholder for agent ${manifest.name}`,
+      )
+    }
+    // Must contain a `## Input` heading at start of a line so splitPrompt
+    // can isolate the stable system prefix for cache_control.
+    if (!/(^|\r?\n)##[ \t]+Input[ \t]*\r?\n/.test(template)) {
+      throw new SpawnError(
+        `prompt_path ${manifest.prompt_path} missing '## Input' heading for agent ${manifest.name}`,
+      )
+    }
+    const inputYaml = yamlDump(input).trimEnd()
+    return template.replace("<input_yaml/>", inputYaml)
+  }
+
   const forbidden = forbiddenTokensFor(manifest.name)
+  // Stable per-agent prefix — MUST NOT reference spawnId, tokens (computed
+  // per call), resultPath, or the input payload. Anything added here breaks
+  // cache-key stability.
+  const systemPrefix =
+    `# Purpose\n\n${manifest.purpose ?? "(no purpose declared)"}\n\n` +
+    `## Expected output\n\n` +
+    `\`\`\`yaml\n${yamlDump(manifest.outputs ?? {}).trimEnd()}\n\`\`\`\n\n` +
+    `## Reply format\n\n` +
+    `Your response must be a YAML document whose frontmatter matches the \`Expected output\` schema above — exact keys, matching types (enum members, array shapes, string/number primitives). Extra fields are rejected by the dispatcher (Invariant §9).\n`
+
+  // Per-call frontmatter. Lives inside the user block (below `## Input`)
+  // because every field here changes per spawn.
   const fm = {
     spawn_id: spawnId,
     agent: manifest.name,
@@ -162,18 +239,16 @@ function formatPrompt(
     scope_tokens: tokens,
     forbidden_tokens: forbidden,
     timeout_s: manifest.timeout_s ?? 60,
-    expected_outputs: manifest.outputs ?? {},
   }
-  const body =
-    `## Purpose\n\n${manifest.purpose ?? "(no purpose declared)"}\n\n` +
-    `## Your scope\n\n` +
+  const inputBlock =
+    `## Input\n\n` +
+    `${serializeFrontmatter(fm as Record<string, unknown>, "").trimEnd()}\n\n` +
+    `### Your scope (this call)\n\n` +
     `You hold these pinned tokens: ${tokens.map((t) => `\`${t}\``).join(", ") || "(none)"}.\n` +
     (forbidden.length > 0
       ? `You are FORBIDDEN from: ${forbidden.map((t) => `\`${t}\``).join(", ")} (Invariant §1).\n`
       : "") +
-    `\n## Input\n\n\`\`\`yaml\n${yamlDump(input).trimEnd()}\n\`\`\`\n\n` +
-    `## Reply format\n\n` +
-    `Your response must be a YAML document whose frontmatter matches \`expected_outputs\` above — exact keys, matching types (enum members, array shapes, string/number primitives). Extra fields are rejected by the dispatcher (Invariant §9).\n\n` +
+    `\n### Task input\n\n\`\`\`yaml\n${yamlDump(input).trimEnd()}\n\`\`\`\n\n` +
     `## Submit\n\n` +
     `Write your YAML to: \`${resultPath}\`\n\n` +
     `Or use the helper:\n\n` +
@@ -182,7 +257,8 @@ function formatPrompt(
     `# or:\n` +
     `bun src/sgc.ts agent-loop --submit ${spawnId} --from /path/to/result.yaml\n` +
     `\`\`\`\n`
-  return serializeFrontmatter(fm as Record<string, unknown>, body)
+
+  return `${systemPrefix}\n${inputBlock}`
 }
 
 async function pollForResult(

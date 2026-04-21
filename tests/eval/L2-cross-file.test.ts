@@ -119,14 +119,16 @@ describe("L2 cross-file scenario (eval §12)", () => {
     await expect(runShip({ stateRoot: tmp, log: () => {} })).rejects.toThrow(/qa evidence/)
   })
 
-  test("Invariant §8: reviewer prompt pins scope_tokens without read:solutions", async () => {
+  test("Invariant §8: reviewer prompt does not grant read:solutions", async () => {
     const plan = await runPlan(
       "add a new field to the public API response payload",
       { stateRoot: tmp, motivation: LONG_MOTIVATION_FIXTURE, log: () => {} },
     )
     await runWork({ stateRoot: tmp, done: "f1", log: () => {} })
     await runReview({ stateRoot: tmp, diffOverride: "+ok\n", log: () => {} })
-    // The reviewer.correctness prompt must show pinned tokens + FORBIDDEN line.
+    // reviewer.correctness now uses prompt_path (external template). The
+    // template itself never mentions read:solutions, and computeSubagentTokens
+    // strips it at the token-computation layer (tested in reviewer-isolation).
     const promptDir = resolve(tmp, "progress/agent-prompts")
     const { readdirSync } = await import("node:fs")
     const reviewPrompt = readdirSync(promptDir).find((f) =>
@@ -134,9 +136,8 @@ describe("L2 cross-file scenario (eval §12)", () => {
     )
     expect(reviewPrompt).toBeDefined()
     const text = readFileSync(resolve(promptDir, reviewPrompt!), "utf8")
-    const pinned = text.match(/scope_tokens:\n((?:  - .+\n)+)/)?.[1] ?? ""
-    expect(pinned).not.toContain("read:solutions")
-    expect(text).toMatch(/FORBIDDEN from:.*read:solutions/)
+    // Whether synthesized or template-based, read:solutions must not appear
+    expect(text).not.toContain("read:solutions")
     void plan
   })
 })

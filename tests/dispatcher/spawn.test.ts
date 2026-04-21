@@ -41,9 +41,13 @@ describe("spawn — inline-stub mode", () => {
     expect(existsSync(r.promptPath)).toBe(true)
     expect(existsSync(r.resultPath)).toBe(true)
     const promptText = readFileSync(r.promptPath, "utf8")
-    expect(promptText).toContain("classifier.level")
-    expect(promptText).toContain("scope_tokens")
-    expect(promptText).toContain("read:progress")
+    // classifier.level uses prompt_path → prompt file is the external
+    // template with <input_yaml/> substituted. Expect template markers +
+    // the substituted input YAML.
+    expect(promptText).toContain("# Purpose")
+    expect(promptText).toContain("## Input")
+    expect(promptText).toContain("user_request: fix typo")
+    expect(promptText).toContain("read:progress")  // template lists it under "Token scope:"
   })
 
   test("OutputShapeMismatch when stub returns wrong shape (missing field)", async () => {
@@ -131,10 +135,11 @@ describe("spawn — inline-stub mode", () => {
   })
 
   test("Invariant §1: reviewer prompt pins no read:solutions + lists it as forbidden", async () => {
-    // The manifest as-shipped doesn't declare read:solutions (Invariant §1
-    // enforced at manifest load). The prompt format (D-1.1) now explicitly
-    // lists forbidden tokens as a defense-in-depth reminder to the agent.
-    const r = await spawn("reviewer.correctness", {}, {
+    // Use reviewer.security (synthesized prompt) to test that the FORBIDDEN
+    // directive appears. reviewer.correctness now uses prompt_path (external
+    // template) — its isolation is covered by computeSubagentTokens tests +
+    // the eval/reviewer-isolation.test.ts manifest-layer checks.
+    const r = await spawn("reviewer.security", {}, {
       stateRoot: tmp,
       inlineStub: () => ({
         verdict: "pass",

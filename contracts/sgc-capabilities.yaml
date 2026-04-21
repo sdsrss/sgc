@@ -232,6 +232,7 @@ subagents:
   classifier.level:
     version: "0.1"
     purpose: Classify incoming task into L0 / L1 / L2 / L3
+    prompt_path: prompts/classifier-level.md
     inputs:
       user_request: string
       repo_summary: string
@@ -313,6 +314,7 @@ subagents:
   reviewer.correctness:   &reviewer_base
     version: "0.1"
     source: CE reviewer cluster (re-authored)
+    prompt_path: prompts/reviewer-correctness.md
     inputs:
       diff: string
       intent: markdown
@@ -324,13 +326,15 @@ subagents:
     token_budget: 5000
     timeout_s: 180
 
-  reviewer.security:        { <<: *reviewer_base }
-  reviewer.performance:     { <<: *reviewer_base }
-  reviewer.tests:           { <<: *reviewer_base }
-  reviewer.maintainability: { <<: *reviewer_base }
-  reviewer.adversarial:     { <<: *reviewer_base }
-  reviewer.migration:       { <<: *reviewer_base }
-  reviewer.infra:           { <<: *reviewer_base }
+  # Derived reviewers: override prompt_path to null so they use synthesized
+  # prompts (the anchor carries prompt_path from reviewer.correctness).
+  reviewer.security:        { <<: *reviewer_base, prompt_path: null, status: implemented }
+  reviewer.performance:     { <<: *reviewer_base, prompt_path: null, status: implemented }
+  reviewer.tests:           { <<: *reviewer_base, prompt_path: null, status: slot-only, roadmap: "L2+ test-coverage review; deferred" }
+  reviewer.maintainability: { <<: *reviewer_base, prompt_path: null, status: slot-only, roadmap: "readability/complexity review; deferred" }
+  reviewer.adversarial:     { <<: *reviewer_base, prompt_path: null, status: slot-only, roadmap: "L3 pre-mortem reviewer; deferred" }
+  reviewer.migration:       { <<: *reviewer_base, prompt_path: null, status: implemented }
+  reviewer.infra:           { <<: *reviewer_base, prompt_path: null, status: implemented }
 
   reviewer.spec:
     version: "0.1"
@@ -345,6 +349,8 @@ subagents:
     scope_tokens: ["read:decisions", "read:progress", "write:reviews"]
     token_budget: 4000
     timeout_s: 120
+    status: slot-only
+    roadmap: "drift detection post-ship; deferred to v1.3+"
 
   # ---- QA (gstack lineage) ----
   qa.browser:
@@ -456,3 +462,4 @@ subagents:
     token_budget: 2000
     timeout_s: 120
     trigger: manual only (never auto)
+    status: manual-only

@@ -193,7 +193,7 @@ describe("runCompound integration", () => {
     // but same problem text → signature matches
     const p2 = await runPlan(
       "refactor the auth token validation middleware",
-      { stateRoot: tmp, motivation: LONG_MOTIVATION, log: () => {} },
+      { stateRoot: tmp, motivation: LONG_MOTIVATION, forceNewTask: true, log: () => {} },
     )
     const r2 = await runCompound({ stateRoot: tmp, log: () => {} })
     expect(r2.action).toBe("update_existing")
@@ -211,7 +211,7 @@ describe("runCompound integration", () => {
     await runCompound({ stateRoot: tmp, log: () => {} })
     await runPlan(
       "refactor the auth token validation middleware",
-      { stateRoot: tmp, motivation: LONG_MOTIVATION, log: () => {} },
+      { stateRoot: tmp, motivation: LONG_MOTIVATION, forceNewTask: true, log: () => {} },
     )
     const r = await runCompound({
       stateRoot: tmp,

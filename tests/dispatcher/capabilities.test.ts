@@ -11,7 +11,7 @@ import {
   ScopeViolation,
   UnknownActor,
 } from "../../src/dispatcher/capabilities"
-import { getCapabilities } from "../../src/dispatcher/schema"
+import { getCapabilities, getSubagentManifest } from "../../src/dispatcher/schema"
 
 describe("matchesPattern", () => {
   test("literal match", () => {
@@ -144,5 +144,46 @@ describe("canSpawn / assertCanSpawn", () => {
   })
   test("assertCanSpawn throws on unauthorized spawn", () => {
     expect(() => assertCanSpawn("/work", "reviewer.correctness")).toThrow(ScopeViolation)
+  })
+})
+
+// Implementation-status annotations on subagent manifests (2026-04-16 audit).
+// Four reviewer slots (tests/maintainability/adversarial/spec) plus
+// janitor.archive are kept in the manifest for forward-compat roadmap
+// visibility but are NOT yet wired. Status field distinguishes aspirational
+// from shipped. See contracts/sgc-capabilities.yaml.
+describe("subagent status annotations", () => {
+  test("reviewer.security is marked implemented", () => {
+    expect(getSubagentManifest("reviewer.security")?.status).toBe("implemented")
+  })
+  test("reviewer.performance is marked implemented", () => {
+    expect(getSubagentManifest("reviewer.performance")?.status).toBe("implemented")
+  })
+  test("reviewer.migration is marked implemented", () => {
+    expect(getSubagentManifest("reviewer.migration")?.status).toBe("implemented")
+  })
+  test("reviewer.infra is marked implemented", () => {
+    expect(getSubagentManifest("reviewer.infra")?.status).toBe("implemented")
+  })
+  test("reviewer.tests is slot-only with deferred roadmap", () => {
+    const m = getSubagentManifest("reviewer.tests")
+    expect(m?.status).toBe("slot-only")
+    expect(m?.roadmap).toMatch(/deferred/i)
+  })
+  test("reviewer.maintainability is slot-only with roadmap", () => {
+    const m = getSubagentManifest("reviewer.maintainability")
+    expect(m?.status).toBe("slot-only")
+    expect(m?.roadmap).toBeDefined()
+  })
+  test("reviewer.adversarial is slot-only", () => {
+    expect(getSubagentManifest("reviewer.adversarial")?.status).toBe("slot-only")
+  })
+  test("reviewer.spec is slot-only with v1.3+ roadmap", () => {
+    const m = getSubagentManifest("reviewer.spec")
+    expect(m?.status).toBe("slot-only")
+    expect(m?.roadmap).toMatch(/v1\.3\+|deferred/i)
+  })
+  test("janitor.archive is manual-only", () => {
+    expect(getSubagentManifest("janitor.archive")?.status).toBe("manual-only")
   })
 })

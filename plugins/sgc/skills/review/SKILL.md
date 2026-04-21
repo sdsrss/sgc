@@ -32,14 +32,20 @@ Dispatch reviewer agents (fresh context) against the current task's diff. Review
 - **Scope pin**: `spawn.ts` emits `scope_tokens:` + `FORBIDDEN from: read:solutions` in every reviewer prompt (holistically verified by [`tests/eval/reviewer-isolation.test.ts`](../../../../tests/eval/reviewer-isolation.test.ts))
 - **Invariants**: §1 reviewer no-solutions · §5 override reason ≥40 · §6 append-only per (task, stage, reviewer)
 
-## Invocation
+## Execution
+
+When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-sgc review                       # auto-detect diff vs git HEAD~1
-sgc review --base <ref>          # diff against explicit base
+bun src/sgc.ts review $ARGUMENTS
 ```
 
 Re-running `review` for the same task throws `AppendOnly` — reviews are an audit trail, not a retry loop. To ship despite a `fail` verdict, supply `--override "<≥40-char reason>"` at `sgc ship`.
+
+## Delegation hint
+
+For broader static analysis beyond sgc's reviewer cluster:
+- `gs:/review` — pre-landing PR review with SQL safety, LLM trust boundary, and structural checks
 
 ## L3 specialist trigger table
 

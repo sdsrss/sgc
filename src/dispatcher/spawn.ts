@@ -37,6 +37,10 @@ import {
   runAnthropicSdkAgent,
   type AnthropicClientFactory,
 } from "./anthropic-sdk-agent"
+import {
+  runOpenRouterAgent,
+  type OpenRouterFetch,
+} from "./openrouter-agent"
 import type { ScopeToken, SubagentManifest } from "./types"
 
 // Re-export for callers that referenced OutputShapeMismatch from spawn.ts
@@ -87,7 +91,7 @@ export class SpawnError extends Error {
 
 export type InlineStub<I = unknown, O = unknown> = (input: I) => O | Promise<O>
 
-export type AgentMode = "inline" | "file-poll" | "claude-cli" | "anthropic-sdk"
+export type AgentMode = "inline" | "file-poll" | "claude-cli" | "anthropic-sdk" | "openrouter"
 
 export interface SpawnOptions {
   stateRoot?: string
@@ -98,6 +102,7 @@ export interface SpawnOptions {
   mode?: AgentMode  // explicit override; else resolved from env
   claudeCliRunner?: SubprocessRunner  // test hook for claude-cli mode
   anthropicClientFactory?: AnthropicClientFactory  // test hook for anthropic-sdk mode
+  openRouterFetch?: OpenRouterFetch  // test hook for openrouter mode
   hasClaudeCli?: () => boolean  // test hook for resolveMode auto-detect
   /** Max retry attempts for file-poll mode on SpawnTimeout. Default 0 (no retry). */
   maxRetries?: number
@@ -126,7 +131,7 @@ function generateUlid(): string {
  *   3. SGC_USE_FILE_AGENTS=1 (legacy alias for file-poll)
  *   4. opts.inlineStub provided → "inline"
  *   5. ANTHROPIC_API_KEY present → "anthropic-sdk"
- *   5b. OPENROUTER_API_KEY present → "anthropic-sdk" (via OpenRouter proxy)
+ *   5b. OPENROUTER_API_KEY present → "openrouter" (chat/completions via fetch)
  *   6. `claude` CLI in PATH → "claude-cli" (auto-detect for subscription users)
  *   7. default → "file-poll"
  *
@@ -139,14 +144,15 @@ export function resolveMode(opts: SpawnOptions = {}): AgentMode {
     envMode === "inline" ||
     envMode === "file-poll" ||
     envMode === "claude-cli" ||
-    envMode === "anthropic-sdk"
+    envMode === "anthropic-sdk" ||
+    envMode === "openrouter"
   ) {
     return envMode
   }
   if (process.env["SGC_USE_FILE_AGENTS"] === "1") return "file-poll"
   if (opts.inlineStub) return "inline"
   if (process.env["ANTHROPIC_API_KEY"]) return "anthropic-sdk"
-  if (process.env["OPENROUTER_API_KEY"]) return "anthropic-sdk"
+  if (process.env["OPENROUTER_API_KEY"]) return "openrouter"
   const hasCli = opts.hasClaudeCli ?? (() => Bun.which("claude") !== null)
   if (hasCli()) return "claude-cli"
   return "file-poll"
@@ -345,6 +351,12 @@ export async function spawn<I = unknown, O = unknown>(
     )
   } else if (mode === "anthropic-sdk") {
     output = await runAnthropicSdkAgent(promptPath, manifest, opts.anthropicClientFactory)
+    writeAtomic(
+      resultPath,
+      serializeFrontmatter(output as Record<string, unknown>, ""),
+    )
+  } else if (mode === "openrouter") {
+    output = await runOpenRouterAgent(promptPath, manifest, opts.openRouterFetch)
     writeAtomic(
       resultPath,
       serializeFrontmatter(output as Record<string, unknown>, ""),

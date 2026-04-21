@@ -467,9 +467,9 @@ describe("resolveMode — auto-detect priority", () => {
     process.env["ANTHROPIC_API_KEY"] = "sk-xxx"
     expect(resolveMode({ hasClaudeCli: noClaudeCli })).toBe("anthropic-sdk")
   })
-  test("OPENROUTER_API_KEY → anthropic-sdk (no ANTHROPIC_API_KEY)", () => {
+  test("OPENROUTER_API_KEY → openrouter (no ANTHROPIC_API_KEY)", () => {
     process.env["OPENROUTER_API_KEY"] = "sk-or-xxx"
-    expect(resolveMode({ hasClaudeCli: noClaudeCli })).toBe("anthropic-sdk")
+    expect(resolveMode({ hasClaudeCli: noClaudeCli })).toBe("openrouter")
   })
   test("ANTHROPIC_API_KEY wins over OPENROUTER_API_KEY", () => {
     process.env["ANTHROPIC_API_KEY"] = "sk-ant-xxx"

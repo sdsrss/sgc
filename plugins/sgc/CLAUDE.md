@@ -2,6 +2,16 @@
 
 A single engineering workflow combining process discipline, real-world QA, and knowledge compounding.
 
+## Positioning
+
+sgc is a **规范层 + 知识引擎** that coexists with `superpowers` (sp) and `gstack` (gs). See [docs/POSITIONING.md](../../docs/POSITIONING.md) for the full delegate pattern.
+
+- **sgc owns**: L0-L3 classification, 12 invariants, `.sgc/` state layer, dedup, compound, solutions/
+- **sgc delegates** (when sp/gs present): deep plan body, TDD, debugging, pre-ship review, git/PR/deploy, browser QA
+- **sgc falls back** (when sp/gs absent): current inline implementations
+
+User mental model: sgc decides the level, enforces the protocol, records the knowledge. sp does the thinking. gs ships.
+
 ## Implementation Status (v1.1, D-phase complete)
 
 The full L0→L3 pipeline is executable end-to-end via `bun src/sgc.ts <cmd>`. All 12 invariants enforced at runtime. See [README.md](../../README.md) for the command table and [docs/c-phase-demo.md](../../docs/c-phase-demo.md) for a worked run.

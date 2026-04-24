@@ -398,7 +398,12 @@ export async function spawn<I = unknown, O = unknown>(
         serializeFrontmatter(output as Record<string, unknown>, ""),
       )
     } else if (mode === "openrouter") {
-      output = await runOpenRouterAgent(promptPath, manifest, opts.openRouterFetch)
+      output = await runOpenRouterAgent(
+        promptPath,
+        manifest,
+        opts.openRouterFetch,
+        { spawnId, taskId: opts.taskId ?? null, agentName, logger },
+      )
       writeAtomic(
         resultPath,
         serializeFrontmatter(output as Record<string, unknown>, ""),

@@ -346,6 +346,9 @@ export async function spawn<I = unknown, O = unknown>(
   writeAtomic(promptPath, formatPrompt(spawnId, manifest, input, tokens, resultPath))
 
   // Hoist mode resolution so spawn.start payload can include it.
+  // INVARIANT: resolveMode must remain non-throwing. §13 Tier 1 guarantees
+  // spawn.start fires once we pass the manifest check; a throw here would
+  // silently skip the start event and break the paired-event contract.
   const mode = resolveMode(opts, manifest)
 
   // Invariant §13 Tier 1: emit spawn.start before any dispatch work begins.
@@ -357,7 +360,7 @@ export async function spawn<I = unknown, O = unknown>(
     agent: agentName,
     event_type: "spawn.start",
     level: "info",
-    payload: { mode, manifest_version: manifest.version ?? "0" },
+    payload: { mode, manifest_version: manifest.version ?? "unknown" },
   })
 
   let outcome: "success" | "timeout" | "error" = "error"

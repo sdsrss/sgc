@@ -23,12 +23,14 @@ import {
 } from "../dispatcher/agents/qa-browser"
 import { appendReview, readCurrentTask } from "../dispatcher/state"
 import type { ReviewReport, Severity, TaskId } from "../dispatcher/types"
+import { createLogger, type Logger } from "../dispatcher/logger"
 
 export interface QaOptions {
   stateRoot?: string
   target?: string
   flows?: string[]
   log?: (msg: string) => void
+  logger?: Logger
 }
 
 function generateReportId(): string {
@@ -50,7 +52,8 @@ export async function runQa(opts: QaOptions = {}): Promise<{
   verdict: QaVerdict
   reportPath: string
 }> {
-  const log = opts.log ?? ((m) => console.log(m))
+  const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log })
+  const log = (m: string) => logger.say(m)
   const stateRoot = opts.stateRoot
 
   const ct = readCurrentTask(stateRoot)
@@ -67,6 +70,8 @@ export async function runQa(opts: QaOptions = {}): Promise<{
       stateRoot,
       inlineStub: (i) =>
         qaBrowser(i as { target_url: string; user_flows: string[] }),
+      logger,
+      taskId,
     },
   )
 

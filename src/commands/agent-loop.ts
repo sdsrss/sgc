@@ -26,6 +26,7 @@ import {
 } from "../dispatcher/spawn-protocol"
 import { serializeFrontmatter } from "../dispatcher/state"
 import { validateOutputShape } from "../dispatcher/validation"
+import { createLogger, type Logger } from "../dispatcher/logger"
 
 export interface AgentLoopOptions {
   stateRoot?: string
@@ -36,6 +37,7 @@ export interface AgentLoopOptions {
   // stdin provider for tests; defaults to process.stdin
   readStdin?: () => Promise<string>
   log?: (msg: string) => void
+  logger?: Logger
 }
 
 function stateRoot(custom?: string): string {
@@ -60,7 +62,8 @@ export async function runAgentLoop(opts: AgentLoopOptions = {}): Promise<{
   action: "list" | "show" | "submit" | "interactive"
   submittedTo?: string
 }> {
-  const log = opts.log ?? ((m) => console.log(m))
+  const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log })
+  const log = (m: string) => logger.say(m)
   const root = stateRoot(opts.stateRoot)
 
   if (opts.list) {

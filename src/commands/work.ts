@@ -16,12 +16,14 @@ import {
   writeFeatureList,
 } from "../dispatcher/state"
 import type { Feature, FeatureList } from "../dispatcher/types"
+import { createLogger, type Logger } from "../dispatcher/logger"
 
 export interface WorkOptions {
   stateRoot?: string
   add?: string
   done?: string
   log?: (msg: string) => void
+  logger?: Logger
 }
 
 export interface WorkResult {
@@ -55,7 +57,8 @@ function printList(log: (m: string) => void, list: FeatureList, activeId: string
 }
 
 export async function runWork(opts: WorkOptions = {}): Promise<WorkResult> {
-  const log = opts.log ?? ((m) => console.log(m))
+  const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log })
+  const log = (m: string) => logger.say(m)
   const stateRoot = opts.stateRoot
 
   const ct = readCurrentTask(stateRoot)

@@ -40,6 +40,7 @@ import {
 } from "../dispatcher/state"
 import { computeCommandTokens } from "../dispatcher/capabilities"
 import type { Handoff, IntentDoc, Level } from "../dispatcher/types"
+import { createLogger, type Logger } from "../dispatcher/logger"
 
 export interface PlanOptions {
   stateRoot?: string
@@ -59,6 +60,8 @@ export interface PlanOptions {
   readConfirmation?: () => Promise<string>
   // Logger sink; defaults to console.log
   log?: (msg: string) => void
+  // Explicit logger injection (wraps log if provided)
+  logger?: Logger
 }
 
 const LEVEL_RANK: Record<Level, number> = { L0: 0, L1: 1, L2: 2, L3: 3 }
@@ -100,7 +103,8 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
   level: Level
   intentPath: string
 }> {
-  const log = opts.log ?? ((m) => console.log(m))
+  const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log })
+  const log = (m: string) => logger.say(m)
   const stateRoot = opts.stateRoot
 
   ensureSgcStructure(stateRoot)
@@ -135,7 +139,7 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
   const classRes = await spawn<unknown, ClassifierOutput>(
     "classifier.level",
     { user_request: taskDescription },
-    { stateRoot, inlineStub: (i) => classifierLevel(i as { user_request: string }) },
+    { stateRoot, inlineStub: (i) => classifierLevel(i as { user_request: string }), logger, taskId },
   )
   // Invariant §11: rationale must be concrete (D-1.2).
   validateClassifierRationale(classRes.output.rationale)
@@ -168,12 +172,12 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
       spawn<unknown, PlannerEngOutput>(
         "planner.eng",
         { intent_draft: taskDescription },
-        { stateRoot, inlineStub: (i) => plannerEng(i as { intent_draft: string }) },
+        { stateRoot, inlineStub: (i) => plannerEng(i as { intent_draft: string }), logger, taskId },
       ),
       spawn<unknown, PlannerCeoOutput>(
         "planner.ceo",
         { intent_draft: taskDescription },
-        { stateRoot, inlineStub: (i) => plannerCeo(i as { intent_draft: string }) },
+        { stateRoot, inlineStub: (i) => plannerCeo(i as { intent_draft: string }), logger, taskId },
       ),
       spawn<unknown, ResearcherHistoryOutput>(
         "researcher.history",
@@ -182,6 +186,8 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
           stateRoot,
           inlineStub: (i) =>
             researcherHistory(i as { intent_draft: string }, { stateRoot }),
+          logger,
+          taskId,
         },
       ),
     ]
@@ -193,6 +199,8 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
           {
             stateRoot,
             inlineStub: (i) => plannerAdversarial(i as { intent_draft: string }),
+            logger,
+            taskId,
           },
         ),
       )
@@ -234,7 +242,7 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
     const planRes = await spawn<unknown, PlannerEngOutput>(
       "planner.eng",
       { intent_draft: taskDescription },
-      { stateRoot, inlineStub: (i) => plannerEng(i as { intent_draft: string }) },
+      { stateRoot, inlineStub: (i) => plannerEng(i as { intent_draft: string }), logger, taskId },
     )
     plannerEngOut = planRes.output
     log(`planner.eng verdict: ${plannerEngOut.verdict}`)

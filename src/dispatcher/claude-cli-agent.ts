@@ -24,6 +24,7 @@
 import { readFileSync } from "node:fs"
 import { load as yamlLoad } from "js-yaml"
 import type { SubagentManifest } from "./types"
+import type { LlmAgentContext, LlmRequestPayload, LlmResponsePayload } from "./logger"
 
 export class ClaudeCliError extends Error {
   constructor(
@@ -111,14 +112,63 @@ export async function runClaudeCliAgent(
   promptPath: string,
   manifest: SubagentManifest,
   runner: SubprocessRunner = defaultRunner,
+  ctx?: LlmAgentContext,
 ): Promise<unknown> {
   const promptText = readFileSync(promptPath, "utf8")
   const timeoutMs = (manifest.timeout_s ?? 60) * 1000
 
   const argv = ["claude", "-p", "--output-format", "json", promptText]
+
+  // CLI doesn't expose model ID in request; use mode name as placeholder
+  const model = "claude-cli"
+
+  if (ctx) {
+    const reqPayload: LlmRequestPayload = {
+      model,
+      prompt_chars: promptText.length,
+      mode: "claude-cli",
+    }
+    ctx.logger.event({
+      task_id: ctx.taskId,
+      spawn_id: ctx.spawnId,
+      agent: ctx.agentName,
+      event_type: "llm.request",
+      level: "info",
+      payload: reqPayload as unknown as Record<string, unknown>,
+    })
+  }
+
+  const startTs = Date.now()
+  let outcome: LlmResponsePayload["outcome"] = "error"
+  let errorClass: string | undefined
+  let usageInput: number | undefined
+  let usageOutput: number | undefined
+
+  const emitResponse = (): void => {
+    if (!ctx) return
+    const resPayload: LlmResponsePayload = {
+      outcome,
+      latency_ms: Date.now() - startTs,
+      ...(usageInput !== undefined ? { input_tokens: usageInput } : {}),
+      ...(usageOutput !== undefined ? { output_tokens: usageOutput } : {}),
+      ...(errorClass ? { error_class: errorClass } : {}),
+    }
+    ctx.logger.event({
+      task_id: ctx.taskId,
+      spawn_id: ctx.spawnId,
+      agent: ctx.agentName,
+      event_type: "llm.response",
+      level: outcome === "success" ? "info" : "warn",
+      payload: resPayload as unknown as Record<string, unknown>,
+    })
+  }
+
   const { stdout, stderr, exitCode, timedOut } = await runner(argv, timeoutMs)
 
   if (timedOut) {
+    outcome = "timeout"
+    errorClass = "ClaudeCliTimeout"
+    emitResponse()
     throw new ClaudeCliError(
       `claude CLI exceeded ${timeoutMs}ms for ${manifest.name}`,
       stderr,
@@ -126,6 +176,8 @@ export async function runClaudeCliAgent(
     )
   }
   if (exitCode !== 0) {
+    errorClass = `ExitCode-${exitCode}`
+    emitResponse()
     throw new ClaudeCliError(
       `claude CLI exit ${exitCode} for ${manifest.name}: ${stderr.slice(0, 200)}`,
       stderr,
@@ -137,12 +189,16 @@ export async function runClaudeCliAgent(
   try {
     parsed = JSON.parse(stdout) as ClaudeCliJson
   } catch (e) {
+    errorClass = "NonJSONOutput"
+    emitResponse()
     throw new ClaudeCliError(
       `claude CLI returned non-JSON for ${manifest.name}: ${stdout.slice(0, 200)}`,
     )
   }
 
   if (parsed.is_error) {
+    errorClass = "IsError"
+    emitResponse()
     throw new ClaudeCliError(
       `claude CLI reported error for ${manifest.name}: ${parsed.result ?? "(no detail)"}`,
     )
@@ -150,11 +206,21 @@ export async function runClaudeCliAgent(
 
   const resultText = parsed.result
   if (typeof resultText !== "string") {
+    errorClass = "MissingResult"
+    emitResponse()
     throw new ClaudeCliError(
       `claude CLI response missing .result string for ${manifest.name}`,
     )
   }
 
+  // At this point the CLI call succeeded. Extract usage + emit response.
+  const u = parsed.usage as { input_tokens?: number; output_tokens?: number } | undefined
+  usageInput = u?.input_tokens
+  usageOutput = u?.output_tokens
+  outcome = "success"
+  emitResponse()
+
+  // YAML parse errors stay downstream (spawn.end Tier 1 covers via catch)
   const yamlBody = extractYamlBody(resultText)
   let data: unknown
   try {

@@ -275,6 +275,51 @@ const status = defineCommand({
   },
 })
 
+// ── tail (G.1.b) ──────────────────────────────────────────────────────────
+
+const tail = defineCommand({
+  meta: {
+    name: "tail",
+    description: "Tail .sgc/progress/events.ndjson (structured event stream)",
+  },
+  args: {
+    task: { type: "string", description: "Filter by task_id (exact match)" },
+    agent: {
+      type: "string",
+      description: "Glob-match agent name (e.g. planner.* or reviewer.correctness)",
+    },
+    "event-type": {
+      type: "string",
+      description: "Substring filter on event_type (e.g. spawn. or llm.)",
+    },
+    since: {
+      type: "string",
+      description: "ISO 8601 timestamp; only events at/after this moment",
+    },
+    follow: {
+      type: "boolean",
+      default: false,
+      description: "Tail -f behavior: poll for new events as they land",
+    },
+    json: {
+      type: "boolean",
+      default: false,
+      description: "Emit raw NDJSON (default is human-readable)",
+    },
+  },
+  async run({ args }) {
+    const { runTail } = await import("./commands/tail")
+    await runTail({
+      task: args.task as string | undefined,
+      agent: args.agent as string | undefined,
+      eventType: args["event-type"] as string | undefined,
+      since: args.since as string | undefined,
+      follow: args.follow as boolean,
+      json: args.json as boolean,
+    })
+  },
+})
+
 // ── agent-loop (D-1.1) ─────────────────────────────────────────────────────
 
 const agentLoop = defineCommand({
@@ -335,6 +380,7 @@ const main = defineCommand({
     compound: () => compound,
     status: () => status,
     "agent-loop": () => agentLoop,
+    tail: () => tail,
   },
 })
 

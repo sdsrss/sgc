@@ -42,6 +42,7 @@ import {
   type OpenRouterFetch,
 } from "./openrouter-agent"
 import type { ScopeToken, SubagentManifest } from "./types"
+import type { Logger } from "./logger"
 
 // Re-export for callers that referenced OutputShapeMismatch from spawn.ts
 export { OutputShapeMismatch } from "./validation"
@@ -113,6 +114,10 @@ export interface SpawnOptions {
    * back cleanly when a mid-cluster spawn fails.
    */
   forceError?: Error
+  /** Task ID threaded into events for correlation. null for pre-task spawns. Phase G.1.a (Invariant §13). */
+  taskId?: string
+  /** Injectable event sink; defaults to createLogger({}). Phase G.1.a (Invariant §13). */
+  logger?: Logger
 }
 
 const root = (custom?: string): string =>

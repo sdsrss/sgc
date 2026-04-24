@@ -25,6 +25,37 @@ export interface Logger {
   event(e: Omit<EventRecord, "schema_version" | "ts">): void
 }
 
+// LLM event payload schemas per Invariant §13 Tier 2.
+// These are typed helpers; EventRecord.payload is still Record<string, unknown>
+// to keep schema evolution cheap. Call sites should use these shapes.
+
+export interface LlmRequestPayload {
+  model: string
+  prompt_chars: number
+  cached_prefix_chars?: number
+  mode: "anthropic-sdk" | "openrouter" | "claude-cli"
+}
+
+export interface LlmResponsePayload {
+  outcome: "success" | "timeout" | "error" | "schema_violation"
+  latency_ms: number
+  input_tokens?: number
+  output_tokens?: number
+  cache_read_tokens?: number
+  cache_creation_tokens?: number
+  error_class?: string
+}
+
+// Context threaded from spawn() into LLM-mode agents for Tier 2 event emission.
+// Centralized here so all three LLM agents (anthropic-sdk, openrouter, claude-cli)
+// share the same shape.
+export interface LlmAgentContext {
+  spawnId: string
+  taskId: string | null
+  agentName: string
+  logger: Logger
+}
+
 function defaultNdjsonSink(stateRoot: string): (e: EventRecord) => void {
   const path = resolve(stateRoot, "progress/events.ndjson")
   // Create the parent directory once at sink creation (fail fast if

@@ -381,7 +381,12 @@ export async function spawn<I = unknown, O = unknown>(
         serializeFrontmatter(output as Record<string, unknown>, ""),
       )
     } else if (mode === "claude-cli") {
-      output = await runClaudeCliAgent(promptPath, manifest, opts.claudeCliRunner)
+      output = await runClaudeCliAgent(
+        promptPath,
+        manifest,
+        opts.claudeCliRunner,
+        { spawnId, taskId: opts.taskId ?? null, agentName, logger },
+      )
       writeAtomic(
         resultPath,
         serializeFrontmatter(output as Record<string, unknown>, ""),

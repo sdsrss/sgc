@@ -165,3 +165,67 @@ describe("Invariant §13 Tier 2 — openrouter llm.request/response pair", () =>
     }
   })
 })
+
+describe("Invariant §13 Tier 2 — claude-cli llm.request/response pair", () => {
+  test("successful claude-cli call emits paired events", async () => {
+    // Mock SubprocessRunner returns JSON shape that claude -p --output-format json produces
+    const mockRunner = async (_argv: string[], _timeoutMs: number) => ({
+      stdout: JSON.stringify({
+        type: "result",
+        is_error: false,
+        result: "```yaml\nlevel: L1\nrationale: mock\naffected_readers_candidates: []\n```",
+        usage: { input_tokens: 60, output_tokens: 30 },
+      }),
+      stderr: "",
+      exitCode: 0,
+      timedOut: false,
+    })
+    await spawn(
+      "classifier.level",
+      { user_request: "fix" },
+      {
+        stateRoot: tmp,
+        taskId: "t5",
+        mode: "claude-cli",
+        claudeCliRunner: mockRunner,
+      },
+    )
+    const events = readEvents(tmp)
+    const req = events.find((e) => e.event_type === "llm.request")
+    const res = events.find((e) => e.event_type === "llm.response")
+    expect(req?.payload["mode"]).toBe("claude-cli")
+    expect(typeof req?.payload["prompt_chars"]).toBe("number")
+    expect(res?.payload["outcome"]).toBe("success")
+    expect(typeof res?.payload["latency_ms"]).toBe("number")
+    // claude CLI token counts may or may not appear depending on the CLI version;
+    // test accepts both states
+    if (res?.payload["input_tokens"] !== undefined) {
+      expect(typeof res.payload["input_tokens"]).toBe("number")
+    }
+  })
+
+  test("claude-cli timeout emits llm.response(timeout)", async () => {
+    const mockRunner = async (_argv: string[], _timeoutMs: number) => ({
+      stdout: "",
+      stderr: "operation aborted",
+      exitCode: -1,
+      timedOut: true,
+    })
+    await expect(
+      spawn(
+        "classifier.level",
+        { user_request: "fix" },
+        {
+          stateRoot: tmp,
+          taskId: "t6",
+          mode: "claude-cli",
+          claudeCliRunner: mockRunner,
+        },
+      ),
+    ).rejects.toThrow()
+    const events = readEvents(tmp)
+    const res = events.find((e) => e.event_type === "llm.response")
+    expect(res?.payload["outcome"]).toBe("timeout")
+    expect(typeof res?.payload["error_class"]).toBe("string")
+  })
+})

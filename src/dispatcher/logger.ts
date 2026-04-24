@@ -12,7 +12,7 @@ export interface EventRecord {
   task_id: string | null           // null for pre-task events
   spawn_id: string | null          // null for non-spawn events
   agent: string | null             // manifest.name or null
-  event_type: string               // "<domain>.<verb_past>" dot notation
+  event_type: `${string}.${string}` // "<domain>.<verb_past>" dot notation, enforced at compile time
   level: "debug" | "info" | "warn" | "error"
   payload: Record<string, unknown>
 }
@@ -20,4 +20,44 @@ export interface EventRecord {
 export interface Logger {
   say(msg: string): void
   event(e: Omit<EventRecord, "schema_version" | "ts">): void
+}
+
+import { appendFileSync, mkdirSync } from "node:fs"
+import { dirname, resolve } from "node:path"
+
+function defaultNdjsonSink(stateRoot: string): (e: EventRecord) => void {
+  const path = resolve(stateRoot, "progress/events.ndjson")
+  return (e: EventRecord) => {
+    try {
+      mkdirSync(dirname(path), { recursive: true })
+      appendFileSync(path, JSON.stringify(e) + "\n", "utf8")
+    } catch (err) {
+      console.error("[sgc] event sink failed:", String(err))
+    }
+  }
+}
+
+export function createLogger(opts: {
+  stateRoot?: string
+  say?: (m: string) => void
+  eventSink?: (e: EventRecord) => void
+} = {}): Logger {
+  const stateRoot = opts.stateRoot ?? process.env["SGC_STATE_ROOT"] ?? ".sgc"
+  const say = opts.say ?? ((m: string) => console.log(m))
+  const sink = opts.eventSink ?? defaultNdjsonSink(stateRoot)
+  return {
+    say,
+    event(partial) {
+      const record: EventRecord = {
+        schema_version: 1,
+        ts: new Date().toISOString(),
+        ...partial,
+      }
+      try {
+        sink(record)
+      } catch (err) {
+        console.error("[sgc] event sink failed:", String(err))
+      }
+    },
+  }
 }

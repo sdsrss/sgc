@@ -387,7 +387,12 @@ export async function spawn<I = unknown, O = unknown>(
         serializeFrontmatter(output as Record<string, unknown>, ""),
       )
     } else if (mode === "anthropic-sdk") {
-      output = await runAnthropicSdkAgent(promptPath, manifest, opts.anthropicClientFactory)
+      output = await runAnthropicSdkAgent(
+        promptPath,
+        manifest,
+        opts.anthropicClientFactory,
+        { spawnId, taskId: opts.taskId ?? null, agentName, logger },
+      )
       writeAtomic(
         resultPath,
         serializeFrontmatter(output as Record<string, unknown>, ""),

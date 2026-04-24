@@ -25,7 +25,10 @@ export function computeSignature(problem: string, errorFingerprint?: string): st
 }
 
 export function normalizeText(text: string): string {
-  return text.toLowerCase().trim().replace(/\s+/g, " ")
+  // NFC normalization so NFD (decomposed, e.g. "e + U+0301") and NFC
+  // (precomposed, e.g. "U+00E9") produce identical signatures. Required
+  // for stable dedup across OS / paste sources.
+  return text.normalize("NFC").toLowerCase().trim().replace(/\s+/g, " ")
 }
 
 const STOPWORDS = new Set([
@@ -34,12 +37,29 @@ const STOPWORDS = new Set([
   "was", "not", "has", "but", "they", "you", "our", "its", "can", "will", "it's",
 ])
 
+// ICU-backed word segmentation. Empty locale list lets ICU pick based on input;
+// handles EN / CJK / Thai / Arabic uniformly. Pre-hotfix tokenize used
+// `split(/[^a-z0-9]+/)` which zeroed out all non-ASCII text.
+const SEGMENTER = new Intl.Segmenter([], { granularity: "word" })
+
 export function tokenize(text: string): Set<string> {
-  const tokens = text
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((w) => w.length > 2 && !STOPWORDS.has(w))
-  return new Set(tokens)
+  const normalized = text.normalize("NFC").toLowerCase()
+  const tokens = new Set<string>()
+  for (const seg of SEGMENTER.segment(normalized)) {
+    if (!seg.isWordLike) continue // filter punctuation / whitespace
+    const w = seg.segment
+    // Script-aware length floor: ASCII words need 3+ chars (pre-hotfix rule —
+    // English content words are long, "the"/"is"/"of" are stopwords or short).
+    // CJK / other scripts need 2+ chars (Chinese content words are naturally
+    // 2-char: 修复, 指针, 认证; single-char segments like 的, 时 are mostly
+    // grammatical particles, drop as noise).
+    const isAsciiOnly = /^[\x00-\x7F]+$/.test(w)
+    const minLen = isAsciiOnly ? 3 : 2
+    if (w.length < minLen) continue
+    if (STOPWORDS.has(w)) continue
+    tokens.add(w)
+  }
+  return tokens
 }
 
 export function jaccard(a: Set<string>, b: Set<string>): number {

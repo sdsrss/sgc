@@ -60,6 +60,44 @@ describe("dedup match scenario (eval §12)", () => {
   })
 })
 
+describe("dedup match scenario — 中文 (Unicode hotfix 2026-04-24)", () => {
+  test("identical Chinese problem text → update_existing + source_task_ids merged", async () => {
+    // Pre-hotfix: tokenize() returned empty Set for all CJK input, so Jaccard
+    // on problem_tokens was 0 and dedup collapsed to tags-only matching.
+    // Post-hotfix: Intl.Segmenter produces real CJK tokens, full dedup works.
+    const chineseIntent = "重构认证中间件的会话管理以支持多租户场景"
+    // Note: motivation uses English because sgc-state.schema.yaml min_words
+    // counts whitespace-separated tokens. Chinese text has no whitespace
+    // between characters so fails min_words ≥ 20. That's a separate bug
+    // (same class as this dedup fix) — out of scope here.
+    const motivation = LONG_MOTIVATION_FIXTURE
+
+    const p1 = await runPlan(chineseIntent, {
+      stateRoot: tmp,
+      motivation,
+      log: () => {},
+    })
+    const r1 = await runCompound({ stateRoot: tmp, log: () => {} })
+    expect(r1.action).toBe("compound")
+    expect(listSolutions(tmp).length).toBe(1)
+
+    const p2 = await runPlan(chineseIntent, {
+      stateRoot: tmp,
+      motivation,
+      forceNewTask: true,
+      log: () => {},
+    })
+    const r2 = await runCompound({ stateRoot: tmp, log: () => {} })
+    expect(r2.action).toBe("update_existing")
+    expect(r2.duplicateRef).toBeDefined()
+
+    const entries = listSolutions(tmp)
+    expect(entries.length).toBe(1)
+    expect(entries[0]?.entry.source_task_ids).toContain(p1.taskId)
+    expect(entries[0]?.entry.source_task_ids).toContain(p2.taskId)
+  })
+})
+
 describe("dedup miss scenario (eval §12)", () => {
   test("distinct problem texts → two separate entries", async () => {
     await runPlan(

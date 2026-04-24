@@ -31,12 +31,14 @@ import {
   readIntent,
 } from "../dispatcher/state"
 import type { ReviewReport, Severity, TaskId, Verdict } from "../dispatcher/types"
+import { createLogger, type Logger } from "../dispatcher/logger"
 
 export interface ReviewOptions {
   stateRoot?: string
   base?: string  // git ref to diff against (default: HEAD)
   diffOverride?: string  // bypass git for tests
   log?: (msg: string) => void
+  logger?: Logger
 }
 
 export interface SpecialistReportRef {
@@ -78,7 +80,8 @@ export async function runReview(opts: ReviewOptions = {}): Promise<{
   reportPath: string
   specialistReports: SpecialistReportRef[]
 }> {
-  const log = opts.log ?? ((m) => console.log(m))
+  const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log })
+  const log = (m: string) => logger.say(m)
   const stateRoot = opts.stateRoot
 
   const ct = readCurrentTask(stateRoot)
@@ -97,6 +100,8 @@ export async function runReview(opts: ReviewOptions = {}): Promise<{
       stateRoot,
       inlineStub: (i) =>
         reviewerCorrectness(i as { diff: string; intent: string }),
+      logger,
+      taskId,
     },
   )
 
@@ -137,6 +142,8 @@ export async function runReview(opts: ReviewOptions = {}): Promise<{
               stateRoot,
               inlineStub: (i) =>
                 s.agent(i as { diff: string; intent: string }),
+              logger,
+              taskId,
             },
           ),
         ),

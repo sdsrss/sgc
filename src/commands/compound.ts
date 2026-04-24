@@ -34,6 +34,7 @@ import {
   writeSolution,
 } from "../dispatcher/state"
 import type { DedupStamp, SolutionEntry, TaskId } from "../dispatcher/types"
+import { createLogger, type Logger } from "../dispatcher/logger"
 
 export interface CompoundOptions {
   stateRoot?: string
@@ -42,6 +43,7 @@ export interface CompoundOptions {
   /** Override slug; default = slugify(problem_summary). */
   slug?: string
   log?: (msg: string) => void
+  logger?: Logger
 }
 
 export type CompoundAction = "compound" | "update_existing" | "skip"
@@ -71,7 +73,8 @@ function slugify(text: string): string {
 }
 
 export async function runCompound(opts: CompoundOptions = {}): Promise<CompoundResult> {
-  const log = opts.log ?? ((m) => console.log(m))
+  const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log })
+  const log = (m: string) => logger.say(m)
   const stateRoot = opts.stateRoot
 
   // Current task
@@ -98,6 +101,8 @@ export async function runCompound(opts: CompoundOptions = {}): Promise<CompoundR
       stateRoot,
       inlineStub: (i) =>
         compoundContext(i as { task_id: string; intent: string; diff?: string }),
+      logger,
+      taskId,
     },
   )
   const context = ctxRes.output
@@ -118,6 +123,8 @@ export async function runCompound(opts: CompoundOptions = {}): Promise<CompoundR
             existing_solutions: typeof existing
           },
         ),
+      logger,
+      taskId,
     },
   )
   const related = relRes.output
@@ -176,6 +183,8 @@ export async function runCompound(opts: CompoundOptions = {}): Promise<CompoundR
               reviews: typeof reviews
             },
           ),
+        logger,
+        taskId,
       },
     ),
     spawn<unknown, CompoundPreventionOutput>(
@@ -188,6 +197,8 @@ export async function runCompound(opts: CompoundOptions = {}): Promise<CompoundR
             context,
             solution: { solution: "", what_didnt_work: [] },
           }),
+        logger,
+        taskId,
       },
     ),
   ])

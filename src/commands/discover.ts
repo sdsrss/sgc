@@ -13,11 +13,13 @@ import {
   type ClarifierDiscoverOutput,
 } from "../dispatcher/agents/clarifier-discover"
 import { readCurrentTask } from "../dispatcher/state"
+import { createLogger, type Logger } from "../dispatcher/logger"
 
 export interface DiscoverOptions {
   stateRoot?: string
   topic: string
   log?: (msg: string) => void
+  logger?: Logger
 }
 
 function summarizeActiveTask(stateRoot?: string): string {
@@ -58,7 +60,8 @@ function renderQuestions(
 export async function runDiscover(
   opts: DiscoverOptions,
 ): Promise<ClarifierDiscoverOutput> {
-  const log = opts.log ?? ((m) => console.log(m))
+  const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log })
+  const log = (m: string) => logger.say(m)
   const stateRoot = opts.stateRoot
 
   const topic = (opts.topic ?? "").trim()
@@ -77,6 +80,8 @@ export async function runDiscover(
       stateRoot,
       inlineStub: (i) =>
         clarifierDiscover(i as { topic: string; current_task_summary: string }),
+      logger,
+      taskId: undefined,
     },
   )
 

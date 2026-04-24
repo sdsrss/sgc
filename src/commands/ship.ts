@@ -43,6 +43,7 @@ import {
 } from "../dispatcher/agents/janitor-compound"
 import { runCompound } from "./compound"
 import type { Handoff, JanitorDecision, ShipDoc, TaskId } from "../dispatcher/types"
+import { createLogger, type Logger } from "../dispatcher/logger"
 
 export interface ShipOptions {
   stateRoot?: string
@@ -67,6 +68,7 @@ export interface ShipOptions {
   /** Pass --force to janitor (bypass decision_rules into always-compound). */
   forceCompound?: boolean
   log?: (msg: string) => void
+  logger?: Logger
 }
 
 export interface ShipResult {
@@ -101,7 +103,8 @@ async function readLineFromStdin(): Promise<string> {
 }
 
 export async function runShip(opts: ShipOptions = {}): Promise<ShipResult> {
-  const log = opts.log ?? ((m) => console.log(m))
+  const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log })
+  const log = (m: string) => logger.say(m)
   const stateRoot = opts.stateRoot
 
   // 1. Current task
@@ -291,6 +294,8 @@ export async function runShip(opts: ShipOptions = {}): Promise<ShipResult> {
       {
         stateRoot,
         inlineStub: (i) => janitorCompound(i as typeof janitorInput),
+        logger,
+        taskId,
       },
     )
     janitorDecision = jRes.output

@@ -30,6 +30,7 @@ import { load as yamlLoad } from "js-yaml"
 import Anthropic from "@anthropic-ai/sdk"
 import { extractYamlBody } from "./claude-cli-agent"
 import type { SubagentManifest } from "./types"
+import type { LlmAgentContext, LlmRequestPayload, LlmResponsePayload } from "./logger"
 
 export class AnthropicSdkError extends Error {
   constructor(message: string, public readonly status?: number) {
@@ -90,6 +91,7 @@ export async function runAnthropicSdkAgent(
   promptPath: string,
   manifest: SubagentManifest,
   clientFactory?: AnthropicClientFactory,
+  ctx?: LlmAgentContext,
 ): Promise<unknown> {
   const promptText = readFileSync(promptPath, "utf8")
   const { systemPart, userPart } = splitPrompt(promptText)
@@ -97,11 +99,58 @@ export async function runAnthropicSdkAgent(
 
   const maxTokens = Math.min(manifest.token_budget ?? 4096, MAX_TOKENS_CAP)
   const timeoutMs = (manifest.timeout_s ?? 60) * 1000
+  const model = DEFAULT_MODEL
 
+  if (ctx) {
+    const reqPayload: LlmRequestPayload = {
+      model,
+      prompt_chars: promptText.length,
+      cached_prefix_chars: systemPart.length > 0 ? systemPart.length : undefined,
+      mode: "anthropic-sdk",
+    }
+    ctx.logger.event({
+      task_id: ctx.taskId,
+      spawn_id: ctx.spawnId,
+      agent: ctx.agentName,
+      event_type: "llm.request",
+      level: "info",
+      payload: reqPayload as unknown as Record<string, unknown>,
+    })
+  }
+
+  const startTs = Date.now()
   let response: Anthropic.Message
+  let outcome: LlmResponsePayload["outcome"] = "error"
+  let errorClass: string | undefined
+  let usageInput: number | undefined
+  let usageOutput: number | undefined
+  let usageCacheRead: number | undefined
+  let usageCacheCreation: number | undefined
+
+  const emitResponse = (): void => {
+    if (!ctx) return
+    const resPayload: LlmResponsePayload = {
+      outcome,
+      latency_ms: Date.now() - startTs,
+      ...(usageInput !== undefined ? { input_tokens: usageInput } : {}),
+      ...(usageOutput !== undefined ? { output_tokens: usageOutput } : {}),
+      ...(usageCacheRead !== undefined ? { cache_read_tokens: usageCacheRead } : {}),
+      ...(usageCacheCreation !== undefined ? { cache_creation_tokens: usageCacheCreation } : {}),
+      ...(errorClass ? { error_class: errorClass } : {}),
+    }
+    ctx.logger.event({
+      task_id: ctx.taskId,
+      spawn_id: ctx.spawnId,
+      agent: ctx.agentName,
+      event_type: "llm.response",
+      level: outcome === "success" ? "info" : "warn",
+      payload: resPayload as unknown as Record<string, unknown>,
+    })
+  }
+
   try {
     const createArgs: Anthropic.MessageCreateParamsNonStreaming = {
-      model: DEFAULT_MODEL,
+      model,
       max_tokens: maxTokens,
       thinking: { type: "adaptive" },
       messages: [
@@ -131,15 +180,32 @@ export async function runAnthropicSdkAgent(
       createArgs,
       { timeout: timeoutMs },
     )
+    outcome = "success"
+    const u = response.usage as {
+      input_tokens?: number
+      output_tokens?: number
+      cache_read_input_tokens?: number
+      cache_creation_input_tokens?: number
+    } | undefined
+    usageInput = u?.input_tokens
+    usageOutput = u?.output_tokens
+    usageCacheRead = u?.cache_read_input_tokens
+    usageCacheCreation = u?.cache_creation_input_tokens
   } catch (e) {
     if (e instanceof Anthropic.APIError) {
+      errorClass = `APIError-${e.status ?? "?"}`
+      emitResponse()
       throw new AnthropicSdkError(
         `Anthropic API error ${e.status ?? "?"} for ${manifest.name}: ${e.message}`,
         e.status,
       )
     }
+    errorClass = e instanceof Error ? e.name : "unknown"
+    emitResponse()
     throw e
   }
+
+  emitResponse()
 
   const textBlock = response.content.find((b) => b.type === "text")
   if (!textBlock || textBlock.type !== "text") {

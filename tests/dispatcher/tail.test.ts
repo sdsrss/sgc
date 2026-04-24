@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { appendFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs"
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { runTail } from "../../src/commands/tail"
@@ -239,5 +239,101 @@ describe("sgc tail — filters (G.1.b)", () => {
     await runTail({ stateRoot: tmp, agent: "*", log: (m) => lines.push(m) })
     // Agent null does NOT match `*` glob — glob requires a non-null value
     expect(lines.length).toBe(6)   // all 6 seeded events have non-null agent
+  })
+})
+
+describe("sgc tail --follow (G.1.b)", () => {
+  test("picks up new lines appended after start", async () => {
+    writeEvent(tmp, {
+      schema_version: 1, ts: "2026-04-24T10:00:00.000Z",
+      task_id: "t1", spawn_id: null, agent: null,
+      event_type: "initial.event", level: "info", payload: {},
+    })
+    const lines: string[] = []
+    const controller = new AbortController()
+    const tailPromise = runTail({
+      stateRoot: tmp,
+      follow: true,
+      pollIntervalMs: 50,
+      abortSignal: controller.signal,
+      log: (m) => lines.push(m),
+    })
+    await new Promise((r) => setTimeout(r, 100))
+    expect(lines.length).toBe(1)
+    writeEvent(tmp, {
+      schema_version: 1, ts: "2026-04-24T10:00:01.000Z",
+      task_id: "t1", spawn_id: null, agent: null,
+      event_type: "appended.event", level: "info", payload: {},
+    })
+    await new Promise((r) => setTimeout(r, 200))
+    controller.abort()
+    await tailPromise
+    expect(lines.length).toBe(2)
+    expect(lines[1]).toContain("appended.event")
+  })
+
+  test("file rotation (size shrinks) → offset reset + replays from 0", async () => {
+    writeEvent(tmp, {
+      schema_version: 1, ts: "2026-04-24T10:00:00.000Z",
+      task_id: null, spawn_id: null, agent: null,
+      event_type: "first.event", level: "info", payload: {},
+    })
+    writeEvent(tmp, {
+      schema_version: 1, ts: "2026-04-24T10:00:01.000Z",
+      task_id: null, spawn_id: null, agent: null,
+      event_type: "second.event", level: "info", payload: {},
+    })
+    const lines: string[] = []
+    const controller = new AbortController()
+    const tailPromise = runTail({
+      stateRoot: tmp,
+      follow: true,
+      pollIntervalMs: 50,
+      abortSignal: controller.signal,
+      log: (m) => lines.push(m),
+    })
+    await new Promise((r) => setTimeout(r, 100))
+    expect(lines.length).toBe(2)
+    // Simulate rotation — truncate file and write fresh content
+    writeFileSync(
+      resolve(tmp, "progress/events.ndjson"),
+      JSON.stringify({
+        schema_version: 1, ts: "2026-04-24T11:00:00.000Z",
+        task_id: null, spawn_id: null, agent: null,
+        event_type: "post.rotation.event", level: "info", payload: {},
+      }) + "\n",
+      "utf8",
+    )
+    await new Promise((r) => setTimeout(r, 200))
+    controller.abort()
+    await tailPromise
+    // Expected: 2 pre-rotation + 1 post-rotation = 3 lines total
+    expect(lines.length).toBe(3)
+    expect(lines[2]).toContain("post.rotation.event")
+  })
+
+  test("--follow in empty dir waits for file creation", async () => {
+    rmSync(resolve(tmp, "progress"), { recursive: true, force: true })
+    const lines: string[] = []
+    const controller = new AbortController()
+    const tailPromise = runTail({
+      stateRoot: tmp,
+      follow: true,
+      pollIntervalMs: 50,
+      abortSignal: controller.signal,
+      log: (m) => lines.push(m),
+    })
+    await new Promise((r) => setTimeout(r, 100))
+    expect(lines.length).toBe(0)  // nothing to tail yet
+    mkdirSync(resolve(tmp, "progress"), { recursive: true })
+    writeEvent(tmp, {
+      schema_version: 1, ts: "2026-04-24T10:00:00.000Z",
+      task_id: null, spawn_id: null, agent: null,
+      event_type: "first.event", level: "info", payload: {},
+    })
+    await new Promise((r) => setTimeout(r, 200))
+    controller.abort()
+    await tailPromise
+    expect(lines.length).toBe(1)
   })
 })

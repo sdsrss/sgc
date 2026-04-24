@@ -172,3 +172,72 @@ describe("sgc tail — basic read (G.1.b)", () => {
     expect(lines[0]).toMatch(/out=50/)
   })
 })
+
+describe("sgc tail — filters (G.1.b)", () => {
+  beforeEach(() => {
+    // Seed 6 events with 2 tasks, 3 agents, 4 event_types
+    writeEvent(tmp, { schema_version: 1, ts: "2026-04-24T10:00:00.000Z", task_id: "ta", spawn_id: "s1-planner.eng", agent: "planner.eng", event_type: "spawn.start", level: "info", payload: {} })
+    writeEvent(tmp, { schema_version: 1, ts: "2026-04-24T10:00:01.000Z", task_id: "ta", spawn_id: "s1-planner.eng", agent: "planner.eng", event_type: "spawn.end", level: "info", payload: { outcome: "success" } })
+    writeEvent(tmp, { schema_version: 1, ts: "2026-04-24T10:00:02.000Z", task_id: "ta", spawn_id: "s2-reviewer.correctness", agent: "reviewer.correctness", event_type: "spawn.start", level: "info", payload: {} })
+    writeEvent(tmp, { schema_version: 1, ts: "2026-04-24T11:00:00.000Z", task_id: "tb", spawn_id: "s3-classifier.level", agent: "classifier.level", event_type: "llm.request", level: "info", payload: {} })
+    writeEvent(tmp, { schema_version: 1, ts: "2026-04-24T11:00:01.000Z", task_id: "tb", spawn_id: "s3-classifier.level", agent: "classifier.level", event_type: "llm.response", level: "info", payload: { outcome: "success" } })
+    writeEvent(tmp, { schema_version: 1, ts: "2026-04-24T11:00:02.000Z", task_id: "tb", spawn_id: "s3-classifier.level", agent: "classifier.level", event_type: "spawn.end", level: "info", payload: { outcome: "success" } })
+  })
+
+  test("--task filter narrows to one task_id", async () => {
+    const lines: string[] = []
+    await runTail({ stateRoot: tmp, task: "ta", log: (m) => lines.push(m) })
+    expect(lines.length).toBe(3)  // ta has 3 events
+  })
+
+  test("--agent exact match", async () => {
+    const lines: string[] = []
+    await runTail({ stateRoot: tmp, agent: "planner.eng", log: (m) => lines.push(m) })
+    expect(lines.length).toBe(2)
+  })
+
+  test("--agent glob matches with *", async () => {
+    const lines: string[] = []
+    await runTail({ stateRoot: tmp, agent: "planner.*", log: (m) => lines.push(m) })
+    expect(lines.length).toBe(2)   // planner.eng events
+  })
+
+  test("--event-type substring filter", async () => {
+    const lines: string[] = []
+    await runTail({ stateRoot: tmp, eventType: "llm.", log: (m) => lines.push(m) })
+    expect(lines.length).toBe(2)   // llm.request + llm.response
+  })
+
+  test("--since drops earlier events", async () => {
+    const lines: string[] = []
+    await runTail({ stateRoot: tmp, since: "2026-04-24T10:30:00.000Z", log: (m) => lines.push(m) })
+    expect(lines.length).toBe(3)   // only 11:00:xx events
+  })
+
+  test("multiple filters AND together", async () => {
+    const lines: string[] = []
+    await runTail({
+      stateRoot: tmp, task: "tb", eventType: "llm.",
+      log: (m) => lines.push(m),
+    })
+    expect(lines.length).toBe(2)   // tb ∩ llm.* = llm.request + llm.response
+  })
+
+  test("filter that matches nothing → empty output", async () => {
+    const lines: string[] = []
+    await runTail({ stateRoot: tmp, task: "nonexistent", log: (m) => lines.push(m) })
+    expect(lines.length).toBe(0)
+  })
+
+  test("--agent glob filter ignores null agent events", async () => {
+    writeEvent(tmp, {
+      schema_version: 1, ts: "2026-04-24T12:00:00.000Z",
+      task_id: "tc", spawn_id: null, agent: null,
+      event_type: "cmd.plan_started", level: "info", payload: {},
+    })
+    const lines: string[] = []
+    await runTail({ stateRoot: tmp, agent: "*", log: (m) => lines.push(m) })
+    // Agent null does NOT match `*` glob — glob requires a non-null value
+    expect(lines.length).toBe(6)   // all 6 seeded events have non-null agent
+  })
+})

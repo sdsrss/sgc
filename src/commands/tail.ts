@@ -9,8 +9,30 @@ import type { EventRecord } from "../dispatcher/logger"
 
 export interface TailOptions {
   stateRoot?: string
+  task?: string              // exact match on task_id
+  agent?: string             // glob-match on agent (e.g. planner.*)
+  eventType?: string         // substring match on event_type
+  since?: string             // ISO 8601 timestamp; only events at/after this
   json?: boolean
   log?: (m: string) => void
+}
+
+function globMatch(pattern: string, value: string | null): boolean {
+  if (value === null) return false      // null agent never matches any glob
+  const re = new RegExp(
+    "^" +
+      pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*") +
+      "$",
+  )
+  return re.test(value)
+}
+
+function matchFilters(e: EventRecord, opts: TailOptions): boolean {
+  if (opts.task && e.task_id !== opts.task) return false
+  if (opts.agent && !globMatch(opts.agent, e.agent)) return false
+  if (opts.eventType && !e.event_type.includes(opts.eventType)) return false
+  if (opts.since && e.ts < opts.since) return false
+  return true
 }
 
 function eventsPath(stateRoot?: string): string {
@@ -68,6 +90,7 @@ export async function runTail(opts: TailOptions = {}): Promise<void> {
       console.error(`[sgc tail] malformed line skipped: ${line.slice(0, 80)}`)
       continue
     }
+    if (!matchFilters(rec, opts)) continue
     say(opts.json ? line : formatHuman(rec))
   }
 }

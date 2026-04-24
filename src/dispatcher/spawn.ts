@@ -43,6 +43,7 @@ import {
 } from "./openrouter-agent"
 import type { ScopeToken, SubagentManifest } from "./types"
 import type { Logger } from "./logger"
+import { createLogger } from "./logger"
 
 // Re-export for callers that referenced OutputShapeMismatch from spawn.ts
 export { OutputShapeMismatch } from "./validation"
@@ -344,63 +345,94 @@ export async function spawn<I = unknown, O = unknown>(
 
   writeAtomic(promptPath, formatPrompt(spawnId, manifest, input, tokens, resultPath))
 
-  // Test-only fault injection — after prompt write, before result.
-  // Mirrors a mid-spawn failure (e.g. LLM timeout). The prompt audit trail
-  // remains on disk; the result file is not written.
-  if (opts.forceError) {
-    throw opts.forceError
-  }
-
+  // Hoist mode resolution so spawn.start payload can include it.
   const mode = resolveMode(opts, manifest)
-  let output: unknown
-  if (mode === "inline" && opts.inlineStub) {
-    output = await opts.inlineStub(input)
-    writeAtomic(
-      resultPath,
-      serializeFrontmatter(output as Record<string, unknown>, ""),
-    )
-  } else if (mode === "claude-cli") {
-    output = await runClaudeCliAgent(promptPath, manifest, opts.claudeCliRunner)
-    writeAtomic(
-      resultPath,
-      serializeFrontmatter(output as Record<string, unknown>, ""),
-    )
-  } else if (mode === "anthropic-sdk") {
-    output = await runAnthropicSdkAgent(promptPath, manifest, opts.anthropicClientFactory)
-    writeAtomic(
-      resultPath,
-      serializeFrontmatter(output as Record<string, unknown>, ""),
-    )
-  } else if (mode === "openrouter") {
-    output = await runOpenRouterAgent(promptPath, manifest, opts.openRouterFetch)
-    writeAtomic(
-      resultPath,
-      serializeFrontmatter(output as Record<string, unknown>, ""),
-    )
-  } else {
-    // file-poll with timeout clamp + optional retry
-    const rawTimeoutMs = opts.timeoutMs ?? (manifest.timeout_s ?? 60) * 1000
-    const timeoutMs = clampTimeout(rawTimeoutMs)
-    const maxRetries = opts.maxRetries ?? 0
 
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        output = await pollForResult(resultPath, timeoutMs, opts.pollIntervalMs ?? 1000)
-        break
-      } catch (e) {
-        if (e instanceof SpawnTimeout && attempt < maxRetries) {
-          // Exponential backoff: 2^attempt seconds with ±20% jitter
-          const baseMs = Math.pow(2, attempt) * 1000
-          const jitter = baseMs * 0.2 * (2 * Math.random() - 1)
-          await new Promise((r) => setTimeout(r, Math.max(100, baseMs + jitter)))
-          continue
+  // Invariant §13 Tier 1: emit spawn.start before any dispatch work begins.
+  const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot })
+  const startTs = Date.now()
+  logger.event({
+    task_id: opts.taskId ?? null,
+    spawn_id: spawnId,
+    agent: agentName,
+    event_type: "spawn.start",
+    level: "info",
+    payload: { mode, manifest_version: manifest.version ?? "0" },
+  })
+
+  let outcome: "success" | "timeout" | "error" = "error"
+  try {
+    // Test-only fault injection — after prompt write + spawn.start, before result.
+    // Mirrors a mid-spawn failure (e.g. LLM timeout). The prompt audit trail
+    // remains on disk; the result file is not written. spawn.start already
+    // fired so the paired spawn.end(error) will be emitted via finally.
+    if (opts.forceError) {
+      throw opts.forceError
+    }
+
+    let output: unknown
+    if (mode === "inline" && opts.inlineStub) {
+      output = await opts.inlineStub(input)
+      writeAtomic(
+        resultPath,
+        serializeFrontmatter(output as Record<string, unknown>, ""),
+      )
+    } else if (mode === "claude-cli") {
+      output = await runClaudeCliAgent(promptPath, manifest, opts.claudeCliRunner)
+      writeAtomic(
+        resultPath,
+        serializeFrontmatter(output as Record<string, unknown>, ""),
+      )
+    } else if (mode === "anthropic-sdk") {
+      output = await runAnthropicSdkAgent(promptPath, manifest, opts.anthropicClientFactory)
+      writeAtomic(
+        resultPath,
+        serializeFrontmatter(output as Record<string, unknown>, ""),
+      )
+    } else if (mode === "openrouter") {
+      output = await runOpenRouterAgent(promptPath, manifest, opts.openRouterFetch)
+      writeAtomic(
+        resultPath,
+        serializeFrontmatter(output as Record<string, unknown>, ""),
+      )
+    } else {
+      // file-poll with timeout clamp + optional retry
+      const rawTimeoutMs = opts.timeoutMs ?? (manifest.timeout_s ?? 60) * 1000
+      const timeoutMs = clampTimeout(rawTimeoutMs)
+      const maxRetries = opts.maxRetries ?? 0
+
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          output = await pollForResult(resultPath, timeoutMs, opts.pollIntervalMs ?? 1000)
+          break
+        } catch (e) {
+          if (e instanceof SpawnTimeout && attempt < maxRetries) {
+            // Exponential backoff: 2^attempt seconds with ±20% jitter
+            const baseMs = Math.pow(2, attempt) * 1000
+            const jitter = baseMs * 0.2 * (2 * Math.random() - 1)
+            await new Promise((r) => setTimeout(r, Math.max(100, baseMs + jitter)))
+            continue
+          }
+          throw e
         }
-        throw e
       }
     }
+
+    validateOutputShape(manifest, output)
+
+    outcome = "success"
+    return { spawnId, output: output as O, promptPath, resultPath }
+  } catch (e) {
+    outcome = e instanceof SpawnTimeout ? "timeout" : "error"
+    throw e
+  } finally {
+    logger.event({
+      task_id: opts.taskId ?? null,
+      spawn_id: spawnId,
+      agent: agentName,
+      event_type: "spawn.end",
+      level: outcome === "success" ? "info" : "warn",
+      payload: { outcome, elapsed_ms: Date.now() - startTs },
+    })
   }
-
-  validateOutputShape(manifest, output)
-
-  return { spawnId, output: output as O, promptPath, resultPath }
 }

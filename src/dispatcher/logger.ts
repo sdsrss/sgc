@@ -6,6 +6,9 @@
 // Invariant §13: spawn.ts + LLM-mode agents MUST emit paired events — see
 // docs/superpowers/specs/2026-04-24-phase-g-design.md §3.
 
+import { appendFileSync, mkdirSync } from "node:fs"
+import { dirname, resolve } from "node:path"
+
 export interface EventRecord {
   schema_version: 1
   ts: string                       // ISO 8601 UTC millisecond precision
@@ -22,17 +25,16 @@ export interface Logger {
   event(e: Omit<EventRecord, "schema_version" | "ts">): void
 }
 
-import { appendFileSync, mkdirSync } from "node:fs"
-import { dirname, resolve } from "node:path"
-
 function defaultNdjsonSink(stateRoot: string): (e: EventRecord) => void {
   const path = resolve(stateRoot, "progress/events.ndjson")
+  // Create the parent directory once at sink creation (fail fast if
+  // filesystem is unwritable; no per-write syscall overhead).
+  mkdirSync(dirname(path), { recursive: true })
   return (e: EventRecord) => {
     try {
-      mkdirSync(dirname(path), { recursive: true })
       appendFileSync(path, JSON.stringify(e) + "\n", "utf8")
     } catch (err) {
-      console.error("[sgc] event sink failed:", String(err))
+      console.error("[sgc] ndjson write failed:", String(err))
     }
   }
 }

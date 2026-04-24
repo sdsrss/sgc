@@ -85,7 +85,7 @@ describe("createLogger (Phase G.1.a)", () => {
     expect(record.schema_version).toBe(1)
     const ts = Date.parse(record.ts)
     expect(ts).toBeGreaterThanOrEqual(before)
-    expect(ts).toBeLessThanOrEqual(after + 1)
+    expect(ts).toBeLessThanOrEqual(after)
   })
 
   test("multiple event() calls produce multiple NDJSON lines", () => {

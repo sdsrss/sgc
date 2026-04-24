@@ -79,6 +79,24 @@ The ten-scenario evaluation framework is the conformance test for this entire sp
 
 When a new invariant is added to this document, a corresponding regression test is added to the evaluation framework in the same commit. No exceptions.
 
+## §13. Spawn + LLM Event Audit Completeness (two-tier)
+
+Every call to `spawn()` MUST emit a paired `spawn.start` and `spawn.end` event to `.sgc/progress/events.ndjson` (Tier 1, all modes). The `end` event's `payload.outcome` MUST be one of `success | timeout | error`.
+
+Additionally, when the resolved mode is `anthropic-sdk` / `openrouter` / `claude-cli` (any LLM-backed mode), the agent MUST emit a paired `llm.request` and `llm.response` event (Tier 2). `llm.response.payload.outcome` MUST be one of `success | timeout | error | schema_violation`.
+
+Emission is guaranteed by `try/finally` blocks:
+1. `src/dispatcher/spawn.ts` — Tier 1 pair (all modes).
+2. `src/dispatcher/anthropic-sdk-agent.ts` — Tier 2 pair.
+3. `src/dispatcher/openrouter-agent.ts` — Tier 2 pair.
+4. `src/dispatcher/claude-cli-agent.ts` — Tier 2 pair.
+
+Other event types (`dedup.scored`, `review.verdict_emitted`, etc.) are voluntary during Phase G; their schemas evolve freely. Commands are expected (soft contract, smoke-tested) to emit at least one high-level event per primary flow.
+
+**Exemption**: event-sink write failure (disk full, permission error) does NOT fail the spawn. The runtime logs the failure to stderr and continues. Invariant §13 is waived for infra-level write failures.
+
+**Schema**: `EventRecord` v1 is defined in `src/dispatcher/logger.ts`. Every event line carries `schema_version: 1`; additive fields must preserve forward-compatibility, breaking changes bump to v2.
+
 ---
 
 ## Cross-References
@@ -93,3 +111,4 @@ When a new invariant is added to this document, a corresponding regression test 
 - Invariant §10 is enforced by `compound.*` subagents running as a transaction; no partial commits.
 - Invariant §11 is enforced by the required `rationale` field on `classifier.level` outputs.
 - Invariant §12 is procedural and enforced by code review discipline.
+- Invariant §13 is enforced by `try/finally` in `src/dispatcher/spawn.ts` (Tier 1) and in each LLM-mode agent file (`anthropic-sdk-agent.ts`, `openrouter-agent.ts`, `claude-cli-agent.ts`) for Tier 2. Regression-tested by `tests/dispatcher/spawn-events.test.ts`, `tests/dispatcher/llm-agent-events.test.ts`, `tests/dispatcher/commands-event-emission.test.ts`, and `tests/eval/invariants.test.ts` (Task 12 scenario).

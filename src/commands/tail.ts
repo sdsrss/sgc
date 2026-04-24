@@ -3,7 +3,7 @@
 // Phase G.1.b deliverable. Pure local-file processing; no subagent spawn,
 // no LLM path. See docs/superpowers/specs/2026-04-24-phase-g-design.md §5.
 
-import { existsSync, readFileSync } from "node:fs"
+import { closeSync, existsSync, openSync, readSync, statSync } from "node:fs"
 import { resolve } from "node:path"
 import type { EventRecord } from "../dispatcher/logger"
 
@@ -13,6 +13,9 @@ export interface TailOptions {
   agent?: string             // glob-match on agent (e.g. planner.*)
   eventType?: string         // substring match on event_type
   since?: string             // ISO 8601 timestamp; only events at/after this
+  follow?: boolean
+  pollIntervalMs?: number    // poll interval for --follow (default 500ms)
+  abortSignal?: AbortSignal  // test hook: resolves promise on abort
   json?: boolean
   log?: (m: string) => void
 }
@@ -80,17 +83,63 @@ function formatHuman(e: EventRecord): string {
 export async function runTail(opts: TailOptions = {}): Promise<void> {
   const say = opts.log ?? ((m: string) => console.log(m))
   const path = eventsPath(opts.stateRoot)
-  if (!existsSync(path)) return
 
-  const content = readFileSync(path, "utf8")
-  const lines = content.split("\n").filter((l) => l.length > 0)
-  for (const line of lines) {
-    const rec = parseLine(line)
-    if (!rec) {
-      console.error(`[sgc tail] malformed line skipped: ${line.slice(0, 80)}`)
-      continue
+  let offset = 0
+  let lastSize = 0
+
+  const emitFromBuffer = (buf: string): void => {
+    const lines = buf.split("\n").filter((l) => l.length > 0)
+    for (const line of lines) {
+      const rec = parseLine(line)
+      if (!rec) {
+        console.error(`[sgc tail] malformed line skipped: ${line.slice(0, 80)}`)
+        continue
+      }
+      if (!matchFilters(rec, opts)) continue
+      say(opts.json ? line : formatHuman(rec))
     }
-    if (!matchFilters(rec, opts)) continue
-    say(opts.json ? line : formatHuman(rec))
   }
+
+  const readNew = (): void => {
+    if (!existsSync(path)) return
+    const sz = statSync(path).size
+    if (sz < lastSize) {
+      offset = 0   // rotation / truncation detected
+    }
+    lastSize = sz
+    if (sz <= offset) return
+    const fd = openSync(path, "r")
+    try {
+      const buf = Buffer.alloc(sz - offset)
+      readSync(fd, buf, 0, buf.length, offset)
+      offset = sz
+      emitFromBuffer(buf.toString("utf8"))
+    } finally {
+      closeSync(fd)
+    }
+  }
+
+  readNew()   // initial drain
+
+  if (!opts.follow) return
+
+  const interval = opts.pollIntervalMs ?? 500
+  await new Promise<void>((resolvePromise) => {
+    const timer = setInterval(readNew, interval)
+    if (opts.abortSignal) {
+      if (opts.abortSignal.aborted) {
+        clearInterval(timer)
+        resolvePromise()
+        return
+      }
+      opts.abortSignal.addEventListener(
+        "abort",
+        () => {
+          clearInterval(timer)
+          resolvePromise()
+        },
+        { once: true },
+      )
+    }
+  })
 }

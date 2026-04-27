@@ -144,10 +144,10 @@ describe("runPlan — full L1 plan flow", () => {
   test("L1+ with CJK motivation accepted via Intl.Segmenter word-count", async () => {
     const cjkMotivation =
       "事故复盘需要从结构化事件流里读到每次重试的尝试编号与耗时，否则需要逐个文件搜索 YAML 才能拼出失败链路；这条工作把 spawn.ts 的 retry-with-backoff 路径接进 logger。"
-    // Sanity: same string under the old split(/\s+/) heuristic would
-    // count a handful of ASCII tokens (here: "spawn.ts", "retry-with-backoff",
-    // "YAML", "logger") plus one giant CJK blob ≈ 5 words — well under 20.
-    // Intl.Segmenter must split the CJK runs into ≥20 word-like segments.
+    // Sanity (verified manually 2026-04-27): same string under the old
+    // split(/\s+/) counter returns 8 words (well under 20), under the new
+    // Intl.Segmenter counter returns 45 word-like segments. The fix
+    // crossing 20 is what unblocks the runPlan call below.
     const r = await runPlan("add CJK-aware logging to dispatcher spawn", {
       stateRoot: tmp,
       motivation: cjkMotivation,

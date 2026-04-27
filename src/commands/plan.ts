@@ -33,6 +33,7 @@ import { validateClassifierRationale } from "../dispatcher/rationale"
 import {
   ensureSgcStructure,
   readHandoff,
+  wordCount,
   writeCurrentTask,
   writeFeatureList,
   writeHandoff,
@@ -297,11 +298,11 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
   let intentPath = "(skipped — L0)"
   if (level !== "L0") {
     const motivation = opts.motivation ?? taskDescription
-    const motivationWords = motivation.trim().split(/\s+/).filter(Boolean).length
+    const motivationWords = wordCount(motivation)
     if (motivationWords < 20) {
       throw new Error(
         `motivation must be ≥20 words (sgc-state.schema.yaml min_words rule); ` +
-          `got ${motivationWords} from task description. Re-run with ` +
+          `got ${motivationWords} word(s). Re-run with ` +
           `--motivation "<longer rationale describing why this matters and what changes>".`,
       )
     }

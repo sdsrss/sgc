@@ -139,6 +139,24 @@ describe("runPlan — full L1 plan flow", () => {
     ).rejects.toThrow(/≥20 words/)
   })
 
+  // G.3 DF-1: pre-fix split(/\s+/) collapsed CJK runs to a single token
+  // and rejected valid Chinese motivations. Post-fix uses Intl.Segmenter.
+  test("L1+ with CJK motivation accepted via Intl.Segmenter word-count", async () => {
+    const cjkMotivation =
+      "事故复盘需要从结构化事件流里读到每次重试的尝试编号与耗时，否则需要逐个文件搜索 YAML 才能拼出失败链路；这条工作把 spawn.ts 的 retry-with-backoff 路径接进 logger。"
+    // Sanity: same string under the old split(/\s+/) heuristic would
+    // count a handful of ASCII tokens (here: "spawn.ts", "retry-with-backoff",
+    // "YAML", "logger") plus one giant CJK blob ≈ 5 words — well under 20.
+    // Intl.Segmenter must split the CJK runs into ≥20 word-like segments.
+    const r = await runPlan("add CJK-aware logging to dispatcher spawn", {
+      stateRoot: tmp,
+      motivation: cjkMotivation,
+      log: () => {},
+    })
+    expect(r.taskId).toBeTruthy()
+    expect(r.intentPath).toMatch(/intent\.md$/)
+  })
+
   test("intent.md is immutable: second runPlan with same id forbidden", async () => {
     // Different tasks get different IDs naturally; this proves writeIntent is
     // called with immutability and would catch collisions. We rely on the

@@ -129,9 +129,20 @@ const REQUIRED_INTENT_FIELDS = [
   "scope_tokens",
 ] as const
 
-/** Whitespace-separated word count. */
-function wordCount(text: string): number {
-  return text.trim().split(/\s+/).filter(Boolean).length
+// ICU-segmented word count. Mirrors src/dispatcher/dedup.ts (Phase G
+// Unicode hotfix, Appendix A): `Intl.Segmenter` with `word` granularity
+// + `isWordLike` filter handles EN / CJK / Thai / Arabic uniformly. The
+// pre-G.3 implementation used `text.trim().split(/\s+/)`, which collapsed
+// CJK runs to a single token and rejected valid Chinese motivations
+// under the 20-word floor (G.3 Track 1 finding F-1).
+const WORD_SEGMENTER = new Intl.Segmenter([], { granularity: "word" })
+
+export function wordCount(text: string): number {
+  let n = 0
+  for (const seg of WORD_SEGMENTER.segment(text)) {
+    if (seg.isWordLike) n++
+  }
+  return n
 }
 
 function validateIntent(intent: IntentDoc): void {

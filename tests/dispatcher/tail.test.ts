@@ -242,6 +242,58 @@ describe("sgc tail — filters (G.1.b)", () => {
   })
 })
 
+// G.3 DF-3: --limit N applied post-filter on initial drain.
+describe("sgc tail --limit (G.3 DF-3)", () => {
+  beforeEach(() => {
+    for (let i = 0; i < 5; i++) {
+      writeEvent(tmp, {
+        schema_version: 1,
+        ts: `2026-04-27T10:00:0${i}.000Z`,
+        task_id: "t1",
+        spawn_id: `s${i}`,
+        agent: i % 2 === 0 ? "planner.eng" : "classifier.level",
+        event_type: "spawn.start",
+        level: "info",
+        payload: {},
+      })
+    }
+  })
+
+  test("--limit 3 returns last 3 of 5", async () => {
+    const lines: string[] = []
+    await runTail({ stateRoot: tmp, limit: 3, log: (m) => lines.push(m) })
+    expect(lines.length).toBe(3)
+    expect(lines[0]).toContain("s2")
+    expect(lines[2]).toContain("s4")
+  })
+
+  test("--limit larger than matched returns all matched", async () => {
+    const lines: string[] = []
+    await runTail({ stateRoot: tmp, limit: 100, log: (m) => lines.push(m) })
+    expect(lines.length).toBe(5)
+  })
+
+  test("--limit 0 returns nothing", async () => {
+    const lines: string[] = []
+    await runTail({ stateRoot: tmp, limit: 0, log: (m) => lines.push(m) })
+    expect(lines.length).toBe(0)
+  })
+
+  test("--limit applies AFTER filters (last N matching, not last N raw)", async () => {
+    const lines: string[] = []
+    await runTail({
+      stateRoot: tmp,
+      agent: "planner.eng",
+      limit: 2,
+      log: (m) => lines.push(m),
+    })
+    // 3 planner.eng events (s0/s2/s4); --limit 2 returns last 2 of those
+    expect(lines.length).toBe(2)
+    expect(lines[0]).toContain("s2")
+    expect(lines[1]).toContain("s4")
+  })
+})
+
 describe("sgc tail --follow (G.1.b)", () => {
   test("picks up new lines appended after start", async () => {
     writeEvent(tmp, {

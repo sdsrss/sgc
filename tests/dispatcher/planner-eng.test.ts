@@ -61,4 +61,10 @@ describe("planner.eng — unit", () => {
     // spec §4 — verdict enum referenced in reply format
     expect(tmpl).toContain("approve | revise | reject")
   })
+
+  test("U3: manifest declares prompt_path for LLM routing", () => {
+    const manifest = getSubagentManifest("planner.eng")
+    expect(manifest).toBeDefined()
+    expect(manifest!.prompt_path).toBe("prompts/planner-eng.md")
+  })
 })

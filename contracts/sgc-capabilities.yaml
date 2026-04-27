@@ -266,9 +266,9 @@ subagents:
     version: "0.1"
     source: gstack/plan-eng-review (re-authored)
     purpose: Architecture gate — "will this break later?"
+    prompt_path: prompts/planner-eng.md
     inputs:
       intent_draft: markdown
-      repo_map: string
     outputs:
       verdict: enum[approve, revise, reject]
       concerns: array[string]

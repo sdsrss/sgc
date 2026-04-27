@@ -1,13 +1,16 @@
-// planner.eng — minimal stub.
+// planner.eng — heuristic fallback + LLM dispatch path.
 //
-// Real planner.eng would identify files, plan implementation steps, and
-// design tests. MVP returns a single-feature placeholder so the L1 loop
-// can run end-to-end. The user is expected to refine the feature list
-// during /work.
+// When spawn mode is inline (MVP, tests with SGC_FORCE_INLINE=1) → heuristic
+// fallback below. When mode is anthropic-sdk / openrouter / claude-cli →
+// real LLM via prompts/planner-eng.md (routed by spawn.ts when manifest
+// prompt_path is set).
+//
+// The heuristic is intentionally trivial — length check only. It exists so
+// command-level tests can run without an API key. The real value lives in
+// the LLM path (prompts/planner-eng.md).
 
 export interface PlannerEngInput {
   intent_draft: string
-  repo_map?: string
 }
 
 export interface PlannerEngOutput {
@@ -16,7 +19,8 @@ export interface PlannerEngOutput {
   structural_risks: { area: string; risk: string; mitigation: string }[]
 }
 
-export function plannerEng(input: PlannerEngInput): PlannerEngOutput {
+/** Heuristic fallback — used when no LLM is available (tests, inline mode). */
+export function plannerEngHeuristic(input: PlannerEngInput): PlannerEngOutput {
   const len = input.intent_draft.length
   return {
     verdict: "approve",
@@ -27,3 +31,6 @@ export function plannerEng(input: PlannerEngInput): PlannerEngOutput {
     structural_risks: [],
   }
 }
+
+/** Backward-compat alias. Prefer the heuristic-specific name in new code. */
+export const plannerEng = plannerEngHeuristic

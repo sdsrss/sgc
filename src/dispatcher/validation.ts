@@ -39,9 +39,31 @@ export function validateValueAgainstDecl(
     return null
   }
 
-  if (/^array\[(.+)\]$/.test(decl)) {
+  const arrayMatch = /^array\[(.+)\]$/.exec(decl)
+  if (arrayMatch) {
     if (!Array.isArray(value)) {
       return `field ${fieldName}: expected array, got ${typeof value}`
+    }
+    // Recurse on inner type T when it is a simple form we know how to
+    // check (string / markdown / integer / number / enum[...]). Composite
+    // forms like `{area, risk, mitigation}` are deferred — our DSL doesn't
+    // model object-shape array elements, so we keep the pre-G.3 behavior
+    // of accepting them and rely on per-agent unit tests.
+    //
+    // Pre-G.3 (DF-2 fix): this branch only checked Array.isArray, which
+    // let `concerns: [{area, risk, mitigation}]` slip past `array[string]`
+    // declaration on planner.eng — that is the F-2 root cause.
+    const innerDecl = arrayMatch[1]!.trim()
+    const isSimpleForm =
+      innerDecl === "string" ||
+      innerDecl === "markdown" ||
+      innerDecl === "integer" ||
+      innerDecl === "number" ||
+      /^enum\[.+\]$/.test(innerDecl)
+    if (!isSimpleForm) return null
+    for (let i = 0; i < value.length; i++) {
+      const err = validateValueAgainstDecl(value[i], innerDecl, `${fieldName}[${i}]`)
+      if (err) return err
     }
     return null
   }

@@ -83,8 +83,13 @@ structural_risks:
 ```yaml
 verdict: approve | revise | reject
 concerns:
-  - <concern 1, specific>
+  # array of PLAIN STRINGS — each item is a single quoted scalar, not a
+  # mapping. Wrap each item in double quotes when it contains a colon
+  # to avoid YAML interpreting it as a key:value sequence entry.
+  - "concern 1, specific"
+  - "concern 2, specific"
 structural_risks:
+  # array of OBJECTS with exactly the three keys below.
   - area: <module type or subsystem>
     risk: <what could break or be missed, specific>
     mitigation: <concrete action the user should take>

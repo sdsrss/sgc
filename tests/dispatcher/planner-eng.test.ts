@@ -128,6 +128,54 @@ describe("planner.eng — unit", () => {
       expect(typeof out.structural_risks[0]!.mitigation).toBe("string")
     })
 
+    test("U6: schema violation — concerns as object[] throws OutputShapeMismatch (G.3 DF-2)", async () => {
+      // Pre-DF-2: validateValueAgainstDecl only checked Array.isArray for
+      // array[T], so concerns containing objects passed validation and
+      // rendered as "[object Object]" in plan.ts output. This test pins
+      // the recursive inner-type check.
+      const cannedYaml = [
+        "```yaml",
+        "verdict: revise",
+        "concerns:",
+        "  - area: scope",
+        "    risk: ambiguous",
+        "    mitigation: clarify",
+        "structural_risks: []",
+        "```",
+      ].join("\n")
+      const mockClient = {
+        messages: {
+          create: async () => ({
+            id: "u6",
+            content: [{ type: "text", text: cannedYaml }],
+            role: "assistant",
+            model: "claude-sonnet-4-6-mock",
+            stop_reason: "end_turn",
+            stop_sequence: null,
+            type: "message",
+            usage: {
+              input_tokens: 200,
+              output_tokens: 30,
+              cache_read_input_tokens: 0,
+              cache_creation_input_tokens: 0,
+            },
+          }),
+        },
+      }
+      await expect(
+        spawn(
+          "planner.eng",
+          { intent_draft: "anything" },
+          {
+            stateRoot: tmp,
+            taskId: "u6",
+            mode: "anthropic-sdk",
+            anthropicClientFactory: () => mockClient as never,
+          },
+        ),
+      ).rejects.toBeInstanceOf(OutputShapeMismatch)
+    })
+
     test("U5b: schema violation — invalid verdict enum throws OutputShapeMismatch", async () => {
       const cannedYaml = [
         "```yaml",

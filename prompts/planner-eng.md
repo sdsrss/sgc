@@ -52,9 +52,9 @@ committing to this task.
 
 3. **Banned vocabulary in output strings.** `concerns`, `area`, `risk`,
    `mitigation` must NOT contain:
-   - English: `could potentially`, `may break`, `might affect`, `various
-     concerns`, `several issues`, `generally`, `overall`, `seems to`,
-     `production-ready`, `comprehensive`, `robust`
+   - English: `could potentially`, `may break`, `might affect`,
+     `various concerns`, `several issues`, `generally`, `overall`,
+     `seems to`, `production-ready`, `comprehensive`, `robust`
    - 中文: `显著`, `大幅`, `基本上`, `大部分情况`, `相当不错`
    These mark vague output. Replace with concrete naming.
 

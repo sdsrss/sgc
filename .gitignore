@@ -21,6 +21,10 @@ plugins/sgc/browse/dist/
 # Git worktrees (isolated feature branches)
 .worktrees/
 
+# Tooling caches / local dev state
+.code-graph/
+.omx/
+
 # bun.lock not used — project lockfile is package-lock.json (npm).
 # Bun is used as runtime (bun run, bun test, bun build) but reads package-lock.json fine.
 bun.lock

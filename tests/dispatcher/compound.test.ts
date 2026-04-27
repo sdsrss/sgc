@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { existsSync, mkdtempSync, rmSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 import {
   DEDUP_THRESHOLD,
   computeSignature,
@@ -12,13 +12,17 @@ import {
 } from "../../src/dispatcher/dedup"
 import {
   compoundContext,
+  compoundContextHeuristic,
   compoundPrevention,
   compoundRelated,
   compoundSolution,
+  type CompoundContextOutput,
 } from "../../src/dispatcher/agents/compound"
 import { runCompound } from "../../src/commands/compound"
 import { runPlan } from "../../src/commands/plan"
 import { ensureSgcStructure, listSolutions, readSolution, writeSolution } from "../../src/dispatcher/state"
+import { getSubagentManifest } from "../../src/dispatcher/schema"
+import { spawn, OutputShapeMismatch } from "../../src/dispatcher/spawn"
 import type { SolutionEntry, SolutionFile } from "../../src/dispatcher/types"
 
 const LONG_MOTIVATION =
@@ -148,6 +152,156 @@ describe("compound agent stubs", () => {
       solution: { solution: "", what_didnt_work: [] },
     })
     expect(r.prevention).toMatch(/adversarial test.*token/i)
+  })
+})
+
+// G.2.b — compound.context LLM swap. Five new assertion classes (U2/U3/U4/U5a/U5b);
+// U1a/U1b are the existing heuristic byte-compat tests above (auth keyword + no-pattern).
+
+describe("compound.context — LLM-swap unit (G.2.b)", () => {
+  test("U2: compoundContext alias equals compoundContextHeuristic", () => {
+    expect(compoundContext).toBe(compoundContextHeuristic)
+  })
+
+  test("U3: manifest declares prompt_path on context, null on siblings", () => {
+    const ctx = getSubagentManifest("compound.context")
+    expect(ctx).toBeDefined()
+    expect(ctx!.prompt_path).toBe("prompts/compound-context.md")
+
+    // Sibling override — without explicit `prompt_path: null`, the YAML
+    // anchor merge would route compound.solution to a non-existent prompt.
+    const sol = getSubagentManifest("compound.solution")
+    expect(sol).toBeDefined()
+    expect(sol!.prompt_path).toBeFalsy()
+  })
+
+  test("U4: prompt template has required structural markers", () => {
+    const tmplPath = resolve(process.cwd(), "prompts/compound-context.md")
+    const tmpl = readFileSync(tmplPath, "utf8")
+
+    // spawn.ts:formatPrompt checks — mirror the exact regex
+    expect(tmpl).toMatch(/(^|\r?\n)##[ \t]+Input[ \t]*\r?\n/)
+    expect(tmpl).toContain("<input_yaml/>")
+
+    // spec §4 — anti-patterns section + the two compound-domain rewrites
+    expect(tmpl).toContain("## Anti-patterns")
+    expect(tmpl).toContain("do NOT output")
+    expect(tmpl).toContain("Filename / symbol invention")
+    expect(tmpl).toContain("Forced category fit")
+
+    // spec §4 — first banned-vocab term (dual-source with planner-eng.md)
+    expect(tmpl).toContain("could potentially")
+
+    // spec §4 — closed-enum reply format reference
+    expect(tmpl).toContain("auth | data | infra | perf | ui | build | runtime | other")
+  })
+
+  describe("U5: LLM-branch via mock anthropicClientFactory", () => {
+    let tmp: string
+    beforeEach(() => {
+      tmp = mkdtempSync(join(tmpdir(), "sgc-compound-ctx-u5-"))
+    })
+    afterEach(() => {
+      rmSync(tmp, { recursive: true, force: true })
+    })
+
+    test("U5a: happy path — canned valid YAML parses to CompoundContextOutput", async () => {
+      const cannedYaml = [
+        "```yaml",
+        "category: data",
+        "tags:",
+        "  - migration",
+        "  - schema",
+        "  - sqlite",
+        "problem_summary: |",
+        "  The .sgc/state directory used YAML files for task and intent records,",
+        "  which made cross-task indexing slow and prone to lock contention.",
+        "  Migration to SQLite preserved the public read/write API.",
+        "symptoms:",
+        "  - YAML parse latency above 200ms on multi-task lookup",
+        '  - "(symptom not stated in input)"',
+        "```",
+      ].join("\n")
+      const mockClient = {
+        messages: {
+          create: async () => ({
+            id: "u5a",
+            content: [{ type: "text", text: cannedYaml }],
+            role: "assistant",
+            model: "claude-sonnet-4-6-mock",
+            stop_reason: "end_turn",
+            stop_sequence: null,
+            type: "message",
+            usage: {
+              input_tokens: 200,
+              output_tokens: 80,
+              cache_read_input_tokens: 0,
+              cache_creation_input_tokens: 0,
+            },
+          }),
+        },
+      }
+      const res = await spawn(
+        "compound.context",
+        {
+          task_id: "u5a",
+          intent: "migrate .sgc/state from YAML to SQLite",
+        },
+        {
+          stateRoot: tmp,
+          taskId: "u5a",
+          mode: "anthropic-sdk",
+          anthropicClientFactory: () => mockClient as never,
+        },
+      )
+      const out = res.output as CompoundContextOutput
+      expect(out.category).toBe("data")
+      expect(out.tags).toEqual(["migration", "schema", "sqlite"])
+      expect(out.problem_summary).toMatch(/SQLite/)
+      expect(out.symptoms.length).toBe(2)
+    })
+
+    test("U5b: schema violation — invalid category enum throws OutputShapeMismatch", async () => {
+      const cannedYaml = [
+        "```yaml",
+        "category: malformed",
+        "tags: []",
+        "problem_summary: anything",
+        "symptoms: []",
+        "```",
+      ].join("\n")
+      const mockClient = {
+        messages: {
+          create: async () => ({
+            id: "u5b",
+            content: [{ type: "text", text: cannedYaml }],
+            role: "assistant",
+            model: "claude-sonnet-4-6-mock",
+            stop_reason: "end_turn",
+            stop_sequence: null,
+            type: "message",
+            usage: {
+              input_tokens: 200,
+              output_tokens: 20,
+              cache_read_input_tokens: 0,
+              cache_creation_input_tokens: 0,
+            },
+          }),
+        },
+      }
+      await expect(
+        spawn(
+          "compound.context",
+          { task_id: "u5b", intent: "anything" },
+          {
+            stateRoot: tmp,
+            taskId: "u5b",
+            mode: "anthropic-sdk",
+            anthropicClientFactory: () => mockClient as never,
+          },
+        ),
+      ).rejects.toBeInstanceOf(OutputShapeMismatch)
+    })
   })
 })
 

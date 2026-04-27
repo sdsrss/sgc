@@ -44,7 +44,10 @@ const TAG_CANDIDATES = [
   "api", "typo", "refactor", "security", "timeout", "cache",
 ]
 
-export function compoundContext(input: CompoundContextInput): CompoundContextOutput {
+/** Heuristic fallback — used when no LLM is available (tests, inline mode). */
+export function compoundContextHeuristic(
+  input: CompoundContextInput,
+): CompoundContextOutput {
   const text = `${input.intent} ${input.diff ?? ""}`
   let category: SolutionCategory = "other"
   for (const p of CATEGORY_PATTERNS) {
@@ -63,6 +66,9 @@ export function compoundContext(input: CompoundContextInput): CompoundContextOut
       : ["behavior documented in intent"]
   return { category, tags, problem_summary, symptoms }
 }
+
+/** Backward-compat alias. Prefer the heuristic-specific name in new code. */
+export const compoundContext = compoundContextHeuristic
 
 // ── compound.solution ───────────────────────────────────────────────────────
 

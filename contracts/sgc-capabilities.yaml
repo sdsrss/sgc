@@ -380,6 +380,12 @@ subagents:
       category. The tagging/classification step runs as the final
       phase of context building, ensuring tags are informed by the
       full context rather than surface-level heuristics.
+    prompt_path: prompts/compound-context.md
+    inputs:
+      task_id: string
+      intent: markdown
+      diff: string
+      ship_outcome: string
     scope_tokens:
       - "read:decisions"
       - "read:progress"
@@ -397,6 +403,7 @@ subagents:
   compound.solution:
     <<: *compound_base
     purpose: "Extract what worked / didn't"
+    prompt_path: null
     outputs:
       solution: markdown
       what_didnt_work: array[{approach, reason_failed}]
@@ -404,6 +411,7 @@ subagents:
   compound.related:
     <<: *compound_base
     purpose: "Dedup check — MUST run before any write"
+    prompt_path: null
     outputs:
       duplicate_match: object
       related_entries: array[string]
@@ -412,6 +420,7 @@ subagents:
   compound.prevention:
     <<: *compound_base
     purpose: "Derive prevention strategy"
+    prompt_path: null
     outputs:
       prevention: markdown
 

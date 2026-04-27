@@ -41,4 +41,24 @@ describe("planner.eng — unit", () => {
   test("U2: plannerEng alias equals plannerEngHeuristic", () => {
     expect(plannerEng).toBe(plannerEngHeuristic)
   })
+
+  test("U4: prompt template has required structural markers", () => {
+    const tmplPath = resolve(process.cwd(), "prompts/planner-eng.md")
+    const tmpl = readFileSync(tmplPath, "utf8")
+
+    // spawn.ts:251 requires this regex — mirror it here exactly
+    expect(tmpl).toMatch(/(^|\r?\n)##[ \t]+Input[ \t]*\r?\n/)
+    expect(tmpl).toContain("<input_yaml/>")
+
+    // spec §4 — anti-patterns section + first banned-vocab term
+    expect(tmpl).toContain("## Anti-patterns")
+    expect(tmpl).toContain("do NOT output")
+    expect(tmpl).toContain("could potentially")
+
+    // spec §4 — §13 boundary text (planner ≠ brainstorming)
+    expect(tmpl).toMatch(/NOT.*brainstorming/i)
+
+    // spec §4 — verdict enum referenced in reply format
+    expect(tmpl).toContain("approve | revise | reject")
+  })
 })

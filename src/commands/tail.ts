@@ -18,6 +18,10 @@ export interface TailOptions {
   abortSignal?: AbortSignal  // test hook: resolves promise on abort
   json?: boolean
   log?: (m: string) => void
+  // Last N matching events to emit on initial drain. In --follow mode
+  // applies to the initial drain only — subsequent appended events are
+  // streamed unbounded (matches `tail -f -n N` semantics). G.3 DF-3.
+  limit?: number
 }
 
 function globMatch(pattern: string, value: string | null): boolean {
@@ -86,9 +90,11 @@ export async function runTail(opts: TailOptions = {}): Promise<void> {
 
   let offset = 0
   let lastSize = 0
+  let initialDrainDone = false
 
-  const emitFromBuffer = (buf: string): void => {
+  const emitFromBuffer = (buf: string, applyLimit: boolean): void => {
     const lines = buf.split("\n").filter((l) => l.length > 0)
+    const matched: string[] = []
     for (const line of lines) {
       const rec = parseLine(line)
       if (!rec) {
@@ -96,8 +102,17 @@ export async function runTail(opts: TailOptions = {}): Promise<void> {
         continue
       }
       if (!matchFilters(rec, opts)) continue
-      say(opts.json ? line : formatHuman(rec))
+      matched.push(opts.json ? line : formatHuman(rec))
     }
+    // Note: `slice(-0)` equals `slice(0)` (returns all) due to -0 === 0,
+    // so limit=0 must be handled explicitly to mean "emit nothing".
+    let out: string[]
+    if (applyLimit && opts.limit !== undefined && opts.limit >= 0) {
+      out = opts.limit === 0 ? [] : matched.slice(-opts.limit)
+    } else {
+      out = matched
+    }
+    for (const m of out) say(m)
   }
 
   const readNew = (): void => {
@@ -113,13 +128,14 @@ export async function runTail(opts: TailOptions = {}): Promise<void> {
       const buf = Buffer.alloc(sz - offset)
       readSync(fd, buf, 0, buf.length, offset)
       offset = sz
-      emitFromBuffer(buf.toString("utf8"))
+      emitFromBuffer(buf.toString("utf8"), !initialDrainDone)
     } finally {
       closeSync(fd)
     }
   }
 
   readNew()   // initial drain
+  initialDrainDone = true
 
   if (!opts.follow) return
 

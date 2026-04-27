@@ -306,9 +306,23 @@ const tail = defineCommand({
       default: false,
       description: "Emit raw NDJSON (default is human-readable)",
     },
+    limit: {
+      type: "string",
+      description:
+        "Emit only the last N matching events on initial drain (post-filter). In --follow mode applies to the initial drain only, then streams unbounded.",
+    },
   },
   async run({ args }) {
     const { runTail } = await import("./commands/tail")
+    const limitRaw = args.limit as string | undefined
+    let limit: number | undefined
+    if (limitRaw !== undefined) {
+      const n = Number.parseInt(limitRaw, 10)
+      if (!Number.isFinite(n) || n < 0) {
+        throw new Error(`--limit must be a non-negative integer; got ${limitRaw}`)
+      }
+      limit = n
+    }
     await runTail({
       task: args.task as string | undefined,
       agent: args.agent as string | undefined,
@@ -316,6 +330,7 @@ const tail = defineCommand({
       since: args.since as string | undefined,
       follow: args.follow as boolean,
       json: args.json as boolean,
+      limit,
     })
   },
 })

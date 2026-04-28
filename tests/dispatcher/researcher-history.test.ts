@@ -415,6 +415,7 @@ describe("coerceLlmOutput — 5 guards (Phase H T3)", () => {
 })
 
 import { readFileSync } from "node:fs"
+import { getSubagentManifest } from "../../src/dispatcher/schema"
 
 describe("prompts/researcher-history.md — template structure (Phase H T4)", () => {
   test("T1a: required structural markers (Input heading, input_yaml, Anti-patterns)", () => {
@@ -436,5 +437,24 @@ describe("prompts/researcher-history.md — template structure (Phase H T4)", ()
     expect(tmpl).toMatch(/DO NOT pad to 5/i)
     // Banned-vocab hint — first term from spec banned list
     expect(tmpl).toMatch(/significantly|robust|comprehensive/)
+  })
+})
+
+describe("researcher.history manifest (Phase H T5)", () => {
+  test("M1: prompt_path declares prompts/researcher-history.md", () => {
+    const m = getSubagentManifest("researcher.history")
+    expect(m).toBeDefined()
+    expect(m!.prompt_path).toBe("prompts/researcher-history.md")
+  })
+
+  test("M2: inputs include candidates; outputs include prior_art with composite shape", () => {
+    const m = getSubagentManifest("researcher.history")
+    expect(m).toBeDefined()
+    const inputs = m!.inputs as Record<string, string>
+    expect(inputs.intent_draft).toBe("markdown")
+    expect(inputs.candidates).toMatch(/^array\[/)
+    const outputs = m!.outputs as Record<string, string>
+    expect(outputs.prior_art).toMatch(/^array\[/)
+    expect(outputs.warnings).toMatch(/^array\[string\]$/)
   })
 })

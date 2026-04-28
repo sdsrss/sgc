@@ -185,6 +185,12 @@ describe("runPlan — researcher.history wiring (D-2.2)", () => {
   })
 
   test("L2 dispatches researcher + adds Prior art section to intent body", async () => {
+    seedSolution(
+      tmp,
+      "auth",
+      "seed-for-d22",
+      "---\nintent: seed\n---\n\nadd new field to public API response payload schema.",
+    )
     const r = await runPlan("add a new field to the public API response", {
       stateRoot: tmp,
       motivation: LONG_MOTIVATION,
@@ -199,6 +205,12 @@ describe("runPlan — researcher.history wiring (D-2.2)", () => {
   })
 
   test("L2 audit trail has all 4 expected prompts (classifier + eng + ceo + research)", async () => {
+    seedSolution(
+      tmp,
+      "data",
+      "seed-for-audit",
+      "---\nintent: seed\n---\n\nadd new API endpoint for users table database schema.",
+    )
     await runPlan("add a new API endpoint for the users table", {
       stateRoot: tmp,
       motivation: LONG_MOTIVATION,
@@ -209,7 +221,6 @@ describe("runPlan — researcher.history wiring (D-2.2)", () => {
     expect(prompts.filter((f) => f.includes("planner.eng")).length).toBe(1)
     expect(prompts.filter((f) => f.includes("planner.ceo")).length).toBe(1)
     expect(prompts.filter((f) => f.includes("researcher.history")).length).toBe(1)
-    // 4 total
     expect(prompts.length).toBe(4)
   })
 
@@ -411,6 +422,57 @@ describe("coerceLlmOutput — 5 guards (Phase H T3)", () => {
     const out = coerceLlmOutput(raw, cands)
     expect(out.prior_art).toEqual([])
     expect(out.warnings).toEqual(["no candidate cleared 0.3 relevance floor"])
+  })
+})
+
+describe("plan.ts wiring — preFilter + spawn + render (Phase H T6)", () => {
+  let tmp: string
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), "sgc-plan-h-"))
+  })
+  afterEach(() => {
+    rmSync(tmp, { recursive: true, force: true })
+  })
+
+  test("W1: empty solutions/ → spawn skipped, body still has Prior art section", async () => {
+    // No seedSolution → empty corpus → preFilter returns [].
+    const r = await runPlan("add a new field to the public API response", {
+      stateRoot: tmp,
+      motivation: LONG_MOTIVATION,
+      log: () => {},
+    })
+    expect(r.level).toBe("L2")
+    // Spawn for researcher.history MUST NOT have written a prompt — the
+    // short-circuit returns synthetic { prior_art: [], warnings: [...] }
+    // before spawn() is called.
+    const prompts = readdirSync(resolve(tmp, "progress/agent-prompts"))
+    expect(prompts.some((f) => f.includes("researcher.history"))).toBe(false)
+    // But the body still has the section with the synthetic warning.
+    const intent = readIntent(r.taskId, tmp)
+    const body = intent.body ?? ""
+    expect(body).toContain("Prior art (researcher.history)")
+    expect(body).toContain("no candidates from pre-filter")
+  })
+
+  test("W2: seeded corpus + SGC_FORCE_INLINE → heuristic populates prior_art (no relevance_reason)", async () => {
+    seedSolution(
+      tmp,
+      "auth",
+      "oauth-token-refresh",
+      "---\nintent: token refresh fix\n---\n\nFixed token refresh on 401 by adding retry.",
+    )
+    const r = await runPlan("add token refresh retry on 401 to API client", {
+      stateRoot: tmp,
+      motivation: LONG_MOTIVATION,
+      log: () => {},
+    })
+    expect(r.level).toBe("L2")
+    const intent = readIntent(r.taskId, tmp)
+    const body = intent.body ?? ""
+    expect(body).toContain("auth/oauth-token-refresh")
+    expect(body).toContain("score")
+    // Heuristic mode → no Reason: line
+    expect(body).not.toContain("Reason:")
   })
 })
 

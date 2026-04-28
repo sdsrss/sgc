@@ -34,6 +34,7 @@ import {
   createEvalWorkspace,
   destroyEvalWorkspace,
   LONG_MOTIVATION_FIXTURE,
+  seedSolution,
 } from "./eval-helpers"
 
 let tmp: string
@@ -46,6 +47,15 @@ afterEach(() => {
 
 describe("L2 cross-file scenario (eval §12)", () => {
   test("end-to-end: plan (3-way cluster) → work → review → qa → ship → compound", async () => {
+    // Seed into non-SOLUTION_CATEGORIES dir so listSolutions ignores it but
+    // preFilterSolutions finds the keyword match — ensures T6 short-circuit
+    // does not skip researcher.history spawn (line 61 assertion).
+    seedSolution(
+      tmp,
+      "_seed",
+      "api-field",
+      "add new field to public API response payload endpoint.",
+    )
     // STEP 1: plan — L2 classification + 3-way cluster
     const plan = await runPlan(
       "add a new field to the public API response payload",

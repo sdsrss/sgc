@@ -35,6 +35,7 @@ import {
   createEvalWorkspace,
   destroyEvalWorkspace,
   LONG_MOTIVATION_FIXTURE,
+  seedSolution,
 } from "./eval-helpers"
 
 const SIG = { signed_at: "2026-04-15T10:00:00Z", signer_id: "alice" }
@@ -90,6 +91,20 @@ describe("L3 migration scenario (eval §12)", () => {
   })
 
   test("end-to-end: plan(yes) → work → review → qa → ship(yes) → compound", async () => {
+    // Seed a solution so preFilterSolutions has a candidate; without it the T6
+    // short-circuit skips the researcher.history spawn (agents assertion below).
+    // Use category "infra" (valid SolutionCategory) with proper frontmatter so
+    // listSolutions + compound.related don't crash on missing `problem` field.
+    // Category "_seed" is not in SOLUTION_CATEGORIES so listSolutions/compound
+    // ignores it, but preFilterSolutions scans all subdirs and finds the keyword
+    // match — this satisfies the T6 short-circuit without polluting the compound
+    // dedup corpus.
+    seedSolution(
+      tmp,
+      "_seed",
+      "migration-rename",
+      "database migration rename column orders table additive pattern.",
+    )
     const plan = await runPlan(
       "add a database migration to rename column in orders table",
       {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { mkdtempSync, readdirSync, rmSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { plannerAdversarial } from "../../src/dispatcher/agents/planner-adversarial"
@@ -85,6 +85,15 @@ describe("runPlan — L3 adversarial wiring (D-3.1)", () => {
   })
 
   test("L3 dispatches planner.adversarial + intent body has Pre-mortem", async () => {
+    // Seed corpus so T6 preFilter has a candidate → researcher.history spawns
+    // (5-prompt assertion on line 99 requires the spawn to fire).
+    const seedDir = resolve(tmp, "solutions", "_seed")
+    mkdirSync(seedDir, { recursive: true })
+    writeFileSync(
+      resolve(seedDir, "migration.md"),
+      "database migration rename column schema additive.",
+      "utf8",
+    )
     const r = await runPlan("add a database migration to rename column", {
       stateRoot: tmp,
       motivation: LONG_MOTIVATION,

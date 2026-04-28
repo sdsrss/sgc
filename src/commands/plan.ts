@@ -23,7 +23,10 @@ import { plannerEng, type PlannerEngOutput } from "../dispatcher/agents/planner-
 import { plannerCeo, type PlannerCeoOutput } from "../dispatcher/agents/planner-ceo"
 import {
   researcherHistory,
+  preFilterSolutions,
+  coerceLlmOutput,
   type ResearcherHistoryOutput,
+  type ResearcherHistoryInput,
 } from "../dispatcher/agents/researcher-history"
 import {
   plannerAdversarial,
@@ -180,17 +183,46 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
         { intent_draft: taskDescription },
         { stateRoot, inlineStub: (i) => plannerCeo(i as { intent_draft: string }), logger, taskId },
       ),
-      spawn<unknown, ResearcherHistoryOutput>(
-        "researcher.history",
-        { intent_draft: taskDescription },
-        {
-          stateRoot,
-          inlineStub: (i) =>
-            researcherHistory(i as { intent_draft: string }, { stateRoot }),
-          logger,
-          taskId,
-        },
-      ),
+      (async (): Promise<{ output: ResearcherHistoryOutput }> => {
+        const candidates = preFilterSolutions(taskDescription, stateRoot ?? ".sgc")
+        if (candidates.length === 0) {
+          return {
+            output: {
+              prior_art: [],
+              warnings: ["no candidates from pre-filter"],
+            },
+          }
+        }
+        try {
+          const r = await spawn<unknown, unknown>(
+            "researcher.history",
+            { intent_draft: taskDescription, candidates },
+            {
+              stateRoot,
+              inlineStub: (i) =>
+                researcherHistory(
+                  i as ResearcherHistoryInput,
+                  { stateRoot },
+                ),
+              logger,
+              taskId,
+            },
+          )
+          // Heuristic mode (inlineStub) returns the legacy shape — coerce passes
+          // it through (Guard 4 only enforces non-empty *when present*, not
+          // "must exist"); LLM mode returns the new shape with relevance_reason.
+          return { output: coerceLlmOutput(r.output, candidates) }
+        } catch (err) {
+          return {
+            output: {
+              prior_art: [],
+              warnings: [
+                `researcher.history failed: ${err instanceof Error ? err.name : "unknown"}`,
+              ],
+            },
+          }
+        }
+      })(),
     ]
     if (level === "L3") {
       tasks.push(
@@ -337,10 +369,12 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
             (researcherOut.prior_art.length === 0
               ? `_No prior art found._\n\n`
               : researcherOut.prior_art
-                  .map(
-                    (p) =>
-                      `- **${p.solution_ref ?? p.source}** (score ${p.relevance_score.toFixed(2)}): ${p.excerpt}`,
-                  )
+                  .map((p) => {
+                    const head = `- **${p.solution_ref ?? p.source}** (score ${p.relevance_score.toFixed(2)}): ${p.excerpt}`
+                    return p.relevance_reason
+                      ? `${head}\n  Reason: ${p.relevance_reason}`
+                      : head
+                  })
                   .join("\n") + "\n\n") +
             (researcherOut.warnings.length
               ? `### Research warnings\n\n${researcherOut.warnings.map((w) => `- ${w}`).join("\n")}\n\n`

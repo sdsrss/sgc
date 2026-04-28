@@ -104,19 +104,22 @@ describe("researcherHistory — unit", () => {
     expect(r.warnings.some((w) => /no relevant/.test(w))).toBe(true)
   })
 
-  test("R1: Chinese intent produces non-empty token set (NFC + Intl.Segmenter)", () => {
+  test("R1: Chinese intent matches Chinese-only solution (NFC + Intl.Segmenter)", () => {
     seedSolution(
       tmp,
       "runtime",
-      "spawn-timeout-retry",
-      "---\nintent: 给 dispatcher 加超时重试\n---\n\n修复 spawn() 在超时后不重试导致幽灵任务的问题。",
+      "调度器-超时-重试",
+      "---\nintent: 调度器超时重试机制\n---\n\n修复调度器在超时后不重试导致幽灵任务的问题；增加退避算法。",
     )
     const r = researcherHistory(
-      { intent_draft: "给 dispatcher 的 spawn() 增加重试超时的结构化日志" },
+      { intent_draft: "给调度器增加超时重试和结构化日志" },
       { stateRoot: tmp },
     )
+    // Old extractKeywords: split(/[^a-z0-9]+/) on lowercased CJK input
+    // produces only empty strings → keywords=[] → 0 hits → empty prior_art.
+    // New tokenize: Intl.Segmenter yields CJK words → match → prior_art.
     expect(r.prior_art.length).toBeGreaterThan(0)
-    expect(r.prior_art[0]?.solution_ref).toBe("runtime/spawn-timeout-retry")
+    expect(r.prior_art[0]?.solution_ref).toBe("runtime/调度器-超时-重试")
   })
 
   test("R2: extractKeywords returns non-empty for mixed CN/EN intent", () => {

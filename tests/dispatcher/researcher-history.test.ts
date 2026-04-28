@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
-import { researcherHistory } from "../../src/dispatcher/agents/researcher-history"
+import { researcherHistory, researcherHistoryHeuristic } from "../../src/dispatcher/agents/researcher-history"
+import { preFilterSolutions } from "../../src/dispatcher/agents/researcher-history"
 import { runPlan } from "../../src/commands/plan"
 import { readIntent } from "../../src/dispatcher/state"
 
@@ -153,8 +154,7 @@ describe("researcherHistory — unit", () => {
   })
 
   test("R4: researcherHistory alias === researcherHistoryHeuristic (G.2 pattern)", () => {
-    const mod = require("../../src/dispatcher/agents/researcher-history")
-    expect(mod.researcherHistory).toBe(mod.researcherHistoryHeuristic)
+    expect(researcherHistory).toBe(researcherHistoryHeuristic)
   })
 })
 
@@ -218,5 +218,67 @@ describe("runPlan — researcher.history wiring (D-2.2)", () => {
     expect(r.level).toBe("L3")
     const intent = readIntent(r.taskId, tmp)
     expect(intent.body ?? "").toContain("Prior art (researcher.history)")
+  })
+})
+
+describe("preFilterSolutions — pre-filter helper (Phase H T2)", () => {
+  let tmp: string
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), "sgc-pre-filter-"))
+  })
+  afterEach(() => {
+    rmSync(tmp, { recursive: true, force: true })
+  })
+
+  test("P1: returns PriorArtCandidate[] with solution_ref / category / excerpt / keyword_hits", () => {
+    seedSolution(
+      tmp,
+      "auth",
+      "oauth-token-refresh",
+      "---\nintent: Fixed silent token refresh failure\n---\n\nWhen the upstream returns 401, retry with backoff instead of swallowing the error.",
+    )
+    const cands = preFilterSolutions(
+      "add token refresh retry to OAuth client",
+      tmp,
+    )
+    expect(cands.length).toBe(1)
+    // Read fields before toMatchObject to avoid Bun matcher-replacement quirk
+    const keywordHits = cands[0]?.keyword_hits
+    const excerptLen = cands[0]?.excerpt.length ?? 0
+    expect(cands[0]).toMatchObject({
+      solution_ref: "auth/oauth-token-refresh",
+      category: "auth",
+    })
+    expect(typeof keywordHits).toBe("number")
+    expect(keywordHits).toBeGreaterThan(0)
+    expect(excerptLen).toBeGreaterThan(0)
+    expect(excerptLen).toBeLessThanOrEqual(500)
+  })
+
+  test("P2: corpus > 20 → top-20 by keyword_hits descending", () => {
+    for (let i = 0; i < 25; i++) {
+      seedSolution(
+        tmp,
+        "perf",
+        `entry-${i}`,
+        `---\nintent: optimization ${i}\n---\n\nperformance tuning ${"keyword ".repeat(i % 5)}`,
+      )
+    }
+    const cands = preFilterSolutions("optimize performance keyword tuning", tmp)
+    expect(cands.length).toBe(20)
+    for (let i = 0; i + 1 < cands.length; i++) {
+      expect(cands[i]!.keyword_hits).toBeGreaterThanOrEqual(cands[i + 1]!.keyword_hits)
+    }
+  })
+
+  test("P3: missing solutions/ dir → empty array, no throw", () => {
+    const cands = preFilterSolutions("anything", tmp)
+    expect(cands).toEqual([])
+  })
+
+  test("P4: corpus exists but no keyword overlap → empty array", () => {
+    seedSolution(tmp, "ui", "css-grid", "---\nintent: layout\n---\n\nfix grid.")
+    const cands = preFilterSolutions("rename CLI flag from --foo to --bar", tmp)
+    expect(cands).toEqual([])
   })
 })

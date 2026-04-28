@@ -40,6 +40,11 @@ const SCENARIOS = [
     lang: "en",
     intent: "add rate limiting middleware to public API endpoints",
     expectEmpty: false,
+    // Loose ref match: rate-limiting + retry-on-401-with-backoff are both
+    // transferable patterns for this intent. Either fixture is a valid
+    // pick; per spec §7 open question 2, fixture/regex calibration is
+    // empirical, not a contract. Tighten to /api-throttle/ if real-LLM
+    // runs show oauth-token bias and we want to force the rate-limit pick.
     expectRefSubstring: /api-throttle|oauth-token/,
     expectReasonHas: /(rate|throttle|backoff|retry)/i,
   },
@@ -140,10 +145,14 @@ describe("researcher.history LLM eval (CI-skip)", () => {
               (p) => p.relevance_reason && s.expectReasonHas!.test(p.relevance_reason),
             )
             expect(reasonMatch).toBe(true)
-            // All reasons ≤ 30 words
+            // All reasons ≤ 30 words (CJK-aware count via Intl.Segmenter;
+            // matches repo convention from commit 3bd926b — naive split(/\s+/)
+            // miscounts CJK runs as 1 word and silently bypasses the cap).
             for (const p of out.prior_art) {
               if (!p.relevance_reason) continue
-              const wordCount = p.relevance_reason.trim().split(/\s+/).length
+              const segmenter = new Intl.Segmenter(undefined, { granularity: "word" })
+              const wordCount = Array.from(segmenter.segment(p.relevance_reason))
+                .filter((s) => s.isWordLike).length
               expect(wordCount).toBeLessThanOrEqual(30)
             }
             // All scores in [0.3, 1.0] (coerce already enforces; redundant safety)

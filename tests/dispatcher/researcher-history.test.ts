@@ -10,6 +10,7 @@ import {
   type PriorArtCandidate,
 } from "../../src/dispatcher/agents/researcher-history"
 import { OutputShapeMismatch } from "../../src/dispatcher/validation"
+import { spawn } from "../../src/dispatcher/spawn"
 import { runPlan } from "../../src/commands/plan"
 import { readIntent } from "../../src/dispatcher/state"
 
@@ -521,8 +522,6 @@ describe("researcher.history manifest (Phase H T5)", () => {
   })
 })
 
-import { spawn as spawnAgent } from "../../src/dispatcher/spawn"
-
 describe("researcher.history — LLM mock branch (Phase H T7)", () => {
   let tmp: string
   beforeEach(() => {
@@ -574,7 +573,7 @@ describe("researcher.history — LLM mock branch (Phase H T7)", () => {
       "warnings: []",
       "```",
     ].join("\n")
-    const r = await spawnAgent(
+    const r = await spawn(
       "researcher.history",
       { intent_draft: "add token refresh retry to OAuth", candidates: cands },
       {
@@ -603,7 +602,7 @@ describe("researcher.history — LLM mock branch (Phase H T7)", () => {
       "warnings: []",
       "```",
     ].join("\n")
-    const r = await spawnAgent(
+    const r = await spawn(
       "researcher.history",
       { intent_draft: "add token refresh retry", candidates: cands },
       {
@@ -627,7 +626,7 @@ describe("researcher.history — LLM mock branch (Phase H T7)", () => {
       "warnings: []",
       "```",
     ].join("\n")
-    const r = await spawnAgent(
+    const r = await spawn(
       "researcher.history",
       { intent_draft: "add token refresh retry", candidates: cands },
       {
@@ -651,7 +650,7 @@ describe("researcher.history — LLM mock branch (Phase H T7)", () => {
       "warnings: []",
       "```",
     ].join("\n")
-    const r = await spawnAgent(
+    const r = await spawn(
       "researcher.history",
       { intent_draft: "add token refresh retry", candidates: cands },
       {
@@ -679,7 +678,7 @@ describe("researcher.history — LLM mock branch (Phase H T7)", () => {
       "warnings: []",
       "```",
     ].join("\n")
-    const r = await spawnAgent(
+    const r = await spawn(
       "researcher.history",
       { intent_draft: "add token refresh retry", candidates: cands },
       {
@@ -692,55 +691,5 @@ describe("researcher.history — LLM mock branch (Phase H T7)", () => {
     const out = coerceLlmOutput(r.output, cands)
     expect(out.prior_art.length).toBe(5)
     expect(out.prior_art[0]?.relevance_reason).toBe("entry 0")
-  })
-
-  test("L6: pre-filter zero candidates → spawn never called (mock messages.create count = 0)", async () => {
-    // Build a fresh tmp with NO seeded solutions.
-    const empty = mkdtempSync(join(tmpdir(), "sgc-research-llm-empty-"))
-    let createCallCount = 0
-    const _mockClient = {
-      messages: {
-        create: async () => {
-          createCallCount++
-          return {
-            id: "noop", content: [{ type: "text", text: "" }],
-            role: "assistant", model: "x", stop_reason: "end_turn",
-            stop_sequence: null, type: "message",
-            usage: { input_tokens: 0, output_tokens: 0,
-                     cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
-          }
-        },
-      },
-    }
-    try {
-      const cands = preFilterSolutions("anything", empty)
-      expect(cands).toEqual([])
-      // Caller (plan.ts) short-circuits when cands is empty — we don't even
-      // call spawn. Asserting createCallCount=0 here proves the mock path
-      // would have been hit if we had called it.
-      expect(createCallCount).toBe(0)
-    } finally {
-      rmSync(empty, { recursive: true, force: true })
-    }
-  })
-
-  test("L7: spawn throw → caller wraps degrades to empty prior_art (logical proof)", () => {
-    // The plan.ts catch block (T6) reads:
-    //   catch (err) { return { output: { prior_art: [], warnings: [
-    //     `researcher.history failed: ${err instanceof Error ? err.name : "unknown"}`,
-    //   ] } } }
-    // Replicate that contract here as a logical assertion — the wiring is
-    // self-evident from plan.ts:186-225 inspection; full integration is
-    // covered by the eval suite e1-e4 (T8).
-    const fakeError = new Error("anthropic 429")
-    fakeError.name = "AnthropicSdkError"
-    const out = {
-      prior_art: [],
-      warnings: [
-        `researcher.history failed: ${fakeError instanceof Error ? fakeError.name : "unknown"}`,
-      ],
-    }
-    expect(out.prior_art).toEqual([])
-    expect(out.warnings[0]).toContain("AnthropicSdkError")
   })
 })

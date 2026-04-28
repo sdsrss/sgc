@@ -23,6 +23,7 @@ export interface PriorArt {
   relevance_score: number
   excerpt: string
   solution_ref?: string
+  relevance_reason?: string  // LLM mode required, heuristic omits
 }
 
 export interface ResearcherHistoryOutput {
@@ -210,3 +211,105 @@ export function researcherHistoryHeuristic(
 // pattern). plan.ts inlineStub still imports `researcherHistory`; tests using
 // the legacy name continue to work.
 export const researcherHistory = researcherHistoryHeuristic
+
+import { OutputShapeMismatch } from "../validation"
+
+/**
+ * Post-spawn validation + coercion for LLM-mode researcher.history output.
+ *
+ * Lives here (not in validation.ts) because validation.ts is manifest-driven
+ * and only handles enum[...] / array[<simple>] per the comment at
+ * validation.ts:55-63 — composite array[{...}] inner shape is deferred to
+ * per-agent code. Mirrors how planner.eng + compound.context handle their
+ * nested shapes via prompt + post-spawn convention.
+ *
+ * 5 guards:
+ *   1. prior_art is array
+ *   2. each entry's solution_ref ∈ candidates set
+ *   3. relevance_score ∈ [0.3, 1.0]
+ *   4. relevance_reason non-empty string
+ *   5. truncate prior_art > 5 to first 5 (tolerant)
+ *
+ * Back-fills `excerpt` and `source` from the candidates map so the LLM
+ * doesn't have to re-emit ~500-char strings (saves output tokens; defense
+ * against the LLM mangling the excerpt).
+ */
+export function coerceLlmOutput(
+  raw: unknown,
+  candidates: PriorArtCandidate[],
+): ResearcherHistoryOutput {
+  if (typeof raw !== "object" || raw === null) {
+    throw new OutputShapeMismatch(
+      "researcher.history",
+      ["prior_art"],
+      "researcher.history output not an object",
+    )
+  }
+  const obj = raw as Record<string, unknown>
+  // Guard 1: prior_art is array
+  if (!Array.isArray(obj.prior_art)) {
+    throw new OutputShapeMismatch(
+      "researcher.history",
+      ["prior_art"],
+      `researcher.history.prior_art expected array, got ${typeof obj.prior_art}`,
+    )
+  }
+  const refSet = new Set(candidates.map((c) => c.solution_ref))
+  const candByRef = new Map(candidates.map((c) => [c.solution_ref, c]))
+
+  // Guard 5: truncate > 5 (tolerant)
+  const entries = obj.prior_art.slice(0, 5)
+  const out_prior_art: PriorArt[] = []
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i]
+    if (typeof e !== "object" || e === null) {
+      throw new OutputShapeMismatch(
+        "researcher.history",
+        [`prior_art[${i}]`],
+        `prior_art[${i}] not an object`,
+      )
+    }
+    const entry = e as Record<string, unknown>
+    const ref = entry.solution_ref
+    // Guard 2: ref must exist in input candidates
+    if (typeof ref !== "string" || !refSet.has(ref)) {
+      throw new OutputShapeMismatch(
+        "researcher.history",
+        [`prior_art[${i}].solution_ref`],
+        `prior_art[${i}].solution_ref ${JSON.stringify(ref)} not in input candidates`,
+      )
+    }
+    // Guard 3: relevance_score ∈ [0.3, 1.0]
+    const score = entry.relevance_score
+    if (typeof score !== "number" || score < 0.3 || score > 1.0) {
+      throw new OutputShapeMismatch(
+        "researcher.history",
+        [`prior_art[${i}].relevance_score`],
+        `prior_art[${i}].relevance_score must be number in [0.3, 1.0], got ${JSON.stringify(score)}`,
+      )
+    }
+    // Guard 4: relevance_reason non-empty
+    const reason = entry.relevance_reason
+    if (typeof reason !== "string" || reason.trim().length === 0) {
+      throw new OutputShapeMismatch(
+        "researcher.history",
+        [`prior_art[${i}].relevance_reason`],
+        `prior_art[${i}].relevance_reason must be non-empty string`,
+      )
+    }
+    const cand = candByRef.get(ref)!
+    out_prior_art.push({
+      source: "solutions",
+      solution_ref: ref,
+      relevance_score: score,
+      relevance_reason: reason.trim(),
+      excerpt: cand.excerpt,  // back-fill from candidates
+    })
+  }
+
+  const warnings = Array.isArray(obj.warnings)
+    ? (obj.warnings.filter((w) => typeof w === "string") as string[])
+    : []
+
+  return { prior_art: out_prior_art, warnings }
+}

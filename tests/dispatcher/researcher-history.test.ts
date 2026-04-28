@@ -2,8 +2,14 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
-import { researcherHistory, researcherHistoryHeuristic } from "../../src/dispatcher/agents/researcher-history"
-import { preFilterSolutions } from "../../src/dispatcher/agents/researcher-history"
+import {
+  researcherHistory,
+  researcherHistoryHeuristic,
+  preFilterSolutions,
+  coerceLlmOutput,
+  type PriorArtCandidate,
+} from "../../src/dispatcher/agents/researcher-history"
+import { OutputShapeMismatch } from "../../src/dispatcher/validation"
 import { runPlan } from "../../src/commands/plan"
 import { readIntent } from "../../src/dispatcher/state"
 
@@ -280,5 +286,130 @@ describe("preFilterSolutions — pre-filter helper (Phase H T2)", () => {
     seedSolution(tmp, "ui", "css-grid", "---\nintent: layout\n---\n\nfix grid.")
     const cands = preFilterSolutions("rename CLI flag from --foo to --bar", tmp)
     expect(cands).toEqual([])
+  })
+})
+
+describe("coerceLlmOutput — 5 guards (Phase H T3)", () => {
+  const cands: PriorArtCandidate[] = [
+    {
+      solution_ref: "auth/oauth-token-refresh",
+      category: "auth",
+      excerpt: "Fixed silent token refresh failure on 401 by adding retry.",
+      keyword_hits: 3,
+    },
+    {
+      solution_ref: "runtime/spawn-timeout-retry",
+      category: "runtime",
+      excerpt: "Added retry-with-backoff to spawn() on timeout.",
+      keyword_hits: 2,
+    },
+  ]
+
+  test("C1: happy path — valid LLM output coerced to ResearcherHistoryOutput", () => {
+    const raw = {
+      prior_art: [
+        {
+          solution_ref: "auth/oauth-token-refresh",
+          relevance_score: 0.85,
+          relevance_reason: "Same retry-with-backoff pattern transferable to rate-limit middleware on 429.",
+        },
+      ],
+      warnings: [],
+    }
+    const out = coerceLlmOutput(raw, cands)
+    expect(out.prior_art.length).toBe(1)
+    expect(out.prior_art[0]?.solution_ref).toBe("auth/oauth-token-refresh")
+    expect(out.prior_art[0]?.relevance_score).toBe(0.85)
+    expect(out.prior_art[0]?.relevance_reason).toContain("retry-with-backoff")
+    // Excerpt back-filled from candidates map (LLM didn't emit it)
+    expect(out.prior_art[0]?.excerpt).toBe(cands[0]!.excerpt)
+    expect(out.prior_art[0]?.source).toBe("solutions")
+    expect(out.warnings).toEqual([])
+  })
+
+  test("C2: invented solution_ref → OutputShapeMismatch (Guard 2)", () => {
+    const raw = {
+      prior_art: [
+        {
+          solution_ref: "ghost/never-existed",
+          relevance_score: 0.8,
+          relevance_reason: "fabricated reference",
+        },
+      ],
+      warnings: [],
+    }
+    expect(() => coerceLlmOutput(raw, cands)).toThrow(OutputShapeMismatch)
+  })
+
+  test("C3a: relevance_score above 1.0 → OutputShapeMismatch (Guard 3)", () => {
+    const raw = {
+      prior_art: [
+        {
+          solution_ref: "auth/oauth-token-refresh",
+          relevance_score: 1.5,
+          relevance_reason: "ok",
+        },
+      ],
+      warnings: [],
+    }
+    expect(() => coerceLlmOutput(raw, cands)).toThrow(OutputShapeMismatch)
+  })
+
+  test("C3b: relevance_score below 0.3 → OutputShapeMismatch (Guard 3 floor)", () => {
+    const raw = {
+      prior_art: [
+        {
+          solution_ref: "auth/oauth-token-refresh",
+          relevance_score: 0.25,
+          relevance_reason: "low overlap",
+        },
+      ],
+      warnings: [],
+    }
+    expect(() => coerceLlmOutput(raw, cands)).toThrow(OutputShapeMismatch)
+  })
+
+  test("C4: empty relevance_reason → OutputShapeMismatch (Guard 4)", () => {
+    const raw = {
+      prior_art: [
+        {
+          solution_ref: "auth/oauth-token-refresh",
+          relevance_score: 0.7,
+          relevance_reason: "",
+        },
+      ],
+      warnings: [],
+    }
+    expect(() => coerceLlmOutput(raw, cands)).toThrow(OutputShapeMismatch)
+  })
+
+  test("C5: 6 entries → silent truncate to first 5 (Guard 5 tolerant)", () => {
+    const raw = {
+      prior_art: Array.from({ length: 6 }, (_, i) => ({
+        solution_ref: i % 2 === 0 ? "auth/oauth-token-refresh" : "runtime/spawn-timeout-retry",
+        relevance_score: 0.5 + i * 0.05,
+        relevance_reason: `entry ${i}`,
+      })),
+      warnings: [],
+    }
+    const out = coerceLlmOutput(raw, cands)
+    expect(out.prior_art.length).toBe(5)
+    expect(out.prior_art[0]?.relevance_reason).toBe("entry 0")
+    expect(out.prior_art[4]?.relevance_reason).toBe("entry 4")
+  })
+
+  test("C6: prior_art not array → OutputShapeMismatch (Guard 1)", () => {
+    const raw = { prior_art: "string instead of array", warnings: [] }
+    expect(() => coerceLlmOutput(raw, cands)).toThrow(OutputShapeMismatch)
+  })
+
+  test("C7: empty prior_art array is valid + passes through warnings", () => {
+    const raw = {
+      prior_art: [],
+      warnings: ["no candidate cleared 0.3 relevance floor"],
+    }
+    const out = coerceLlmOutput(raw, cands)
+    expect(out.prior_art).toEqual([])
+    expect(out.warnings).toEqual(["no candidate cleared 0.3 relevance floor"])
   })
 })

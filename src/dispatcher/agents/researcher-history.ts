@@ -11,6 +11,7 @@
 
 import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { resolve } from "node:path"
+import { tokenize } from "../dedup"
 
 export interface ResearcherHistoryInput {
   intent_draft: string
@@ -32,21 +33,11 @@ export interface ResearcherHistoryOptions {
   stateRoot?: string
 }
 
-const STOPWORDS = new Set([
-  "the", "a", "an", "is", "of", "in", "to", "for", "and", "or", "on", "with",
-  "this", "that", "we", "as", "by", "at", "from", "be", "it", "are", "have",
-  "was", "not", "has", "but", "they", "you", "our", "its", "can", "will",
-])
-
 function extractKeywords(text: string): string[] {
-  return Array.from(
-    new Set(
-      text
-        .toLowerCase()
-        .split(/[^a-z0-9]+/)
-        .filter((w) => w.length > 3 && !STOPWORDS.has(w)),
-    ),
-  )
+  // Reuse dedup.ts tokenize: NFC + Intl.Segmenter (ICU word-granularity,
+  // script-aware length floor — ASCII ≥3, non-ASCII ≥2). Single source of
+  // truth for tokenization across dedup.ts and researcher-history.ts.
+  return Array.from(tokenize(text))
 }
 
 function scoreRelevance(hitCount: number, keywordCount: number): number {
@@ -107,7 +98,7 @@ function mineSolutions(stateRoot: string, keywords: string[]): PriorArt[] {
   return results.slice(0, 5)
 }
 
-export function researcherHistory(
+export function researcherHistoryHeuristic(
   input: ResearcherHistoryInput,
   opts: ResearcherHistoryOptions = {},
 ): ResearcherHistoryOutput {
@@ -133,3 +124,8 @@ export function researcherHistory(
 
   return { prior_art, warnings }
 }
+
+// Backwards-compat alias for callers that pre-date the LLM swap (Phase F/G.2
+// pattern). plan.ts inlineStub still imports `researcherHistory`; tests using
+// the legacy name continue to work.
+export const researcherHistory = researcherHistoryHeuristic

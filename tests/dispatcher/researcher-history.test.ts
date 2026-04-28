@@ -103,6 +103,56 @@ describe("researcherHistory — unit", () => {
     expect(r.prior_art).toEqual([])
     expect(r.warnings.some((w) => /no relevant/.test(w))).toBe(true)
   })
+
+  test("R1: Chinese intent produces non-empty token set (NFC + Intl.Segmenter)", () => {
+    seedSolution(
+      tmp,
+      "runtime",
+      "spawn-timeout-retry",
+      "---\nintent: 给 dispatcher 加超时重试\n---\n\n修复 spawn() 在超时后不重试导致幽灵任务的问题。",
+    )
+    const r = researcherHistory(
+      { intent_draft: "给 dispatcher 的 spawn() 增加重试超时的结构化日志" },
+      { stateRoot: tmp },
+    )
+    expect(r.prior_art.length).toBeGreaterThan(0)
+    expect(r.prior_art[0]?.solution_ref).toBe("runtime/spawn-timeout-retry")
+  })
+
+  test("R2: extractKeywords returns non-empty for mixed CN/EN intent", () => {
+    seedSolution(
+      tmp,
+      "infra",
+      "proxy-bun-vs-npm",
+      "---\nintent: HTTP_PROXY env handling\n---\n\nbun client bypasses HTTP_PROXY env even when set; npm respects it.",
+    )
+    const r = researcherHistory(
+      { intent_draft: "fix HTTP_PROXY 环境变量在 bun 下被忽略" },
+      { stateRoot: tmp },
+    )
+    expect(r.prior_art.length).toBeGreaterThan(0)
+    expect(r.prior_art[0]?.solution_ref).toBe("infra/proxy-bun-vs-npm")
+  })
+
+  test("R3: heuristic output omits relevance_reason field (LLM-only field)", () => {
+    seedSolution(
+      tmp,
+      "runtime",
+      "x",
+      "---\nid: x\n---\n\nFixed markdown table rendering bug.",
+    )
+    const r = researcherHistory(
+      { intent_draft: "add markdown table to docs page" },
+      { stateRoot: tmp },
+    )
+    expect(r.prior_art.length).toBeGreaterThan(0)
+    expect(r.prior_art[0]?.relevance_reason).toBeUndefined()
+  })
+
+  test("R4: researcherHistory alias === researcherHistoryHeuristic (G.2 pattern)", () => {
+    const mod = require("../../src/dispatcher/agents/researcher-history")
+    expect(mod.researcherHistory).toBe(mod.researcherHistoryHeuristic)
+  })
 })
 
 describe("runPlan — researcher.history wiring (D-2.2)", () => {

@@ -1,6 +1,6 @@
 ---
 status: draft
-revision: 1
+revision: 2
 date: 2026-04-28
 phase: H
 depends_on: G (G.1 events.ndjson, G.2.a/b LLM swap pattern, G-pre-hotfix Unicode dedup)
@@ -70,25 +70,26 @@ sgc plan (L2/L3)
 
 | File | Change | LOC est. |
 |---|---|---|
-| `src/dispatcher/types.ts` | add `PriorArtCandidate`; widen `PriorArt` with optional `relevance_reason` | +15 |
-| `src/dispatcher/agents/researcher-history.ts` | rename heuristic + alias; reuse `dedup.ts:tokenize`; widen output type | ~80 changed |
-| `src/dispatcher/validation.ts` | add `validateResearcherHistoryOutput` with 5 guards | +50 |
-| `src/commands/plan.ts` | extract `preFilterSolutions()`; switch direct call → `spawn()`; render `relevance_reason` line | ~30 changed |
+| `src/dispatcher/agents/researcher-history.ts` | add `PriorArtCandidate` type; widen `PriorArt` with optional `relevance_reason`; rename heuristic + alias; reuse `dedup.ts:tokenize`; export `preFilterSolutions()`; add `coerceLlmOutput()` (5 guards) | ~150 changed |
+| `src/commands/plan.ts:183-193` | call `preFilterSolutions()` before spawn; pass `candidates` in input; wrap spawn in try/catch (failure → empty `prior_art` + warning); render `relevance_reason` line in `## Prior art` body | ~30 changed |
 | `prompts/researcher-history.md` (new) | system: purpose + scope + steps + anti-patterns + reply format. user: `## Input` placeholder | ~120 |
-| `contracts/sgc-capabilities.yaml` | `researcher.history.prompt_path` + `inputs:` | +5 |
+| `contracts/sgc-capabilities.yaml:295-311` | rewrite `researcher.history` block: `prompt_path` + `inputs.candidates` + reformat `outputs` | ~10 changed |
 | `tests/fixtures/solutions/` (new dir) | 6-7 hand-written fixture solutions across 4 categories | new |
-| `tests/dispatcher/researcher-history.test.ts` | preserve existing heuristic asserts; add R1-R3 (Unicode fix) + L1-L7 (LLM mock branch) | ~150 added |
-| `tests/eval/researcher-history-llm.test.ts` (new) | 4 scenarios e1-e4, CI-skip via `test.skipIf(no key)` | ~100 |
+| `tests/dispatcher/researcher-history.test.ts` | preserve existing 5 heuristic asserts; add R1-R3 (Unicode fix) + L1-L7 (LLM mock branch via `anthropicClientFactory`) | ~150 added |
+| `tests/eval/researcher-history-llm.test.ts` (new) | 4 scenarios e1-e4, CI-skip via `test.skipIf(no key)`, inline `BANNED_VOCAB_RE` mirroring G.2.a/b | ~100 |
 | `docs/superpowers/specs/2026-04-28-phase-h-design.md` (this) | the spec | this file |
 
-Total: ~10 files, ~600 LOC including fixtures + tests; source net change ~250 LOC. Single-PR ship — Phase G.2.a/b pattern (~300 LOC each) confirms scale. No sub-phase split.
+Total: ~8 files, ~560 LOC including fixtures + tests; source net change ~190 LOC. Single-PR ship — Phase G.2.a/b pattern (~300 LOC each) confirms scale. No sub-phase split.
+
+**r2 correction notes (2026-04-28)**: r1 erroneously assumed (a) `PriorArt`/`ResearcherHistoryInput` live in `types.ts` — they actually live in `src/dispatcher/agents/researcher-history.ts`; (b) `validation.ts` accepts custom per-agent validators — it's manifest-driven and only handles enum/array-of-simple-type. The 5 guards (ref-in-candidates, score-range, reason-non-empty, prior_art-is-array, truncate-to-5) live as `coerceLlmOutput()` in `researcher-history.ts` and are called from `plan.ts` after `spawn()` returns. `validation.ts` unchanged. (c) `plan.ts` already wraps `researcher.history` in `spawn()` (with `inlineStub` for heuristic mode); the change is small — pre-filter helper call + pass `candidates` in input + try/catch + render. PR file count drops 10 → 8.
 
 ### Architecture decisions (key)
 
-- **Pre-filter lives in `plan.ts`, not inside spawn.** Reasons: (a) zero candidates short-circuits the entire spawn + Invariant §13 paired-event cost; (b) keyword scan is local IO, doesn't belong in an LLM-only agent; (c) explicit `candidates` in `SpawnInput` is mockable in unit tests without filesystem setup.
-- **`candidates` flows as input field, not re-scanned in agent.** Heuristic mode ignores the field and re-scans (backwards-compat for the in-process `researcherHistory(intent)` call shape that older tests assume).
-- **LLM returns only `solution_ref` + score + reason — `excerpt` is back-filled by `plan.ts` from candidate map.** Reasons: (a) prevents LLM from inventing `solution_ref` strings (validation rejects ref-not-in-candidates); (b) saves output tokens (no need to re-emit ~500-char excerpts for 5 entries).
-- **Heuristic fallback trigger is identical to G.2.a/b.** Manifest `prompt_path` set + (`ANTHROPIC_API_KEY` OR `OPENROUTER_API_KEY` in env) → LLM mode. Otherwise heuristic. `SGC_FORCE_INLINE=1` forces heuristic regardless (CI path).
+- **Pre-filter lives in `plan.ts` before `spawn()`.** Reasons: (a) zero candidates short-circuits the entire spawn + Invariant §13 paired-event cost; (b) keyword scan is local IO, doesn't belong in an LLM-only agent; (c) explicit `candidates` in `SpawnInput` is mockable in unit tests without filesystem setup.
+- **`candidates` flows as input field; heuristic mode (`inlineStub`) re-scans corpus.** Backwards-compat for the in-process `researcherHistory(intent)` call shape that older tests assume; LLM-mode reads `candidates` from `## Input` YAML directly.
+- **LLM returns only `solution_ref` + score + reason — `excerpt` is back-filled by `plan.ts` from candidate map.** Reasons: (a) prevents LLM from inventing `solution_ref` strings (`coerceLlmOutput` rejects ref-not-in-candidates); (b) saves output tokens (no need to re-emit ~500-char excerpts for 5 entries).
+- **Custom output guards live in `researcher-history.ts:coerceLlmOutput()`, called from `plan.ts` after `spawn()` returns.** `validation.ts:validateOutputShape` is manifest-driven and only handles `enum[...]` / `array[<simple>]` per the comment at validation.ts:55 — composite `array[{...}]` is deferred to per-agent code. Mirrors how `compound.context` and `planner.eng` rely on prompt-level constraints + post-spawn handling for nested shapes.
+- **Heuristic fallback trigger is identical to G.2.a/b.** Manifest `prompt_path` set + (`ANTHROPIC_API_KEY` OR `OPENROUTER_API_KEY` in env) → LLM mode. Otherwise heuristic via `inlineStub`. `SGC_FORCE_INLINE=1` forces heuristic regardless (CI path).
 - **Empty corpus + heuristic mode keeps current stub behavior** (`prior_art: []` + warning). No regression.
 
 ---
@@ -98,7 +99,9 @@ Total: ~10 files, ~600 LOC including fixtures + tests; source net change ~250 LO
 ### Input contract
 
 ```typescript
-// src/dispatcher/types.ts
+// src/dispatcher/agents/researcher-history.ts
+import type { SolutionCategory } from "../types"
+
 export interface ResearcherHistoryInput {
   intent_draft: string
   candidates?: PriorArtCandidate[]  // NEW; LLM mode requires; heuristic ignores
@@ -106,7 +109,7 @@ export interface ResearcherHistoryInput {
 
 export interface PriorArtCandidate {
   solution_ref: string              // "<category>/<slug>"
-  category: SolutionCategory        // existing enum
+  category: SolutionCategory        // existing enum from types.ts
   excerpt: string                   // ≤ 500 chars (frontmatter intent + body prefix, NFC normalized, whitespace folded)
   keyword_hits: number              // transparent to LLM, advisory only
 }
@@ -115,6 +118,7 @@ export interface PriorArtCandidate {
 ### Output contract (additive)
 
 ```typescript
+// src/dispatcher/agents/researcher-history.ts
 export interface PriorArt {
   source: "solutions" | "git"
   relevance_score: number           // 0-1
@@ -124,7 +128,7 @@ export interface PriorArt {
 }
 ```
 
-`relevance_reason?` optional → `plan.ts` renders `?? "(keyword overlap: " + score + ")"` in heuristic mode for visual continuity. Old tests with no `relevance_reason` field zero-regression.
+`relevance_reason?` optional → `plan.ts` renders inline `Reason: <text>` line when present, omits when absent. Old tests with no `relevance_reason` field zero-regression.
 
 ### LLM output YAML shape (prompt-enforced)
 
@@ -139,9 +143,27 @@ warnings:
   - <optional warning string>
 ```
 
-### `validateResearcherHistoryOutput` — 5 guards
+### `coerceLlmOutput()` — 5 guards in `researcher-history.ts`
 
-Mirrors `validation.ts` pattern from G.2.a/b. On any failure → `OutputShapeMismatch` with the violating field cited:
+Lives in `researcher-history.ts` (NOT `validation.ts` — manifest validator only handles `enum[...]` / `array[<simple>]` per validation.ts:55 comment). Imports `OutputShapeMismatch` from `../validation`. Called from `plan.ts` after `spawn()` returns. On any failure → `OutputShapeMismatch` with the violating field cited:
+
+```typescript
+// researcher-history.ts
+import { OutputShapeMismatch } from "../validation"
+
+export function coerceLlmOutput(
+  raw: unknown,
+  candidates: PriorArtCandidate[],
+): ResearcherHistoryOutput {
+  // Guard 1: prior_art is array
+  // Guard 2: each entry's solution_ref ∈ candidates set
+  // Guard 3: each relevance_score ∈ [0.3, 1.0]
+  // Guard 4: each relevance_reason non-empty
+  // Guard 5: truncate prior_art > 5 to first 5 (tolerant — mirrors G.2.b tag overflow)
+  // back-fill excerpt + source from candidates map
+  // return { prior_art, warnings }
+}
+```
 
 1. `prior_art` is array — else throw.
 2. Each entry's `solution_ref` exists in input candidates set — else throw `"ref X not in input candidates"` (LLM hallucination defense).
@@ -246,23 +268,29 @@ Write only the YAML above. No prose outside the YAML block.
 
 ### Manifest entry
 
+Replaces existing `contracts/sgc-capabilities.yaml:295-311` block. Note `outputs` uses composite `array[{...}]` form per planner.eng convention (validateValueAgainstDecl skips composite per validation.ts:56-63):
+
 ```yaml
-# contracts/sgc-capabilities.yaml — researcher.history block
 researcher.history:
+  version: "0.2"
+  source: CE /ce:plan research spawner (Phase H LLM swap)
+  purpose: Mine solutions/ for prior art, LLM-rerank by semantic relevance
   prompt_path: prompts/researcher-history.md
   inputs:
-    - intent_draft: string
-    - candidates: array[PriorArtCandidate]
+    intent_draft: markdown
+    candidates: array[{solution_ref, category, excerpt, keyword_hits}]
   outputs:
-    - prior_art: array[PriorArt]
-    - warnings: array[string]
+    prior_art: array[{source, relevance_score, excerpt, solution_ref?, relevance_reason?}]
+    warnings: array[string]
   scope_tokens:
-    - read:progress
-    - read:decisions
-    - read:solutions
+    - "read:decisions:*"
+    - "read:solutions"
+    - "exec:git:read"
   token_budget: 1500
   timeout_s: 60
 ```
+
+(Existing `token_budget: 8000` and `timeout_s: 240` from r1 dropped — researcher.history is a quick rerank, not a deep mining pass; rationale per §3 "Token budget".)
 
 ### Heuristic mode behavior
 
@@ -287,7 +315,7 @@ researcher.history:
 | LLM timeout | spawn try/finally | `SpawnTimeout` thrown | timeout |
 | LLM API error (429/500) | anthropic-sdk-agent | `AnthropicSdkError` thrown | error |
 | LLM returns invalid YAML | anthropic-sdk-agent | `OutputShapeMismatch` thrown | schema_violation |
-| LLM invents `solution_ref` | validation guard #2 | `OutputShapeMismatch("ref X not in input candidates")` | schema_violation |
+| LLM invents `solution_ref` | `coerceLlmOutput` guard #2 | `OutputShapeMismatch("ref X not in input candidates")` | schema_violation |
 | `relevance_score` out of range | guard #3 | `OutputShapeMismatch` | schema_violation |
 | `relevance_reason` empty | guard #4 | `OutputShapeMismatch` | schema_violation |
 | `prior_art.length > 5` | guard #5 | silent truncate to 5 | success |
@@ -303,27 +331,57 @@ researcher.history:
 
 ### 5.3 Integration into `plan.ts`
 
-Current shape (`src/commands/plan.ts:184-189`):
+Current shape (`src/commands/plan.ts:183-193` — already in spawn framework with `inlineStub` for heuristic):
 
 ```typescript
-spawnFn: (i) => researcherHistory(i as { intent_draft: string }, { stateRoot }),
+spawn<unknown, ResearcherHistoryOutput>(
+  "researcher.history",
+  { intent_draft: taskDescription },
+  {
+    stateRoot,
+    inlineStub: (i) => researcherHistory(i as { intent_draft: string }, { stateRoot }),
+    logger,
+    taskId,
+  },
+),
 ```
 
-Post-Phase-H:
+Post-Phase-H — pre-filter, pass `candidates`, post-spawn coerce, try/catch fallback:
 
 ```typescript
-const candidates = preFilterSolutions(intent_draft, stateRoot)  // new exported helper
-spawnFn: candidates.length === 0
-  ? () => ({ prior_art: [], warnings: ["no candidates from pre-filter"] })
-  : (i) => spawn("researcher.history",
-                 { ...i, candidates },
-                 { stateRoot, taskId, logger }),
+const candidates = preFilterSolutions(taskDescription, stateRoot)
+let researcherSpawnPromise: Promise<{ output: ResearcherHistoryOutput }>
+if (candidates.length === 0) {
+  researcherSpawnPromise = Promise.resolve({
+    output: { prior_art: [], warnings: ["no candidates from pre-filter"] },
+  })
+} else {
+  researcherSpawnPromise = spawn<unknown, unknown>(
+    "researcher.history",
+    { intent_draft: taskDescription, candidates },
+    {
+      stateRoot,
+      inlineStub: (i) => researcherHistory(i as ResearcherHistoryInput, { stateRoot }),
+      logger,
+      taskId,
+    },
+  ).then((r) => ({ output: coerceLlmOutput(r.output, candidates) }))
+   .catch((err) => ({
+     output: {
+       prior_art: [],
+       warnings: [`researcher.history failed: ${err instanceof Error ? err.name : "unknown"}`],
+     },
+   }))
+}
+tasks.push(researcherSpawnPromise)
 ```
 
 `preFilterSolutions` is a new export from `src/dispatcher/agents/researcher-history.ts` that:
-- imports `tokenize` + `normalizeText` from `src/dispatcher/dedup.ts` directly (single source of ICU truth);
-- scans `.sgc/solutions/<cat>/*.md`;
+- imports `tokenize` from `src/dispatcher/dedup.ts` directly (single source of NFC + Intl.Segmenter truth);
+- scans `<stateRoot>/solutions/<cat>/*.md`;
 - returns `PriorArtCandidate[]` (top-N=20 by hit count, or all if corpus ≤ 20).
+
+`coerceLlmOutput` is heuristic-mode safe — when `inlineStub` runs, `researcherHistory()` returns the legacy shape (no `relevance_reason`); coerce passes it through unchanged (Guard 4 only enforces non-empty when present, not "must exist").
 
 ### 5.4 Test strategy
 
@@ -385,20 +443,18 @@ Assertions (stricter than G.2.a):
 ### 5.5 PR scope (single PR)
 
 ```
-H PR files (10 total):
-  src/dispatcher/types.ts                       (PriorArtCandidate + PriorArt.relevance_reason)
-  src/dispatcher/agents/researcher-history.ts   (heuristic rename + Unicode reuse + output widening + preFilterSolutions export)
-  src/dispatcher/validation.ts                  (validateResearcherHistoryOutput, 5 guards)
-  src/commands/plan.ts                          (preFilter + spawn switch + render reason)
+H PR files (8 total — r2 dropped types.ts + validation.ts):
+  src/dispatcher/agents/researcher-history.ts   (PriorArtCandidate + relevance_reason + heuristic rename + Unicode reuse + preFilterSolutions + coerceLlmOutput)
+  src/commands/plan.ts                          (preFilter + candidates input + post-spawn coerce + try/catch + render reason)
   prompts/researcher-history.md                 (new)
-  contracts/sgc-capabilities.yaml               (researcher.history.prompt_path + inputs:)
+  contracts/sgc-capabilities.yaml               (researcher.history block rewrite)
   tests/fixtures/solutions/<6 .md files>        (new)
   tests/dispatcher/researcher-history.test.ts   (R1-R3 + L1-L7)
   tests/eval/researcher-history-llm.test.ts     (new, CI-skip, e1-e4)
-  docs/superpowers/specs/2026-04-28-phase-h-design.md  (this spec)
+  docs/superpowers/specs/2026-04-28-phase-h-design.md  (r2 spec)
 ```
 
-Estimate: ~600 LOC change including fixtures + tests; source net change ~250 LOC. Phase G.2.a/b (~300 LOC each, single PR) confirmed this scale is reviewable in one pass.
+Estimate: ~560 LOC change including fixtures + tests; source net change ~190 LOC. Phase G.2.a/b (~300 LOC each, single PR) confirmed this scale is reviewable in one pass.
 
 ---
 
@@ -473,12 +529,10 @@ Before merge, the Phase H PR meets:
 - `docs/superpowers/specs/2026-04-28-phase-h-design.md` (this)
 - `docs/experiments/h-e2e.md` (post-ship dogfood evidence)
 
-**Modified files (6)**:
-- `src/dispatcher/types.ts` (PriorArtCandidate + PriorArt.relevance_reason)
-- `src/dispatcher/agents/researcher-history.ts` (heuristic rename + tokenize reuse + preFilterSolutions export)
-- `src/dispatcher/validation.ts` (validateResearcherHistoryOutput)
-- `src/commands/plan.ts` (preFilter + spawn switch + render)
-- `contracts/sgc-capabilities.yaml` (researcher.history manifest)
+**Modified files (4)**:
+- `src/dispatcher/agents/researcher-history.ts` (PriorArtCandidate + relevance_reason + heuristic rename + tokenize reuse + preFilterSolutions + coerceLlmOutput)
+- `src/commands/plan.ts` (preFilter + candidates input + post-spawn coerce + try/catch + render)
+- `contracts/sgc-capabilities.yaml` (researcher.history block rewrite)
 - `tests/dispatcher/researcher-history.test.ts` (R1-R3 + L1-L7)
 
 **Plans next** (generated via sp:writing-plans after this spec is approved):
@@ -489,3 +543,4 @@ Before merge, the Phase H PR meets:
 ## Change log
 
 - 2026-04-28 r1: draft from sp:brainstorming session; user-approved 7 sections (goal/non-goals, architecture, contracts, prompt+cache, errors+tests, locked decisions, open questions).
+- 2026-04-28 r2: pre-plan codebase verification corrections — (a) `PriorArt` / `ResearcherHistoryInput` / `PriorArtCandidate` all live in `src/dispatcher/agents/researcher-history.ts` (NOT `types.ts`); (b) `validation.ts` is manifest-driven (handles `enum[...]` / `array[<simple>]` only); custom guards live in `researcher-history.ts:coerceLlmOutput()`, called from `plan.ts` after `spawn()` returns; (c) `plan.ts` already wraps `researcher.history` in `spawn()` with `inlineStub` for heuristic — change is small (pre-filter helper + `candidates` in input + try/catch + render); (d) PR file count 10 → 8 (drop types.ts + validation.ts); (e) manifest format aligned to existing `array[{...}]` composite-shape convention from planner.eng. No goal/success-criteria changes.

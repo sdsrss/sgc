@@ -13,6 +13,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { resolve } from "node:path"
 import { tokenize } from "../dedup"
 import type { SolutionCategory } from "../types"
+import { OutputShapeMismatch } from "../validation"
 
 export interface ResearcherHistoryInput {
   intent_draft: string
@@ -57,6 +58,9 @@ export function preFilterSolutions(
 ): PriorArtCandidate[] {
   const dir = resolve(stateRoot, "solutions")
   if (!existsSync(dir)) return []
+  // TODO(post-T6): share corpus walk with mineSolutions — both functions
+  // duplicate ~40 lines of category/file/text scaffolding. Extract a
+  // `walkSolutionsCorpus(stateRoot, keywords, project)` private helper.
 
   const keywords = extractKeywords(intentDraft)
   if (keywords.length === 0) return []
@@ -89,7 +93,7 @@ export function preFilterSolutions(
       } catch {
         continue
       }
-      const lower = text.toLowerCase()
+      const lower = text.normalize("NFC").toLowerCase()
       const hits = keywords.filter((k) => lower.includes(k)).length
       if (hits === 0) continue
       // Build excerpt: prefer frontmatter intent + body prefix, cap 500.
@@ -160,7 +164,7 @@ function mineSolutions(stateRoot: string, keywords: string[]): PriorArt[] {
       } catch {
         continue
       }
-      const lower = text.toLowerCase()
+      const lower = text.normalize("NFC").toLowerCase()
       const hits = keywords.filter((k) => lower.includes(k)).length
       if (hits === 0) continue
       const score = scoreRelevance(hits, keywords.length)
@@ -211,8 +215,6 @@ export function researcherHistoryHeuristic(
 // pattern). plan.ts inlineStub still imports `researcherHistory`; tests using
 // the legacy name continue to work.
 export const researcherHistory = researcherHistoryHeuristic
-
-import { OutputShapeMismatch } from "../validation"
 
 /**
  * Post-spawn validation + coercion for LLM-mode researcher.history output.
@@ -279,32 +281,45 @@ export function coerceLlmOutput(
         `prior_art[${i}].solution_ref ${JSON.stringify(ref)} not in input candidates`,
       )
     }
-    // Guard 3: relevance_score ∈ [0.3, 1.0]
+    // Guard 3: relevance_score must be number in [0, 1]; LLM mode (relevance_reason
+    // present) tightens to [0.3, 1.0]. Heuristic mode emits raw hit-rate which
+    // may be below 0.3; still legal.
     const score = entry.relevance_score
-    if (typeof score !== "number" || score < 0.3 || score > 1.0) {
+    const hasReason = entry.relevance_reason !== undefined
+    if (typeof score !== "number" || score < 0 || score > 1.0) {
       throw new OutputShapeMismatch(
         "researcher.history",
         [`prior_art[${i}].relevance_score`],
-        `prior_art[${i}].relevance_score must be number in [0.3, 1.0], got ${JSON.stringify(score)}`,
+        `prior_art[${i}].relevance_score must be number in [0, 1], got ${JSON.stringify(score)}`,
       )
     }
-    // Guard 4: relevance_reason non-empty
+    if (hasReason && score < 0.3) {
+      throw new OutputShapeMismatch(
+        "researcher.history",
+        [`prior_art[${i}].relevance_score`],
+        `prior_art[${i}].relevance_score must be ≥ 0.3 in LLM mode (with relevance_reason), got ${score}`,
+      )
+    }
+    // Guard 4: relevance_reason — when present, must be non-empty.
+    // Heuristic-mode entries omit the field entirely (legal); LLM-mode
+    // entries must populate it (validated below).
     const reason = entry.relevance_reason
-    if (typeof reason !== "string" || reason.trim().length === 0) {
+    if (hasReason && (typeof reason !== "string" || reason.trim().length === 0)) {
       throw new OutputShapeMismatch(
         "researcher.history",
         [`prior_art[${i}].relevance_reason`],
-        `prior_art[${i}].relevance_reason must be non-empty string`,
+        `prior_art[${i}].relevance_reason must be non-empty string when present`,
       )
     }
     const cand = candByRef.get(ref)!
-    out_prior_art.push({
+    const entryOut: PriorArt = {
       source: "solutions",
       solution_ref: ref,
       relevance_score: score,
-      relevance_reason: reason.trim(),
-      excerpt: cand.excerpt,  // back-fill from candidates
-    })
+      excerpt: cand.excerpt,
+    }
+    if (hasReason) entryOut.relevance_reason = (reason as string).trim()
+    out_prior_art.push(entryOut)
   }
 
   const warnings = Array.isArray(obj.warnings)

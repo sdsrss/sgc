@@ -54,6 +54,23 @@ export function agentsInvoked(tmp: string): string[] {
 }
 
 /**
+ * Seed a solution file in the solutions corpus so preFilterSolutions has a
+ * candidate. Required by T6 wiring tests and eval scenarios that assert
+ * researcher.history was invoked (the T6 short-circuit skips spawn when corpus
+ * is empty).
+ */
+export function seedSolution(
+  stateRoot: string,
+  category: string,
+  slug: string,
+  content: string,
+): void {
+  const dir = resolve(stateRoot, "solutions", category)
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(resolve(dir, `${slug}.md`), content, "utf8")
+}
+
+/**
  * Seed a failing code review on disk for a given task. The review is written
  * directly (bypasses appendReview to avoid append-only conflicts in
  * multi-review scenarios). Optionally accepts an override to embed.

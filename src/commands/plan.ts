@@ -184,7 +184,7 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
         { stateRoot, inlineStub: (i) => plannerCeo(i as { intent_draft: string }), logger, taskId },
       ),
       (async (): Promise<{ output: ResearcherHistoryOutput }> => {
-        const candidates = preFilterSolutions(taskDescription, stateRoot ?? ".sgc")
+        const candidates = preFilterSolutions(taskDescription, stateRoot)
         if (candidates.length === 0) {
           return {
             output: {

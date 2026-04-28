@@ -301,6 +301,11 @@ subagents:
       intent_draft: markdown
       candidates: array[{solution_ref, category, excerpt, keyword_hits}]
     outputs:
+      # NOTE: solution_ref omits "?" intentionally — preprocessor.ts:79
+      # quoteOptionalTokens regex double-quotes mid-position optional
+      # tokens (lookahead [\s,\]] matches comma). Trailing "?" before
+      # "}" is safe; runtime presence enforced by coerceLlmOutput
+      # (researcher-history.ts) Guard 2. PriorArt type-def keeps "?".
       prior_art: array[{source, relevance_score, excerpt, solution_ref, relevance_reason?}]
       warnings: array[string]
     scope_tokens:

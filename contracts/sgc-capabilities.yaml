@@ -293,22 +293,22 @@ subagents:
 
   # ---- Researcher (CE lineage) ----
   researcher.history:
-    version: "0.1"
-    source: CE /ce:plan research spawner (re-authored)
-    purpose: Mine git history and solutions/ for prior art
+    version: "0.2"
+    source: CE /ce:plan research spawner (Phase H LLM swap)
+    purpose: Mine solutions/ for prior art, LLM-rerank by semantic relevance
+    prompt_path: prompts/researcher-history.md
     inputs:
       intent_draft: markdown
+      candidates: array[{solution_ref, category, excerpt, keyword_hits}]
     outputs:
-      prior_art:
-        type: array
-        items: [source, relevance_score, excerpt, solution_ref?]
+      prior_art: array[{source, relevance_score, excerpt, solution_ref, relevance_reason?}]
       warnings: array[string]
     scope_tokens:
       - "read:decisions:*"
       - "read:solutions"
       - "exec:git:read"
-    token_budget: 8000
-    timeout_s: 240
+    token_budget: 1500
+    timeout_s: 60
 
   # ---- Reviewers (CE lineage, reduced set) ----
   reviewer.correctness:   &reviewer_base

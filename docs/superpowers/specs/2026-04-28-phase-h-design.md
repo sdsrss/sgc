@@ -1,6 +1,6 @@
 ---
-status: draft
-revision: 2
+status: implemented
+revision: 3
 date: 2026-04-28
 phase: H
 depends_on: G (G.1 events.ndjson, G.2.a/b LLM swap pattern, G-pre-hotfix Unicode dedup)
@@ -544,3 +544,4 @@ Before merge, the Phase H PR meets:
 
 - 2026-04-28 r1: draft from sp:brainstorming session; user-approved 7 sections (goal/non-goals, architecture, contracts, prompt+cache, errors+tests, locked decisions, open questions).
 - 2026-04-28 r2: pre-plan codebase verification corrections — (a) `PriorArt` / `ResearcherHistoryInput` / `PriorArtCandidate` all live in `src/dispatcher/agents/researcher-history.ts` (NOT `types.ts`); (b) `validation.ts` is manifest-driven (handles `enum[...]` / `array[<simple>]` only); custom guards live in `researcher-history.ts:coerceLlmOutput()`, called from `plan.ts` after `spawn()` returns; (c) `plan.ts` already wraps `researcher.history` in `spawn()` with `inlineStub` for heuristic — change is small (pre-filter helper + `candidates` in input + try/catch + render); (d) PR file count 10 → 8 (drop types.ts + validation.ts); (e) manifest format aligned to existing `array[{...}]` composite-shape convention from planner.eng. No goal/success-criteria changes.
+- 2026-04-28 r3: implementation merged via plan `docs/superpowers/plans/2026-04-28-phase-h.md` (T1-T8). 547 → 566 unit tests (+19: R1-R4 + P1-P4 + C1-C7 + T1ab + M1-M2 + W1-W2 + L1-L5) plus 4 new CI-skip eval tests (e1-e4). No spec content changes vs r2; r3 only marks the implementation landing. Dogfood evidence accrues in `docs/experiments/h-e2e.md` during the 2026-04-28 → 2026-05-04 window.

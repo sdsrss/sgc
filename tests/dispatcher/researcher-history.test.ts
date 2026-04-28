@@ -413,3 +413,28 @@ describe("coerceLlmOutput — 5 guards (Phase H T3)", () => {
     expect(out.warnings).toEqual(["no candidate cleared 0.3 relevance floor"])
   })
 })
+
+import { readFileSync } from "node:fs"
+
+describe("prompts/researcher-history.md — template structure (Phase H T4)", () => {
+  test("T1a: required structural markers (Input heading, input_yaml, Anti-patterns)", () => {
+    const tmpl = readFileSync(resolve(process.cwd(), "prompts/researcher-history.md"), "utf8")
+    // splitPrompt regex from anthropic-sdk-agent.ts:79
+    expect(tmpl).toMatch(/(^|\r?\n)##[ \t]+Input[ \t]*\r?\n/)
+    expect(tmpl).toContain("<input_yaml/>")
+    expect(tmpl).toContain("## Anti-patterns")
+    // §13 Delegate boundary — researcher must not bleed into planner / brainstorming
+    expect(tmpl).toMatch(/NOT.*planner\.eng/i)
+    expect(tmpl).toMatch(/NOT.*brainstorming/i)
+  })
+
+  test("T1b: 0.3 floor + ≤30 word constraint named in prompt body", () => {
+    const tmpl = readFileSync(resolve(process.cwd(), "prompts/researcher-history.md"), "utf8")
+    expect(tmpl).toContain("0.3")
+    expect(tmpl).toMatch(/30 words/i)
+    // No padding to 5 — explicit hard rule
+    expect(tmpl).toMatch(/DO NOT pad to 5/i)
+    // Banned-vocab hint — first term from spec banned list
+    expect(tmpl).toMatch(/significantly|robust|comprehensive/)
+  })
+})

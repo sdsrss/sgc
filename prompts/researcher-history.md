@@ -32,10 +32,11 @@ are actually worth reading before they start.
   candidates list.
 - DO NOT reproduce the excerpt — caller has it.
 - DO NOT propose new solutions or rewrite the intent.
-- DO NOT use banned vocabulary in relevance_reason: significantly,
-  robust, comprehensive, presumably, likely, seems, may break,
-  production-ready, more efficient, should work (per spec §10
-  banned-vocab list).
+- DO NOT use banned vocabulary in relevance_reason. Avoid:
+  could potentially, might affect, various concerns, several issues,
+  generally, overall, seems to, production-ready, comprehensive, robust,
+  显著, 大幅, 基本上, 大部分情况, 相当不错 (per spec §10 + cross-checked
+  against planner-eng / compound-context eval BANNED_VOCAB_RE).
 - DO NOT pad to 5 entries if only 2 are actually relevant.
 
 ## Reply format

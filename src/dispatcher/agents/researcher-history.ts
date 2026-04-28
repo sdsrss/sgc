@@ -54,9 +54,13 @@ export interface PriorArtCandidate {
  */
 export function preFilterSolutions(
   intentDraft: string,
-  stateRoot: string,
+  stateRoot?: string,
 ): PriorArtCandidate[] {
-  const dir = resolve(stateRoot, "solutions")
+  // Canonical 3-step state-root fallback (mirrors researcherHistoryHeuristic):
+  // explicit arg → SGC_STATE_ROOT env → ".sgc". Centralizing here prevents
+  // call sites from accidentally bypassing the env var (T6 review C-1).
+  const root = stateRoot ?? process.env["SGC_STATE_ROOT"] ?? ".sgc"
+  const dir = resolve(root, "solutions")
   if (!existsSync(dir)) return []
   // TODO(post-T6): share corpus walk with mineSolutions — both functions
   // duplicate ~40 lines of category/file/text scaffolding. Extract a
@@ -228,8 +232,10 @@ export const researcherHistory = researcherHistoryHeuristic
  * 5 guards:
  *   1. prior_art is array
  *   2. each entry's solution_ref ∈ candidates set
- *   3. relevance_score ∈ [0.3, 1.0]
- *   4. relevance_reason non-empty string
+ *   3. relevance_score ∈ [0, 1] always; tightened to [0.3, 1] when
+ *      relevance_reason present (LLM mode)
+ *   4. relevance_reason — when present, must be non-empty (LLM mode);
+ *      absent is legal (heuristic mode passes through coerce)
  *   5. truncate prior_art > 5 to first 5 (tolerant)
  *
  * Back-fills `excerpt` and `source` from the candidates map so the LLM
@@ -318,7 +324,10 @@ export function coerceLlmOutput(
       relevance_score: score,
       excerpt: cand.excerpt,
     }
-    if (hasReason) entryOut.relevance_reason = (reason as string).trim()
+    // Whitespace-fold: collapse \n / \r / tabs / runs into single spaces so a
+    // misbehaving LLM emitting multi-line reasons can't break markdown list
+    // continuation downstream (T6 review I-2 — defense in depth at boundary).
+    if (hasReason) entryOut.relevance_reason = (reason as string).trim().replace(/\s+/g, " ")
     out_prior_art.push(entryOut)
   }
 

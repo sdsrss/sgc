@@ -12,6 +12,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { resolve } from "node:path"
 import { tokenize } from "../dedup"
+import type { SolutionCategory } from "../types"
 
 export interface ResearcherHistoryInput {
   intent_draft: string
@@ -31,6 +32,86 @@ export interface ResearcherHistoryOutput {
 
 export interface ResearcherHistoryOptions {
   stateRoot?: string
+}
+
+export interface PriorArtCandidate {
+  solution_ref: string         // "<category>/<slug>"
+  category: SolutionCategory   // existing enum from types.ts
+  excerpt: string              // ≤ 500 chars (NFC normalized, whitespace folded)
+  keyword_hits: number         // # keyword overlaps (transparent to LLM)
+}
+
+/**
+ * Pre-filter the solutions corpus by keyword overlap. Returns at most
+ * 20 candidates (or all if corpus ≤ 20). Used by plan.ts before the
+ * spawn("researcher.history") call: zero candidates short-circuits the
+ * spawn entirely; non-zero candidates flow into the LLM as `input.candidates`.
+ *
+ * Reuses dedup.ts:tokenize for NFC + Intl.Segmenter — single source of
+ * tokenization truth across dedup.ts and researcher-history.ts.
+ */
+export function preFilterSolutions(
+  intentDraft: string,
+  stateRoot: string,
+): PriorArtCandidate[] {
+  const dir = resolve(stateRoot, "solutions")
+  if (!existsSync(dir)) return []
+
+  const keywords = extractKeywords(intentDraft)
+  if (keywords.length === 0) return []
+
+  let categories: string[]
+  try {
+    categories = readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+  } catch {
+    return []
+  }
+
+  const candidates: PriorArtCandidate[] = []
+  for (const cat of categories) {
+    const catPath = resolve(dir, cat)
+    let files: string[]
+    try {
+      files = readdirSync(catPath, { withFileTypes: true })
+        .filter((e) => e.isFile() && e.name.endsWith(".md"))
+        .map((e) => e.name)
+    } catch {
+      continue
+    }
+    for (const file of files) {
+      const filePath = resolve(catPath, file)
+      let text: string
+      try {
+        text = readFileSync(filePath, "utf8")
+      } catch {
+        continue
+      }
+      const lower = text.toLowerCase()
+      const hits = keywords.filter((k) => lower.includes(k)).length
+      if (hits === 0) continue
+      // Build excerpt: prefer frontmatter intent + body prefix, cap 500.
+      const afterFence = text.replace(/^---[\s\S]*?---\r?\n?/, "").trimStart()
+      const intentMatch = /^intent:\s*(.+)$/m.exec(text)
+      const intentLine = intentMatch ? `${intentMatch[1]!.trim()}\n` : ""
+      const excerpt = (intentLine + afterFence)
+        .normalize("NFC")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 500)
+      candidates.push({
+        solution_ref: `${cat}/${file.replace(/\.md$/, "")}`,
+        category: cat as SolutionCategory,
+        excerpt,
+        keyword_hits: hits,
+      })
+    }
+  }
+
+  // Top-N=20 by keyword hits (descending). When corpus ≤ 20, all pass.
+  candidates.sort((a, b) => b.keyword_hits - a.keyword_hits)
+  return candidates.slice(0, 20)
 }
 
 function extractKeywords(text: string): string[] {

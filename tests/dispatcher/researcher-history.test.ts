@@ -7,12 +7,14 @@ import {
   researcherHistoryHeuristic,
   preFilterSolutions,
   coerceLlmOutput,
+  handleCoerceFailure,
   type PriorArtCandidate,
 } from "../../src/dispatcher/agents/researcher-history"
 import { OutputShapeMismatch } from "../../src/dispatcher/validation"
 import { spawn } from "../../src/dispatcher/spawn"
 import { runPlan } from "../../src/commands/plan"
 import { readIntent } from "../../src/dispatcher/state"
+import type { EventRecord, Logger } from "../../src/dispatcher/logger"
 
 const LONG_MOTIVATION =
   "We need this change because the existing flow lacks a critical structural element that downstream readers depend on for clarity and discoverability of the underlying behavior contract."
@@ -381,6 +383,40 @@ describe("coerceLlmOutput — 5 guards (Phase H T3)", () => {
     expect(() => coerceLlmOutput(raw, cands)).toThrow(OutputShapeMismatch)
   })
 
+  test("C3c: NaN relevance_score → OutputShapeMismatch (Guard 3 finite check)", () => {
+    // Phase H pre-ship review F-2: bare `score < 0 || score > 1` admitted NaN
+    // (typeof NaN === "number" + NaN-comparisons-are-false). YAML allows
+    // `relevance_score: .nan`; without Number.isFinite the literal "NaN"
+    // would render via .toFixed(2) into intent.md.
+    const raw = {
+      prior_art: [
+        {
+          solution_ref: "auth/oauth-token-refresh",
+          relevance_score: NaN,
+          relevance_reason: "ok",
+        },
+      ],
+      warnings: [],
+    }
+    expect(() => coerceLlmOutput(raw, cands)).toThrow(OutputShapeMismatch)
+  })
+
+  test("C3d: ±Infinity relevance_score → OutputShapeMismatch (Guard 3 finite check)", () => {
+    for (const score of [Infinity, -Infinity]) {
+      const raw = {
+        prior_art: [
+          {
+            solution_ref: "auth/oauth-token-refresh",
+            relevance_score: score,
+            relevance_reason: "ok",
+          },
+        ],
+        warnings: [],
+      }
+      expect(() => coerceLlmOutput(raw, cands)).toThrow(OutputShapeMismatch)
+    }
+  })
+
   test("C4: empty relevance_reason → OutputShapeMismatch (Guard 4)", () => {
     const raw = {
       prior_art: [
@@ -423,6 +459,69 @@ describe("coerceLlmOutput — 5 guards (Phase H T3)", () => {
     const out = coerceLlmOutput(raw, cands)
     expect(out.prior_art).toEqual([])
     expect(out.warnings).toEqual(["no candidate cleared 0.3 relevance floor"])
+  })
+
+  test("C0: raw is null / string / undefined → OutputShapeMismatch (outer-object check)", () => {
+    // Phase H pre-ship review F-7: the outer raw-must-be-object check at the
+    // top of coerceLlmOutput had no negative-path test. C6 covers
+    // `prior_art: "string"` (which exercises Guard 1, not the outer check).
+    for (const raw of [null, "string", undefined, 42]) {
+      expect(() => coerceLlmOutput(raw as unknown, cands)).toThrow(
+        OutputShapeMismatch,
+      )
+    }
+  })
+})
+
+describe("handleCoerceFailure — Tier-2 audit emission (Phase H pre-ship review F-4)", () => {
+  function makeCapturingLogger(): {
+    logger: Logger
+    events: EventRecord[]
+  } {
+    const events: EventRecord[] = []
+    const logger: Logger = {
+      say: () => {},
+      event: (partial) => {
+        events.push({
+          schema_version: 1,
+          ts: new Date().toISOString(),
+          ...partial,
+        } as EventRecord)
+      },
+    }
+    return { logger, events }
+  }
+
+  test("emits researcher.coerce_failed event with error class + message", () => {
+    const { logger, events } = makeCapturingLogger()
+    const err = new OutputShapeMismatch(
+      "researcher.history",
+      ["prior_art[0].solution_ref"],
+      "ref ghost/x not in input candidates",
+    )
+    const out = handleCoerceFailure(err, logger, "task-abc")
+    expect(events.length).toBe(1)
+    const e = events[0]!
+    expect(e.event_type).toBe("researcher.coerce_failed")
+    expect(e.level).toBe("warn")
+    expect(e.task_id).toBe("task-abc")
+    expect(e.agent).toBe("researcher.history")
+    expect(e.payload.error_class).toBe("OutputShapeMismatch")
+    expect(e.payload.error_message).toContain("ghost/x")
+    // Synthetic fallback shape
+    expect(out.prior_art).toEqual([])
+    expect(out.warnings.length).toBe(1)
+    expect(out.warnings[0]).toContain("OutputShapeMismatch")
+    expect(out.warnings[0]).toContain("ghost/x")
+  })
+
+  test("non-Error throwable → unknown class, empty message", () => {
+    const { logger, events } = makeCapturingLogger()
+    const out = handleCoerceFailure("string thrown", logger, null)
+    expect(events[0]?.payload.error_class).toBe("unknown")
+    expect(events[0]?.payload.error_message).toBe("")
+    expect(events[0]?.task_id).toBeNull()
+    expect(out.warnings[0]).toBe("researcher.history failed: unknown")
   })
 })
 

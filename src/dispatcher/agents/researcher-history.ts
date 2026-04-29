@@ -12,6 +12,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { resolve } from "node:path"
 import { tokenize } from "../dedup"
+import type { Logger } from "../logger"
 import type { SolutionCategory } from "../types"
 import { OutputShapeMismatch } from "../validation"
 
@@ -292,11 +293,17 @@ export function coerceLlmOutput(
     // may be below 0.3; still legal.
     const score = entry.relevance_score
     const hasReason = entry.relevance_reason !== undefined
-    if (typeof score !== "number" || score < 0 || score > 1.0) {
+    // !Number.isFinite catches NaN, +Infinity, -Infinity (and non-numbers,
+    // making the typeof check redundant but kept for clearer error message).
+    // Phase H pre-ship review F-2: bare `score < 0 || score > 1` admitted NaN
+    // because typeof NaN === "number" + NaN-comparisons-are-false; YAML
+    // `relevance_score: .nan` from a misbehaving LLM would render literal
+    // "NaN" via .toFixed(2) into intent.md.
+    if (typeof score !== "number" || !Number.isFinite(score) || score < 0 || score > 1.0) {
       throw new OutputShapeMismatch(
         "researcher.history",
         [`prior_art[${i}].relevance_score`],
-        `prior_art[${i}].relevance_score must be number in [0, 1], got ${JSON.stringify(score)}`,
+        `prior_art[${i}].relevance_score must be finite number in [0, 1], got ${typeof score === "number" ? String(score) : JSON.stringify(score)}`,
       )
     }
     if (hasReason && score < 0.3) {
@@ -336,4 +343,40 @@ export function coerceLlmOutput(
     : []
 
   return { prior_art: out_prior_art, warnings }
+}
+
+/**
+ * Failure handler for the researcher.history pipeline (spawn or coerce throw).
+ * Emits a `researcher.coerce_failed` Tier-2 audit event so operators can find
+ * the failure via `sgc tail --agent researcher.history`, then returns the
+ * synthetic empty-prior_art + warning shape that plan.ts substitutes so the
+ * primary plan flow continues.
+ *
+ * Lives here (not inline in plan.ts) because the catch logic is part of the
+ * agent's contract — extracted for unit-test coverage. spec §329 (failure
+ * already audited via Invariant §13 Tier-2) is honored by this emission;
+ * spawn() itself emits llm.response.outcome=success when the LLM call
+ * succeeds, so coerce throws would otherwise be invisible to `sgc tail`.
+ */
+export function handleCoerceFailure(
+  err: unknown,
+  logger: Logger,
+  taskId: string | null,
+): ResearcherHistoryOutput {
+  const errName = err instanceof Error ? err.name : "unknown"
+  const errMsg = err instanceof Error ? err.message : ""
+  logger.event({
+    task_id: taskId,
+    spawn_id: null,
+    agent: "researcher.history",
+    event_type: "researcher.coerce_failed",
+    level: "warn",
+    payload: { error_class: errName, error_message: errMsg },
+  })
+  return {
+    prior_art: [],
+    warnings: [
+      `researcher.history failed: ${errName}${errMsg ? `: ${errMsg}` : ""}`,
+    ],
+  }
 }

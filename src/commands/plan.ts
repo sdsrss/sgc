@@ -25,6 +25,7 @@ import {
   researcherHistory,
   preFilterSolutions,
   coerceLlmOutput,
+  handleCoerceFailure,
   type ResearcherHistoryOutput,
   type ResearcherHistoryInput,
 } from "../dispatcher/agents/researcher-history"
@@ -213,14 +214,9 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
           // "must exist"); LLM mode returns the new shape with relevance_reason.
           return { output: coerceLlmOutput(r.output, candidates) }
         } catch (err) {
-          return {
-            output: {
-              prior_art: [],
-              warnings: [
-                `researcher.history failed: ${err instanceof Error ? err.name : "unknown"}`,
-              ],
-            },
-          }
+          // handleCoerceFailure emits the Tier-2 audit event + returns the
+          // synthetic empty-output shape (Phase H pre-ship review F-4).
+          return { output: handleCoerceFailure(err, logger, taskId) }
         }
       })(),
     ]

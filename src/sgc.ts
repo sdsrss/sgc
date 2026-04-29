@@ -118,10 +118,19 @@ const review = defineCommand({
       required: false,
       description: "Git ref to diff against (default: HEAD)",
     },
+    "append-as": {
+      type: "string",
+      required: false,
+      description:
+        "Follow-up suffix — write reports to <reviewer>.<suffix>.md instead of <reviewer>.md (F-5)",
+    },
   },
   async run({ args }) {
     const { runReview } = await import("./commands/review")
-    await runReview({ base: args.base as string | undefined })
+    await runReview({
+      base: args.base as string | undefined,
+      appendAs: args["append-as"] as string | undefined,
+    })
   },
 })
 

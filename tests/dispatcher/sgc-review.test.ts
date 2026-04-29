@@ -274,3 +274,81 @@ describe("runReview — L3 diff-conditional specialists", () => {
     ).rejects.toThrow(/append-only/)
   })
 })
+
+describe("runReview — F-5 --append-as suffix", () => {
+  async function freshTaskHere() {
+    return runPlan("simple change", {
+      stateRoot: tmp,
+      motivation: LONG_MOTIVATION,
+      log: () => {},
+    })
+  }
+
+  test("with appendAs: writes <reviewer>.<suffix>.md alongside default name", async () => {
+    const plan = await freshTaskHere()
+    // First pass: bare reviewer.correctness.md
+    await runReview({
+      stateRoot: tmp,
+      diffOverride: "+const ok = 1\n",
+      log: () => {},
+    })
+    // Second pass with --append-as v2: writes reviewer.correctness.v2.md
+    await runReview({
+      stateRoot: tmp,
+      diffOverride: "+function f() { /* TODO impl */ }\n",
+      appendAs: "v2",
+      log: () => {},
+    })
+    const dir = resolve(tmp, "reviews", plan.taskId, "code")
+    const files = readdirSync(dir).sort()
+    expect(files).toEqual(["reviewer.correctness.md", "reviewer.correctness.v2.md"])
+    // Each file holds the verdict from its own pass
+    const v1 = readFileSync(resolve(dir, "reviewer.correctness.md"), "utf8")
+    expect(v1).toContain("verdict: pass")
+    const v2 = readFileSync(resolve(dir, "reviewer.correctness.v2.md"), "utf8")
+    expect(v2).toContain("verdict: concern")
+  })
+
+  test("same suffix twice on same task → AppendOnly throws", async () => {
+    await freshTaskHere()
+    await runReview({
+      stateRoot: tmp,
+      diffOverride: "+const ok = 1\n",
+      appendAs: "v2",
+      log: () => {},
+    })
+    await expect(
+      runReview({
+        stateRoot: tmp,
+        diffOverride: "+const also = 1\n",
+        appendAs: "v2",
+        log: () => {},
+      }),
+    ).rejects.toThrow(/append-only/)
+  })
+
+  test("invalid suffix shapes are rejected at write boundary", async () => {
+    await freshTaskHere()
+    for (const bad of ["..", "../etc", "with/slash", "", "-leading-dash", "with space"]) {
+      await expect(
+        runReview({
+          stateRoot: tmp,
+          diffOverride: "+const ok = 1\n",
+          appendAs: bad,
+          log: () => {},
+        }),
+      ).rejects.toThrow(/invalid review suffix/)
+    }
+  })
+
+  test("default (no appendAs) regresses to <reviewer>.md path", async () => {
+    const plan = await freshTaskHere()
+    await runReview({
+      stateRoot: tmp,
+      diffOverride: "+const ok = 1\n",
+      log: () => {},
+    })
+    const stored = readReview(plan.taskId, "code", "reviewer.correctness", tmp)
+    expect(stored?.report.verdict).toBe("pass")
+  })
+})

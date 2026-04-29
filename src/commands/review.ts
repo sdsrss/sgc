@@ -37,6 +37,7 @@ export interface ReviewOptions {
   stateRoot?: string
   base?: string  // git ref to diff against (default: HEAD)
   diffOverride?: string  // bypass git for tests
+  appendAs?: string  // F-5: suffix for follow-up reviewer reports — `<reviewer>.<suffix>.md`
   log?: (msg: string) => void
   logger?: Logger
 }
@@ -141,7 +142,7 @@ export async function runReview(opts: ReviewOptions = {}): Promise<{
     findings: r.output.findings,
     created_at: nowIso(),
   }
-  const reportPath = appendReview(correctnessReport, "", stateRoot)
+  const reportPath = appendReview(correctnessReport, "", stateRoot, opts.appendAs)
 
   log(
     `reviewer.correctness: ${correctnessReport.verdict} (severity: ${correctnessReport.severity}, ${correctnessReport.findings.length} finding(s))`,
@@ -187,7 +188,7 @@ export async function runReview(opts: ReviewOptions = {}): Promise<{
           findings: out.findings,
           created_at: nowIso(),
         }
-        const path = appendReview(report, "", stateRoot)
+        const path = appendReview(report, "", stateRoot, opts.appendAs)
         specialistReports.push({
           reviewerId: s.name,
           verdict: out.verdict,

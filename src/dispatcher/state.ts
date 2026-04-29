@@ -331,25 +331,42 @@ function validateReview(report: ReviewReport): void {
   }
 }
 
+// Append-as suffix: lets a follow-up review pass write `<reviewer>.<suffix>.md`
+// alongside the original `<reviewer>.md` without violating Invariant §6 (each
+// individual file is still write-once). Invalid suffix shapes (path traversal,
+// reserved chars, empty) are rejected at the write boundary so CLI + library
+// callers share the same gate.
+const REVIEW_SUFFIX_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,30}$/
+
 export function reviewPath(
   taskId: TaskId,
   stage: Stage,
   reviewerId: string,
   stateRoot?: string,
+  suffix?: string,
 ): string {
-  return resolve(root(stateRoot), "reviews", taskId, stage, `${reviewerId}.md`)
+  const base = suffix ? `${reviewerId}.${suffix}.md` : `${reviewerId}.md`
+  return resolve(root(stateRoot), "reviews", taskId, stage, base)
 }
 
 export function appendReview(
   report: ReviewReport,
   body = "",
   stateRoot?: string,
+  suffix?: string,
 ): string {
-  const path = reviewPath(report.task_id, report.stage, report.reviewer_id, stateRoot)
+  if (suffix !== undefined && !REVIEW_SUFFIX_RE.test(suffix)) {
+    throw new StateError(
+      "Validation",
+      `invalid review suffix ${JSON.stringify(suffix)} — must match ${REVIEW_SUFFIX_RE.source}`,
+    )
+  }
+  const path = reviewPath(report.task_id, report.stage, report.reviewer_id, stateRoot, suffix)
   if (existsSync(path)) {
+    const ref = suffix ? `${report.reviewer_id}.${suffix}` : report.reviewer_id
     throw new StateError(
       "AppendOnly",
-      `review ${report.reviewer_id} already exists for ${report.task_id}/${report.stage} — append-only per Invariant §6`,
+      `review ${ref} already exists for ${report.task_id}/${report.stage} — append-only per Invariant §6`,
     )
   }
   validateReview(report)

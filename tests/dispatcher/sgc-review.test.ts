@@ -1,11 +1,29 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { mkdtempSync, rmSync } from "node:fs"
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 import { runPlan } from "../../src/commands/plan"
 import { runReview } from "../../src/commands/review"
-import { readReview } from "../../src/dispatcher/state"
+import { readIntent, readReview } from "../../src/dispatcher/state"
 import { reviewerCorrectness } from "../../src/dispatcher/agents/reviewer-correctness"
+
+function seedSolution(
+  stateRoot: string,
+  category: string,
+  slug: string,
+  content: string,
+): void {
+  const dir = resolve(stateRoot, "solutions", category)
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(resolve(dir, `${slug}.md`), content, "utf8")
+}
 
 let tmp: string
 beforeEach(() => {
@@ -120,6 +138,49 @@ describe("runReview — full flow", () => {
         log: () => {},
       }),
     ).resolves.toBeDefined()
+  })
+
+  test("W3: Invariant §1 back-channel — Prior-art section stripped from reviewer spawn input (Phase H pre-ship review)", async () => {
+    // Setup: seed corpus so plan's researcher.history populates Prior art
+    // section in intent.body. Use an L2-eligible task description.
+    seedSolution(
+      tmp,
+      "auth",
+      "oauth-token-refresh",
+      "---\nintent: silent OAuth token refresh on 401\n---\n\nFixed token refresh on 401 by adding retry-with-backoff loop.",
+    )
+    const plan = await runPlan(
+      "add token refresh retry on 401 to the public API client",
+      { stateRoot: tmp, motivation: LONG_MOTIVATION, log: () => {} },
+    )
+    // Sanity: intent.md DOES have the Prior-art section + the leaked ref
+    const intent = readIntent(plan.taskId, tmp)
+    const body = intent.body ?? ""
+    expect(body).toContain("Prior art (researcher.history)")
+    expect(body).toContain("auth/oauth-token-refresh")
+
+    // Run review
+    await runReview({
+      stateRoot: tmp,
+      diffOverride: "+const ok = 1\n",
+      log: () => {},
+    })
+
+    // Inspect the reviewer.correctness prompt audit; assert it does NOT
+    // contain the Prior-art section nor the leaked solution_ref.
+    const promptDir = resolve(tmp, "progress/agent-prompts")
+    const files = readdirSync(promptDir)
+    const reviewerPrompt = files.find((f) => f.includes("reviewer.correctness"))
+    expect(reviewerPrompt).toBeDefined()
+    const promptContent = readFileSync(
+      resolve(promptDir, reviewerPrompt!),
+      "utf8",
+    )
+    expect(promptContent).not.toContain("Prior art (researcher.history)")
+    expect(promptContent).not.toContain("auth/oauth-token-refresh")
+    // But the prior intent.md scaffolding (e.g. the classifier rationale
+    // heading) IS still present — strip is surgical, not nuclear.
+    expect(promptContent).toContain("Classifier rationale")
   })
 })
 

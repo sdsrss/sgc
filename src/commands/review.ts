@@ -65,6 +65,27 @@ function captureDiff(base: string, cwd?: string): string {
   }
 }
 
+// Strip the "## Prior art (researcher.history)" section from intent.body
+// before passing it to reviewer subagents. Invariant §1 (sgc-invariants.md +
+// sgc-capabilities.yaml:142-146 `/review.solutions: []`) requires reviewers
+// to remain amnesiac to past solutions. plan.ts:367-378 embeds up to 5 ×
+// 500-char solution excerpts (back-filled from the candidates map) plus
+// LLM-generated relevance_reason commentary into intent.body — passing that
+// to reviewer.correctness back-channels solutions content past the explicit
+// scope_token denial. Phase H pre-ship review surfaced this leak (red team
+// finding RT-1); the heuristic-mode pre-Phase-H 160-char excerpts already
+// leaked, but the LLM-mode amplification made the gap impossible to ignore.
+function stripPriorArtSection(body: string): string {
+  const headingRe = /^## Prior art \(researcher\.history\)\r?\n/m
+  const m = headingRe.exec(body)
+  if (!m) return body
+  const afterHeading = body.slice(m.index + m[0].length)
+  const nextHeading = /^## /m.exec(afterHeading)
+  const sectionEnd =
+    m.index + m[0].length + (nextHeading?.index ?? afterHeading.length)
+  return body.slice(0, m.index) + body.slice(sectionEnd)
+}
+
 const VERDICT_ORDER: Record<Verdict, number> = { pass: 0, concern: 1, fail: 2 }
 
 export function worstVerdict(verdicts: Verdict[]): Verdict {
@@ -89,13 +110,17 @@ export async function runReview(opts: ReviewOptions = {}): Promise<{
   const taskId = ct.task.task_id
   const level = ct.task.level
   const intent = readIntent(taskId, stateRoot)
+  // Invariant §1: reviewers must not see solutions content. Strip the
+  // researcher.history Prior-art section embedded by plan.ts before passing
+  // intent.body to any reviewer spawn.
+  const intentForReviewer = stripPriorArtSection(intent.body ?? "")
 
   const diff = opts.diffOverride ?? captureDiff(opts.base ?? "HEAD")
 
   // Spawn reviewer.correctness; scope tokens pinned + Invariant §1 enforced
   const r = await spawn<unknown, ReviewerCorrectnessOutput>(
     "reviewer.correctness",
-    { diff, intent: intent.body ?? "" },
+    { diff, intent: intentForReviewer },
     {
       stateRoot,
       inlineStub: (i) =>
@@ -137,7 +162,7 @@ export async function runReview(opts: ReviewOptions = {}): Promise<{
         matched.map((s) =>
           spawn<unknown, ReviewerSpecialistOutput>(
             s.name,
-            { diff, intent: intent.body ?? "" },
+            { diff, intent: intentForReviewer },
             {
               stateRoot,
               inlineStub: (i) =>

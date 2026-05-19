@@ -1,9 +1,14 @@
-// researcher.history — prior-art miner stub.
+// researcher.history — prior-art miner.
 //
-// Real researcher.history would grep git log + solutions/ with semantic
-// similarity. MVP stub does a cheap keyword scan of .sgc/solutions/ only
-// (git log integration deferred to when compound cluster ships real
-// solution entries — D-phase Step 6).
+// Two modes share one corpus walker (walkSolutionsCorpus):
+//   - heuristic (researcherHistoryHeuristic): keyword-overlap score over
+//     .sgc/solutions/, 0.3 floor, top-5 (Phase D / H.1).
+//   - LLM rerank (Phase H): preFilterSolutions emits top-20 candidates;
+//     the LLM picks + scores via prompts/researcher-history.md, output
+//     normalized by coerceLlmOutput (6 guards incl. dedup).
+//
+// git-log integration is still deferred to when the compound cluster
+// ships real solution entries (D-phase Step 6, not yet scheduled).
 //
 // Unlike reviewers and qa (Invariant §1 forbids read:solutions),
 // researcher.* is granted read:solutions. Enforced via the manifest's
@@ -45,6 +50,81 @@ export interface PriorArtCandidate {
 }
 
 /**
+ * (Internal) Walk .sgc/solutions/<cat>/*.md once. Yields one SolutionScan
+ * per file with ≥1 keyword hit; NFC-normalizes file content up front so
+ * callers read `.afterFence` / `.text` without re-normalizing (Phase H
+ * pre-ship review I-9: was double-normalizing in preFilter).
+ *
+ * Shared by preFilterSolutions (LLM-mode candidate gathering) and
+ * mineSolutions (heuristic-mode output) — both previously duplicated
+ * ~40 lines of category/file walk (H.1 finding I-3, DRY).
+ *
+ * Returns [] when solutions/ is absent, keywords is empty, or the
+ * top-level readdir fails. Per-category / per-file errors are skipped.
+ */
+interface SolutionScan {
+  category: SolutionCategory
+  slug: string
+  hits: number
+  /** Body after frontmatter fence, NFC-normalized, leading whitespace trimmed. */
+  afterFence: string
+  /** Full file text, NFC-normalized. Used for frontmatter introspection. */
+  text: string
+}
+
+function walkSolutionsCorpus(
+  stateRoot: string,
+  keywords: string[],
+): SolutionScan[] {
+  const dir = resolve(stateRoot, "solutions")
+  if (!existsSync(dir) || keywords.length === 0) return []
+
+  let categories: string[]
+  try {
+    categories = readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+  } catch {
+    return []
+  }
+
+  const out: SolutionScan[] = []
+  for (const cat of categories) {
+    const catPath = resolve(dir, cat)
+    let files: string[]
+    try {
+      files = readdirSync(catPath, { withFileTypes: true })
+        .filter((e) => e.isFile() && e.name.endsWith(".md"))
+        .map((e) => e.name)
+    } catch {
+      continue
+    }
+    for (const file of files) {
+      const filePath = resolve(catPath, file)
+      let raw: string
+      try {
+        raw = readFileSync(filePath, "utf8")
+      } catch {
+        continue
+      }
+      const text = raw.normalize("NFC")
+      const lower = text.toLowerCase()
+      const hits = keywords.filter((k) => lower.includes(k)).length
+      if (hits === 0) continue
+      const afterFence = text.replace(/^---[\s\S]*?---\r?\n?/, "").trimStart()
+      out.push({
+        category: cat as SolutionCategory,
+        slug: file.replace(/\.md$/, ""),
+        hits,
+        text,
+        afterFence,
+      })
+    }
+  }
+  return out
+}
+
+/**
  * Pre-filter the solutions corpus by keyword overlap. Returns at most
  * 20 candidates (or all if corpus ≤ 20). Used by plan.ts before the
  * spawn("researcher.history") call: zero candidates short-circuits the
@@ -61,63 +141,24 @@ export function preFilterSolutions(
   // explicit arg → SGC_STATE_ROOT env → ".sgc". Centralizing here prevents
   // call sites from accidentally bypassing the env var (T6 review C-1).
   const root = stateRoot ?? process.env["SGC_STATE_ROOT"] ?? ".sgc"
-  const dir = resolve(root, "solutions")
-  if (!existsSync(dir)) return []
-  // TODO(post-T6): share corpus walk with mineSolutions — both functions
-  // duplicate ~40 lines of category/file/text scaffolding. Extract a
-  // `walkSolutionsCorpus(stateRoot, keywords, project)` private helper.
-
   const keywords = extractKeywords(intentDraft)
-  if (keywords.length === 0) return []
+  const scans = walkSolutionsCorpus(root, keywords)
 
-  let categories: string[]
-  try {
-    categories = readdirSync(dir, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name)
-  } catch {
-    return []
-  }
-
-  const candidates: PriorArtCandidate[] = []
-  for (const cat of categories) {
-    const catPath = resolve(dir, cat)
-    let files: string[]
-    try {
-      files = readdirSync(catPath, { withFileTypes: true })
-        .filter((e) => e.isFile() && e.name.endsWith(".md"))
-        .map((e) => e.name)
-    } catch {
-      continue
+  const candidates: PriorArtCandidate[] = scans.map((s) => {
+    const intentMatch = /^intent:\s*(.+)$/m.exec(s.text)
+    const intentLine = intentMatch ? `${intentMatch[1]!.trim()}\n` : ""
+    // afterFence is already NFC-normalized; concat + whitespace fold preserves NFC.
+    const excerpt = (intentLine + s.afterFence)
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 500)
+    return {
+      solution_ref: `${s.category}/${s.slug}`,
+      category: s.category,
+      excerpt,
+      keyword_hits: s.hits,
     }
-    for (const file of files) {
-      const filePath = resolve(catPath, file)
-      let text: string
-      try {
-        text = readFileSync(filePath, "utf8")
-      } catch {
-        continue
-      }
-      const lower = text.normalize("NFC").toLowerCase()
-      const hits = keywords.filter((k) => lower.includes(k)).length
-      if (hits === 0) continue
-      // Build excerpt: prefer frontmatter intent + body prefix, cap 500.
-      const afterFence = text.replace(/^---[\s\S]*?---\r?\n?/, "").trimStart()
-      const intentMatch = /^intent:\s*(.+)$/m.exec(text)
-      const intentLine = intentMatch ? `${intentMatch[1]!.trim()}\n` : ""
-      const excerpt = (intentLine + afterFence)
-        .normalize("NFC")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 500)
-      candidates.push({
-        solution_ref: `${cat}/${file.replace(/\.md$/, "")}`,
-        category: cat as SolutionCategory,
-        excerpt,
-        keyword_hits: hits,
-      })
-    }
-  }
+  })
 
   // Top-N=20 by keyword hits (descending). When corpus ≤ 20, all pass.
   candidates.sort((a, b) => b.keyword_hits - a.keyword_hits)
@@ -138,53 +179,13 @@ function scoreRelevance(hitCount: number, keywordCount: number): number {
 }
 
 function mineSolutions(stateRoot: string, keywords: string[]): PriorArt[] {
-  const dir = resolve(stateRoot, "solutions")
-  if (!existsSync(dir) || keywords.length === 0) return []
-
-  const results: PriorArt[] = []
-  let categories: string[]
-  try {
-    categories = readdirSync(dir, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name)
-  } catch {
-    return []
-  }
-
-  for (const cat of categories) {
-    const catPath = resolve(dir, cat)
-    let files: string[]
-    try {
-      files = readdirSync(catPath, { withFileTypes: true })
-        .filter((e) => e.isFile() && e.name.endsWith(".md"))
-        .map((e) => e.name)
-    } catch {
-      continue
-    }
-    for (const file of files) {
-      const filePath = resolve(catPath, file)
-      let text: string
-      try {
-        text = readFileSync(filePath, "utf8")
-      } catch {
-        continue
-      }
-      const lower = text.normalize("NFC").toLowerCase()
-      const hits = keywords.filter((k) => lower.includes(k)).length
-      if (hits === 0) continue
-      const score = scoreRelevance(hits, keywords.length)
-      // Skip bodies' frontmatter for the excerpt snippet
-      const afterFence = text.replace(/^---[\s\S]*?---\r?\n?/, "").trimStart()
-      const excerpt = afterFence.slice(0, 160).replace(/\s+/g, " ").trim()
-      const slug = file.replace(/\.md$/, "")
-      results.push({
-        source: "solutions",
-        relevance_score: score,
-        excerpt,
-        solution_ref: `${cat}/${slug}`,
-      })
-    }
-  }
+  const scans = walkSolutionsCorpus(stateRoot, keywords)
+  const results: PriorArt[] = scans.map((s) => ({
+    source: "solutions" as const,
+    relevance_score: scoreRelevance(s.hits, keywords.length),
+    excerpt: s.afterFence.slice(0, 160).replace(/\s+/g, " ").trim(),
+    solution_ref: `${s.category}/${s.slug}`,
+  }))
   results.sort((a, b) => b.relevance_score - a.relevance_score)
   // H.1: floor at 0.3 to align with LLM mode (coerceLlmOutput Guard 3). Same
   // intent → same intent.md regardless of env. Pre-H.1 heuristic emitted

@@ -44,6 +44,7 @@ import {
   writeIntent,
 } from "../dispatcher/state"
 import { computeCommandTokens } from "../dispatcher/capabilities"
+import { delegationHintsFor, formatHint } from "../dispatcher/delegation"
 import type { Handoff, IntentDoc, Level } from "../dispatcher/types"
 import { createLogger, type Logger } from "../dispatcher/logger"
 
@@ -173,6 +174,13 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
   let researcherOut: ResearcherHistoryOutput | null = null
   let adversarialOut: PlannerAdversarialOutput | null = null
   if (LEVEL_RANK[level] >= 2) {
+    // P1.6: surface delegation hints once per plan invocation before the
+    // parallel planner cluster fires. Nudge only — sgc continues with its
+    // inline path either way.
+    for (const hint of delegationHintsFor("plan.researcher")) log(formatHint(hint))
+    if (level === "L3") {
+      for (const hint of delegationHintsFor("plan.adversarial")) log(formatHint(hint))
+    }
     const tasks: Promise<unknown>[] = [
       spawn<unknown, PlannerEngOutput>(
         "planner.eng",

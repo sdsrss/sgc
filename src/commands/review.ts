@@ -30,6 +30,7 @@ import {
   readCurrentTask,
   readIntent,
 } from "../dispatcher/state"
+import { delegationHintsFor, formatHint } from "../dispatcher/delegation"
 import type { ReviewReport, Severity, TaskId, Verdict } from "../dispatcher/types"
 import { createLogger, type Logger } from "../dispatcher/logger"
 
@@ -110,6 +111,8 @@ export async function runReview(opts: ReviewOptions = {}): Promise<{
   if (!ct) throw new Error("no active task — run `sgc plan <task>` first")
   const taskId = ct.task.task_id
   const level = ct.task.level
+  // P1.6: surface delegation hints before reviewer cluster fires.
+  for (const hint of delegationHintsFor("review.cluster")) log(formatHint(hint))
   const intent = readIntent(taskId, stateRoot)
   // Invariant §1: reviewers must not see solutions content. Strip the
   // researcher.history Prior-art section embedded by plan.ts before passing

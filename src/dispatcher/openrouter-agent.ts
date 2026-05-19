@@ -22,6 +22,9 @@ export class OpenRouterError extends Error {
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 const DEFAULT_MODEL = "anthropic/claude-sonnet-4"
+// SGC_OPENROUTER_MODEL env overrides the default for ad-hoc eval runs
+// against newer / different models (e.g. `anthropic/claude-opus-4.7`).
+// Unset → DEFAULT_MODEL preserves prior calibration.
 const MAX_TOKENS_CAP = 8192
 
 /** Extract ```yaml ... ``` fenced block from response text. */
@@ -56,7 +59,7 @@ export async function runOpenRouterAgent(
   }
   messages.push({ role: "user", content: userPart })
 
-  const model = DEFAULT_MODEL
+  const model = process.env["SGC_OPENROUTER_MODEL"] ?? DEFAULT_MODEL
 
   const body = {
     model,

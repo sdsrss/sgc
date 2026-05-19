@@ -35,7 +35,12 @@ import {
 } from "../dispatcher/state"
 import { createHash } from "node:crypto"
 import { existsSync } from "node:fs"
-import { defaultGhRunner, type GhRunner } from "../dispatcher/gh-runner"
+import {
+  defaultGhRunner,
+  defaultUpstreamCheck,
+  type GhRunner,
+  type UpstreamCheck,
+} from "../dispatcher/gh-runner"
 import { spawn } from "../dispatcher/spawn"
 import {
   janitorCompound,
@@ -54,6 +59,13 @@ export interface ShipOptions {
   prTitle?: string
   prBody?: string
   ghRunner?: GhRunner  // test hook for PR creation
+  /**
+   * F-4 fail-fast: read current branch + upstream before writeShip. When
+   * `createPr` is set and the branch has no upstream, ship aborts BEFORE
+   * writing ship.md (immutable), so `git push -u origin <branch>` + retry
+   * is a clean path. Tests inject mocks here; prod uses `defaultUpstreamCheck`.
+   */
+  upstreamCheck?: UpstreamCheck
   /**
    * Explicit opt-out for janitor invocation. The CLI no longer exposes a
    * plain --no-janitor (that would silently violate Invariant §6). Instead,
@@ -157,6 +169,20 @@ export async function runShip(opts: ShipOptions = {}): Promise<ShipResult> {
     if (!hasQaEvidence(taskId, stateRoot)) {
       throw new Error(
         `${level} ship requires qa evidence — run \`sgc qa <target> --flows ...\` first`,
+      )
+    }
+  }
+
+  // 7.5. F-4 fail-fast: if --pr is requested on L1+, the local branch MUST
+  // have an upstream tracking ref. Otherwise gh pr create would fail AFTER
+  // writeShip (which is immutable per §6), leaving a half-shipped state.
+  // L0 skips PR creation entirely (see step "Optional: create a PR" below).
+  if (opts.createPr && level !== "L0") {
+    const check = opts.upstreamCheck ?? defaultUpstreamCheck
+    const u = await check()
+    if (u.upstream === null) {
+      throw new Error(
+        `current branch '${u.branch}' has no upstream — run \`git push -u origin ${u.branch}\` before \`sgc ship --pr\`. ship.md NOT written.`,
       )
     }
   }

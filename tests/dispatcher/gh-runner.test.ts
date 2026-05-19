@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { extractPrUrl, type GhRunner } from "../../src/dispatcher/gh-runner"
+import { existsSync } from "node:fs"
+import { resolve } from "node:path"
+import { extractPrUrl, type GhRunner, type UpstreamCheck } from "../../src/dispatcher/gh-runner"
 import { runPlan } from "../../src/commands/plan"
 import { runReview } from "../../src/commands/review"
 import { runShip } from "../../src/commands/ship"
@@ -50,6 +52,15 @@ async function l1Ready() {
   return p
 }
 
+const upstreamPresent: UpstreamCheck = async () => ({
+  branch: "feat/test",
+  upstream: "origin/feat/test",
+})
+const upstreamMissing: UpstreamCheck = async () => ({
+  branch: "feat/test",
+  upstream: null,
+})
+
 describe("runShip --pr integration", () => {
   test("calls ghRunner with computed title + body; returns prUrl", async () => {
     let captured: { title: string; body: string } | null = null
@@ -64,6 +75,7 @@ describe("runShip --pr integration", () => {
       stateRoot: tmp,
       createPr: true,
       ghRunner: runner,
+      upstreamCheck: upstreamPresent,
       log: () => {},
     })
     expect(r.prUrl).toBe("https://github.com/mock/repo/pull/7")
@@ -88,6 +100,7 @@ describe("runShip --pr integration", () => {
       prTitle: "custom title",
       prBody: "custom body",
       ghRunner: runner,
+      upstreamCheck: upstreamPresent,
       log: () => {},
     })
     expect(captured?.title).toBe("custom title")
@@ -102,12 +115,86 @@ describe("runShip --pr integration", () => {
       },
     }
     await expect(
-      runShip({ stateRoot: tmp, createPr: true, ghRunner: runner, log: () => {} }),
+      runShip({
+        stateRoot: tmp,
+        createPr: true,
+        ghRunner: runner,
+        upstreamCheck: upstreamPresent,
+        log: () => {},
+      }),
     ).rejects.toThrow(/gh auth required/)
-    // Ship.md exists (ship gate passed + write happened before gh attempt)
-    const { existsSync } = await import("node:fs")
-    const { resolve } = await import("node:path")
+    // Ship.md exists (upstream check passed + ship gate passed + write happened
+    // before gh attempt). This is the "real gh/auth failure" path, distinct
+    // from the F-4 fail-fast path covered below.
     expect(existsSync(resolve(tmp, "decisions", p.taskId, "ship.md"))).toBe(true)
+  })
+
+  test("F-4: missing upstream → fail-fast + ship.md NOT written + ghRunner not called", async () => {
+    const p = await l1Ready()
+    let createPrCalled = false
+    const runner: GhRunner = {
+      async createPr() {
+        createPrCalled = true
+        return { url: "should-not-reach" }
+      },
+    }
+    await expect(
+      runShip({
+        stateRoot: tmp,
+        createPr: true,
+        ghRunner: runner,
+        upstreamCheck: upstreamMissing,
+        log: () => {},
+      }),
+    ).rejects.toThrow(/upstream|push -u origin/i)
+    expect(createPrCalled).toBe(false)
+    expect(existsSync(resolve(tmp, "decisions", p.taskId, "ship.md"))).toBe(false)
+  })
+
+  test("F-4: error message names current branch + suggests git push -u origin <branch>", async () => {
+    await l1Ready()
+    const runner: GhRunner = {
+      async createPr() {
+        return { url: "" }
+      },
+    }
+    const upstreamMissingNamed: UpstreamCheck = async () => ({
+      branch: "feat/my-branch",
+      upstream: null,
+    })
+    let err: Error | null = null
+    try {
+      await runShip({
+        stateRoot: tmp,
+        createPr: true,
+        ghRunner: runner,
+        upstreamCheck: upstreamMissingNamed,
+        log: () => {},
+      })
+    } catch (e) {
+      err = e as Error
+    }
+    expect(err).not.toBeNull()
+    expect(err!.message).toContain("feat/my-branch")
+    expect(err!.message).toContain("git push -u origin feat/my-branch")
+    expect(err!.message).toMatch(/ship\.md not written/i)
+  })
+
+  test("F-4: upstream check is skipped when createPr=false (no git dependency for plain ship)", async () => {
+    let upstreamCalled = false
+    const upstreamSpy: UpstreamCheck = async () => {
+      upstreamCalled = true
+      return { branch: "x", upstream: null }
+    }
+    await l1Ready()
+    const r = await runShip({
+      stateRoot: tmp,
+      createPr: false,
+      upstreamCheck: upstreamSpy,
+      log: () => {},
+    })
+    expect(upstreamCalled).toBe(false)
+    expect(r.shipPath).not.toBeNull()
   })
 
   test("L0 ship + --pr: skips PR creation (L0 doesn't merit a PR)", async () => {

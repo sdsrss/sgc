@@ -68,15 +68,20 @@ function isWordBoundary(s: string, idx: number): boolean {
  * Inside flow-sequences `[...]`, quote any bare `word?` token so YAML doesn't
  * choke on `?` (which is the complex-mapping-key indicator).
  *
- * Conservative: only acts on flow-sequences that don't span newlines. Iterates
- * to handle multiple `?` tokens in one sequence.
+ * Conservative: only acts on flow-sequences that don't span newlines, AND that
+ * don't contain `{` or `}` between `[` and the `?` — so the regex never reaches
+ * into `array[{...}]` shorthand, which `quoteArrayPatterns` has already wrapped
+ * in outer quotes. Without the `{}` exclusion, a mid-position `b?,` inside
+ * `array[{a, b?, c}]` would inject nested quotes (`"array[{a, "b?", c}]"`) and
+ * corrupt the YAML (H.1 #8). Iterates to handle multiple `?` tokens in one
+ * top-level sequence.
  */
 function quoteOptionalTokens(input: string): string {
   let prev = ""
   let s = input
   while (prev !== s) {
     prev = s
-    s = s.replace(/(\[[^\[\]\n]*?)\b(\w+)\?(?=[\s,\]])/g, '$1"$2?"')
+    s = s.replace(/(\[[^\[\]\{\}\n]*?)\b(\w+)\?(?=[\s,\]])/g, '$1"$2?"')
   }
   return s
 }

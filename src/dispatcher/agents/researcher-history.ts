@@ -40,7 +40,11 @@ export interface PriorArt {
   source: "solutions" | "git"
   relevance_score: number
   excerpt: string
-  solution_ref?: string
+  // Required at runtime in both modes: heuristic mode always emits
+  // `${category}/${slug}` (mineSolutions); LLM mode is gated by
+  // coerceLlmOutput Guard 2 (ref must be in candidates set). Matches
+  // YAML manifest `solution_ref` without `?` (H.1 #8).
+  solution_ref: string
   relevance_reason?: string  // LLM mode required, heuristic omits
 }
 

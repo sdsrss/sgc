@@ -99,6 +99,29 @@ describe("preprocess — optional ? marker in flow-sequence", () => {
     const out = preprocess("description: |\n  Why does this fail?\n")
     expect(out).toBe("description: |\n  Why does this fail?\n")
   })
+
+  // H.1 #8: mid-position ? inside array[{...}] must NOT be quoted, because
+  // quoteArrayPatterns already wraps the whole array[...] in quotes and a
+  // nested " would corrupt the YAML string. Trailing ? before } was already
+  // safe (lookahead [\s,\]] excludes }); the bug was mid-position ? before
+  // , inside {}.
+  test("mid-position ? inside array[{...}] is left alone (no nested quotes)", () => {
+    const out = preprocess("x: array[{a, b?, c}]")
+    expect(out).toBe('x: "array[{a, b?, c}]"')
+  })
+
+  test("trailing ? before } inside array[{...}] is left alone (regression guard)", () => {
+    const out = preprocess("x: array[{a, b, c?}]")
+    expect(out).toBe('x: "array[{a, b, c?}]"')
+  })
+
+  test("array[{...?}] idempotent across passes", () => {
+    const input = "x: array[{a, b?, c?}]"
+    const once = preprocess(input)
+    const twice = preprocess(once)
+    expect(twice).toBe(once)
+    expect(once).toBe('x: "array[{a, b?, c?}]"')
+  })
 })
 
 describe("loadSpec — full contract files", () => {

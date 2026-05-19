@@ -366,7 +366,7 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
               ? `_No prior art found._\n\n`
               : researcherOut.prior_art
                   .map((p) => {
-                    const head = `- **${p.solution_ref ?? p.source}** (score ${p.relevance_score.toFixed(2)}): ${p.excerpt}`
+                    const head = `- **${p.solution_ref}** (score ${p.relevance_score.toFixed(2)}): ${p.excerpt}`
                     return p.relevance_reason
                       ? `${head}\n  Reason: ${p.relevance_reason}`
                       : head

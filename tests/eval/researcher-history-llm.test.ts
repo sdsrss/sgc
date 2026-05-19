@@ -20,7 +20,8 @@
 import { describe, test, expect } from "bun:test"
 import { mkdtempSync, mkdirSync, rmSync, copyFileSync, readdirSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join, resolve } from "node:path"
+import { dirname, join, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
 import { spawn } from "../../src/dispatcher/spawn"
 import {
   preFilterSolutions,
@@ -31,7 +32,9 @@ import {
 const HAS_KEY =
   !!process.env["ANTHROPIC_API_KEY"] || !!process.env["OPENROUTER_API_KEY"]
 
-const FIXTURES_SRC = resolve(process.cwd(), "tests/fixtures/solutions")
+// H.1 #3: source-relative path (cwd-independent). tests/eval/ → tests/fixtures/
+const moduleDir = dirname(fileURLToPath(import.meta.url))
+const FIXTURES_SRC = resolve(moduleDir, "..", "fixtures", "solutions")
 
 const SCENARIOS = [
   {

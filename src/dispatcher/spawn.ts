@@ -52,6 +52,13 @@ export { OutputShapeMismatch } from "./validation"
 // for now duplicate atomic write for spawn-specific paths.
 import { mkdirSync, renameSync, writeFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
+
+// H.1 #3: prompt_path / fixture paths resolve relative to sgc's source location,
+// not the user's cwd. Mirrors schema.ts:18 pattern. Pre-fix: cwd assumption
+// broke when sgc was invoked from a non-repo-root directory (silent flake).
+const moduleDir = dirname(fileURLToPath(import.meta.url))
+const sgcRepoRoot = resolve(moduleDir, "..", "..")
 
 function writeAtomic(path: string, content: string): void {
   mkdirSync(dirname(path), { recursive: true })
@@ -234,7 +241,7 @@ export function formatPrompt(
   // hits (anthropic-sdk mode). Template is authored to contain the
   // `## Input` marker and `<input_yaml/>` placeholder.
   if (manifest.prompt_path) {
-    const templatePath = resolve(process.cwd(), manifest.prompt_path)
+    const templatePath = resolve(sgcRepoRoot, manifest.prompt_path)
     if (!existsSync(templatePath)) {
       throw new SpawnError(
         `prompt_path declared (${manifest.prompt_path}) but file does not exist for agent ${manifest.name}`,

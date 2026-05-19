@@ -351,10 +351,23 @@ export function coerceLlmOutput(
       relevance_score: score,
       excerpt: cand.excerpt,
     }
-    // Whitespace-fold: collapse \n / \r / tabs / runs into single spaces so a
-    // misbehaving LLM emitting multi-line reasons can't break markdown list
-    // continuation downstream (T6 review I-2 — defense in depth at boundary).
-    if (hasReason) entryOut.relevance_reason = (reason as string).trim().replace(/\s+/g, " ")
+    // Whitespace-fold + markdown-escape: relevance_reason renders as a markdown
+    // bullet in intent.md. Three layers of defense at the boundary (T6 review
+    // I-2 + H.1 #9):
+    //   1. ZWSP (U+200B) — invisible separator, strip entirely (no spurious
+    //      space created where the LLM put none).
+    //   2. \s + U+0085 NEL — fold runs of standard whitespace + NEL to a
+    //      single space. ECMAScript \s misses U+0085 by default.
+    //   3. Markdown meta chars (*_`[]) — escape with backslash so they
+    //      render as literal text in the bullet instead of triggering
+    //      emphasis / code-span / link parsing.
+    if (hasReason) {
+      entryOut.relevance_reason = (reason as string)
+        .replace(/​/g, "")
+        .replace(/[\s]+/g, " ")
+        .trim()
+        .replace(/([*_`[\]])/g, "\\$1")
+    }
     out_prior_art.push(entryOut)
   }
 

@@ -530,6 +530,45 @@ describe("coerceLlmOutput — 5 guards (Phase H T3)", () => {
     expect(out.warnings[0]).toContain("2") // 2 dedups
   })
 
+  test("C9: U+0085 NEL folds to space; U+200B ZWSP strips (H.1 #9)", () => {
+    // \s in ECMAScript misses U+0085 (NEL) + U+200B (ZWSP). Pre-H.1 these
+    // passed through into intent.md as invisible characters that broke diff
+    // tooling + screen-reader rendering. NEL is whitespace-like → fold to
+    // space; ZWSP is invisible → strip entirely (no separator created).
+    const raw = {
+      prior_art: [
+        {
+          solution_ref: "auth/oauth-token-refresh",
+          relevance_score: 0.8,
+          relevance_reason: "ab​c",
+        },
+      ],
+      warnings: [],
+    }
+    const out = coerceLlmOutput(raw, cands)
+    expect(out.prior_art[0]?.relevance_reason).toBe("a bc")
+  })
+
+  test("C10: markdown meta chars in relevance_reason are escaped (H.1 #9)", () => {
+    // relevance_reason renders into a markdown bullet in intent.md. Unescaped
+    // *_`[ break list-item layout (emphasis, code, link triggers). Escape
+    // with backslash preserves intent + literal-renders in markdown.
+    const raw = {
+      prior_art: [
+        {
+          solution_ref: "auth/oauth-token-refresh",
+          relevance_score: 0.8,
+          relevance_reason: "uses *retry* and [link] and `code` and _italic_",
+        },
+      ],
+      warnings: [],
+    }
+    const out = coerceLlmOutput(raw, cands)
+    expect(out.prior_art[0]?.relevance_reason).toBe(
+      "uses \\*retry\\* and \\[link\\] and \\`code\\` and \\_italic\\_",
+    )
+  })
+
   test("C8b: LLM-emitted warnings + dedup warning coexist", () => {
     // LLM may also emit its own warnings via the warnings field. H.1 dedup
     // warning should append, not replace.

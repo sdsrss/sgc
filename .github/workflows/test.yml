@@ -50,3 +50,51 @@ jobs:
             tail -200 test-output.log || echo "(no test-output.log captured)"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # ──────────────────────────────────────────────────────────────────────
+      # LLM-eval smoke (P1.5 — audit follow-up).
+      #
+      # Runs the two most regression-prone real-LLM eval files —
+      # researcher-history-llm (exercises coerceLlmOutput's 6 guards) and
+      # planner-eng-llm (exercises banned-vocab + manifest schema). Catches
+      # drift between the prompt templates / dispatcher coercion and real
+      # model output.
+      #
+      # Gating: when OPENROUTER_API_KEY secret is unset (default + fork PRs),
+      # the env var lands as an empty string, the test files' `test.skipIf
+      # (!process.env.OPENROUTER_API_KEY && !process.env.ANTHROPIC_API_KEY)`
+      # short-circuits, and the step passes in seconds with 0 LLM calls.
+      # Trusted-contributor pushes / main pushes (where the secret is
+      # available) actually exercise the LLM path.
+      #
+      # Model pin: sonnet-4 is the calibration baseline these tests were
+      # tuned against. The runtime default in src/dispatcher/openrouter-
+      # agent.ts is now opus-4.7 for user-facing work, but for CI eval we
+      # need stability over recency — opus-4.7 hallucinates extra
+      # manifest-undeclared fields that fail §9 (the planner.eng s2
+      # `rate_limit_unstated_behaviors` symptom). SGC_OPENROUTER_MODEL
+      # override pins back to sonnet-4 for the smoke run.
+      #
+      # Cost: ~8 LLM calls per run at sonnet-4 pricing ≈ $0.05 - $0.10.
+      - name: LLM-eval smoke (sonnet-4 calibrated)
+        id: llm_smoke
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          SGC_OPENROUTER_MODEL: anthropic/claude-sonnet-4
+        run: |
+          set -o pipefail
+          bun test \
+            tests/eval/researcher-history-llm.test.ts \
+            tests/eval/planner-eng-llm.test.ts \
+            2>&1 | tee llm-smoke-output.log
+
+      - name: Publish LLM-smoke output to step summary (on failure)
+        if: always() && steps.llm_smoke.outcome == 'failure'
+        run: |
+          {
+            echo "## LLM-eval smoke output (failed run)"
+            echo ""
+            echo '```'
+            tail -200 llm-smoke-output.log || echo "(no llm-smoke-output.log captured)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

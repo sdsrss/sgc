@@ -157,8 +157,8 @@ describe("loadSpec — full contract files", () => {
     expect(cmds).toContain("/review")
     expect(cmds).toContain("/qa")
     // /review and /qa must NOT have read:solutions per Invariant §1
-    expect(spec.permissions["/review"].solutions ?? []).toEqual([])
-    expect(spec.permissions["/qa"].solutions ?? []).toEqual([])
+    expect(spec.permissions["/review"]?.solutions ?? []).toEqual([])
+    expect(spec.permissions["/qa"]?.solutions ?? []).toEqual([])
   })
 
   test("sgc-state.schema.yaml parses", () => {

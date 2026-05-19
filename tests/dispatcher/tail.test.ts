@@ -131,7 +131,7 @@ describe("sgc tail — basic read (G.1.b)", () => {
     const lines: string[] = []
     await runTail({ stateRoot: tmp, json: true, log: (m) => lines.push(m) })
     expect(lines.length).toBe(1)
-    const parsed = JSON.parse(lines[0])
+    const parsed = JSON.parse(lines[0]!)
     expect(parsed.event_type).toBe("spawn.start")
     expect(parsed.schema_version).toBe(1)
   })

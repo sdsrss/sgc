@@ -9,7 +9,7 @@ describe("qa.browser stub default verdict", () => {
     )
     expect(result.verdict).toBe("concern")
     expect(result.failed_flows).toHaveLength(1)
-    expect(result.failed_flows[0].observed).toMatch(/no browser runner|stub|QA skipped/i)
+    expect(result.failed_flows[0]!.observed).toMatch(/no browser runner|stub|QA skipped/i)
   })
 
   test("empty target still returns fail (higher priority)", async () => {

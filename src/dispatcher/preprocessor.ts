@@ -58,7 +58,8 @@ function quoteArrayPatterns(input: string): string {
 
 function isWordBoundary(s: string, idx: number): boolean {
   if (idx === 0) return true
-  const prev = s[idx - 1]
+  // idx >= 1 guaranteed by the early return above, so s[idx-1] is in-bounds.
+  const prev = s[idx - 1]!
   // Treat `"` as non-boundary so that an already-quoted "array[...]"
   // (idempotent re-run) is skipped instead of double-quoted.
   return !/[A-Za-z0-9_"]/.test(prev)

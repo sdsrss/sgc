@@ -55,13 +55,13 @@ describe("reviewer.correctness: heuristic vs LLM (eval)", () => {
     const result = reviewerCorrectnessHeuristic({ diff, intent: "add getUser" })
     expect(result.verdict).toBe("concern")
     expect(result.findings.length).toBeGreaterThan(0)
-    expect(result.findings[0].description).toMatch(/TODO/)
+    expect(result.findings[0]!.description).toMatch(/TODO/)
   })
 
   test("heuristic flags empty diff as concern", () => {
     const result = reviewerCorrectnessHeuristic({ diff: "", intent: "do something" })
     expect(result.verdict).toBe("concern")
-    expect(result.findings[0].description).toMatch(/empty/)
+    expect(result.findings[0]!.description).toMatch(/empty/)
   })
 
   // ── Backward-compat alias ─────────────────────────────────────────────

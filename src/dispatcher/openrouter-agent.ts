@@ -34,7 +34,8 @@ const MAX_TOKENS_CAP = 8192
 /** Extract ```yaml ... ``` fenced block from response text. */
 function extractYamlBlock(text: string): string {
   const fenced = text.match(/```ya?ml\s*\n([\s\S]*?)```/)
-  if (fenced) return fenced[1].trim()
+  // Group 1 is non-optional in the pattern, so when fenced matches it is always defined.
+  if (fenced) return fenced[1]!.trim()
   // Fallback: try to parse the whole text as YAML
   return text.trim()
 }

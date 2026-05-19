@@ -23,6 +23,17 @@ import { OutputShapeMismatch } from "../validation"
 
 export interface ResearcherHistoryInput {
   intent_draft: string
+  /**
+   * Pre-filtered solution candidates from `preFilterSolutions`, supplied
+   * before `spawn("researcher.history")` by `plan.ts`. Required at runtime
+   * in LLM mode (the prompt references `candidates`); heuristic mode
+   * (`researcherHistoryHeuristic`) ignores them and mines solutions/ itself.
+   * TS marks optional so unit tests can construct input without going
+   * through preFilterSolutions; production spawn always supplies it.
+   * Manifest declares `candidates: array[{...}]` at sgc-capabilities.yaml:302
+   * (H.1 #7 — field was previously absent from TS).
+   */
+  candidates?: PriorArtCandidate[]
 }
 
 export interface PriorArt {

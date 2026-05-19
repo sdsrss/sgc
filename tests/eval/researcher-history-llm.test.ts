@@ -111,7 +111,7 @@ describe("researcher.history LLM eval (CI-skip)", () => {
         const stateRoot = mkdtempSync(join(tmpdir(), `sgc-eval-h-${s.id}-`))
         try {
           seedFixtureCorpus(stateRoot)
-          const cands = preFilterSolutions(s.intent, stateRoot)
+          const cands = await preFilterSolutions(s.intent, stateRoot)
 
           if (cands.length === 0) {
             // e4 may pre-filter to empty if no keyword overlap. That's a

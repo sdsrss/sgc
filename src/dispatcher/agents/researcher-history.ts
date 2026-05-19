@@ -7,6 +7,11 @@
 //     the LLM picks + scores via prompts/researcher-history.md, output
 //     normalized by coerceLlmOutput (6 guards incl. dedup).
 //
+// FS reads are async (node:fs/promises) so the IIFE in plan.ts that
+// builds the L2/L3 spawn cluster doesn't block sibling spawn starts
+// on the directory walk (H.1 #4), and the walk scales past ~500
+// solution files without blocking the event loop (H.1 #5).
+//
 // git-log integration is still deferred to when the compound cluster
 // ships real solution entries (D-phase Step 6, not yet scheduled).
 //
@@ -14,7 +19,8 @@
 // researcher.* is granted read:solutions. Enforced via the manifest's
 // scope_tokens + computeSubagentTokens — not redundantly here.
 
-import { existsSync, readFileSync, readdirSync } from "node:fs"
+import { existsSync } from "node:fs"
+import { readFile, readdir } from "node:fs/promises"
 import { resolve } from "node:path"
 import { tokenize } from "../dedup"
 import type { Logger } from "../logger"
@@ -87,19 +93,19 @@ interface SolutionScan {
   text: string
 }
 
-function walkSolutionsCorpus(
+async function walkSolutionsCorpus(
   stateRoot: string,
   keywords: string[],
-): SolutionScan[] {
+): Promise<SolutionScan[]> {
   const dir = resolve(stateRoot, "solutions")
-  if (!existsSync(dir) || keywords.length === 0) return []
+  if (keywords.length === 0) return []
 
   let categories: string[]
   try {
-    categories = readdirSync(dir, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name)
+    const entries = await readdir(dir, { withFileTypes: true })
+    categories = entries.filter((e) => e.isDirectory()).map((e) => e.name)
   } catch {
+    // Missing solutions/ dir or unreadable — treat as empty corpus.
     return []
   }
 
@@ -108,7 +114,8 @@ function walkSolutionsCorpus(
     const catPath = resolve(dir, cat)
     let files: string[]
     try {
-      files = readdirSync(catPath, { withFileTypes: true })
+      const entries = await readdir(catPath, { withFileTypes: true })
+      files = entries
         .filter((e) => e.isFile() && e.name.endsWith(".md"))
         .map((e) => e.name)
     } catch {
@@ -118,7 +125,7 @@ function walkSolutionsCorpus(
       const filePath = resolve(catPath, file)
       let raw: string
       try {
-        raw = readFileSync(filePath, "utf8")
+        raw = await readFile(filePath, "utf8")
       } catch {
         continue
       }
@@ -148,16 +155,16 @@ function walkSolutionsCorpus(
  * Reuses dedup.ts:tokenize for NFC + Intl.Segmenter — single source of
  * tokenization truth across dedup.ts and researcher-history.ts.
  */
-export function preFilterSolutions(
+export async function preFilterSolutions(
   intentDraft: string,
   stateRoot?: string,
-): PriorArtCandidate[] {
+): Promise<PriorArtCandidate[]> {
   // Canonical 3-step state-root fallback (mirrors researcherHistoryHeuristic):
   // explicit arg → SGC_STATE_ROOT env → ".sgc". Centralizing here prevents
   // call sites from accidentally bypassing the env var (T6 review C-1).
   const root = stateRoot ?? process.env["SGC_STATE_ROOT"] ?? ".sgc"
   const keywords = extractKeywords(intentDraft)
-  const scans = walkSolutionsCorpus(root, keywords)
+  const scans = await walkSolutionsCorpus(root, keywords)
 
   const candidates: PriorArtCandidate[] = scans.map((s) => {
     const intentMatch = /^intent:\s*(.+)$/m.exec(s.text)
@@ -193,8 +200,11 @@ function scoreRelevance(hitCount: number, keywordCount: number): number {
   return Math.min(1, hitCount / keywordCount)
 }
 
-function mineSolutions(stateRoot: string, keywords: string[]): PriorArt[] {
-  const scans = walkSolutionsCorpus(stateRoot, keywords)
+async function mineSolutions(
+  stateRoot: string,
+  keywords: string[],
+): Promise<PriorArt[]> {
+  const scans = await walkSolutionsCorpus(stateRoot, keywords)
   const results: PriorArt[] = scans.map((s) => ({
     source: "solutions" as const,
     relevance_score: scoreRelevance(s.hits, keywords.length),
@@ -208,15 +218,15 @@ function mineSolutions(stateRoot: string, keywords: string[]): PriorArt[] {
   return results.filter((r) => r.relevance_score >= 0.3).slice(0, 5)
 }
 
-export function researcherHistoryHeuristic(
+export async function researcherHistoryHeuristic(
   input: ResearcherHistoryInput,
   opts: ResearcherHistoryOptions = {},
-): ResearcherHistoryOutput {
+): Promise<ResearcherHistoryOutput> {
   const stateRoot =
     opts.stateRoot ?? process.env["SGC_STATE_ROOT"] ?? ".sgc"
   const keywords = extractKeywords(input.intent_draft ?? "")
 
-  const prior_art = mineSolutions(stateRoot, keywords)
+  const prior_art = await mineSolutions(stateRoot, keywords)
   const warnings: string[] = []
 
   if (keywords.length === 0) {

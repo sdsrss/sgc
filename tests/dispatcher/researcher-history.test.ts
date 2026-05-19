@@ -39,8 +39,8 @@ describe("researcherHistory — unit", () => {
     rmSync(tmp, { recursive: true, force: true })
   })
 
-  test("empty solutions dir → no prior art, no warnings (no solutions yet)", () => {
-    const r = researcherHistory(
+  test("empty solutions dir → no prior art, no warnings (no solutions yet)", async () => {
+    const r = await researcherHistory(
       { intent_draft: "add markdown table support" },
       { stateRoot: tmp },
     )
@@ -48,13 +48,13 @@ describe("researcherHistory — unit", () => {
     expect(r.warnings).toEqual([])  // dir doesn't exist → no "found nothing" warning
   })
 
-  test("very short intent → keyword extraction warning", () => {
-    const r = researcherHistory({ intent_draft: "do it" }, { stateRoot: tmp })
+  test("very short intent → keyword extraction warning", async () => {
+    const r = await researcherHistory({ intent_draft: "do it" }, { stateRoot: tmp })
     expect(r.prior_art).toEqual([])
     expect(r.warnings.some((w) => /keywords/.test(w))).toBe(true)
   })
 
-  test("finds a matching solution + scores by hit rate", () => {
+  test("finds a matching solution + scores by hit rate", async () => {
     seedSolution(
       tmp,
       "runtime",
@@ -67,7 +67,7 @@ describe("researcherHistory — unit", () => {
       "unrelated",
       "---\nid: y\n---\n\nUnrelated content about database migrations.",
     )
-    const r = researcherHistory(
+    const r = await researcherHistory(
       { intent_draft: "add markdown table rendering to documentation page" },
       { stateRoot: tmp },
     )
@@ -77,7 +77,7 @@ describe("researcherHistory — unit", () => {
     expect(r.prior_art[0]?.excerpt).toContain("markdown")
   })
 
-  test("sorts by relevance + caps at 5", () => {
+  test("sorts by relevance + caps at 5", async () => {
     for (let i = 0; i < 10; i++) {
       seedSolution(
         tmp,
@@ -86,7 +86,7 @@ describe("researcherHistory — unit", () => {
         `entry about markdown table rendering with varying degrees of detail ${"word ".repeat(i)}`,
       )
     }
-    const r = researcherHistory(
+    const r = await researcherHistory(
       { intent_draft: "markdown table rendering improvements" },
       { stateRoot: tmp },
     )
@@ -99,14 +99,14 @@ describe("researcherHistory — unit", () => {
     }
   })
 
-  test("warns when solutions dir exists but no keyword match", () => {
+  test("warns when solutions dir exists but no keyword match", async () => {
     seedSolution(
       tmp,
       "auth",
       "jwt-rotation",
       "---\nid: z\n---\n\nRotated JWT keys for token refresh safety.",
     )
-    const r = researcherHistory(
+    const r = await researcherHistory(
       { intent_draft: "add markdown rendering to docs" },
       { stateRoot: tmp },
     )
@@ -114,14 +114,14 @@ describe("researcherHistory — unit", () => {
     expect(r.warnings.some((w) => /no relevant/.test(w))).toBe(true)
   })
 
-  test("R1: Chinese intent matches Chinese-only solution (NFC + Intl.Segmenter)", () => {
+  test("R1: Chinese intent matches Chinese-only solution (NFC + Intl.Segmenter)", async () => {
     seedSolution(
       tmp,
       "runtime",
       "调度器-超时-重试",
       "---\nintent: 调度器超时重试机制\n---\n\n修复调度器在超时后不重试导致幽灵任务的问题；增加退避算法。",
     )
-    const r = researcherHistory(
+    const r = await researcherHistory(
       { intent_draft: "给调度器增加超时重试和结构化日志" },
       { stateRoot: tmp },
     )
@@ -132,14 +132,14 @@ describe("researcherHistory — unit", () => {
     expect(r.prior_art[0]?.solution_ref).toBe("runtime/调度器-超时-重试")
   })
 
-  test("R2: extractKeywords returns non-empty for mixed CN/EN intent", () => {
+  test("R2: extractKeywords returns non-empty for mixed CN/EN intent", async () => {
     seedSolution(
       tmp,
       "infra",
       "proxy-bun-vs-npm",
       "---\nintent: HTTP_PROXY env handling\n---\n\nbun client bypasses HTTP_PROXY env even when set; npm respects it.",
     )
-    const r = researcherHistory(
+    const r = await researcherHistory(
       { intent_draft: "fix HTTP_PROXY 环境变量在 bun 下被忽略" },
       { stateRoot: tmp },
     )
@@ -147,14 +147,14 @@ describe("researcherHistory — unit", () => {
     expect(r.prior_art[0]?.solution_ref).toBe("infra/proxy-bun-vs-npm")
   })
 
-  test("R3: heuristic output omits relevance_reason field (LLM-only field)", () => {
+  test("R3: heuristic output omits relevance_reason field (LLM-only field)", async () => {
     seedSolution(
       tmp,
       "runtime",
       "x",
       "---\nid: x\n---\n\nFixed markdown table rendering bug.",
     )
-    const r = researcherHistory(
+    const r = await researcherHistory(
       { intent_draft: "add markdown table to docs page" },
       { stateRoot: tmp },
     )
@@ -162,7 +162,7 @@ describe("researcherHistory — unit", () => {
     expect(r.prior_art[0]?.relevance_reason).toBeUndefined()
   })
 
-  test("H1a: heuristic mineSolutions filters relevance_score < 0.3 (LLM-mode alignment)", () => {
+  test("H1a: heuristic mineSolutions filters relevance_score < 0.3 (LLM-mode alignment)", async () => {
     // Pre-H.1 behavior: heuristic kept entries with score below 0.3 (e.g. 1 hit
     // out of 10 keywords = 0.1), while LLM mode (coerceLlmOutput Guard 3 floor)
     // rejected the same range. Same intent → different intent.md depending on
@@ -179,7 +179,7 @@ describe("researcherHistory — unit", () => {
       "strong-match",
       "---\nid: s\n---\n\nmarkdown table support documentation hyperlinks images videos diagrams.",
     )
-    const r = researcherHistory(
+    const r = await researcherHistory(
       {
         intent_draft:
           "add markdown table support documentation hyperlinks images videos diagrams",
@@ -282,14 +282,14 @@ describe("preFilterSolutions — pre-filter helper (Phase H T2)", () => {
     rmSync(tmp, { recursive: true, force: true })
   })
 
-  test("P1: returns PriorArtCandidate[] with solution_ref / category / excerpt / keyword_hits", () => {
+  test("P1: returns PriorArtCandidate[] with solution_ref / category / excerpt / keyword_hits", async () => {
     seedSolution(
       tmp,
       "auth",
       "oauth-token-refresh",
       "---\nintent: Fixed silent token refresh failure\n---\n\nWhen the upstream returns 401, retry with backoff instead of swallowing the error.",
     )
-    const cands = preFilterSolutions(
+    const cands = await preFilterSolutions(
       "add token refresh retry to OAuth client",
       tmp,
     )
@@ -307,7 +307,7 @@ describe("preFilterSolutions — pre-filter helper (Phase H T2)", () => {
     expect(excerptLen).toBeLessThanOrEqual(500)
   })
 
-  test("P2: corpus > 20 → top-20 by keyword_hits descending", () => {
+  test("P2: corpus > 20 → top-20 by keyword_hits descending", async () => {
     for (let i = 0; i < 25; i++) {
       seedSolution(
         tmp,
@@ -316,21 +316,21 @@ describe("preFilterSolutions — pre-filter helper (Phase H T2)", () => {
         `---\nintent: optimization ${i}\n---\n\nperformance tuning ${"keyword ".repeat(i % 5)}`,
       )
     }
-    const cands = preFilterSolutions("optimize performance keyword tuning", tmp)
+    const cands = await preFilterSolutions("optimize performance keyword tuning", tmp)
     expect(cands.length).toBe(20)
     for (let i = 0; i + 1 < cands.length; i++) {
       expect(cands[i]!.keyword_hits).toBeGreaterThanOrEqual(cands[i + 1]!.keyword_hits)
     }
   })
 
-  test("P3: missing solutions/ dir → empty array, no throw", () => {
-    const cands = preFilterSolutions("anything", tmp)
+  test("P3: missing solutions/ dir → empty array, no throw", async () => {
+    const cands = await preFilterSolutions("anything", tmp)
     expect(cands).toEqual([])
   })
 
-  test("P4: corpus exists but no keyword overlap → empty array", () => {
+  test("P4: corpus exists but no keyword overlap → empty array", async () => {
     seedSolution(tmp, "ui", "css-grid", "---\nintent: layout\n---\n\nfix grid.")
-    const cands = preFilterSolutions("rename CLI flag from --foo to --bar", tmp)
+    const cands = await preFilterSolutions("rename CLI flag from --foo to --bar", tmp)
     expect(cands).toEqual([])
   })
 })
@@ -800,7 +800,7 @@ describe("researcher.history — LLM mock branch (Phase H T7)", () => {
   }
 
   test("L1: happy path — canned valid YAML parses + coerce populates relevance_reason", async () => {
-    const cands = preFilterSolutions("add token refresh retry to OAuth", tmp)
+    const cands = await preFilterSolutions("add token refresh retry to OAuth", tmp)
     expect(cands.length).toBe(1)
     const cannedYaml = [
       "```yaml",
@@ -830,7 +830,7 @@ describe("researcher.history — LLM mock branch (Phase H T7)", () => {
   })
 
   test("L2: invented solution_ref → coerce throws OutputShapeMismatch", async () => {
-    const cands = preFilterSolutions("add token refresh retry to OAuth", tmp)
+    const cands = await preFilterSolutions("add token refresh retry to OAuth", tmp)
     const cannedYaml = [
       "```yaml",
       "prior_art:",
@@ -854,7 +854,7 @@ describe("researcher.history — LLM mock branch (Phase H T7)", () => {
   })
 
   test("L3: relevance_score out of range → coerce throws", async () => {
-    const cands = preFilterSolutions("add token refresh retry to OAuth", tmp)
+    const cands = await preFilterSolutions("add token refresh retry to OAuth", tmp)
     const cannedYaml = [
       "```yaml",
       "prior_art:",
@@ -878,7 +878,7 @@ describe("researcher.history — LLM mock branch (Phase H T7)", () => {
   })
 
   test("L4: empty relevance_reason → coerce throws", async () => {
-    const cands = preFilterSolutions("add token refresh retry to OAuth", tmp)
+    const cands = await preFilterSolutions("add token refresh retry to OAuth", tmp)
     const cannedYaml = [
       "```yaml",
       "prior_art:",
@@ -906,7 +906,7 @@ describe("researcher.history — LLM mock branch (Phase H T7)", () => {
     // truncated to 5 but didn't dedup). Post-H.1 (Guard 6) first wins, the
     // other 5 are dropped, and a single warning surfaces the LLM anomaly.
     // C5 in the coerce describe covers the 6-unique-refs truncate path.
-    const cands = preFilterSolutions("add token refresh retry to OAuth", tmp)
+    const cands = await preFilterSolutions("add token refresh retry to OAuth", tmp)
     const cannedYaml = [
       "```yaml",
       "prior_art:",

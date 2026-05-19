@@ -186,7 +186,10 @@ function mineSolutions(stateRoot: string, keywords: string[]): PriorArt[] {
     }
   }
   results.sort((a, b) => b.relevance_score - a.relevance_score)
-  return results.slice(0, 5)
+  // H.1: floor at 0.3 to align with LLM mode (coerceLlmOutput Guard 3). Same
+  // intent → same intent.md regardless of env. Pre-H.1 heuristic emitted
+  // sub-0.3 weak matches that LLM mode would have rejected.
+  return results.filter((r) => r.relevance_score >= 0.3).slice(0, 5)
 }
 
 export function researcherHistoryHeuristic(
@@ -230,14 +233,17 @@ export const researcherHistory = researcherHistoryHeuristic
  * per-agent code. Mirrors how planner.eng + compound.context handle their
  * nested shapes via prompt + post-spawn convention.
  *
- * 5 guards:
+ * 6 guards:
  *   1. prior_art is array
  *   2. each entry's solution_ref ∈ candidates set
  *   3. relevance_score ∈ [0, 1] always; tightened to [0.3, 1] when
- *      relevance_reason present (LLM mode)
+ *      relevance_reason present (LLM mode). Heuristic mode also floors at
+ *      0.3 since H.1 (see mineSolutions); coerce stays tolerant for legacy.
  *   4. relevance_reason — when present, must be non-empty (LLM mode);
  *      absent is legal (heuristic mode passes through coerce)
- *   5. truncate prior_art > 5 to first 5 (tolerant)
+ *   5. truncate prior_art > 5 to first 5 unique (tolerant)
+ *   6. duplicate solution_ref — first wins; subsequent dropped silently and
+ *      surfaced via a single dedup warning in output.warnings (H.1).
  *
  * Back-fills `excerpt` and `source` from the candidates map so the LLM
  * doesn't have to re-emit ~500-char strings (saves output tokens; defense
@@ -266,11 +272,16 @@ export function coerceLlmOutput(
   const refSet = new Set(candidates.map((c) => c.solution_ref))
   const candByRef = new Map(candidates.map((c) => [c.solution_ref, c]))
 
-  // Guard 5: truncate > 5 (tolerant)
-  const entries = obj.prior_art.slice(0, 5)
+  // Guards 5 + 6: iterate full array; track seen refs (dedup first-wins) and
+  // stop once 5 unique entries are collected (truncate). Pre-H.1 pre-sliced to
+  // first 5 raw entries, which dropped valid uniques when the first 5 had
+  // duplicate refs.
+  const seenRefs = new Set<string>()
+  let dedupedCount = 0
   const out_prior_art: PriorArt[] = []
-  for (let i = 0; i < entries.length; i++) {
-    const e = entries[i]
+  for (let i = 0; i < obj.prior_art.length; i++) {
+    if (out_prior_art.length >= 5) break
+    const e = obj.prior_art[i]
     if (typeof e !== "object" || e === null) {
       throw new OutputShapeMismatch(
         "researcher.history",
@@ -324,6 +335,14 @@ export function coerceLlmOutput(
         `prior_art[${i}].relevance_reason must be non-empty string when present`,
       )
     }
+    // Guard 6: dedup by solution_ref, first-wins. Subsequent duplicates
+    // dropped + counted; a single warning is surfaced after the loop.
+    if (seenRefs.has(ref)) {
+      dedupedCount++
+      continue
+    }
+    seenRefs.add(ref)
+
     const cand = candByRef.get(ref)!
     const entryOut: PriorArt = {
       source: "solutions",
@@ -338,9 +357,16 @@ export function coerceLlmOutput(
     out_prior_art.push(entryOut)
   }
 
-  const warnings = Array.isArray(obj.warnings)
+  const llmWarnings = Array.isArray(obj.warnings)
     ? (obj.warnings.filter((w) => typeof w === "string") as string[])
     : []
+  const warnings = [...llmWarnings]
+  if (dedupedCount > 0) {
+    const noun = dedupedCount === 1 ? "entry" : "entries"
+    warnings.push(
+      `LLM emitted ${dedupedCount} duplicate solution_ref ${noun}; deduped to ${out_prior_art.length} unique`,
+    )
+  }
 
   return { prior_art: out_prior_art, warnings }
 }

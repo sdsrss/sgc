@@ -162,6 +162,38 @@ describe("researcherHistory — unit", () => {
     expect(r.prior_art[0]?.relevance_reason).toBeUndefined()
   })
 
+  test("H1a: heuristic mineSolutions filters relevance_score < 0.3 (LLM-mode alignment)", () => {
+    // Pre-H.1 behavior: heuristic kept entries with score below 0.3 (e.g. 1 hit
+    // out of 10 keywords = 0.1), while LLM mode (coerceLlmOutput Guard 3 floor)
+    // rejected the same range. Same intent → different intent.md depending on
+    // env. H.1 aligns: mineSolutions also drops < 0.3.
+    seedSolution(
+      tmp,
+      "ui",
+      "weak-match",
+      "---\nid: w\n---\n\nfocuses on markdown only.",
+    )
+    seedSolution(
+      tmp,
+      "ui",
+      "strong-match",
+      "---\nid: s\n---\n\nmarkdown table support documentation hyperlinks images videos diagrams.",
+    )
+    const r = researcherHistory(
+      {
+        intent_draft:
+          "add markdown table support documentation hyperlinks images videos diagrams",
+      },
+      { stateRoot: tmp },
+    )
+    const refs = r.prior_art.map((p) => p.solution_ref)
+    expect(refs).toContain("ui/strong-match")
+    expect(refs).not.toContain("ui/weak-match")
+    for (const p of r.prior_art) {
+      expect(p.relevance_score).toBeGreaterThanOrEqual(0.3)
+    }
+  })
+
   test("R4: researcherHistory alias === researcherHistoryHeuristic (G.2 pattern)", () => {
     expect(researcherHistory).toBe(researcherHistoryHeuristic)
   })
@@ -317,6 +349,33 @@ describe("coerceLlmOutput — 5 guards (Phase H T3)", () => {
       excerpt: "Added retry-with-backoff to spawn() on timeout.",
       keyword_hits: 2,
     },
+    // Additional candidates for C5 truncate test (needs 6 unique refs after
+    // H.1 dedup landed; C5 previously aliased 2 refs which masked the dedup
+    // behavior).
+    {
+      solution_ref: "perf/cache-lookup",
+      category: "perf",
+      excerpt: "Memoized lookup table for repeated key queries.",
+      keyword_hits: 1,
+    },
+    {
+      solution_ref: "ui/markdown-table",
+      category: "ui",
+      excerpt: "Rendered markdown tables with sticky headers.",
+      keyword_hits: 1,
+    },
+    {
+      solution_ref: "data/index-rebuild",
+      category: "data",
+      excerpt: "Rebuilt FTS5 index after schema migration.",
+      keyword_hits: 1,
+    },
+    {
+      solution_ref: "net/retry-backoff",
+      category: "net",
+      excerpt: "Exponential backoff for transient HTTP 5xx.",
+      keyword_hits: 1,
+    },
   ]
 
   test("C1: happy path — valid LLM output coerced to ResearcherHistoryOutput", () => {
@@ -432,9 +491,10 @@ describe("coerceLlmOutput — 5 guards (Phase H T3)", () => {
   })
 
   test("C5: 6 entries → silent truncate to first 5 (Guard 5 tolerant)", () => {
+    // Use 6 unique refs — must be unique post-H.1 (C8 covers dedup separately).
     const raw = {
-      prior_art: Array.from({ length: 6 }, (_, i) => ({
-        solution_ref: i % 2 === 0 ? "auth/oauth-token-refresh" : "runtime/spawn-timeout-retry",
+      prior_art: cands.map((c, i) => ({
+        solution_ref: c.solution_ref,
         relevance_score: 0.5 + i * 0.05,
         relevance_reason: `entry ${i}`,
       })),
@@ -444,6 +504,46 @@ describe("coerceLlmOutput — 5 guards (Phase H T3)", () => {
     expect(out.prior_art.length).toBe(5)
     expect(out.prior_art[0]?.relevance_reason).toBe("entry 0")
     expect(out.prior_art[4]?.relevance_reason).toBe("entry 4")
+  })
+
+  test("C8: duplicate solution_ref → first wins + dedup warning (H.1)", () => {
+    // LLM occasionally emits the same ref multiple times. Pre-H.1: 5 duplicate
+    // bullets rendered into intent.md. Post-H.1: first occurrence wins; dups
+    // dropped silently from prior_art; one warning appended to output.warnings
+    // so operators can see LLM behavior anomalies without blocking plan flow.
+    const raw = {
+      prior_art: [
+        { solution_ref: "auth/oauth-token-refresh", relevance_score: 0.9, relevance_reason: "first wins" },
+        { solution_ref: "auth/oauth-token-refresh", relevance_score: 0.8, relevance_reason: "dropped 1" },
+        { solution_ref: "auth/oauth-token-refresh", relevance_score: 0.7, relevance_reason: "dropped 2" },
+        { solution_ref: "runtime/spawn-timeout-retry", relevance_score: 0.6, relevance_reason: "unique sibling" },
+      ],
+      warnings: [],
+    }
+    const out = coerceLlmOutput(raw, cands)
+    expect(out.prior_art.length).toBe(2)
+    expect(out.prior_art[0]?.solution_ref).toBe("auth/oauth-token-refresh")
+    expect(out.prior_art[0]?.relevance_reason).toBe("first wins")
+    expect(out.prior_art[1]?.solution_ref).toBe("runtime/spawn-timeout-retry")
+    expect(out.warnings.length).toBe(1)
+    expect(out.warnings[0]).toMatch(/duplicate/i)
+    expect(out.warnings[0]).toContain("2") // 2 dedups
+  })
+
+  test("C8b: LLM-emitted warnings + dedup warning coexist", () => {
+    // LLM may also emit its own warnings via the warnings field. H.1 dedup
+    // warning should append, not replace.
+    const raw = {
+      prior_art: [
+        { solution_ref: "auth/oauth-token-refresh", relevance_score: 0.9, relevance_reason: "first" },
+        { solution_ref: "auth/oauth-token-refresh", relevance_score: 0.8, relevance_reason: "dup" },
+      ],
+      warnings: ["only 1 strong match found"],
+    }
+    const out = coerceLlmOutput(raw, cands)
+    expect(out.warnings.length).toBe(2)
+    expect(out.warnings).toContain("only 1 strong match found")
+    expect(out.warnings.some((w) => /duplicate/i.test(w))).toBe(true)
   })
 
   test("C6: prior_art not array → OutputShapeMismatch (Guard 1)", () => {
@@ -762,7 +862,11 @@ describe("researcher.history — LLM mock branch (Phase H T7)", () => {
     expect(() => coerceLlmOutput(r.output, cands)).toThrow(OutputShapeMismatch)
   })
 
-  test("L5: 6 entries → coerce truncates to 5 (Guard 5 tolerant)", async () => {
+  test("L5: 6 entries same ref → coerce dedups to 1 + warning (H.1)", async () => {
+    // Pre-H.1 this scenario yielded 5 duplicate bullets in intent.md (Guard 5
+    // truncated to 5 but didn't dedup). Post-H.1 (Guard 6) first wins, the
+    // other 5 are dropped, and a single warning surfaces the LLM anomaly.
+    // C5 in the coerce describe covers the 6-unique-refs truncate path.
     const cands = preFilterSolutions("add token refresh retry to OAuth", tmp)
     const cannedYaml = [
       "```yaml",
@@ -788,7 +892,10 @@ describe("researcher.history — LLM mock branch (Phase H T7)", () => {
       },
     )
     const out = coerceLlmOutput(r.output, cands)
-    expect(out.prior_art.length).toBe(5)
+    expect(out.prior_art.length).toBe(1)
     expect(out.prior_art[0]?.relevance_reason).toBe("entry 0")
+    expect(out.warnings.length).toBe(1)
+    expect(out.warnings[0]).toMatch(/duplicate/i)
+    expect(out.warnings[0]).toContain("5") // 5 dedups
   })
 })

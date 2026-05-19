@@ -46,6 +46,14 @@ describe("getSubagentManifest", () => {
   test("returns undefined for unknown", () => {
     expect(getSubagentManifest("nope.nope")).toBeUndefined()
   })
+  test("researcher.history token_budget bumped to 3000 (H.1 truncation defense)", () => {
+    // Pre-H.1: 1500 risked mid-YAML truncation on verbose LLM output
+    // (5 prior_art × ~30-word reason + warnings). 3000 = 2× margin.
+    const m = getSubagentManifest("researcher.history")
+    expect(m).toBeDefined()
+    expect(m?.token_budget).toBe(3000)
+  })
+
   test("YAML anchor merge expands for reviewer.security (uses *reviewer_base)", () => {
     const base = getSubagentManifest("reviewer.correctness")
     const sec = getSubagentManifest("reviewer.security")

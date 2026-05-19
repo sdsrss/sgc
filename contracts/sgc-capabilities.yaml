@@ -312,7 +312,11 @@ subagents:
       - "read:decisions:*"
       - "read:solutions"
       - "exec:git:read"
-    token_budget: 1500
+    # H.1: 1500 → 3000 to defend against mid-YAML truncation on verbose LLM
+    # output (5 prior_art × ~30-word relevance_reason + warnings + headers).
+    # 3000 gives 2× margin over the typical ~500-token shape; MAX_TOKENS_CAP
+    # in {anthropic-sdk,openrouter}-agent.ts caps the upper bound regardless.
+    token_budget: 3000
     timeout_s: 60
 
   # ---- Reviewers (CE lineage, reduced set) ----

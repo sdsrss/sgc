@@ -20,7 +20,7 @@ jobs:
       - name: Setup Node (for npm ci)
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           # Cache npm's ~/.npm using the lockfile as the key.
           cache: npm
 

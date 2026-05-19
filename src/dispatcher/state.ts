@@ -357,7 +357,7 @@ export function appendReview(
 ): string {
   if (suffix !== undefined && !REVIEW_SUFFIX_RE.test(suffix)) {
     throw new StateError(
-      "Validation",
+      "SchemaViolation",
       `invalid review suffix ${JSON.stringify(suffix)} — must match ${REVIEW_SUFFIX_RE.source}`,
     )
   }

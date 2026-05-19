@@ -371,8 +371,8 @@ describe("coerceLlmOutput — 5 guards (Phase H T3)", () => {
       keyword_hits: 1,
     },
     {
-      solution_ref: "net/retry-backoff",
-      category: "net",
+      solution_ref: "runtime/retry-backoff",
+      category: "runtime",
       excerpt: "Exponential backoff for transient HTTP 5xx.",
       keyword_hits: 1,
     },

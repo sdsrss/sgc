@@ -21,10 +21,14 @@ export class OpenRouterError extends Error {
 }
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-const DEFAULT_MODEL = "anthropic/claude-sonnet-4"
-// SGC_OPENROUTER_MODEL env overrides the default for ad-hoc eval runs
-// against newer / different models (e.g. `anthropic/claude-opus-4.7`).
-// Unset → DEFAULT_MODEL preserves prior calibration.
+// Latest Anthropic Opus on OpenRouter as of the 1.2.x default bump (2026-05).
+// Calibration of CI-skip eval tests (researcher-history, planner-eng,
+// compound-context, reviewer-correctness, classifier) was done against
+// `anthropic/claude-sonnet-4`; if you need that calibration set
+// SGC_OPENROUTER_MODEL=anthropic/claude-sonnet-4. If your OpenRouter region
+// hasn't rolled out 4.7 yet, fall back to `anthropic/claude-opus-4.5` or
+// `anthropic/claude-sonnet-4.6` via the same env override.
+const DEFAULT_MODEL = "anthropic/claude-opus-4.7"
 const MAX_TOKENS_CAP = 8192
 
 /** Extract ```yaml ... ``` fenced block from response text. */

@@ -103,8 +103,9 @@ describe("runShip --pr integration", () => {
       upstreamCheck: upstreamPresent,
       log: () => {},
     })
-    expect(captured?.title).toBe("custom title")
-    expect(captured?.body).toBe("custom body")
+    expect(captured).not.toBeNull()
+    expect(captured!.title).toBe("custom title")
+    expect(captured!.body).toBe("custom body")
   })
 
   test("gh failure propagates + ship.md is already written (not rolled back)", async () => {

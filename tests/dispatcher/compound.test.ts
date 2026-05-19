@@ -21,9 +21,10 @@ import {
 import { runCompound } from "../../src/commands/compound"
 import { runPlan } from "../../src/commands/plan"
 import { ensureSgcStructure, listSolutions, readSolution, writeSolution } from "../../src/dispatcher/state"
+import type { SolutionFile } from "../../src/dispatcher/state"
 import { getSubagentManifest } from "../../src/dispatcher/schema"
 import { spawn, OutputShapeMismatch } from "../../src/dispatcher/spawn"
-import type { SolutionEntry, SolutionFile } from "../../src/dispatcher/types"
+import type { SolutionEntry } from "../../src/dispatcher/types"
 
 const LONG_MOTIVATION =
   "We need this change because the existing flow lacks a critical structural element that downstream readers depend on for clarity and discoverability of the underlying behavior contract."

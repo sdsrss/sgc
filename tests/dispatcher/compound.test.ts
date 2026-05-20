@@ -14,8 +14,10 @@ import {
   compoundContext,
   compoundContextHeuristic,
   compoundPrevention,
+  compoundPreventionHeuristic,
   compoundRelated,
   compoundSolution,
+  compoundSolutionHeuristic,
   type CompoundContextOutput,
 } from "../../src/dispatcher/agents/compound"
 import { runCompound } from "../../src/commands/compound"
@@ -164,16 +166,28 @@ describe("compound.context — LLM-swap unit (G.2.b)", () => {
     expect(compoundContext).toBe(compoundContextHeuristic)
   })
 
-  test("U3: manifest declares prompt_path on context, null on siblings", () => {
+  test("U3: manifest declares prompt_path on context, .solution + .prevention (P2#7d); .related stays null (deferred to P2#7e)", () => {
     const ctx = getSubagentManifest("compound.context")
     expect(ctx).toBeDefined()
     expect(ctx!.prompt_path).toBe("prompts/compound-context.md")
 
-    // Sibling override — without explicit `prompt_path: null`, the YAML
-    // anchor merge would route compound.solution to a non-existent prompt.
+    // P2#7d: compound.solution + compound.prevention got their own
+    // prompt_path overrides (no longer inherit the anchor's null).
     const sol = getSubagentManifest("compound.solution")
     expect(sol).toBeDefined()
-    expect(sol!.prompt_path).toBeFalsy()
+    expect(sol!.prompt_path).toBe("prompts/compound-solution.md")
+
+    const prev = getSubagentManifest("compound.prevention")
+    expect(prev).toBeDefined()
+    expect(prev!.prompt_path).toBe("prompts/compound-prevention.md")
+
+    // compound.related deliberately keeps prompt_path: null — the dedup_stamp
+    // is an Invariant §3 write-gate that must be deterministic. LLM swap for
+    // .related is deferred to P2#7e with a hybrid design (deterministic
+    // findBestMatch + LLM enrichment of related_entries only).
+    const rel = getSubagentManifest("compound.related")
+    expect(rel).toBeDefined()
+    expect(rel!.prompt_path).toBeFalsy()
   })
 
   test("U4: prompt template has required structural markers", () => {
@@ -425,5 +439,86 @@ describe("runCompound integration", () => {
       log: () => {},
     })
     expect(r.solutionPath).toMatch(/solutions\/auth\/custom-slug-here\.md$/)
+  })
+})
+
+// ── P2#7d — compound.solution + compound.prevention LLM swap ───────────
+
+describe("compound.solution + .prevention — LLM-swap unit (P2#7d)", () => {
+  test("U6: compoundSolution alias === compoundSolutionHeuristic", () => {
+    expect(compoundSolution).toBe(compoundSolutionHeuristic)
+  })
+
+  test("U7: compoundPrevention alias === compoundPreventionHeuristic", () => {
+    expect(compoundPrevention).toBe(compoundPreventionHeuristic)
+  })
+
+  test("U8: prompts/compound-solution.md template structure", () => {
+    const tmpl = readFileSync(
+      resolve(process.cwd(), "prompts/compound-solution.md"),
+      "utf8",
+    )
+    // spawn.ts:formatPrompt markers
+    expect(tmpl).toMatch(/(^|\r?\n)##[ \t]+Input[ \t]*\r?\n/)
+    expect(tmpl).toContain("<input_yaml/>")
+    expect(tmpl).toContain("## Anti-patterns")
+    // Delegate boundary — solution must not bleed into prevention / context
+    expect(tmpl).toContain("compound.prevention")
+    expect(tmpl).toContain("compound.context")
+    // Both output fields named
+    expect(tmpl).toContain("solution")
+    expect(tmpl).toContain("what_didnt_work")
+    expect(tmpl).toContain("approach")
+    expect(tmpl).toContain("reason_failed")
+    // Stub-killer named: do NOT output "the change shipped; see the diff"
+    expect(tmpl).toMatch(/see the diff/i)
+  })
+
+  test("U9: prompts/compound-prevention.md template structure", () => {
+    const tmpl = readFileSync(
+      resolve(process.cwd(), "prompts/compound-prevention.md"),
+      "utf8",
+    )
+    expect(tmpl).toMatch(/(^|\r?\n)##[ \t]+Input[ \t]*\r?\n/)
+    expect(tmpl).toContain("<input_yaml/>")
+    expect(tmpl).toContain("## Anti-patterns")
+    // Delegate boundary — prevention receives output of solution + context
+    expect(tmpl).toContain("compound.solution")
+    expect(tmpl).toContain("compound.context")
+    expect(tmpl).toContain("prevention")
+    // Stub-killer: category boilerplate explicitly banned
+    expect(tmpl).toMatch(/Add a regression test covering the \{category\}-category/)
+    // Single-lever rule named
+    expect(tmpl).toMatch(/single lever|Multi-lever|one.*guardrail/i)
+  })
+
+  test("U10: banned-vocab list synced across both new prompts (15 terms; 'may break' exempt per lesson #18)", () => {
+    const terms = [
+      "could potentially",
+      "might affect",
+      "various concerns",
+      "several issues",
+      "generally",
+      "overall",
+      "seems to",
+      "production-ready",
+      "comprehensive",
+      "robust",
+      "显著",
+      "大幅",
+      "基本上",
+      "大部分情况",
+      "相当不错",
+    ]
+    for (const promptName of ["compound-solution.md", "compound-prevention.md"]) {
+      const tmpl = readFileSync(
+        resolve(process.cwd(), `prompts/${promptName}`),
+        "utf8",
+      )
+      for (const term of terms) {
+        expect(tmpl).toContain(term)
+      }
+      expect(tmpl).not.toMatch(/banned.*may break|may break.*banned/i)
+    }
   })
 })

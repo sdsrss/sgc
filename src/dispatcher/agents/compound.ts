@@ -83,7 +83,9 @@ export interface CompoundSolutionOutput {
   what_didnt_work: { approach: string; reason_failed: string }[]
 }
 
-export function compoundSolution(
+/** Heuristic fallback — used via SGC_FORCE_INLINE=1 or when no key is set.
+ * LLM mode (P2#7d) routes through prompts/compound-solution.md. */
+export function compoundSolutionHeuristic(
   input: CompoundSolutionInput,
 ): CompoundSolutionOutput {
   const wdw: { approach: string; reason_failed: string }[] = []
@@ -102,6 +104,10 @@ export function compoundSolution(
     `see the diff and review reports for the implementation details.`
   return { solution, what_didnt_work: wdw }
 }
+
+/** Backwards-compat alias for callers that pre-date the LLM swap (G.2.a /
+ * Phase F pattern). compound.ts callers still import `compoundSolution`. */
+export const compoundSolution = compoundSolutionHeuristic
 
 // ── compound.related ────────────────────────────────────────────────────────
 
@@ -175,7 +181,9 @@ export interface CompoundPreventionOutput {
   prevention: string
 }
 
-export function compoundPrevention(
+/** Heuristic fallback — used via SGC_FORCE_INLINE=1 or when no key is set.
+ * LLM mode (P2#7d) routes through prompts/compound-prevention.md. */
+export function compoundPreventionHeuristic(
   input: CompoundPreventionInput,
 ): CompoundPreventionOutput {
   const catHint = CATEGORY_PREVENTION[input.context.category]
@@ -184,6 +192,9 @@ export function compoundPrevention(
     prevention: `${base} ${catHint}`,
   }
 }
+
+/** Backwards-compat alias for callers that pre-date the LLM swap. */
+export const compoundPrevention = compoundPreventionHeuristic
 
 const CATEGORY_PREVENTION: Record<SolutionCategory, string> = {
   auth: "Include an adversarial test that exercises a missing/malformed token.",

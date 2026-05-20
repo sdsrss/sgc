@@ -414,7 +414,9 @@ subagents:
   compound.solution:
     <<: *compound_base
     purpose: "Extract what worked / didn't"
-    prompt_path: null
+    # P2#7d LLM swap: own prompt overrides anchor's compound-context.md.
+    # Heuristic still available via SGC_FORCE_INLINE=1 (compoundSolutionHeuristic).
+    prompt_path: prompts/compound-solution.md
     outputs:
       solution: markdown
       what_didnt_work: array[{approach, reason_failed}]
@@ -431,7 +433,9 @@ subagents:
   compound.prevention:
     <<: *compound_base
     purpose: "Derive prevention strategy"
-    prompt_path: null
+    # P2#7d LLM swap: own prompt overrides anchor's compound-context.md.
+    # Heuristic still available via SGC_FORCE_INLINE=1 (compoundPreventionHeuristic).
+    prompt_path: prompts/compound-prevention.md
     outputs:
       prevention: markdown
 

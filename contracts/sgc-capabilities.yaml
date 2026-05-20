@@ -424,6 +424,13 @@ subagents:
   compound.related:
     <<: *compound_base
     purpose: "Dedup check — MUST run before any write"
+    # prompt_path: null is INTENTIONAL and PERMANENT, not a deferred LLM
+    # swap. compound.related.outputs.dedup_stamp is the Invariant §3
+    # write-gate that authorizes writeSolution; routing it through an LLM
+    # would let the model mint best_similarity: 0 and bypass dedup. The
+    # heuristic findBestMatch (Jaccard + signature) is correct by design.
+    # See ~/.claude/projects/-mnt-Sda2-dev-sdsbp-sgc/memory/feedback_compound_related_invariant3.md
+    # and obs #92 (claude-mem-lite). Do NOT add a prompt_path here.
     prompt_path: null
     outputs:
       duplicate_match: object

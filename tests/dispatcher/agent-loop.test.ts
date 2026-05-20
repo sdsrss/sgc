@@ -291,6 +291,7 @@ describe("runAgentLoop — interactive (no args)", () => {
       resolve(tmp, "progress/agent-prompts", `${spawnId}.md`),
       "---\nspawn_id: " + spawnId + "\n---\n",
     )
+    delete process.env["CLAUDE_PLUGIN_ROOT"]
     const logs: string[] = []
     await runAgentLoop({ stateRoot: tmp, log: (m) => logs.push(m) })
     const out = logs.join("\n")
@@ -298,5 +299,31 @@ describe("runAgentLoop — interactive (no args)", () => {
     expect(out).toContain("Prompt:")
     expect(out).toContain("Reply:")
     expect(out).toContain("sgc agent-loop --submit")
+    // Without Claude Code env, no Task() hint
+    expect(out).not.toContain("Task(")
+  })
+
+  // P3#10 — Claude Code session hint variant
+  test("P3#10: pending spawn + CLAUDE_PLUGIN_ROOT set → emits Task() hint instead of poll instructions", async () => {
+    const spawnId = "01TESTINGCCSESSION0000000-classifier.level"
+    writePromptFile(
+      resolve(tmp, "progress/agent-prompts", `${spawnId}.md`),
+      "---\nspawn_id: " + spawnId + "\n---\n",
+    )
+    process.env["CLAUDE_PLUGIN_ROOT"] = "/fake/plugin/root"
+    try {
+      const logs: string[] = []
+      await runAgentLoop({ stateRoot: tmp, log: (m) => logs.push(m) })
+      const out = logs.join("\n")
+      expect(out).toContain(spawnId)
+      // Task() hint specific to Claude Code session
+      expect(out).toMatch(/Task\(\{.*subagent_type:.*classifier\.level/)
+      // Still shows submit command for the YAML output step
+      expect(out).toContain("sgc agent-loop --submit")
+      // Mentions file-poll deactivation
+      expect(out).toMatch(/file-poll dispatch is disabled/)
+    } finally {
+      delete process.env["CLAUDE_PLUGIN_ROOT"]
+    }
   })
 })

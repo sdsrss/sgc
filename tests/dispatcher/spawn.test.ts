@@ -218,6 +218,95 @@ describe("spawn — file-poll mode (SGC_USE_FILE_AGENTS=1)", () => {
       delete process.env["SGC_USE_FILE_AGENTS"]
     }
   }, 40_000)
+
+  // P3#10 — file-poll auto-deactivate inside Claude Code sessions
+  test("P3#10 T11: file-poll + CLAUDE_PLUGIN_ROOT set → throws with Task() hint", async () => {
+    process.env["SGC_USE_FILE_AGENTS"] = "1"
+    process.env["CLAUDE_PLUGIN_ROOT"] = "/fake/plugin/root"
+    try {
+      await expect(
+        spawn("classifier.level", {}, { stateRoot: tmp, ulid: "01CCSESSION00000000000000" }),
+      ).rejects.toThrow(SpawnError)
+      await expect(
+        spawn("classifier.level", {}, { stateRoot: tmp, ulid: "01CCSESSION00000000000001" }),
+      ).rejects.toThrow(/file-poll mode is disabled inside Claude Code/)
+      await expect(
+        spawn("classifier.level", {}, { stateRoot: tmp, ulid: "01CCSESSION00000000000002" }),
+      ).rejects.toThrow(/Task\("classifier\.level"/)
+    } finally {
+      delete process.env["SGC_USE_FILE_AGENTS"]
+      delete process.env["CLAUDE_PLUGIN_ROOT"]
+    }
+  })
+
+  test("P3#10 T12: file-poll WITHOUT CLAUDE_PLUGIN_ROOT → polls as usual (existing behavior)", async () => {
+    process.env["SGC_USE_FILE_AGENTS"] = "1"
+    delete process.env["CLAUDE_PLUGIN_ROOT"]
+    try {
+      // Without an external writer, this would timeout — but we just verify
+      // the request reaches polling (i.e. no P3#10 throw). Use a tiny timeout
+      // so we get a SpawnTimeout, not a hang.
+      await expect(
+        spawn("classifier.level", {}, {
+          stateRoot: tmp,
+          timeoutMs: 30_000,
+          pollIntervalMs: 30,
+        }),
+      ).rejects.toThrow(SpawnTimeout)  // poll-reached path, not P3#10 throw
+    } finally {
+      delete process.env["SGC_USE_FILE_AGENTS"]
+    }
+  }, 40_000)
+
+  test("P3#10 T13: inline mode + CLAUDE_PLUGIN_ROOT set → no throw (gate scopes to file-poll only)", async () => {
+    process.env["CLAUDE_PLUGIN_ROOT"] = "/fake/plugin/root"
+    delete process.env["SGC_USE_FILE_AGENTS"]
+    try {
+      const r = await spawn("classifier.level", {}, {
+        stateRoot: tmp,
+        ulid: "01INLINECC0000000000000001",
+        inlineStub: () => ({
+          level: "L0",
+          rationale: "inline ok",
+          affected_readers_candidates: ["alice"],
+        }),
+      })
+      expect(r.output).toMatchObject({ level: "L0" })
+    } finally {
+      delete process.env["CLAUDE_PLUGIN_ROOT"]
+    }
+  })
+
+  test("P3#10 T14: §13 paired-event — no spawn.start / spawn.end emitted on file-poll Claude-Code gate", async () => {
+    process.env["SGC_USE_FILE_AGENTS"] = "1"
+    process.env["CLAUDE_PLUGIN_ROOT"] = "/fake/plugin/root"
+    const events: EventRecord[] = []
+    const captureLogger: Logger = {
+      say: () => {},
+      event: (partial) => {
+        events.push({
+          schema_version: 1,
+          ts: new Date().toISOString(),
+          ...partial,
+        } as EventRecord)
+      },
+    }
+    try {
+      await expect(
+        spawn("classifier.level", {}, {
+          stateRoot: tmp,
+          ulid: "01P3T14000000000000000000",
+          logger: captureLogger,
+          taskId: "t-p3-10",
+        }),
+      ).rejects.toThrow(SpawnError)
+      expect(events.filter((e) => e.event_type === "spawn.start")).toHaveLength(0)
+      expect(events.filter((e) => e.event_type === "spawn.end")).toHaveLength(0)
+    } finally {
+      delete process.env["SGC_USE_FILE_AGENTS"]
+      delete process.env["CLAUDE_PLUGIN_ROOT"]
+    }
+  })
 })
 
 // ── P3#9 — Invariant §1 structural back-channel gate ───────────────────

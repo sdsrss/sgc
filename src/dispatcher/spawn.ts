@@ -410,6 +410,29 @@ export async function spawn<I = unknown, O = unknown>(
   // silently skip the start event and break the paired-event contract.
   const mode = resolveMode(opts, manifest)
 
+  // P3#10: file-poll auto-deactivate inside a Claude Code session.
+  // file-poll waits for an external actor (human / Claude in a parent
+  // session) to write the result file via `sgc agent-loop --submit`.
+  // When the dispatcher is invoked from within an active Claude Code
+  // session (CLAUDE_PLUGIN_ROOT set by the Claude Code runtime when
+  // executing plugin hooks/skills/commands), the spawn would block
+  // forever — Claude has Task() and doesn't need the prompt/result
+  // file-handshake. Fail fast with a Task()-shaped hint instead.
+  //
+  // Thrown before spawn.start fires → §13 Tier 1 paired-event contract
+  // preserved (no spawn.start ⇒ no spawn.end owed).
+  if (mode === "file-poll" && process.env["CLAUDE_PLUGIN_ROOT"]) {
+    throw new SpawnError(
+      `Agent ${agentName}: file-poll mode is disabled inside Claude Code sessions ` +
+        `(CLAUDE_PLUGIN_ROOT detected). Options: ` +
+        `(1) unset SGC_USE_FILE_AGENTS to use inline/anthropic-sdk/openrouter modes; ` +
+        `(2) set ANTHROPIC_API_KEY or OPENROUTER_API_KEY for direct LLM dispatch; ` +
+        `(3) invoke the agent via Task("${agentName}", input) from your Claude session, ` +
+        `then submit the YAML output via \`sgc agent-loop --submit ${spawnId} --from <file>\`. ` +
+        `Prompt written to: ${promptPath}`,
+    )
+  }
+
   // Invariant §13 Tier 1: emit spawn.start before any dispatch work begins.
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot })
   const startTs = Date.now()

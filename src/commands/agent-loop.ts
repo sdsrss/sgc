@@ -132,14 +132,27 @@ export async function runAgentLoop(opts: AgentLoopOptions = {}): Promise<{
     return { action: "interactive" }
   }
   const next = pending[0]!
+  const { agentName: nextAgent } = parseSpawnId(next.spawnId)
   log(`Next pending: ${next.spawnId}`)
   log(``)
   log(`Prompt:  ${next.promptPath}`)
   log(`Reply:   ${next.resultPath}`)
   log(``)
-  log(`Read the prompt, then submit via:`)
-  log(`  sgc agent-loop --submit ${next.spawnId} --from <yaml-file>`)
-  log(`  cat <yaml-file> | sgc agent-loop --submit ${next.spawnId}`)
+  // P3#10: when inside a Claude Code session, prefer Task() invocation —
+  // the file-poll handshake is for headless / parent-Claude orchestration.
+  if (process.env["CLAUDE_PLUGIN_ROOT"]) {
+    log(`Inside Claude Code session — invoke via Task() directly:`)
+    log(`  Task({ subagent_type: "${nextAgent}", prompt: <prompt body>, ... })`)
+    log(`Then submit the YAML output:`)
+    log(`  sgc agent-loop --submit ${next.spawnId} --from <yaml-file>`)
+    log(``)
+    log(`(file-poll dispatch is disabled inside Claude Code per P3#10; ` +
+        `set SGC_USE_FILE_AGENTS=0 or use anthropic-sdk/openrouter for direct LLM dispatch)`)
+  } else {
+    log(`Read the prompt, then submit via:`)
+    log(`  sgc agent-loop --submit ${next.spawnId} --from <yaml-file>`)
+    log(`  cat <yaml-file> | sgc agent-loop --submit ${next.spawnId}`)
+  }
   log(``)
   log(`(${pending.length - 1} more pending after this)`)
   return { action: "interactive" }

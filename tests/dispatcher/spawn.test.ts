@@ -4,9 +4,12 @@ import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import {
   OutputShapeMismatch,
+  SpawnError,
   SpawnTimeout,
+  checkInvariantOneBackChannel,
   spawn,
 } from "../../src/dispatcher/spawn"
+import type { EventRecord, Logger } from "../../src/dispatcher/logger"
 import {
   ensureSgcStructure,
   parseFrontmatter,
@@ -215,4 +218,178 @@ describe("spawn — file-poll mode (SGC_USE_FILE_AGENTS=1)", () => {
       delete process.env["SGC_USE_FILE_AGENTS"]
     }
   }, 40_000)
+})
+
+// ── P3#9 — Invariant §1 structural back-channel gate ───────────────────
+
+describe("checkInvariantOneBackChannel — unit (P3#9)", () => {
+  test("T1: reviewer.correctness with canonical heading in intent → throws SpawnError", () => {
+    const input = {
+      diff: "+ const x = 1",
+      intent:
+        "# Title\n\nSome motivation.\n\n## Prior art (researcher.history)\n\n- runtime/foo (score 0.9)",
+    }
+    expect(() =>
+      checkInvariantOneBackChannel("reviewer.correctness", input),
+    ).toThrow(SpawnError)
+    expect(() =>
+      checkInvariantOneBackChannel("reviewer.correctness", input),
+    ).toThrow(/Invariant §1 violation/)
+  })
+
+  test("T2: only `intent` field is scanned — siblings like `diff` echoing the heading are OK", () => {
+    // The diff field legitimately contains arbitrary code/text. A user's PR
+    // could add a `## Prior art (researcher.history)` markdown heading to a
+    // doc file, and that diff lands in reviewer input. The gate must not
+    // false-positive on diff content — only the dispatcher-owned intent
+    // field carries the back-channel signal.
+    const inputDiffEcho = {
+      diff: "+ ## Prior art (researcher.history)\n+ - new prior art entry",
+      intent: "# Title\n\nMotivation paragraph, no Prior-art section.",
+    }
+    expect(() =>
+      checkInvariantOneBackChannel("reviewer.correctness", inputDiffEcho),
+    ).not.toThrow()
+  })
+
+  test("T3: qa.browser with canonical heading in intent → throws", () => {
+    const input = {
+      intent: "look at the page\n\n## Prior art (researcher.history)\n- ref",
+      url: "https://example.com",
+    }
+    expect(() => checkInvariantOneBackChannel("qa.browser", input)).toThrow(
+      SpawnError,
+    )
+  })
+
+  test("T4: planner.eng with the heading → NO throw (planner allowed)", () => {
+    // Planner cluster READS solutions for prior-art mining; §1 only forbids
+    // reviewer.* / qa.* from seeing it.
+    const input = {
+      intent_draft:
+        "# Title\n\n## Prior art (researcher.history)\n\n- runtime/foo",
+    }
+    expect(() =>
+      checkInvariantOneBackChannel("planner.eng", input),
+    ).not.toThrow()
+  })
+
+  test("T5: reviewer.correctness with CLEAN input → no throw", () => {
+    const input = {
+      diff: "+ const x = 1",
+      intent: "# Title\n\nMotivation paragraph with no Prior art section.",
+    }
+    expect(() =>
+      checkInvariantOneBackChannel("reviewer.correctness", input),
+    ).not.toThrow()
+  })
+
+  test("T6: reviewer.tests, reviewer.maintainability, reviewer.adversarial, qa.* all gated", () => {
+    const leaky = {
+      intent: "x\n## Prior art (researcher.history)\n- ref",
+    }
+    for (const agent of [
+      "reviewer.tests",
+      "reviewer.maintainability",
+      "reviewer.adversarial",
+      "qa.browser",
+    ]) {
+      expect(() => checkInvariantOneBackChannel(agent, leaky)).toThrow(
+        SpawnError,
+      )
+    }
+  })
+
+  test("T7: classifier.level, compound.*, researcher.history NOT gated", () => {
+    // These agents legitimately handle solutions content; §1 doesn't apply.
+    const leaky = {
+      intent: "x\n## Prior art (researcher.history)\n- ref",
+      intent_draft: "x\n## Prior art (researcher.history)\n- ref",
+    }
+    for (const agent of [
+      "classifier.level",
+      "compound.context",
+      "compound.solution",
+      "researcher.history",
+    ]) {
+      expect(() => checkInvariantOneBackChannel(agent, leaky)).not.toThrow()
+    }
+  })
+
+  test("T8: generic '## Prior art' WITHOUT the researcher.history parenthetical → no throw", () => {
+    // A user writing "## Prior art" in their own intent.body (e.g. citing
+    // prior internal work themselves) is not a researcher.history back-
+    // channel — the dispatcher only embeds the version with the
+    // parenthetical. The narrower marker prevents false positives on
+    // user-authored intent text.
+    const userPriorArt = {
+      intent:
+        "# Title\n\n## Prior art\n\nUser-written citation of past internal work.",
+    }
+    expect(() =>
+      checkInvariantOneBackChannel("reviewer.correctness", userPriorArt),
+    ).not.toThrow()
+
+    // And mid-line "## Prior art (researcher.history)" without a newline
+    // anchor stays caught — the regex anchors on (^|\n) before the heading.
+    const midline = {
+      intent: "see ## Prior art (researcher.history) inline mention",
+    }
+    expect(() =>
+      checkInvariantOneBackChannel("reviewer.correctness", midline),
+    ).not.toThrow()
+  })
+})
+
+describe("spawn — Invariant §1 gate integration (P3#9)", () => {
+  test("T9: spawn() to reviewer.correctness with leaky input throws before spawn.start", async () => {
+    const events: EventRecord[] = []
+    const captureLogger: Logger = {
+      say: () => {},
+      event: (partial) => {
+        events.push({
+          schema_version: 1,
+          ts: new Date().toISOString(),
+          ...partial,
+        } as EventRecord)
+      },
+    }
+    await expect(
+      spawn(
+        "reviewer.correctness",
+        {
+          diff: "+ foo",
+          intent: "title\n## Prior art (researcher.history)\n- runtime/x",
+        },
+        {
+          stateRoot: tmp,
+          logger: captureLogger,
+          taskId: "t-gate",
+          inlineStub: () => ({}),  // never reached
+        },
+      ),
+    ).rejects.toThrow(/Invariant §1 violation/)
+    // §13 Tier 1 contract: no spawn.start fired → no spawn.end owed
+    expect(events.filter((e) => e.event_type === "spawn.start")).toHaveLength(0)
+    expect(events.filter((e) => e.event_type === "spawn.end")).toHaveLength(0)
+  })
+
+  test("T10: spawn() to planner.eng with same leaky input succeeds (§1 doesn't apply)", async () => {
+    const res = await spawn(
+      "planner.eng",
+      {
+        intent_draft: "title\n## Prior art (researcher.history)\n- runtime/x",
+      },
+      {
+        stateRoot: tmp,
+        taskId: "t-allowed",
+        inlineStub: () => ({
+          verdict: "approve",
+          concerns: [],
+          structural_risks: [],
+        }),
+      },
+    )
+    expect(res.output).toMatchObject({ verdict: "approve" })
+  })
 })

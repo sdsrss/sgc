@@ -98,6 +98,50 @@ export class SpawnError extends Error {
   }
 }
 
+// ── Invariant §1 structural gate ────────────────────────────────────────
+//
+// sgc-invariants.md §1 + sgc-capabilities.yaml `/review.solutions: []`:
+// reviewer.* and qa.* agents must remain amnesiac to past solutions.
+// review.ts:stripPriorArtSection is the producer-side strip (P3#9 keeps
+// it for defense-in-depth); this is the consumer-side structural gate.
+//
+// Pre-spawn, scan the `intent` input field for researcher.history's
+// canonical heading:
+//
+//   ## Prior art (researcher.history)
+//
+// The `(researcher.history)` parenthetical disambiguates it from any
+// generic "## Prior art" a user might write in their motivation. Only
+// the `intent`-named string field is scanned — sibling fields like
+// `diff` legitimately echo arbitrary code/text (a user's PR may itself
+// add a "Prior art" doc heading) and would false-positive a whole-input
+// scan.
+//
+// Producer-side strip can be forgotten; the gate catches drift before
+// the LLM sees the leaked content. Throws SpawnError so spawn.start
+// does NOT fire (§13 Tier 1 paired-event contract preserved — failure
+// happens before the spawn is even announced).
+const PRIOR_ART_BACK_CHANNEL_RE = /(^|\n)[ \t]*## Prior art \(researcher\.history\)/
+
+function isReviewerOrQaAgent(name: string): boolean {
+  return name.startsWith("reviewer.") || name.startsWith("qa.")
+}
+
+export function checkInvariantOneBackChannel(
+  agentName: string,
+  input: unknown,
+): void {
+  if (!isReviewerOrQaAgent(agentName)) return
+  if (typeof input !== "object" || input === null) return
+  const intent = (input as Record<string, unknown>)["intent"]
+  if (typeof intent !== "string") return
+  if (PRIOR_ART_BACK_CHANNEL_RE.test(intent)) {
+    throw new SpawnError(
+      `Invariant §1 violation: agent ${agentName} intent input contains a "## Prior art (researcher.history)" back-channel heading — reviewers/qa must remain amnesiac to past solutions. Run stripPriorArtSection on intent.body before spawn (review.ts pattern).`,
+    )
+  }
+}
+
 export type InlineStub<I = unknown, O = unknown> = (input: I) => O | Promise<O>
 
 export type AgentMode = "inline" | "file-poll" | "claude-cli" | "anthropic-sdk" | "openrouter"
@@ -342,6 +386,14 @@ export async function spawn<I = unknown, O = unknown>(
   // Compute + pin scope tokens (Invariant §8). Throws ScopeViolation if
   // manifest declares a forbidden token (e.g. reviewer.* with read:solutions).
   const tokens = computeSubagentTokens(agentName)
+
+  // Invariant §1 structural gate (P3#9): reviewer.* / qa.* inputs must not
+  // contain Prior-art back-channels (## Prior art heading, solution_ref
+  // field). Throws SpawnError before spawn.start fires — paired-event
+  // contract preserved per §13 Tier 1 (no spawn.start ⇒ no spawn.end
+  // owed). Producer-side strip in review.ts:stripPriorArtSection stays
+  // for defense-in-depth.
+  checkInvariantOneBackChannel(agentName, input)
 
   ensureSgcStructure(opts.stateRoot)
   const stateRoot = root(opts.stateRoot)

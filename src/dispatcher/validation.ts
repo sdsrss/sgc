@@ -46,9 +46,11 @@ export function validateValueAgainstDecl(
     }
     // Recurse on inner type T when it is a simple form we know how to
     // check (string / markdown / integer / number / enum[...]). Composite
-    // forms like `{area, risk, mitigation}` are deferred — our DSL doesn't
-    // model object-shape array elements, so we keep the pre-G.3 behavior
-    // of accepting them and rely on per-agent unit tests.
+    // forms like `{area, risk, mitigation}` stay manifest-untyped here —
+    // shape enforcement for `array[{...}]` outputs is delegated to
+    // `composeArrayObjectValidator` below, which agents wire up at the
+    // call site (researcher.history is the first consumer; planner.eng /
+    // compound.context will migrate when their LLM-mode coerce lands).
     //
     // Pre-G.3 (DF-2 fix): this branch only checked Array.isArray, which
     // let `concerns: [{area, risk, mitigation}]` slip past `array[string]`
@@ -142,5 +144,182 @@ export function validateOutputShape(manifest: SubagentManifest, result: unknown)
       typeErrors,
       `agent ${manifest.name} output type errors: ${typeErrors.join("; ")}`,
     )
+  }
+}
+
+// --- composeArrayObjectValidator ----------------------------------------
+//
+// Generalizes the post-spawn `coerceLlmOutput` pattern that Phase H wired up
+// in researcher-history.ts. Pre-DSL each LLM-mode agent that emits
+// `array[{...}]` re-implemented the same 6 guards (top-level array check,
+// per-entry object check, per-field type checks, cross-field validation,
+// dedup-first-wins, truncate-to-N). Centralizing them lets new LLM agents
+// declare a shape and inherit the audit-event-friendly OutputShapeMismatch
+// throws + dedup warning convention.
+//
+// Scope: structural validation + dedup + truncate. Field-value transforms
+// (markdown-escape, whitespace fold, context-aware back-fill) stay in the
+// caller — the DSL hands back validated raw entries so callers retain full
+// type control of the final shape.
+
+/** Per-field type spec — applied in `fields` declaration order. */
+export type FieldSpec =
+  | { kind: "string" }
+  | { kind: "string-in-set"; set: ReadonlySet<string> }
+  | { kind: "finite-number-range"; min: number; max: number }
+  | { kind: "optional-non-empty-string" }
+  /** Escape hatch when a field needs context only the caller has. */
+  | { kind: "custom"; check: (value: unknown) => string | null }
+
+export interface ArrayObjectShape {
+  /** Surfaced in OutputShapeMismatch — e.g. "researcher.history". */
+  agentName: string
+  /** Top-level field on the outer object — e.g. "prior_art". */
+  topField: string
+  /** Per-field structural checks. Insertion order is the check order. */
+  fields: Record<string, FieldSpec>
+  /**
+   * Cross-field hook, runs after `fields` pass for one entry. Return a
+   * non-null string to fail validation with that message; null to accept.
+   * Used for constraints that reference multiple fields (e.g. "X must be
+   * ≥ T when Y is present"). The hook sees the raw entry — values have
+   * passed structural checks but are not yet narrowed by TypeScript.
+   */
+  validateEntry?: (entry: Record<string, unknown>, index: number) => string | null
+  /** Field name used for dedup — first occurrence wins. Must appear in `fields`. */
+  dedupBy?: string
+  /** Hard cap on output length — applied after dedup. Truncation is silent. */
+  maxLength?: number
+  /** Singular noun for the dedup warning ("entry" / "entries"). Default "entry". */
+  dedupNoun?: string
+}
+
+export interface ArrayObjectValidationResult {
+  /** Validated raw entries, post-dedup, post-truncate. Caller maps to typed shape. */
+  entries: Record<string, unknown>[]
+  /** LLM-passthrough warnings (raw.warnings filtered to strings) + DSL dedup warning. */
+  warnings: string[]
+}
+
+function checkField(value: unknown, spec: FieldSpec): string | null {
+  switch (spec.kind) {
+    case "string":
+      return typeof value === "string" ? null : `expected string, got ${typeof value}`
+    case "string-in-set":
+      if (typeof value !== "string") return `expected string, got ${typeof value}`
+      return spec.set.has(value) ? null : `${JSON.stringify(value)} not in allowed set`
+    case "finite-number-range":
+      if (typeof value !== "number" || !Number.isFinite(value) || value < spec.min || value > spec.max) {
+        return `must be finite number in [${spec.min}, ${spec.max}], got ${
+          typeof value === "number" ? String(value) : JSON.stringify(value)
+        }`
+      }
+      return null
+    case "optional-non-empty-string":
+      if (value === undefined) return null
+      if (typeof value !== "string" || value.trim().length === 0) {
+        return `must be non-empty string when present`
+      }
+      return null
+    case "custom":
+      return spec.check(value)
+  }
+}
+
+/**
+ * Compose a validator for the `{ <topField>: [{...}], warnings: [string] }`
+ * shape. Returns a function that throws `OutputShapeMismatch` on structural
+ * failure and returns `{ entries, warnings }` on success.
+ */
+export function composeArrayObjectValidator(
+  shape: ArrayObjectShape,
+): (raw: unknown) => ArrayObjectValidationResult {
+  const fieldEntries = Object.entries(shape.fields)
+  const dedupNoun = shape.dedupNoun ?? "entry"
+  const dedupPlural = dedupNoun === "entry" ? "entries" : `${dedupNoun}s`
+
+  return function validateArrayObject(raw: unknown): ArrayObjectValidationResult {
+    if (typeof raw !== "object" || raw === null) {
+      throw new OutputShapeMismatch(
+        shape.agentName,
+        [shape.topField],
+        `${shape.agentName} output not an object`,
+      )
+    }
+    const obj = raw as Record<string, unknown>
+    const arr = obj[shape.topField]
+    if (!Array.isArray(arr)) {
+      throw new OutputShapeMismatch(
+        shape.agentName,
+        [shape.topField],
+        `${shape.agentName}.${shape.topField} expected array, got ${typeof arr}`,
+      )
+    }
+
+    const seen = shape.dedupBy ? new Set<string>() : null
+    let dedupedCount = 0
+    const entries: Record<string, unknown>[] = []
+
+    for (let i = 0; i < arr.length; i++) {
+      if (shape.maxLength !== undefined && entries.length >= shape.maxLength) break
+      const e = arr[i]
+      if (typeof e !== "object" || e === null) {
+        throw new OutputShapeMismatch(
+          shape.agentName,
+          [`${shape.topField}[${i}]`],
+          `${shape.topField}[${i}] not an object`,
+        )
+      }
+      const entry = e as Record<string, unknown>
+
+      // Per-field structural checks, in declaration order.
+      for (const [fieldName, spec] of fieldEntries) {
+        const err = checkField(entry[fieldName], spec)
+        if (err !== null) {
+          throw new OutputShapeMismatch(
+            shape.agentName,
+            [`${shape.topField}[${i}].${fieldName}`],
+            `${shape.topField}[${i}].${fieldName} ${err}`,
+          )
+        }
+      }
+
+      // Cross-field hook.
+      if (shape.validateEntry) {
+        const err = shape.validateEntry(entry, i)
+        if (err !== null) {
+          throw new OutputShapeMismatch(
+            shape.agentName,
+            [`${shape.topField}[${i}]`],
+            `${shape.topField}[${i}].${err}`,
+          )
+        }
+      }
+
+      // Dedup — first wins. Subsequent dups counted, dropped silently.
+      if (seen !== null) {
+        const key = entry[shape.dedupBy!] as string
+        if (seen.has(key)) {
+          dedupedCount++
+          continue
+        }
+        seen.add(key)
+      }
+
+      entries.push(entry)
+    }
+
+    const llmWarnings = Array.isArray(obj["warnings"])
+      ? (obj["warnings"].filter((w) => typeof w === "string") as string[])
+      : []
+    const warnings = [...llmWarnings]
+    if (dedupedCount > 0) {
+      const noun = dedupedCount === 1 ? dedupNoun : dedupPlural
+      warnings.push(
+        `LLM emitted ${dedupedCount} duplicate ${shape.dedupBy} ${noun}; deduped to ${entries.length} unique`,
+      )
+    }
+
+    return { entries, warnings }
   }
 }

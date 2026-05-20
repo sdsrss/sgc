@@ -25,7 +25,7 @@ import { resolve } from "node:path"
 import { tokenize } from "../dedup"
 import type { Logger } from "../logger"
 import type { SolutionCategory } from "../types"
-import { OutputShapeMismatch } from "../validation"
+import { OutputShapeMismatch, composeArrayObjectValidator } from "../validation"
 
 export interface ResearcherHistoryInput {
   intent_draft: string
@@ -253,161 +253,83 @@ export const researcherHistory = researcherHistoryHeuristic
 /**
  * Post-spawn validation + coercion for LLM-mode researcher.history output.
  *
- * Lives here (not in validation.ts) because validation.ts is manifest-driven
- * and only handles enum[...] / array[<simple>] per the comment at
- * validation.ts:55-63 — composite array[{...}] inner shape is deferred to
- * per-agent code. Mirrors how planner.eng + compound.context handle their
- * nested shapes via prompt + post-spawn convention.
+ * Structural validation (6 guards) is delegated to
+ * `composeArrayObjectValidator` in ../validation.ts (P2 #8). This function
+ * builds the per-call shape (refSet/candByRef vary by candidates) and maps
+ * validated raw entries into typed `PriorArt[]` with two transforms the DSL
+ * deliberately leaves to the caller:
  *
- * 6 guards:
- *   1. prior_art is array
- *   2. each entry's solution_ref ∈ candidates set
- *   3. relevance_score ∈ [0, 1] always; tightened to [0.3, 1] when
- *      relevance_reason present (LLM mode). Heuristic mode also floors at
- *      0.3 since H.1 (see mineSolutions); coerce stays tolerant for legacy.
- *   4. relevance_reason — when present, must be non-empty (LLM mode);
- *      absent is legal (heuristic mode passes through coerce)
- *   5. truncate prior_art > 5 to first 5 unique (tolerant)
- *   6. duplicate solution_ref — first wins; subsequent dropped silently and
- *      surfaced via a single dedup warning in output.warnings (H.1).
+ *   - back-fill `excerpt` + `source` from the candidates map so the LLM
+ *     doesn't have to re-emit ~500-char strings (saves output tokens; defense
+ *     against the LLM mangling the excerpt).
+ *   - relevance_reason whitespace fold + markdown escape (T6 review I-2 +
+ *     H.1 #9). Renders as a markdown bullet in intent.md; meta chars (`*_`[]`)
+ *     would otherwise trigger emphasis / code-span / link parsing.
  *
- * Back-fills `excerpt` and `source` from the candidates map so the LLM
- * doesn't have to re-emit ~500-char strings (saves output tokens; defense
- * against the LLM mangling the excerpt).
+ * 6 guards encoded in the DSL shape:
+ *   1. prior_art is array                          → DSL outer check
+ *   2. each entry's solution_ref ∈ candidates set  → field: string-in-set
+ *   3. relevance_score ∈ [0, 1]; tightened to [0.3, 1] when relevance_reason
+ *      present (LLM mode)                          → field: finite-number-range + validateEntry
+ *   4. relevance_reason non-empty when present     → field: optional-non-empty-string
+ *   5. truncate prior_art > 5 to first 5 unique    → maxLength: 5
+ *   6. duplicate solution_ref first-wins + warning → dedupBy: "solution_ref"
  */
 export function coerceLlmOutput(
   raw: unknown,
   candidates: PriorArtCandidate[],
 ): ResearcherHistoryOutput {
-  if (typeof raw !== "object" || raw === null) {
-    throw new OutputShapeMismatch(
-      "researcher.history",
-      ["prior_art"],
-      "researcher.history output not an object",
-    )
-  }
-  const obj = raw as Record<string, unknown>
-  // Guard 1: prior_art is array
-  if (!Array.isArray(obj.prior_art)) {
-    throw new OutputShapeMismatch(
-      "researcher.history",
-      ["prior_art"],
-      `researcher.history.prior_art expected array, got ${typeof obj.prior_art}`,
-    )
-  }
   const refSet = new Set(candidates.map((c) => c.solution_ref))
   const candByRef = new Map(candidates.map((c) => [c.solution_ref, c]))
 
-  // Guards 5 + 6: iterate full array; track seen refs (dedup first-wins) and
-  // stop once 5 unique entries are collected (truncate). Pre-H.1 pre-sliced to
-  // first 5 raw entries, which dropped valid uniques when the first 5 had
-  // duplicate refs.
-  const seenRefs = new Set<string>()
-  let dedupedCount = 0
-  const out_prior_art: PriorArt[] = []
-  for (let i = 0; i < obj.prior_art.length; i++) {
-    if (out_prior_art.length >= 5) break
-    const e = obj.prior_art[i]
-    if (typeof e !== "object" || e === null) {
-      throw new OutputShapeMismatch(
-        "researcher.history",
-        [`prior_art[${i}]`],
-        `prior_art[${i}] not an object`,
-      )
-    }
-    const entry = e as Record<string, unknown>
-    const ref = entry.solution_ref
-    // Guard 2: ref must exist in input candidates
-    if (typeof ref !== "string" || !refSet.has(ref)) {
-      throw new OutputShapeMismatch(
-        "researcher.history",
-        [`prior_art[${i}].solution_ref`],
-        `prior_art[${i}].solution_ref ${JSON.stringify(ref)} not in input candidates`,
-      )
-    }
-    // Guard 3: relevance_score must be number in [0, 1]; LLM mode (relevance_reason
-    // present) tightens to [0.3, 1.0]. Heuristic mode emits raw hit-rate which
-    // may be below 0.3; still legal.
-    const score = entry.relevance_score
-    const hasReason = entry.relevance_reason !== undefined
-    // !Number.isFinite catches NaN, +Infinity, -Infinity (and non-numbers,
-    // making the typeof check redundant but kept for clearer error message).
-    // Phase H pre-ship review F-2: bare `score < 0 || score > 1` admitted NaN
-    // because typeof NaN === "number" + NaN-comparisons-are-false; YAML
-    // `relevance_score: .nan` from a misbehaving LLM would render literal
-    // "NaN" via .toFixed(2) into intent.md.
-    if (typeof score !== "number" || !Number.isFinite(score) || score < 0 || score > 1.0) {
-      throw new OutputShapeMismatch(
-        "researcher.history",
-        [`prior_art[${i}].relevance_score`],
-        `prior_art[${i}].relevance_score must be finite number in [0, 1], got ${typeof score === "number" ? String(score) : JSON.stringify(score)}`,
-      )
-    }
-    if (hasReason && score < 0.3) {
-      throw new OutputShapeMismatch(
-        "researcher.history",
-        [`prior_art[${i}].relevance_score`],
-        `prior_art[${i}].relevance_score must be ≥ 0.3 in LLM mode (with relevance_reason), got ${score}`,
-      )
-    }
-    // Guard 4: relevance_reason — when present, must be non-empty.
-    // Heuristic-mode entries omit the field entirely (legal); LLM-mode
-    // entries must populate it (validated below).
-    const reason = entry.relevance_reason
-    if (hasReason && (typeof reason !== "string" || reason.trim().length === 0)) {
-      throw new OutputShapeMismatch(
-        "researcher.history",
-        [`prior_art[${i}].relevance_reason`],
-        `prior_art[${i}].relevance_reason must be non-empty string when present`,
-      )
-    }
-    // Guard 6: dedup by solution_ref, first-wins. Subsequent duplicates
-    // dropped + counted; a single warning is surfaced after the loop.
-    if (seenRefs.has(ref)) {
-      dedupedCount++
-      continue
-    }
-    seenRefs.add(ref)
+  const validate = composeArrayObjectValidator({
+    agentName: "researcher.history",
+    topField: "prior_art",
+    fields: {
+      solution_ref: { kind: "string-in-set", set: refSet },
+      relevance_score: { kind: "finite-number-range", min: 0, max: 1 },
+      relevance_reason: { kind: "optional-non-empty-string" },
+    },
+    validateEntry: (entry) => {
+      // Guard 3 LLM-mode tightening: when relevance_reason is present
+      // (LLM mode), score must be ≥ 0.3. Heuristic mode omits the field
+      // entirely so this cross-field rule doesn't fire.
+      if (entry["relevance_reason"] !== undefined && (entry["relevance_score"] as number) < 0.3) {
+        return `relevance_score must be ≥ 0.3 in LLM mode (with relevance_reason), got ${entry["relevance_score"]}`
+      }
+      return null
+    },
+    dedupBy: "solution_ref",
+    maxLength: 5,
+  })
 
+  const { entries, warnings } = validate(raw)
+
+  const prior_art: PriorArt[] = entries.map((entry) => {
+    const ref = entry["solution_ref"] as string
+    const score = entry["relevance_score"] as number
+    const reason = entry["relevance_reason"] as string | undefined
     const cand = candByRef.get(ref)!
-    const entryOut: PriorArt = {
+    const out: PriorArt = {
       source: "solutions",
       solution_ref: ref,
       relevance_score: score,
       excerpt: cand.excerpt,
     }
-    // Whitespace-fold + markdown-escape: relevance_reason renders as a markdown
-    // bullet in intent.md. Three layers of defense at the boundary (T6 review
-    // I-2 + H.1 #9):
-    //   1. ZWSP (U+200B) — invisible separator, strip entirely (no spurious
-    //      space created where the LLM put none).
-    //   2. \s + U+0085 NEL — fold runs of standard whitespace + NEL to a
-    //      single space. ECMAScript \s misses U+0085 by default.
-    //   3. Markdown meta chars (*_`[]) — escape with backslash so they
-    //      render as literal text in the bullet instead of triggering
-    //      emphasis / code-span / link parsing.
-    if (hasReason) {
-      entryOut.relevance_reason = (reason as string)
+    if (reason !== undefined) {
+      // ZWSP strip + whitespace fold (incl. U+0085 NEL via the bracket-class
+      // line below) + markdown meta-char escape — renders as a markdown
+      // bullet in intent.md (T6 review I-2 + H.1 #9).
+      out.relevance_reason = reason
         .replace(/​/g, "")
         .replace(/[\s]+/g, " ")
         .trim()
         .replace(/([*_`[\]])/g, "\\$1")
     }
-    out_prior_art.push(entryOut)
-  }
+    return out
+  })
 
-  const llmWarnings = Array.isArray(obj.warnings)
-    ? (obj.warnings.filter((w) => typeof w === "string") as string[])
-    : []
-  const warnings = [...llmWarnings]
-  if (dedupedCount > 0) {
-    const noun = dedupedCount === 1 ? "entry" : "entries"
-    warnings.push(
-      `LLM emitted ${dedupedCount} duplicate solution_ref ${noun}; deduped to ${out_prior_art.length} unique`,
-    )
-  }
-
-  return { prior_art: out_prior_art, warnings }
+  return { prior_art, warnings }
 }
 
 /**

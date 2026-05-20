@@ -1,15 +1,19 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
-import { plannerAdversarial } from "../../src/dispatcher/agents/planner-adversarial"
+import {
+  plannerAdversarial,
+  plannerAdversarialHeuristic,
+} from "../../src/dispatcher/agents/planner-adversarial"
+import { getSubagentManifest } from "../../src/dispatcher/schema"
 import { runPlan } from "../../src/commands/plan"
 import { readIntent } from "../../src/dispatcher/state"
 
 const LONG_MOTIVATION =
   "We need this change because the existing flow lacks a critical structural element that downstream readers depend on for clarity and discoverability of the underlying behavior contract."
 
-describe("plannerAdversarial stub", () => {
+describe("plannerAdversarialHeuristic stub", () => {
   test("returns at least one failure mode for any input", () => {
     const r = plannerAdversarial({ intent_draft: "boring text" })
     expect(r.failure_modes.length).toBeGreaterThanOrEqual(1)
@@ -61,6 +65,87 @@ describe("plannerAdversarial stub", () => {
       expect(["low", "medium", "high"]).toContain(fm.impact)
       expect(fm.early_signal.length).toBeGreaterThan(0)
     }
+  })
+
+  test("U4: plannerAdversarial alias === plannerAdversarialHeuristic (G.2.a pattern)", () => {
+    expect(plannerAdversarial).toBe(plannerAdversarialHeuristic)
+  })
+})
+
+describe("prompts/planner-adversarial.md — template structure (P2#7b)", () => {
+  const promptPath = resolve(process.cwd(), "prompts/planner-adversarial.md")
+  const tmpl = readFileSync(promptPath, "utf8")
+
+  test("U1: required structural markers (Input heading, input_yaml, Anti-patterns)", () => {
+    // splitPrompt regex from anthropic-sdk-agent.ts:79 — must match
+    expect(tmpl).toMatch(/(^|\r?\n)##[ \t]+Input[ \t]*\r?\n/)
+    expect(tmpl).toContain("<input_yaml/>")
+    expect(tmpl).toContain("## Anti-patterns")
+    // Delegate boundary — adversarial must not bleed into architect / mitigation
+    expect(tmpl).toMatch(/NOT.*architect|Mitigation prose|pre-mortem/i)
+  })
+
+  test("U2: enum values for probability + impact named in prompt", () => {
+    expect(tmpl).toContain("low | medium | high")
+    // The four output fields explicitly named
+    expect(tmpl).toContain("scenario")
+    expect(tmpl).toContain("probability")
+    expect(tmpl).toContain("impact")
+    expect(tmpl).toContain("early_signal")
+  })
+
+  test("U3: banned-vocab list synced with planner-eng (15 terms; 'may break' exempt per lesson #18)", () => {
+    for (const term of [
+      "could potentially",
+      "might affect",
+      "various concerns",
+      "several issues",
+      "generally",
+      "overall",
+      "seems to",
+      "production-ready",
+      "comprehensive",
+      "robust",
+    ]) {
+      expect(tmpl).toContain(term)
+    }
+    for (const term of ["显著", "大幅", "基本上", "大部分情况", "相当不错"]) {
+      expect(tmpl).toContain(term)
+    }
+    // "may break" must NOT be banned — lesson #18.
+    expect(tmpl).not.toMatch(/banned.*may break|may break.*banned/i)
+  })
+
+  test("U5: bad / good contrast section present", () => {
+    expect(tmpl).toMatch(/(bad|Bad).*(good|Good)/s)
+  })
+})
+
+describe("planner.adversarial manifest (P2#7b)", () => {
+  test("M1: prompt_path declares prompts/planner-adversarial.md", () => {
+    const m = getSubagentManifest("planner.adversarial")
+    expect(m).toBeDefined()
+    expect(m!.prompt_path).toBe("prompts/planner-adversarial.md")
+  })
+
+  test("M2: inputs include intent_draft; repo_map dropped at v0.2", () => {
+    const m = getSubagentManifest("planner.adversarial")
+    expect(m).toBeDefined()
+    const inputs = m!.inputs as Record<string, string>
+    expect(inputs.intent_draft).toBe("markdown")
+    expect(inputs.repo_map).toBeUndefined()
+  })
+
+  test("M3: outputs.failure_modes uses array[{...}] composite form", () => {
+    const m = getSubagentManifest("planner.adversarial")
+    expect(m).toBeDefined()
+    const outputs = m!.outputs as Record<string, string>
+    expect(outputs.failure_modes).toMatch(/^array\[/)
+    // The four fields named in the inner composite
+    expect(outputs.failure_modes).toContain("scenario")
+    expect(outputs.failure_modes).toContain("probability")
+    expect(outputs.failure_modes).toContain("impact")
+    expect(outputs.failure_modes).toContain("early_signal")
   })
 })
 

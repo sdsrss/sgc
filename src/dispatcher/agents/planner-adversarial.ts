@@ -1,13 +1,26 @@
-// planner.adversarial — L3 pre-mortem stub.
+// planner.adversarial — L3 pre-mortem.
 //
-// Real planner.adversarial analyzes the intent + repo for failure modes.
-// MVP stub pattern-matches risk keywords and generates generic failure
-// mode entries. Ships as a guardrail placeholder — real LLM path gives
-// better results via claude-cli / anthropic-sdk mode.
+// LLM mode (P2#7b, mirrors G.2.a planner.eng): when ANTHROPIC_API_KEY or
+// OPENROUTER_API_KEY is set, spawn.ts:resolveMode routes through
+// `prompts/planner-adversarial.md`. Output is `failure_modes: array[{...}]`
+// — composite shape that validateOutputShape defers per the comment at
+// validation.ts (the array element is `{scenario, probability, impact,
+// early_signal}` and validateValueAgainstDecl only checks simple inner
+// types). Per-entry enum constraint on probability/impact is enforced
+// by the prompt template; tests sanity-check the heuristic + assert
+// banned-vocab absence on LLM output.
+//
+// Heuristic fallback (`plannerAdversarialHeuristic`): regex-keyword
+// scan of intent_draft picks up to 5 RISK_PATTERNS; falls back to a
+// universal coverage-gap mode when nothing matches. Used when no key
+// is set and via SGC_FORCE_INLINE=1 in tests.
+//
+// `repo_map` input dropped at v0.2 (mirrors G.2.a planner.eng) — the
+// LLM has no concrete codebase access via this spawn and the prompt
+// forbids inventing paths; the heuristic never consulted it either.
 
 export interface PlannerAdversarialInput {
   intent_draft: string
-  repo_map?: string
 }
 
 export type Probability = "low" | "medium" | "high"
@@ -85,7 +98,7 @@ const DEFAULT_FAILURE_MODE: FailureMode = {
   early_signal: "coverage drops below baseline or reviewer.tests flags missing edge-case tests",
 }
 
-export function plannerAdversarial(
+export function plannerAdversarialHeuristic(
   input: PlannerAdversarialInput,
 ): PlannerAdversarialOutput {
   const draft = input.intent_draft ?? ""
@@ -103,3 +116,8 @@ export function plannerAdversarial(
 
   return { failure_modes: matched }
 }
+
+// Backwards-compat alias for callers that pre-date the LLM swap (G.2.a /
+// Phase F pattern). plan.ts inlineStub still imports `plannerAdversarial`;
+// tests using the legacy name continue to work.
+export const plannerAdversarial = plannerAdversarialHeuristic

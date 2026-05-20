@@ -279,15 +279,18 @@ subagents:
     timeout_s: 120
 
   planner.adversarial:
-    version: "0.1"
+    version: "0.2"
+    source: gstack pre-mortem pattern (P2#7b LLM swap mirrors G.2.a planner.eng)
     purpose: L3 pre-mortem. "What is the most likely way this fails?"
+    prompt_path: prompts/planner-adversarial.md
     inputs:
+      # repo_map dropped at v0.2 — matches G.2.a planner.eng which removed
+      # repo_map for the same reason: the LLM has no concrete codebase
+      # access via this spawn and the prompt explicitly forbids inventing
+      # file paths. Heuristic also ignored the field.
       intent_draft: markdown
-      repo_map: string
     outputs:
-      failure_modes:
-        type: array
-        items: [scenario, probability, impact, early_signal]
+      failure_modes: array[{scenario, probability, impact, early_signal}]
     scope_tokens: ["read:decisions:*", "read:progress", "exec:git:read"]
     token_budget: 6000
     timeout_s: 180

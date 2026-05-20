@@ -1,10 +1,18 @@
-// clarifier.discover — pre-plan discovery stub.
+// clarifier.discover — pre-plan discovery.
 //
-// Produces structured forcing-questions for a vague topic. MVP stub uses
-// keyword detection to tune the question set; real LLM path (via claude-cli
-// or anthropic-sdk mode) handles full nuance. Output is consumed by the
-// user directly — `sgc discover` prints it and suggests the follow-up
-// `sgc plan` command. No state writes.
+// LLM mode (P2#7c, mirrors G.2.a planner.eng): when ANTHROPIC_API_KEY or
+// OPENROUTER_API_KEY is set, spawn.ts:resolveMode routes through
+// `prompts/clarifier-discover.md`. Output shape (topic + goal_question +
+// 4 question-category arrays + suggested_next) is scalar + array[string]
+// throughout — validateOutputShape catches missing fields and wrong
+// inner types without a per-agent DSL coerce.
+//
+// Heuristic fallback (`clarifierDiscoverHeuristic`): keyword detection
+// tunes the question set per domain hint (auth/data/perf/api/ui). Used
+// when no key is set and via SGC_FORCE_INLINE=1 in tests.
+//
+// Output is consumed by the user directly — `sgc discover` prints it and
+// suggests the follow-up `sgc plan` command. No state writes.
 //
 // Pattern: gstack office-hours forcing-questions + CE discovery flow,
 // re-authored. One goal question, then up to 5 each of constraints /
@@ -33,7 +41,7 @@ const UI_RE = /\b(ui|page|component|form|modal|dropdown|button|layout|render)\b/
 const PERF_RE = /\b(slow|fast|latency|throughput|cache|p95|p99|benchmark|optimi[sz]e)\b/i
 const API_RE = /\b(api|endpoint|route|request|response|webhook|rpc)\b/i
 
-export function clarifierDiscover(
+export function clarifierDiscoverHeuristic(
   input: ClarifierDiscoverInput,
 ): ClarifierDiscoverOutput {
   const topic = (input.topic ?? "").trim()
@@ -115,3 +123,8 @@ export function clarifierDiscover(
     suggested_next: `sgc plan "${topic}" --motivation "<your consolidated answers as one paragraph, ≥20 words>"${contextNote}`,
   }
 }
+
+// Backwards-compat alias for callers that pre-date the LLM swap (G.2.a /
+// Phase F pattern). discover.ts inlineStub still imports `clarifierDiscover`;
+// tests using the legacy name continue to work.
+export const clarifierDiscover = clarifierDiscoverHeuristic

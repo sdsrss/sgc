@@ -204,9 +204,10 @@ subagents:
 
   # ---- Clarifier ----
   clarifier.discover:
-    version: "0.1"
-    source: gstack/office-hours + CE discovery pattern (re-authored)
+    version: "0.2"
+    source: gstack/office-hours + CE discovery pattern (re-authored; P2#7c LLM swap mirrors G.2.a pattern)
     purpose: Turn vague topic into structured forcing-questions for /plan
+    prompt_path: prompts/clarifier-discover.md
     inputs:
       topic: string
       current_task_summary: string

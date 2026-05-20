@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import { clarifierDiscover } from "../../src/dispatcher/agents/clarifier-discover"
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
+import {
+  clarifierDiscover,
+  clarifierDiscoverHeuristic,
+} from "../../src/dispatcher/agents/clarifier-discover"
+import { getSubagentManifest } from "../../src/dispatcher/schema"
 
 describe("clarifier.discover stub", () => {
   test("empty topic → throws", () => {
@@ -85,5 +91,91 @@ describe("clarifier.discover stub", () => {
       current_task_summary: "",
     })
     expect(r.topic).toBe("migrate users to orgs")
+  })
+
+  test("U4: clarifierDiscover alias === clarifierDiscoverHeuristic (G.2.a pattern)", () => {
+    expect(clarifierDiscover).toBe(clarifierDiscoverHeuristic)
+  })
+})
+
+describe("prompts/clarifier-discover.md — template structure (P2#7c)", () => {
+  const promptPath = resolve(process.cwd(), "prompts/clarifier-discover.md")
+  const tmpl = readFileSync(promptPath, "utf8")
+
+  test("U1: required structural markers (Input heading, input_yaml, Anti-patterns)", () => {
+    expect(tmpl).toMatch(/(^|\r?\n)##[ \t]+Input[ \t]*\r?\n/)
+    expect(tmpl).toContain("<input_yaml/>")
+    expect(tmpl).toContain("## Anti-patterns")
+    // Delegate boundary — clarifier sits BEFORE planner; must not propose answers
+    expect(tmpl).toMatch(/NOT.*answer|NOT.*design|NOT.*implementation/i)
+  })
+
+  test("U2: all 6 output fields named in the template", () => {
+    for (const field of [
+      "topic",
+      "goal_question",
+      "constraint_questions",
+      "scope_questions",
+      "edge_case_questions",
+      "acceptance_questions",
+      "suggested_next",
+    ]) {
+      expect(tmpl).toContain(field)
+    }
+    // suggested_next literal shape preserved
+    expect(tmpl).toContain('sgc plan')
+    expect(tmpl).toContain('--motivation')
+  })
+
+  test("U3: banned-vocab list synced (15 terms; 'may break' exempt per lesson #18)", () => {
+    for (const term of [
+      "could potentially",
+      "might affect",
+      "various concerns",
+      "several issues",
+      "generally",
+      "overall",
+      "seems to",
+      "production-ready",
+      "comprehensive",
+      "robust",
+    ]) {
+      expect(tmpl).toContain(term)
+    }
+    for (const term of ["显著", "大幅", "基本上", "大部分情况", "相当不错"]) {
+      expect(tmpl).toContain(term)
+    }
+    expect(tmpl).not.toMatch(/banned.*may break|may break.*banned/i)
+  })
+
+  test("U5: hard caps on question-category fan-out named", () => {
+    // Anti-pattern #4 — verify each cap phrase exists. Use literal substrings
+    // (toContain) to avoid Unicode-comparison quirks in regex matchers.
+    expect(tmpl).toContain("Caps are HARD")
+    expect(tmpl).toContain("5 constraint")
+    expect(tmpl).toContain("3 scope")
+    expect(tmpl).toContain("4 edge")
+    expect(tmpl).toContain("3 acceptance")
+  })
+})
+
+describe("clarifier.discover manifest (P2#7c)", () => {
+  test("M1: prompt_path declares prompts/clarifier-discover.md", () => {
+    const m = getSubagentManifest("clarifier.discover")
+    expect(m).toBeDefined()
+    expect(m!.prompt_path).toBe("prompts/clarifier-discover.md")
+  })
+
+  test("M2: outputs include all 6 question fields with correct DSL forms", () => {
+    const m = getSubagentManifest("clarifier.discover")
+    expect(m).toBeDefined()
+    const outputs = m!.outputs as Record<string, string>
+    expect(outputs.topic).toBe("string")
+    expect(outputs.goal_question).toBe("string")
+    expect(outputs.constraint_questions).toBe("array[string]")
+    expect(outputs.scope_questions).toBe("array[string]")
+    expect(outputs.edge_case_questions).toBe("array[string]")
+    expect(outputs.acceptance_questions).toBe("array[string]")
+    expect(outputs.suggested_next).toBe("string")
   })
 })

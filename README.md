@@ -10,8 +10,21 @@ A single Claude Code workflow combining process discipline (Superpowers), real-w
 
 ## Install
 
+### Claude Code plugin (markdown layer)
+
 ```bash
-git clone <this-repo> sgc && cd sgc
+/plugin marketplace add sdsrss/sgc
+/plugin install sgc
+```
+
+Installs the prompt layer in `~/.claude/plugins/cache/sgc/sgc/`: 10 slash commands (`/sgc:plan`, `/sgc:work`, …), 9 skills, and the SessionStart bootstrap hook. After install, `/sgc:plan` etc. become available in any Claude Code session.
+
+> **The plugin does NOT bundle the CLI.** Slash commands shell out to `bun src/sgc.ts <cmd>` in your current working directory — so you still need the source clone below in every project that runs sgc. The `/sgc:plan` preflight prints a clear error if `src/sgc.ts` isn't found.
+
+### CLI from source (required for the slash commands to actually run)
+
+```bash
+git clone https://github.com/sdsrss/sgc && cd sgc
 
 # bun client doesn't honor HTTP_PROXY; use npm for install
 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install

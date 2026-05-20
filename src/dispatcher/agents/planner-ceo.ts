@@ -1,9 +1,15 @@
-// planner.ceo — Product gate stub.
+// planner.ceo — Product gate.
 //
-// Real planner.ceo answers "is this worth doing?" — user impact, success
-// metrics, strategic fit. MVP stub returns `approve` unless the intent
-// draft is obviously thin on business context. Real LLM path handles it
-// via claude-cli or anthropic-sdk mode (same spawn protocol).
+// LLM mode (P2#7a, mirrors G.2.a planner.eng): when ANTHROPIC_API_KEY or
+// OPENROUTER_API_KEY is set, spawn.ts:resolveMode routes through
+// `prompts/planner-ceo.md` (zero-shot product gate). Output validated by
+// validateOutputShape against the manifest's enum[approve, revise, reject]
+// + array[string] declarations — no array[{...}] composite, so no DSL
+// validator needed here.
+//
+// Heuristic fallback (`plannerCeoHeuristic`): keyword-driven approval; used
+// when no key is set and via SGC_FORCE_INLINE=1 in tests. Returns `approve`
+// unless intent is short or no audience keyword is present.
 
 export interface PlannerCeoInput {
   intent_draft: string
@@ -23,7 +29,7 @@ export interface PlannerCeoOutput {
 const AUDIENCE_RE =
   /\b(user|customer|team|downstream|caller|reader|stakeholder|impact|metric|outcome|revenue|latency|adoption|retention)\b/i
 
-export function plannerCeo(input: PlannerCeoInput): PlannerCeoOutput {
+export function plannerCeoHeuristic(input: PlannerCeoInput): PlannerCeoOutput {
   const draft = input.intent_draft ?? ""
   const concerns: string[] = []
   const rewrite_hints: string[] = []
@@ -48,3 +54,8 @@ export function plannerCeo(input: PlannerCeoInput): PlannerCeoOutput {
     rewrite_hints,
   }
 }
+
+// Backwards-compat alias for callers that pre-date the LLM swap (G.2.a /
+// Phase F pattern). plan.ts inlineStub still imports `plannerCeo`; tests
+// using the legacy name continue to work.
+export const plannerCeo = plannerCeoHeuristic

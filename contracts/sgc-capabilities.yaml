@@ -249,9 +249,10 @@ subagents:
 
   # ---- Planners (gstack lineage) ----
   planner.ceo:
-    version: "0.1"
-    source: gstack/plan-ceo-review (re-authored, not vendored)
+    version: "0.2"
+    source: gstack/plan-ceo-review (re-authored, not vendored; P2#7a LLM swap mirrors G.2.a planner.eng pattern)
     purpose: Product gate — "is this worth doing?"
+    prompt_path: prompts/planner-ceo.md
     inputs:
       intent_draft: markdown
     outputs:

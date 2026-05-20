@@ -7,6 +7,12 @@ description: "8-gate ship: verify reviews + QA + feature-list, write immutable s
 
 The terminal step. Gates fail closed.
 
+## Pre-flight
+
+```bash
+test -f src/sgc.ts || { echo "sgc CLI not in cwd — clone https://github.com/sdsrss/sgc or run from a project that vendors it"; exit 1; }
+```
+
 ## Gate sequence
 
 1. Active task exists (current-task.md present)

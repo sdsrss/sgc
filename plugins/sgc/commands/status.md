@@ -7,6 +7,12 @@ description: "Read-only dashboard — active task, level, last activity. Zero LL
 
 Quick "where am I" snapshot.
 
+## Pre-flight
+
+```bash
+test -f src/sgc.ts || { echo "sgc CLI not in cwd — clone https://github.com/sdsrss/sgc or run from a project that vendors it"; exit 1; }
+```
+
 ## Invocation
 
 ```bash

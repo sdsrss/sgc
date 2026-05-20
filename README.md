@@ -35,6 +35,24 @@ bun --version    # ≥1.3
 
 Lockfile: `package-lock.json` (npm). Bun reads it fine.
 
+## Update
+
+```bash
+/plugin marketplace update sgc    # refresh marketplace metadata
+/plugin update sgc                # pull the new plugin version
+```
+
+Both steps are needed — `/plugin update sgc` alone uses cached marketplace metadata and won't see new versions. If you also use the CLI from source, run `git pull && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install` in your clone separately — the plugin update only refreshes the markdown prompt layer, not the dispatcher.
+
+## Uninstall
+
+```bash
+/plugin uninstall sgc               # removes plugin from ~/.claude/plugins/cache
+/plugin marketplace remove sgc      # removes the marketplace entry
+```
+
+Both steps for a clean removal. Project-level `.sgc/` state directories are **not** touched — that's project data, not plugin data. Run `rm -rf .sgc` per-project if you also want to wipe the state layer.
+
 ## Quick start
 
 ```bash

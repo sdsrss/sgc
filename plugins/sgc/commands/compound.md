@@ -7,6 +7,12 @@ description: "4-agent compound cluster (context → related → solution → pre
 
 Knowledge extraction. Almost always invoked by `janitor.compound` post-ship — direct invocation is for forcing a compound on a task the janitor would skip.
 
+## Pre-flight
+
+```bash
+test -f src/sgc.ts || { echo "sgc CLI not in cwd — clone https://github.com/sdsrss/sgc or run from a project that vendors it"; exit 1; }
+```
+
 ## Invocation
 
 ```bash

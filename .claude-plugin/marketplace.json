@@ -3,6 +3,10 @@
   "owner": {
     "name": "SDS"
   },
+  "metadata": {
+    "description": "SGC marketplace — engineering agent (plan / execute / review / QA / ship / compound) with L0-L3 task routing and knowledge accumulation.",
+    "homepage": "https://github.com/sdsrss/sgc"
+  },
   "plugins": [
     {
       "name": "sgc",

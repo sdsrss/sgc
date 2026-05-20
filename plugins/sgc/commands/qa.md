@@ -7,6 +7,12 @@ description: "Real-browser end-to-end QA via the browse module. Required gate fo
 
 Drive a real Chromium browser through user flows. Like `/review`, qa.browser is AMNESIAC (no `read:solutions`).
 
+## Pre-flight
+
+```bash
+test -f src/sgc.ts || { echo "sgc CLI not in cwd — clone https://github.com/sdsrss/sgc or run from a project that vendors it"; exit 1; }
+```
+
 ## Invocation
 
 ```bash

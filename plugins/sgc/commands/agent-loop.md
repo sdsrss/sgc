@@ -7,6 +7,12 @@ description: "File-poll helper — list / show / submit pending agent spawns. Fo
 
 The escape hatch when the dispatcher fell back to `file-poll` mode (no `ANTHROPIC_API_KEY`, no `OPENROUTER_API_KEY`, no `claude` CLI). You read the prompt, formulate the YAML response, submit it.
 
+## Pre-flight
+
+```bash
+test -f src/sgc.ts || { echo "sgc CLI not in cwd — clone https://github.com/sdsrss/sgc or run from a project that vendors it"; exit 1; }
+```
+
 ## Invocation
 
 ```bash

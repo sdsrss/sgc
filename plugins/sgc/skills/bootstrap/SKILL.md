@@ -11,6 +11,16 @@ Load SGC rules, verify `.sgc/` state integrity, route user intent to the correct
 
 At the start of every conversation. Runs before any other SGC skill.
 
+## CLI Dependency
+
+This plugin ships **only the prompt layer** (commands, skills, hook). Every `/sgc:*` command shells out to `bun src/sgc.ts <cmd>` relative to the user's current working directory; the dispatcher CLI is NOT bundled. If a command prints `sgc CLI not in cwd`, surface the clone step once:
+
+```bash
+git clone https://github.com/sdsrss/sgc && cd sgc && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install
+```
+
+Do not repeat this notice on every command — once per session is enough. CLI bundling is a roadmap item (see CHANGELOG).
+
 ## Initialization Sequence
 
 1. **Read [`plugins/sgc/CLAUDE.md`](../../CLAUDE.md)** — authoritative command table, permission matrix, task levels, and the 7 invariants.

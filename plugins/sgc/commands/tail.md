@@ -7,6 +7,12 @@ description: "Tail .sgc/progress/events.ndjson — structured event stream. Filt
 
 Operator-facing read surface over the Invariant §13 event audit log.
 
+## Pre-flight
+
+```bash
+test -f src/sgc.ts || { echo "sgc CLI not in cwd — clone https://github.com/sdsrss/sgc or run from a project that vendors it"; exit 1; }
+```
+
 ## Invocation
 
 ```bash

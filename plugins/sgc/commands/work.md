@@ -7,6 +7,12 @@ description: "Track feature-list progress for the active sgc task. No LLM — ju
 
 Append features, mark them done, or list current state. The dispatcher does NOT infer features — you (the human) refine the list during execution.
 
+## Pre-flight
+
+```bash
+test -f src/sgc.ts || { echo "sgc CLI not in cwd — clone https://github.com/sdsrss/sgc or run from a project that vendors it"; exit 1; }
+```
+
 ## Invocation
 
 ```bash

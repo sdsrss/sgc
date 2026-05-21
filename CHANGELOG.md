@@ -1,14 +1,23 @@
 # Changelog
 
-## Unreleased — Audit follow-up batch (P1 / P3 / P7 + P2 / P6 / P9 + P4-lite / P5-T1)
+## v1.3.0 — 2026-05-21 — Audit follow-up batch + first npm publish
+
+**Distribution change** — sgc is now distributable via `npm install -g @sdsrss/sgc`. The unscoped `sgc` name was already taken on npm (different package). The Claude Code plugin layer still installs via `/plugin install sgc` (the marketplace name); the slash commands now auto-detect npm-installed CLI on PATH and fall back to `bun src/sgc.ts` in cwd for source-clone users.
+
+### Distribution (P5 Tier 2: npm publish + GitHub Actions workflow)
+- `package.json`: renamed `sgc` → `@sdsrss/sgc` (scoped); bumped 1.2.1 → 1.3.0; added `files`, `engines: {bun: ">=1.3"}`, `publishConfig: {access: public, provenance: true}`, `repository`, `bugs`, `homepage`, `keywords`. Dropped the `browse` bin entry (per-platform binary, not shipped via npm — build from source).
+- `src/sgc.ts`: `#!/usr/bin/env bun` shebang (already present, verified executable on `npm install -g`).
+- `.github/workflows/publish.yml` (new): triggers on `v*` tag push. Verifies tag matches `package.json` version, runs dispatcher tests as gate, publishes with `--access public --provenance`. Requires `NPM_TOKEN` secret in repo settings.
+- 11 `plugins/sgc/commands/*.md`: consolidated Pre-flight + Invocation into one bash block that resolves `$SGC` to `sgc` (PATH) → `bun src/sgc.ts` (cwd) → prints multi-path install help and exits.
+- `plugins/sgc/skills/bootstrap/SKILL.md`: dual-path install (npm primary, source-clone alternative).
+- `README.md` Install/Update sections: split into "1. Install the CLI" (npm + source) and "2. Install the Claude Code plugin"; `## Update` covers both npm and source paths.
+- `plugins/sgc/.claude-plugin/plugin.json`: version bumped 1.2.1 → 1.3.0; description aligned with `package.json` (no "merges best of three" framing).
 
 ### Docs (P4-lite: storage expectation-setting, defer team-sync)
 - `README.md`: new `### Storage model — operator-local by design` subsection under `## State layout`. Sets explicit expectation that `.sgc/` is per-project, per-machine; calls out the no-team-sync gap; documents the manual side-repo workaround; references the design space (local/team split vs `sgc solutions sync` vs SQLite). Full team-sync feature deferred until real cross-user usage emerges.
 
-### UX (P5 Tier 1: first-failure install guidance)
-- `plugins/sgc/skills/bootstrap/SKILL.md`: hoisted the CLI install commands to the top of the file under `## ⚠️ Install the CLI before first command`. New users see the clone-and-install block before any `/sgc:*` command can fail.
-- 11 `plugins/sgc/commands/*.md` files (agent-loop / compound / discover / doctor / plan / qa / review / ship / status / tail / work): replaced the one-line preflight `echo` with a multi-line `printf` that shows ERROR header + ready-to-paste install commands + reference link. Same single-statement bash form (sed-safe, no shell quoting traps).
-- No CLI behavior change. The full bundling answer (`npm publish sgc` or single-file binary, Tier 2) waits on adoption signal.
+### UX (P5 Tier 1: first-failure install guidance) — superseded by Tier 2 above
+- Earlier in this version, plugin commands gained a multi-line `printf` preflight + bootstrap SKILL.md hoisted the install block. Tier 2 replaces that single-mode help with dual-path (npm + source) resolver.
 
 ### Hardening (P2: output-side Invariant §1 leak check)
 - `src/dispatcher/fingerprint.ts` (new): walks `<stateRoot>/solutions/<cat>/<slug>.md`, hashes every fingerprintable line (≥25 chars, not pure markdown structure) with SHA256→16-hex. After-output scan in `spawn.ts` (post-`validateOutputShape`, pre-return) recursively walks reviewer.* / qa.* output string fields, throws `SpawnError` on collision. Other agents (planner.*, compound.*, researcher.history) exempt — they legitimately quote solutions. Per-process cache keyed by stateRoot; `clearFingerprintCache()` exposed for tests.

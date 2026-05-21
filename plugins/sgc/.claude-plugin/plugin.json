@@ -1,7 +1,7 @@
 {
   "name": "sgc",
-  "version": "1.2.1",
-  "description": "SGC — engineering agent with 10 commands, 22 specialized agents, L0-L3 task routing, real browser QA, and compound knowledge. Absorbs the best of Superpowers (process discipline), gstack (runtime/QA/deploy), and CE (knowledge compounding).",
+  "version": "1.3.0",
+  "description": "SGC — L0-L3 task classifier + 13 runtime invariants + dedup-enforced .sgc/ knowledge engine. A 规范层 + 知识引擎 that coexists with Superpowers, gstack, and Compound Engineering. CLI ships separately via npm (@sdsrss/sgc) or source clone.",
   "author": {
     "name": "SDS"
   },

@@ -1,0 +1,72 @@
+name: publish-npm
+
+# Triggered by pushing a `v*` tag (e.g. `v1.3.0`). Tag must match the
+# version field in package.json — the publish step refuses if they differ.
+#
+# Prerequisites (one-time setup):
+#   1. npm account exists for @sdsrss scope (npmjs.com → create token →
+#      "Automation" type for CI use).
+#   2. Add the token as repo secret `NPM_TOKEN` (Settings → Secrets and
+#      variables → Actions → New repository secret).
+#   3. Bump package.json + plugins/sgc/.claude-plugin/plugin.json versions
+#      in lockstep.
+#
+# Tag → publish flow:
+#   git tag v1.3.0
+#   git push origin v1.3.0           # fires this workflow
+#
+# Provenance: the package is published with --provenance, which embeds a
+# signed attestation linking the published tarball to this exact GitHub
+# Actions run + commit SHA. npm requires id-token: write permission for
+# this; the workflow grants it explicitly.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write  # required for npm publish --provenance
+
+jobs:
+  publish:
+    name: npm publish (with provenance)
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node (for npm publish + registry auth)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          cache: npm
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.5"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify tag matches package.json version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(node -p 'require(\"./package.json\").version')"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "ERROR: tag $GITHUB_REF_NAME (-> $TAG_VERSION) != package.json version $PKG_VERSION" >&2
+            exit 1
+          fi
+          echo "OK: publishing $PKG_VERSION"
+
+      - name: Run dispatcher tests (gate publish)
+        run: SGC_FORCE_INLINE=1 bun test tests/dispatcher
+
+      - name: Publish to npm
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

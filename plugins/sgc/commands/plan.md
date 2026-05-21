@@ -7,16 +7,24 @@ description: "Classify task L0-L3 and run the planner cluster (eng / ceo / adver
 
 Classify a task and dispatch the appropriate planner cluster. Detailed semantics live in `plugins/sgc/skills/plan/SKILL.md`.
 
-## Pre-flight
-
-```bash
-test -f src/sgc.ts || { printf "%s\n" "ERROR: sgc CLI not in current directory." "" "Install once per project (plugin layer is markdown-only; CLI is a separate clone):" "  git clone https://github.com/sdsrss/sgc && cd sgc" "  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install" "" "Then re-run from the sgc/ directory." "See https://github.com/sdsrss/sgc#install for the canonical install reference." >&2; exit 1; }
-```
-
 ## Invocation
 
 ```bash
-bun src/sgc.ts plan "<task — one sentence>" \
+if command -v sgc >/dev/null 2>&1; then SGC=sgc
+elif test -f src/sgc.ts; then SGC="bun src/sgc.ts"
+else
+  printf '%s\n' \
+    "ERROR: sgc CLI not found." "" \
+    "Install via npm (recommended):" \
+    "  npm install -g @sdsrss/sgc       # requires bun >=1.3 runtime" "" \
+    "Or clone from source:" \
+    "  git clone https://github.com/sdsrss/sgc && cd sgc" \
+    "  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install" "" \
+    "See https://github.com/sdsrss/sgc#install" >&2
+  exit 1
+fi
+
+$SGC plan "<task — one sentence>" \
   --motivation "<≥20-word rationale; required for L1+>" \
   [--level L0|L1|L2|L3]      # upgrade-only override
   [--signed-by <human_id>]   # required for L3 (Invariant §4)

@@ -1,12 +1,43 @@
 {
-  "name": "sgc",
-  "version": "1.2.1",
+  "name": "@sdsrss/sgc",
+  "version": "1.3.0",
   "description": "SGC — L0-L3 task classifier + 13 runtime invariants + dedup-enforced .sgc/ knowledge engine. A 规范层 + 知识引擎 that coexists with Superpowers, gstack, and Compound Engineering rather than replacing them.",
   "type": "module",
   "bin": {
-    "sgc": "./src/sgc.ts",
-    "browse": "./plugins/sgc/browse/dist/browse"
+    "sgc": "./src/sgc.ts"
   },
+  "files": [
+    "src/",
+    "contracts/",
+    "prompts/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "bun": ">=1.3"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sdsrss/sgc.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sdsrss/sgc/issues"
+  },
+  "homepage": "https://github.com/sdsrss/sgc#readme",
+  "keywords": [
+    "claude-code",
+    "ai-coding",
+    "task-classifier",
+    "invariants",
+    "knowledge-engine",
+    "dispatcher",
+    "dedup"
+  ],
   "scripts": {
     "build:browse": "bun build ./plugins/sgc/browse/src/cli.ts --compile --outfile ./plugins/sgc/browse/dist/browse",
     "test": "SGC_FORCE_INLINE=1 bun test"

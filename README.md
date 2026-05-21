@@ -8,18 +8,20 @@ L0-L3 task classification, 13 runtime invariants, and a dedup-enforced `.sgc/` k
 
 ## Install
 
-### Claude Code plugin (markdown layer)
+sgc has two pieces: the **CLI** (the dispatcher) and the **Claude Code plugin** (the markdown prompt layer that invokes the CLI from `/sgc:*` slash commands).
+
+### 1. Install the CLI
+
+**Recommended — npm (global):**
 
 ```bash
-/plugin marketplace add sdsrss/sgc
-/plugin install sgc
+npm install -g @sdsrss/sgc
+sgc --version
 ```
 
-Installs the prompt layer in `~/.claude/plugins/cache/sgc/sgc/`: 10 slash commands (`/sgc:plan`, `/sgc:work`, …), 9 skills, and the SessionStart bootstrap hook. After install, `/sgc:plan` etc. become available in any Claude Code session.
+`bun ≥ 1.3` is required as the runtime — `bun --version` to verify. Once installed, `/sgc:*` commands work from any project directory.
 
-> **The plugin does NOT bundle the CLI.** Slash commands shell out to `bun src/sgc.ts <cmd>` in your current working directory — so you still need the source clone below in every project that runs sgc. The `/sgc:plan` preflight prints a clear error if `src/sgc.ts` isn't found.
-
-### CLI from source (required for the slash commands to actually run)
+**Alternative — from source** (when you want to hack on sgc itself or the npm registry is unreachable):
 
 ```bash
 git clone https://github.com/sdsrss/sgc && cd sgc
@@ -27,20 +29,35 @@ git clone https://github.com/sdsrss/sgc && cd sgc
 # bun client doesn't honor HTTP_PROXY; use npm for install
 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install
 
-# bun is the runtime (build, test, run TypeScript directly)
 bun --version    # ≥1.3
 ```
 
-Lockfile: `package-lock.json` (npm). Bun reads it fine.
+In source-clone mode, `/sgc:*` commands must run from inside the `sgc/` directory (each slash command preflight detects npm-installed first, then falls back to checking `src/sgc.ts` in `cwd`). Lockfile: `package-lock.json` (npm); Bun reads it fine.
+
+### 2. Install the Claude Code plugin
+
+```bash
+/plugin marketplace add sdsrss/sgc
+/plugin install sgc
+```
+
+Installs the prompt layer in `~/.claude/plugins/cache/sgc/sgc/`: 11 slash commands (`/sgc:plan`, `/sgc:work`, `/sgc:doctor`, …), 9 skills, and the SessionStart bootstrap hook. After install, `/sgc:plan` etc. become available in any Claude Code session — the slash command auto-detects whichever CLI install you have.
 
 ## Update
 
 ```bash
+# Plugin layer
 /plugin marketplace update sgc    # refresh marketplace metadata
 /plugin update sgc                # pull the new plugin version
+
+# CLI — npm install
+npm update -g @sdsrss/sgc
+
+# CLI — source clone
+git pull && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install
 ```
 
-Both steps are needed — `/plugin update sgc` alone uses cached marketplace metadata and won't see new versions. If you also use the CLI from source, run `git pull && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install` in your clone separately — the plugin update only refreshes the markdown prompt layer, not the dispatcher.
+Both plugin steps are needed — `/plugin update sgc` alone uses cached marketplace metadata and won't see new versions. The plugin update only refreshes the markdown prompt layer, not the dispatcher; bump the CLI separately via the matching method.
 
 ## Uninstall
 

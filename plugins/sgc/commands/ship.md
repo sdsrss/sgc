@@ -7,12 +7,6 @@ description: "8-gate ship: verify reviews + QA + feature-list, write immutable s
 
 The terminal step. Gates fail closed.
 
-## Pre-flight
-
-```bash
-test -f src/sgc.ts || { printf "%s\n" "ERROR: sgc CLI not in current directory." "" "Install once per project (plugin layer is markdown-only; CLI is a separate clone):" "  git clone https://github.com/sdsrss/sgc && cd sgc" "  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install" "" "Then re-run from the sgc/ directory." "See https://github.com/sdsrss/sgc#install for the canonical install reference." >&2; exit 1; }
-```
-
 ## Gate sequence
 
 1. Active task exists (current-task.md present)
@@ -28,12 +22,26 @@ test -f src/sgc.ts || { printf "%s\n" "ERROR: sgc CLI not in current directory."
 ## Invocation
 
 ```bash
-bun src/sgc.ts ship                                          # local ship.md only
-bun src/sgc.ts ship --auto                                   # refused at L3
-bun src/sgc.ts ship --pr                                     # also `gh pr create`
-bun src/sgc.ts ship --pr --pr-title "..." --pr-body "..."
-bun src/sgc.ts ship --janitor-skip-reason "<≥40 chars>"      # opt-out + logged
-bun src/sgc.ts ship --force-compound                         # bypass janitor decision_rules
+if command -v sgc >/dev/null 2>&1; then SGC=sgc
+elif test -f src/sgc.ts; then SGC="bun src/sgc.ts"
+else
+  printf '%s\n' \
+    "ERROR: sgc CLI not found." "" \
+    "Install via npm (recommended):" \
+    "  npm install -g @sdsrss/sgc       # requires bun >=1.3 runtime" "" \
+    "Or clone from source:" \
+    "  git clone https://github.com/sdsrss/sgc && cd sgc" \
+    "  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install" "" \
+    "See https://github.com/sdsrss/sgc#install" >&2
+  exit 1
+fi
+
+$SGC ship                                          # local ship.md only
+$SGC ship --auto                                   # refused at L3
+$SGC ship --pr                                     # also `gh pr create`
+$SGC ship --pr --pr-title "..." --pr-body "..."
+$SGC ship --janitor-skip-reason "<≥40 chars>"      # opt-out + logged
+$SGC ship --force-compound                         # bypass janitor decision_rules
 ```
 
 ## What you should do

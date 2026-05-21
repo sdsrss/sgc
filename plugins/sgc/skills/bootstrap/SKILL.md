@@ -9,7 +9,18 @@ Load SGC rules, verify `.sgc/` state integrity, route user intent to the correct
 
 ## ⚠️ Install the CLI before first command
 
-The plugin layer is markdown-only; **every `/sgc:*` command shells out to `bun src/sgc.ts <cmd>`** in the user's current working directory. If `src/sgc.ts` isn't present, every command preflight-fails. Run this **once per project** before invoking any `/sgc:*` command:
+The plugin layer is markdown-only; **every `/sgc:*` command shells out to `sgc <cmd>` (npm-installed) or `bun src/sgc.ts <cmd>` (source-clone)**. If neither is available, every command preflight-fails with help.
+
+**Recommended — npm (global install):**
+
+```bash
+npm install -g @sdsrss/sgc       # requires bun >=1.3 as the runtime
+sgc --version
+```
+
+After this, `/sgc:*` commands run from **any** directory.
+
+**Alternative — clone from source** (you want to hack on sgc itself or the npm package is unreachable):
 
 ```bash
 git clone https://github.com/sdsrss/sgc
@@ -17,9 +28,9 @@ cd sgc
 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install
 ```
 
-`bun ≥1.3` is also required as the runtime (`bun --version` to verify).
+In this mode `/sgc:*` commands must run from inside the `sgc/` directory (the preflight checks for `src/sgc.ts` in `cwd`).
 
-After install, run `/sgc:*` commands from inside the `sgc/` directory. CLI bundling (`npm publish sgc` or single-file binary) is roadmap — see [README.md#install](../../../../README.md#install) for the canonical reference.
+`bun ≥1.3` is required as the runtime in **both** modes (`bun --version` to verify). See [README.md#install](../../../../README.md#install) for the canonical install reference.
 
 When a user hits the preflight error, surface this block **once per session** — do not repeat on every command.
 

@@ -7,18 +7,26 @@ description: "Real-browser end-to-end QA via the browse module. Required gate fo
 
 Drive a real Chromium browser through user flows. Like `/review`, qa.browser is AMNESIAC (no `read:solutions`).
 
-## Pre-flight
-
-```bash
-test -f src/sgc.ts || { printf "%s\n" "ERROR: sgc CLI not in current directory." "" "Install once per project (plugin layer is markdown-only; CLI is a separate clone):" "  git clone https://github.com/sdsrss/sgc && cd sgc" "  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install" "" "Then re-run from the sgc/ directory." "See https://github.com/sdsrss/sgc#install for the canonical install reference." >&2; exit 1; }
-```
-
 ## Invocation
 
 ```bash
-bun src/sgc.ts qa                                                    # use defaults / stub
-bun src/sgc.ts qa http://localhost:3000                              # target URL
-bun src/sgc.ts qa http://localhost:3000 --flows login,dashboard,logout
+if command -v sgc >/dev/null 2>&1; then SGC=sgc
+elif test -f src/sgc.ts; then SGC="bun src/sgc.ts"
+else
+  printf '%s\n' \
+    "ERROR: sgc CLI not found." "" \
+    "Install via npm (recommended):" \
+    "  npm install -g @sdsrss/sgc       # requires bun >=1.3 runtime" "" \
+    "Or clone from source:" \
+    "  git clone https://github.com/sdsrss/sgc && cd sgc" \
+    "  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install" "" \
+    "See https://github.com/sdsrss/sgc#install" >&2
+  exit 1
+fi
+
+$SGC qa                                                    # use defaults / stub
+$SGC qa http://localhost:3000                              # target URL
+$SGC qa http://localhost:3000 --flows login,dashboard,logout
 ```
 
 ## What you should do

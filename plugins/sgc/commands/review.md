@@ -7,18 +7,26 @@ description: "Run reviewer.correctness on git diff. L3 additionally dispatches d
 
 Independent static review of the current diff. Reviewers are AMNESIAC — they do NOT read `solutions/` (Invariant §1).
 
-## Pre-flight
-
-```bash
-test -f src/sgc.ts || { printf "%s\n" "ERROR: sgc CLI not in current directory." "" "Install once per project (plugin layer is markdown-only; CLI is a separate clone):" "  git clone https://github.com/sdsrss/sgc && cd sgc" "  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install" "" "Then re-run from the sgc/ directory." "See https://github.com/sdsrss/sgc#install for the canonical install reference." >&2; exit 1; }
-```
-
 ## Invocation
 
 ```bash
-bun src/sgc.ts review                                # diff against HEAD
-bun src/sgc.ts review --base <ref>                   # diff against specific ref
-bun src/sgc.ts review --append-as <suffix>           # follow-up review → <reviewer>.<suffix>.md (F-5)
+if command -v sgc >/dev/null 2>&1; then SGC=sgc
+elif test -f src/sgc.ts; then SGC="bun src/sgc.ts"
+else
+  printf '%s\n' \
+    "ERROR: sgc CLI not found." "" \
+    "Install via npm (recommended):" \
+    "  npm install -g @sdsrss/sgc       # requires bun >=1.3 runtime" "" \
+    "Or clone from source:" \
+    "  git clone https://github.com/sdsrss/sgc && cd sgc" \
+    "  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install" "" \
+    "See https://github.com/sdsrss/sgc#install" >&2
+  exit 1
+fi
+
+$SGC review                                # diff against HEAD
+$SGC review --base <ref>                   # diff against specific ref
+$SGC review --append-as <suffix>           # follow-up review → <reviewer>.<suffix>.md (F-5)
 ```
 
 ## What you should do

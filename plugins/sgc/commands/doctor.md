@@ -11,16 +11,24 @@ Pre-PR / pre-ship sanity check that the three name registries agree:
 2. Every `prompts/*.md` file is referenced by some manifest (orphans → warn)
 3. Every `status: slot-only` entry has `prompt_path: null` (slot-only = documented placeholder, not LLM-routable)
 
-## Pre-flight
-
-```bash
-test -f src/sgc.ts || { printf "%s\n" "ERROR: sgc CLI not in current directory." "" "Install once per project (plugin layer is markdown-only; CLI is a separate clone):" "  git clone https://github.com/sdsrss/sgc && cd sgc" "  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install" "" "Then re-run from the sgc/ directory." "See https://github.com/sdsrss/sgc#install for the canonical install reference." >&2; exit 1; }
-```
-
 ## Invocation
 
 ```bash
-bun src/sgc.ts doctor
+if command -v sgc >/dev/null 2>&1; then SGC=sgc
+elif test -f src/sgc.ts; then SGC="bun src/sgc.ts"
+else
+  printf '%s\n' \
+    "ERROR: sgc CLI not found." "" \
+    "Install via npm (recommended):" \
+    "  npm install -g @sdsrss/sgc       # requires bun >=1.3 runtime" "" \
+    "Or clone from source:" \
+    "  git clone https://github.com/sdsrss/sgc && cd sgc" \
+    "  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install" "" \
+    "See https://github.com/sdsrss/sgc#install" >&2
+  exit 1
+fi
+
+$SGC doctor
 ```
 
 ## What you should do

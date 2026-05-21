@@ -35,8 +35,10 @@ import {
 } from "../dispatcher/agents/researcher-history"
 import {
   plannerAdversarial,
+  type PlannerAdversarialInput,
   type PlannerAdversarialOutput,
 } from "../dispatcher/agents/planner-adversarial"
+import { extractPreventions } from "../dispatcher/preventions"
 import { validateClassifierRationale } from "../dispatcher/rationale"
 import {
   ensureSgcStructure,
@@ -233,13 +235,31 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
       })(),
     ]
     if (level === "L3") {
+      // CE-1 (task 94913CB45F9D4C3E906B3C2C8E#f2): keyword-match preventions
+      // from solutions/ and feed to planner.adversarial as spawn input.
+      // The agent does NOT hold read:solutions itself; /plan pre-fetches.
+      const priorPreventions = await extractPreventions(taskDescription, stateRoot)
+      if (priorPreventions.length > 0) {
+        log(
+          `prevention recall: ${priorPreventions.length} prior failure shape(s) matched`,
+        )
+        for (const p of priorPreventions) {
+          log(`  prevention: ${p.solution_ref}`)
+        }
+      }
+      const adversarialInput: PlannerAdversarialInput = {
+        intent_draft: taskDescription,
+        ...(priorPreventions.length > 0
+          ? { prior_preventions: priorPreventions }
+          : {}),
+      }
       tasks.push(
         spawn<unknown, PlannerAdversarialOutput>(
           "planner.adversarial",
-          { intent_draft: taskDescription },
+          adversarialInput,
           {
             stateRoot,
-            inlineStub: (i) => plannerAdversarial(i as { intent_draft: string }),
+            inlineStub: (i) => plannerAdversarial(i as PlannerAdversarialInput),
             logger,
             taskId,
           },

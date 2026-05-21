@@ -113,6 +113,23 @@ describe("extractPreventions (CE-1 T2)", () => {
     expect(out).toEqual([])
   })
 
+  it("E4b keyword match on file WITHOUT frontmatter fence is silently skipped", async () => {
+    // Regression: planner-adversarial.test.ts seeds raw-markdown solution
+    // fixtures with no `---` fence; preFilterSolutions tolerates them so
+    // extractPreventions must too. Pre-fix: parseFrontmatter threw
+    // NoFrontmatter and crashed the L3 plan flow.
+    mkdirSync(join(stateRoot, "solutions", "_seed"), { recursive: true })
+    writeFileSync(
+      join(stateRoot, "solutions", "_seed", "raw-fixture.md"),
+      "database migration rename column schema additive.",
+    )
+    const out = await extractPreventions(
+      "database migration rename column",
+      stateRoot,
+    )
+    expect(out).toEqual([])
+  })
+
   it("E5 top-N truncation: 4 hits collapse to 3, sorted by hit count desc", async () => {
     seedSolution(
       "runtime",

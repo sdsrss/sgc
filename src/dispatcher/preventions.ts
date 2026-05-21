@@ -49,7 +49,15 @@ export async function extractPreventions(
   type Scored = { scan: (typeof scans)[number]; text: string }
   const scored: Scored[] = []
   for (const scan of scans) {
-    const parsed = parseFrontmatter<Record<string, unknown>>(scan.text)
+    let parsed: { data: Record<string, unknown> }
+    try {
+      parsed = parseFrontmatter<Record<string, unknown>>(scan.text)
+    } catch {
+      // Defensive: solutions/ may contain test fixtures or legacy files
+      // with no frontmatter fence (e.g. raw markdown blobs). Skip silently —
+      // preFilterSolutions tolerates the same shape on its own path.
+      continue
+    }
     const raw = parsed.data["prevention"]
     if (typeof raw !== "string") continue
     const folded = raw.replace(/\s+/g, " ").trim()

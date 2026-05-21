@@ -1,6 +1,23 @@
 # Changelog
 
-## Unreleased — Audit follow-up (P1 / P3 / P7)
+## Unreleased — Audit follow-up batch (P1 / P3 / P7 + P2 / P6 / P9)
+
+### Hardening (P2: output-side Invariant §1 leak check)
+- `src/dispatcher/fingerprint.ts` (new): walks `<stateRoot>/solutions/<cat>/<slug>.md`, hashes every fingerprintable line (≥25 chars, not pure markdown structure) with SHA256→16-hex. After-output scan in `spawn.ts` (post-`validateOutputShape`, pre-return) recursively walks reviewer.* / qa.* output string fields, throws `SpawnError` on collision. Other agents (planner.*, compound.*, researcher.history) exempt — they legitimately quote solutions. Per-process cache keyed by stateRoot; `clearFingerprintCache()` exposed for tests.
+- Closes the LLM-mode advisory gap acknowledged in `README.md:165-174` for the lazy-copy/literal-quote class of leak; paraphrase-class leaks remain out of scope (would need n-gram overlap or embedding similarity).
+- 11 unit tests + 2 spawn integration tests in `tests/dispatcher/fingerprint.test.ts`.
+
+### Refactor (P6: declarative ROUTES table for resolveMode)
+- `src/dispatcher/spawn.ts`: replaced the 10-level if-else chain in `resolveMode` with a `ROUTES: ModeRoute[]` table — each row is `{reason, resolve(opts, manifest)}`; first non-null resolution wins.
+- Added `resolveModeDebug()` returning `{mode, reason}` for trace/audit output (useful for future `sgc doctor` extension and CI debugging).
+- No behavior change — all 28 existing spawn tests pass unmodified. Priority order preserved verbatim from the prior chain.
+
+### Feature (P9: sgc doctor command)
+- `src/commands/doctor.ts` (new): consistency check across three name registries — (A) every manifest `prompt_path` declared → file exists in `prompts/`; (B) every `prompts/*.md` → at least one manifest references it (orphans → warn); (C) every `status: slot-only` entry → `prompt_path: null`.
+- `src/sgc.ts`: registered `doctor` citty subcommand. Exit code 0 if `fail == 0`, 1 otherwise (CI-gateable).
+- `plugins/sgc/commands/doctor.md`: plugin slash command `/sgc:doctor`.
+- 5 unit tests in `tests/dispatcher/sgc-doctor.test.ts` cover green/missing/orphan/slot-only-with-prompt/slot-only-clean cases.
+- Smoke run against current repo: **24 OK · 0 warn · 0 fail**.
 
 ### Docs (P1: positioning alignment)
 - `package.json` description: dropped "Merges the best of Superpowers, gstack, and Compound Engineering" framing — sgc is a coexisting 规范层 + 知识引擎, not a vendored merger. Mirrors `docs/POSITIONING.md`.

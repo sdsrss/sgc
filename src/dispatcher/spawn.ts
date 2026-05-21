@@ -32,6 +32,7 @@ import {
 } from "./state"
 import { promptPath as getPromptPath, resultPath as getResultPath } from "./spawn-protocol"
 import { validateOutputShape } from "./validation"
+import { getFingerprintsCached, scanOutputForLeak } from "./fingerprint"
 import { runClaudeCliAgent, type SubprocessRunner } from "./claude-cli-agent"
 import {
   runAnthropicSdkAgent,
@@ -190,49 +191,115 @@ function generateUlid(): string {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase()
 }
 
+// Declarative routing table — first non-null `resolve` wins.
+//
+// P6 rewrite (audit follow-up): the prior implementation was a 10-level
+// if-else chain. Each new mode addition required re-auditing every prior
+// branch for "would the older logic eat this case?". Declarative form
+// makes the priority order explicit and unit-testable per row.
+//
+// Row resolution rules:
+//   - return `null` to defer to the next row
+//   - return an AgentMode string to short-circuit
+//   - the LAST row MUST always return a string (default fallback)
+//
+// `reason` is exposed via resolveModeDebug() for trace/audit and CHANGELOG
+// review of routing decisions.
+interface ModeRoute {
+  reason: string
+  resolve: (opts: SpawnOptions, manifest?: SubagentManifest) => AgentMode | null
+}
+
+const VALID_ENV_MODES: ReadonlySet<AgentMode> = new Set([
+  "inline",
+  "file-poll",
+  "claude-cli",
+  "anthropic-sdk",
+  "openrouter",
+])
+
+const ROUTES: ModeRoute[] = [
+  {
+    reason: "explicit opts.mode (tests + programmatic embedding)",
+    resolve: (opts) => opts.mode ?? null,
+  },
+  {
+    reason: "SGC_AGENT_MODE env override",
+    resolve: () => {
+      const m = process.env["SGC_AGENT_MODE"] as AgentMode | undefined
+      return m && VALID_ENV_MODES.has(m) ? m : null
+    },
+  },
+  {
+    reason: "SGC_USE_FILE_AGENTS=1 (legacy alias for file-poll)",
+    resolve: () => (process.env["SGC_USE_FILE_AGENTS"] === "1" ? "file-poll" : null),
+  },
+  {
+    reason: "SGC_FORCE_INLINE=1 test escape (forces stubs regardless of keys)",
+    resolve: (opts) =>
+      process.env["SGC_FORCE_INLINE"] === "1" && opts.inlineStub ? "inline" : null,
+  },
+  {
+    reason: "manifest.prompt_path + ANTHROPIC_API_KEY → anthropic-sdk",
+    resolve: (_opts, m) =>
+      m?.prompt_path && process.env["ANTHROPIC_API_KEY"] ? "anthropic-sdk" : null,
+  },
+  {
+    reason: "manifest.prompt_path + OPENROUTER_API_KEY → openrouter",
+    resolve: (_opts, m) =>
+      m?.prompt_path && process.env["OPENROUTER_API_KEY"] ? "openrouter" : null,
+  },
+  {
+    reason: "inline-stub fallback for templateless agents",
+    resolve: (opts) => (opts.inlineStub ? "inline" : null),
+  },
+  {
+    reason: "ANTHROPIC_API_KEY catch-all (templateless agents without stub)",
+    resolve: () => (process.env["ANTHROPIC_API_KEY"] ? "anthropic-sdk" : null),
+  },
+  {
+    reason: "OPENROUTER_API_KEY catch-all",
+    resolve: () => (process.env["OPENROUTER_API_KEY"] ? "openrouter" : null),
+  },
+  {
+    reason: "`claude` CLI in PATH (subscription-friendly)",
+    resolve: (opts) => {
+      const hasCli = opts.hasClaudeCli ?? (() => Bun.which("claude") !== null)
+      return hasCli() ? "claude-cli" : null
+    },
+  },
+  {
+    reason: "default file-poll",
+    resolve: () => "file-poll",
+  },
+]
+
 /**
- * Resolve which agent dispatch mode to use, in priority:
- *   1. explicit opts.mode
- *   2. SGC_AGENT_MODE env ("inline" | "file-poll" | "claude-cli" | "anthropic-sdk" | "openrouter")
- *   3. SGC_USE_FILE_AGENTS=1 (legacy alias for file-poll)
- *   4. manifest.prompt_path + ANTHROPIC_API_KEY → "anthropic-sdk" (LLM only for agents with templates)
- *   5. manifest.prompt_path + OPENROUTER_API_KEY → "openrouter" (chat/completions via fetch)
- *   6. opts.inlineStub provided → "inline" (fallback: agents without prompt_path always use stubs)
- *   7. ANTHROPIC_API_KEY (no prompt_path) → "anthropic-sdk" (catch-all for templateless agents if no stub)
- *   8. OPENROUTER_API_KEY (no prompt_path) → "openrouter"
- *   9. `claude` CLI in PATH → "claude-cli" (auto-detect for subscription users)
- *   10. default → "file-poll"
- *
- * Exported for direct testing.
+ * Resolve which agent dispatch mode to use. See {@link ROUTES} for the
+ * declarative priority table. Exported for direct testing.
  */
 export function resolveMode(opts: SpawnOptions = {}, manifest?: SubagentManifest): AgentMode {
-  if (opts.mode) return opts.mode
-  const envMode = process.env["SGC_AGENT_MODE"]
-  if (
-    envMode === "inline" ||
-    envMode === "file-poll" ||
-    envMode === "claude-cli" ||
-    envMode === "anthropic-sdk" ||
-    envMode === "openrouter"
-  ) {
-    return envMode
+  for (const route of ROUTES) {
+    const m = route.resolve(opts, manifest)
+    if (m) return m
   }
-  if (process.env["SGC_USE_FILE_AGENTS"] === "1") return "file-poll"
-  // Test escape hatch: SGC_FORCE_INLINE=1 forces inline stubs regardless of API keys.
-  // Used by test runner to prevent real API calls during CI/eval.
-  if (process.env["SGC_FORCE_INLINE"] === "1" && opts.inlineStub) return "inline"
-  // When the agent has a prompt template (prompt_path), prefer LLM over inline stub.
-  // Agents WITHOUT prompt_path always fall through to inlineStub — heuristic fallback.
-  const hasTemplate = !!manifest?.prompt_path
-  if (hasTemplate && process.env["ANTHROPIC_API_KEY"]) return "anthropic-sdk"
-  if (hasTemplate && process.env["OPENROUTER_API_KEY"]) return "openrouter"
-  if (opts.inlineStub) return "inline"
-  // Catch-all for agents without stubs: try LLM keys, then CLI, then poll
-  if (process.env["ANTHROPIC_API_KEY"]) return "anthropic-sdk"
-  if (process.env["OPENROUTER_API_KEY"]) return "openrouter"
-  const hasCli = opts.hasClaudeCli ?? (() => Bun.which("claude") !== null)
-  if (hasCli()) return "claude-cli"
+  // Unreachable: last route always returns "file-poll". TS doesn't know that.
   return "file-poll"
+}
+
+/**
+ * Debug variant — returns the resolved mode AND the matching route's reason.
+ * Useful for logging / `sgc doctor` diagnostics / trace output.
+ */
+export function resolveModeDebug(
+  opts: SpawnOptions = {},
+  manifest?: SubagentManifest,
+): { mode: AgentMode; reason: string } {
+  for (const route of ROUTES) {
+    const m = route.resolve(opts, manifest)
+    if (m) return { mode: m, reason: route.reason }
+  }
+  return { mode: "file-poll", reason: "default file-poll" }
 }
 
 // validateOutputShape moved to src/dispatcher/validation.ts so agent-loop
@@ -528,6 +595,28 @@ export async function spawn<I = unknown, O = unknown>(
     }
 
     validateOutputShape(manifest, output)
+
+    // P2 — Invariant §1 OUTPUT-side leak check. §1 + §8 are advisory in
+    // LLM modes (the LLM with shell-tool access can sidestep its pinned
+    // scope and `cat .sgc/solutions/*.md`). validateOutputShape filters
+    // undeclared fields but not VALUE content; this scan catches reviewer.*
+    // / qa.* output that quotes lines from the solutions corpus. The check
+    // runs in ALL modes (defense-in-depth — an inline stub regression that
+    // started reading solutions would also trip here). Empty solutions/ or
+    // non-reviewer/qa agent → no-op.
+    const leak = scanOutputForLeak(
+      agentName,
+      output,
+      getFingerprintsCached(stateRoot),
+    )
+    if (leak.hit) {
+      throw new SpawnError(
+        `Invariant §1 violation (output leak): agent ${agentName} output contains ${leak.count} line(s) matching solutions/ content. ` +
+          `Sample(s): ${leak.samples.map((s) => `"${s}"`).join(", ")}. ` +
+          `The LLM likely accessed solutions/ outside its pinned scope (§8). ` +
+          `See sgc-invariants.md §1 + sgc-capabilities.yaml /review.solutions=[].`,
+      )
+    }
 
     outcome = "success"
     return { spawnId, output: output as O, promptPath, resultPath }

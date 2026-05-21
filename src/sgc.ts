@@ -385,6 +385,21 @@ const agentLoop = defineCommand({
   },
 })
 
+// ── doctor (P9) ────────────────────────────────────────────────────────────
+
+const doctor = defineCommand({
+  meta: {
+    name: "doctor",
+    description:
+      "Consistency check across contracts/sgc-capabilities.yaml ↔ prompts/ ↔ slot-only annotations. Exit 1 on any failure.",
+  },
+  async run() {
+    const { runDoctor } = await import("./commands/doctor")
+    const report = await runDoctor()
+    if (report.fail > 0) process.exit(1)
+  },
+})
+
 // ── main ────────────────────────────────────────────────────────────────────
 
 const main = defineCommand({
@@ -405,6 +420,7 @@ const main = defineCommand({
     status: () => status,
     "agent-loop": () => agentLoop,
     tail: () => tail,
+    doctor: () => doctor,
   },
 })
 

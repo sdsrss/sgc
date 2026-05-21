@@ -83,7 +83,7 @@ export interface PriorArtCandidate {
  * Returns [] when solutions/ is absent, keywords is empty, or the
  * top-level readdir fails. Per-category / per-file errors are skipped.
  */
-interface SolutionScan {
+export interface SolutionScan {
   category: SolutionCategory
   slug: string
   hits: number
@@ -93,7 +93,7 @@ interface SolutionScan {
   text: string
 }
 
-async function walkSolutionsCorpus(
+export async function walkSolutionsCorpus(
   stateRoot: string,
   keywords: string[],
 ): Promise<SolutionScan[]> {

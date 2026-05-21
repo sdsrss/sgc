@@ -12,6 +12,10 @@ import {
   extractPreventions,
   type PriorPrevention,
 } from "../../src/dispatcher/preventions"
+import {
+  plannerAdversarialHeuristic,
+  type PlannerAdversarialInput,
+} from "../../src/dispatcher/agents/planner-adversarial"
 
 let stateRoot: string
 
@@ -168,5 +172,25 @@ describe("extractPreventions (CE-1 T2)", () => {
     const text = out[0]!.prevention_text
     expect(text.includes("\n")).toBe(false)
     expect(text.length).toBeLessThanOrEqual(240)
+  })
+})
+
+describe("PlannerAdversarialInput.prior_preventions optional field (CE-1 T3)", () => {
+  it("heuristic output is identical with and without prior_preventions", () => {
+    const baseline = plannerAdversarialHeuristic({
+      intent_draft: "migrate users table",
+    })
+    const withPrev: PlannerAdversarialInput = {
+      intent_draft: "migrate users table",
+      prior_preventions: [
+        {
+          solution_ref: "data/migration-lock-2026-05-21",
+          category: "data",
+          prevention_text: "use lock-free batched backfill",
+        },
+      ],
+    }
+    const result = plannerAdversarialHeuristic(withPrev)
+    expect(result.failure_modes).toEqual(baseline.failure_modes)
   })
 })

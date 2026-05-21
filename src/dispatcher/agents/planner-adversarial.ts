@@ -19,8 +19,13 @@
 // LLM has no concrete codebase access via this spawn and the prompt
 // forbids inventing paths; the heuristic never consulted it either.
 
+import type { PriorPrevention } from "../preventions"
+
 export interface PlannerAdversarialInput {
   intent_draft: string
+  /** L3-only: keyword-matched preventions from solutions/ corpus
+   *  (CE-1). Heuristic ignores; LLM-mode prompt template consumes. */
+  prior_preventions?: PriorPrevention[]
 }
 
 export type Probability = "low" | "medium" | "high"

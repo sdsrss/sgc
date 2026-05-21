@@ -56,7 +56,7 @@ jobs:
       - name: Verify tag matches package.json version
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
-          PKG_VERSION="$(node -p 'require(\"./package.json\").version')"
+          PKG_VERSION="$(node -p 'require("./package.json").version')"
           if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
             echo "ERROR: tag $GITHUB_REF_NAME (-> $TAG_VERSION) != package.json version $PKG_VERSION" >&2
             exit 1

@@ -190,6 +190,68 @@ describe("extractPreventions (CE-1 T2)", () => {
     expect(text.includes("\n")).toBe(false)
     expect(text.length).toBeLessThanOrEqual(240)
   })
+
+  it("E7 RT-2: truncation cuts on word boundary + appends ellipsis", async () => {
+    // 487-char string (mirrors actual vendor-word seed length). Pre-RT-2:
+    // slice(0, 240) cut mid-word at "state-dir collisio". Post-RT-2: cut
+    // at last whitespace within (240-3) and append "..." sentinel.
+    const longText =
+      "describing internal implementation as vendor X triggers " +
+      "planner adversarial to assume third party source copy semantics " +
+      "including license tracking transitive dependencies vendor SHA " +
+      "tracking hardcoded namespace state directory collision parallel " +
+      "token scope bypass and rubber stamp risk on large diffs that " +
+      "review tooling cannot render fully so reviewer rubber stamps " +
+      "broken changes that should have been caught earlier."
+    expect(longText.length).toBeGreaterThan(240)
+    seedSolution(
+      "runtime",
+      "long-vendor-2026-05-21",
+      { intent: "x", category: "runtime", prevention: longText },
+      "describing vendor implementation alpha keyword",
+    )
+    const out = await extractPreventions(
+      "vendor implementation alpha keyword",
+      stateRoot,
+    )
+    expect(out).toHaveLength(1)
+    const text = out[0]!.prevention_text
+    expect(text.length).toBeLessThanOrEqual(240)
+    expect(text.endsWith("...")).toBe(true)
+    // Char immediately before "..." must NOT be a partial word — it should
+    // be the end of a word (the truncation cut at whitespace and we
+    // trimmed trailing whitespace before appending). The byte at index
+    // (length-4) is the last char of the original word that fit.
+    const lastWordChar = text[text.length - 4]!
+    expect(/\S/.test(lastWordChar)).toBe(true)
+    // And — the cut should be a real word boundary in the original string,
+    // i.e. `text.slice(0, -3)` is a prefix of `folded` up to whitespace.
+    const folded = longText.replace(/\s+/g, " ")
+    const withoutEllipsis = text.slice(0, -3)
+    expect(folded.startsWith(withoutEllipsis)).toBe(true)
+    // The next char in `folded` after the cut should be whitespace.
+    expect(folded[withoutEllipsis.length]).toBe(" ")
+  })
+
+  it("E8 RT-2: ultra-long unbreakable token falls back to hard cut + ellipsis", async () => {
+    // No whitespace in the bottom half of the budget → fall back to hard
+    // slice(0, maxChars-3) + "...". This is the defensive case.
+    const longText = "x".repeat(400)
+    seedSolution(
+      "runtime",
+      "unbreakable-2026-05-21",
+      { intent: "x", category: "runtime", prevention: longText },
+      "x unbreakable token alpha keyword",
+    )
+    const out = await extractPreventions(
+      "unbreakable token alpha keyword",
+      stateRoot,
+    )
+    expect(out).toHaveLength(1)
+    const text = out[0]!.prevention_text
+    expect(text.length).toBeLessThanOrEqual(240)
+    expect(text.endsWith("...")).toBe(true)
+  })
 })
 
 describe("planner.adversarial manifest (CE-1 RT-3 repair)", () => {

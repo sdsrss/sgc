@@ -32,6 +32,26 @@ export interface ExtractPreventionsOptions {
 const DEFAULT_TOP_N = 3
 const DEFAULT_MAX_CHARS = 240
 
+/**
+ * Word-boundary-aware truncation with "..." sentinel (RT-2 repair).
+ *
+ * Pre-fix the extractor hard-cut at `maxChars` regardless of word boundary,
+ * which on the 487-char vendor-word seed cut at "state-dir collisio" — the
+ * LLM saw an enumeration of failure modes without the corrective half
+ * ("use implement/absorb/adopt + 'not doing' clause"), inverting CE-1's
+ * intent. Now: cut at the last whitespace within `maxChars - 3` (room for
+ * "..."), fall back to hard cut only if no whitespace within the bottom
+ * half (ultra-long unbreakable token).
+ */
+function truncateOnWordBoundary(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text
+  const limit = maxChars - 3 // reserve room for "..."
+  const lastSpace = text.lastIndexOf(" ", limit)
+  const cutAt =
+    lastSpace > Math.floor(limit / 2) ? lastSpace : limit
+  return text.slice(0, cutAt).trimEnd() + "..."
+}
+
 export async function extractPreventions(
   intentDraft: string,
   stateRoot?: string,
@@ -62,8 +82,7 @@ export async function extractPreventions(
     if (typeof raw !== "string") continue
     const folded = raw.replace(/\s+/g, " ").trim()
     if (folded.length === 0) continue
-    const trimmed = folded.length > maxChars ? folded.slice(0, maxChars) : folded
-    scored.push({ scan, text: trimmed })
+    scored.push({ scan, text: truncateOnWordBoundary(folded, maxChars) })
   }
 
   scored.sort((a, b) => b.scan.hits - a.scan.hits)

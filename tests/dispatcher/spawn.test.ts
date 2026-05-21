@@ -487,6 +487,71 @@ describe("checkInvariantOneBackChannel — unit (P3#9)", () => {
       checkInvariantOneBackChannel("reviewer.correctness", legacyOnly),
     ).toThrow(SpawnError)
   })
+
+  // ── CE-1 RT-1: Pre-mortem back-channel gate ────────────────────────────
+
+  test("T9: Pre-mortem heading on reviewer.correctness → throws SpawnError", () => {
+    // CE-1 introduced a second back-channel: planner.adversarial output
+    // (failure_modes with solution_ref in early_signal) writes into
+    // intent.md's `## Pre-mortem (planner.adversarial)` block. Reviewer
+    // dispatch must trip the gate.
+    const leaky = {
+      intent:
+        "# Title\n\n## Pre-mortem (planner.adversarial)\n\n### [high/high] migration locks the users table\nEarly signal: solutions/data/migration-lock-2026 — see prior-art",
+    }
+    expect(() =>
+      checkInvariantOneBackChannel("reviewer.correctness", leaky),
+    ).toThrow(SpawnError)
+    expect(() =>
+      checkInvariantOneBackChannel("reviewer.correctness", leaky),
+    ).toThrow(/Pre-mortem.*planner\.adversarial/)
+  })
+
+  test("T9b: Pre-mortem sentinel marker on reviewer.correctness → throws", () => {
+    // Sentinel-hardened producer (plan.ts). Even if the heading were
+    // renamed/translated, the sentinel must still trip.
+    const leaky = {
+      intent:
+        "# Title\n\n<!-- sgc:pre-mortem:begin -->\n## 失败模式预演\n\n- migration race\n<!-- sgc:pre-mortem:end -->\n",
+    }
+    expect(() =>
+      checkInvariantOneBackChannel("reviewer.correctness", leaky),
+    ).toThrow(SpawnError)
+  })
+
+  test("T9c: Pre-mortem heading on planner.adversarial → NO throw (planner not gated)", () => {
+    // The gate only fires on reviewer.* / qa.* — planner.adversarial is
+    // the WRITER of pre-mortem content, not a forbidden reader.
+    const input = {
+      intent_draft:
+        "# Title\n\n## Pre-mortem (planner.adversarial)\n\n- whatever",
+    }
+    expect(() =>
+      checkInvariantOneBackChannel("planner.adversarial", input),
+    ).not.toThrow()
+  })
+
+  test("T9d: qa.browser with Pre-mortem heading → throws", () => {
+    const leaky = {
+      intent: "do qa\n## Pre-mortem (planner.adversarial)\n- one mode",
+      url: "https://example.com",
+    }
+    expect(() =>
+      checkInvariantOneBackChannel("qa.browser", leaky),
+    ).toThrow(SpawnError)
+  })
+
+  test("T9e: generic '## Pre-mortem' WITHOUT the planner.adversarial parenthetical → no throw", () => {
+    // Same false-positive defense as the prior-art gate (T8). Operators
+    // writing their own "## Pre-mortem" section in motivation prose are
+    // not the dispatcher-embedded back-channel.
+    const userWritten = {
+      intent: "# Title\n\n## Pre-mortem\n\nUser's own pre-mortem thoughts.",
+    }
+    expect(() =>
+      checkInvariantOneBackChannel("reviewer.correctness", userWritten),
+    ).not.toThrow()
+  })
 })
 
 describe("spawn — Invariant §1 gate integration (P3#9)", () => {

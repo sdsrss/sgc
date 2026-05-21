@@ -182,6 +182,52 @@ describe("runReview — full flow", () => {
     // heading) IS still present — strip is surgical, not nuclear.
     expect(promptContent).toContain("Classifier rationale")
   })
+
+  test("W4 (CE-1 RT-1): Invariant §1 back-channel — Pre-mortem block stripped from reviewer spawn input", async () => {
+    // L3 plans write `## Pre-mortem (planner.adversarial)` into intent.body.
+    // With CE-1 the LLM may surface solution_ref strings inside early_signal
+    // when prior_preventions were consumed — same class of back-channel
+    // Phase H RT-1 closed for researcher.history. Producer wraps the block
+    // in <!-- sgc:pre-mortem:begin/end --> sentinels; review.ts strips them.
+    const plan = await runPlan(
+      "add a database migration to rename a column in orders",
+      {
+        stateRoot: tmp,
+        motivation: LONG_MOTIVATION,
+        userSignature: { signed_at: "2026-04-15T10:00:00Z", signer_id: "alice" },
+        readConfirmation: async () => "yes",
+        log: () => {},
+      },
+    )
+    const intent = readIntent(plan.taskId, tmp)
+    const body = intent.body ?? ""
+    // Pre-conditions: intent.md DOES have the pre-mortem block + sentinels
+    expect(body).toContain("Pre-mortem (planner.adversarial)")
+    expect(body).toContain("<!-- sgc:pre-mortem:begin -->")
+    expect(body).toContain("<!-- sgc:pre-mortem:end -->")
+
+    await runReview({
+      stateRoot: tmp,
+      diffOverride: "+const ok = 1\n",
+      log: () => {},
+    })
+
+    const promptDir = resolve(tmp, "progress/agent-prompts")
+    const files = readdirSync(promptDir)
+    const reviewerPrompt = files.find((f) => f.includes("reviewer.correctness"))
+    expect(reviewerPrompt).toBeDefined()
+    const promptContent = readFileSync(
+      resolve(promptDir, reviewerPrompt!),
+      "utf8",
+    )
+    expect(promptContent).not.toContain("Pre-mortem (planner.adversarial)")
+    expect(promptContent).not.toContain("<!-- sgc:pre-mortem:begin -->")
+    // Pre-mortem failure-mode probability tags (which would carry the LLM's
+    // recurrence flag in real-LLM mode) gone too.
+    expect(promptContent).not.toContain("Early signal:")
+    // Strip is surgical — adjacent intent scaffolding survives.
+    expect(promptContent).toContain("Classifier rationale")
+  })
 })
 
 describe("runReview — L3 diff-conditional specialists", () => {

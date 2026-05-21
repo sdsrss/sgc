@@ -18,6 +18,8 @@ import {
   spawn,
   PRIOR_ART_SENTINEL_BEGIN,
   PRIOR_ART_SENTINEL_END,
+  PRE_MORTEM_SENTINEL_BEGIN,
+  PRE_MORTEM_SENTINEL_END,
 } from "../dispatcher/spawn"
 import {
   classifierLevel,
@@ -443,14 +445,16 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
             `${PRIOR_ART_SENTINEL_END}\n\n`
           : "") +
         (adversarialOut
-          ? `## Pre-mortem (planner.adversarial)\n\n` +
+          ? `${PRE_MORTEM_SENTINEL_BEGIN}\n` +
+            `## Pre-mortem (planner.adversarial)\n\n` +
             adversarialOut.failure_modes
               .map(
                 (fm) =>
                   `### [${fm.probability}/${fm.impact}] ${fm.scenario}\n` +
                   `Early signal: ${fm.early_signal}\n`,
               )
-              .join("\n")
+              .join("\n") +
+            `\n${PRE_MORTEM_SENTINEL_END}\n`
           : ""),
     }
     intentPath = writeIntent(intent, stateRoot)

@@ -130,8 +130,19 @@ export class SpawnError extends Error {
 // contract preserved — failure happens before the spawn is announced).
 export const PRIOR_ART_SENTINEL_BEGIN = "<!-- sgc:prior-art:begin -->"
 export const PRIOR_ART_SENTINEL_END = "<!-- sgc:prior-art:end -->"
+// CE-1 RT-1: planner.adversarial pre-mortem output may carry solution_ref
+// strings (when prior_preventions were injected and the LLM marks recurrent
+// failure shapes per prompt step 5). The `## Pre-mortem (planner.adversarial)`
+// block in intent.md is therefore a second back-channel of solutions content
+// into reviewer.* / qa.* and must be stripped at the producer (review.ts)
+// AND blocked at the consumer (this gate) — same defense-in-depth pattern
+// as the prior-art sentinel.
+export const PRE_MORTEM_SENTINEL_BEGIN = "<!-- sgc:pre-mortem:begin -->"
+export const PRE_MORTEM_SENTINEL_END = "<!-- sgc:pre-mortem:end -->"
 const PRIOR_ART_BACK_CHANNEL_RE =
   /(^|\n)[ \t]*(<!--[ \t]*sgc:prior-art:begin[ \t]*-->|## Prior art \(researcher\.history\))/
+const PRE_MORTEM_BACK_CHANNEL_RE =
+  /(^|\n)[ \t]*(<!--[ \t]*sgc:pre-mortem:begin[ \t]*-->|## Pre-mortem \(planner\.adversarial\))/
 
 function isReviewerOrQaAgent(name: string): boolean {
   return name.startsWith("reviewer.") || name.startsWith("qa.")
@@ -147,7 +158,12 @@ export function checkInvariantOneBackChannel(
   if (typeof intent !== "string") return
   if (PRIOR_ART_BACK_CHANNEL_RE.test(intent)) {
     throw new SpawnError(
-      `Invariant §1 violation: agent ${agentName} intent input contains a "## Prior art (researcher.history)" back-channel heading — reviewers/qa must remain amnesiac to past solutions. Run stripPriorArtSection on intent.body before spawn (review.ts pattern).`,
+      `Invariant §1 violation: agent ${agentName} intent input contains a "## Prior art (researcher.history)" back-channel heading — reviewers/qa must remain amnesiac to past solutions. Run stripBackChannelSections on intent.body before spawn (review.ts pattern).`,
+    )
+  }
+  if (PRE_MORTEM_BACK_CHANNEL_RE.test(intent)) {
+    throw new SpawnError(
+      `Invariant §1 violation: agent ${agentName} intent input contains a "## Pre-mortem (planner.adversarial)" back-channel heading — when CE-1 injects prior_preventions, planner.adversarial output may carry solution_ref strings that must not reach reviewers/qa. Run stripBackChannelSections on intent.body before spawn (review.ts pattern).`,
     )
   }
 }

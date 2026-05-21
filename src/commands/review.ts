@@ -20,6 +20,8 @@ import {
   spawn,
   PRIOR_ART_SENTINEL_BEGIN,
   PRIOR_ART_SENTINEL_END,
+  PRE_MORTEM_SENTINEL_BEGIN,
+  PRE_MORTEM_SENTINEL_END,
 } from "../dispatcher/spawn"
 import {
   reviewerCorrectness,
@@ -81,41 +83,67 @@ function captureDiff(base: string, cwd?: string): string {
 // (red team finding RT-1); P3 hardening wraps the block in sentinel HTML
 // comments so strip + spawn.ts gate share a single literal contract.
 //
-// Two paths:
-//   (A) Sentinel-wrapped (current producer, plan.ts:371): exact begin/end
-//       pair — remove everything between (heading lives INSIDE the
-//       sentinels and goes with the block).
-//   (B) Legacy heading-only (pre-P3 intent.md files, immutable per §2):
-//       fall back to heading-to-next-`## ` heuristic.
+// Two paths per sentinel pair:
+//   (A) Sentinel-wrapped (current producer, plan.ts): exact begin/end pair
+//       — remove everything between (heading lives INSIDE the sentinels
+//       and goes with the block).
+//   (B) Legacy heading-only (pre-sentinel intent.md files, immutable per
+//       §2): fall back to heading-to-next-`## ` heuristic.
 //
-// Sentinel path is preferred and short-circuits; legacy path only runs if
-// no sentinel is found. A malformed producer that emits begin without end
-// strips from begin to next `## ` heading (or to EOF) — fail-safe toward
-// "remove more, not less", since under-stripping leaks solutions content.
-function stripPriorArtSection(body: string): string {
-  const begin = body.indexOf(PRIOR_ART_SENTINEL_BEGIN)
-  if (begin !== -1) {
-    const end = body.indexOf(PRIOR_ART_SENTINEL_END, begin)
-    if (end !== -1) {
-      const after = end + PRIOR_ART_SENTINEL_END.length
-      // Eat one trailing newline so removal doesn't leave a blank-line scar.
+// Sentinel path is preferred and short-circuits; legacy path only runs
+// when no sentinel is found. A malformed producer that emits begin
+// without end strips from begin to next `## ` heading (or to EOF) —
+// fail-safe toward "remove more, not less", since under-stripping leaks
+// solutions content.
+//
+// CE-1 RT-1: extended to also strip the `## Pre-mortem (planner.adversarial)`
+// block, which carries solution_ref strings in early_signal when the LLM
+// consumed prior_preventions per the new prompt step 5. Same shape as
+// prior-art: HTML-comment sentinel pair + legacy heading fallback.
+function stripSentinelBlock(
+  body: string,
+  begin: string,
+  end: string,
+  legacyHeadingRe: RegExp,
+): string {
+  const beginIdx = body.indexOf(begin)
+  if (beginIdx !== -1) {
+    const endIdx = body.indexOf(end, beginIdx)
+    if (endIdx !== -1) {
+      const after = endIdx + end.length
       const cut = body[after] === "\n" ? after + 1 : after
-      return body.slice(0, begin) + body.slice(cut)
+      return body.slice(0, beginIdx) + body.slice(cut)
     }
     // Malformed: begin without end. Cut from begin to next `## ` or EOF.
-    const tail = body.slice(begin)
+    const tail = body.slice(beginIdx)
     const next = /\n## /.exec(tail)
-    const cutEnd = begin + (next?.index ?? tail.length)
-    return body.slice(0, begin) + body.slice(cutEnd)
+    const cutEnd = beginIdx + (next?.index ?? tail.length)
+    return body.slice(0, beginIdx) + body.slice(cutEnd)
   }
-  const headingRe = /^## Prior art \(researcher\.history\)\r?\n/m
-  const m = headingRe.exec(body)
+  const m = legacyHeadingRe.exec(body)
   if (!m) return body
   const afterHeading = body.slice(m.index + m[0].length)
   const nextHeading = /^## /m.exec(afterHeading)
   const sectionEnd =
     m.index + m[0].length + (nextHeading?.index ?? afterHeading.length)
   return body.slice(0, m.index) + body.slice(sectionEnd)
+}
+
+function stripBackChannelSections(body: string): string {
+  let stripped = body
+  stripped = stripSentinelBlock(
+    stripped,
+    PRIOR_ART_SENTINEL_BEGIN,
+    PRIOR_ART_SENTINEL_END,
+    /^## Prior art \(researcher\.history\)\r?\n/m,
+  )
+  stripped = stripSentinelBlock(
+    stripped,
+    PRE_MORTEM_SENTINEL_BEGIN,
+    PRE_MORTEM_SENTINEL_END,
+    /^## Pre-mortem \(planner\.adversarial\)\r?\n/m,
+  )
+  return stripped
 }
 
 const VERDICT_ORDER: Record<Verdict, number> = { pass: 0, concern: 1, fail: 2 }
@@ -147,7 +175,7 @@ export async function runReview(opts: ReviewOptions = {}): Promise<{
   // Invariant §1: reviewers must not see solutions content. Strip the
   // researcher.history Prior-art section embedded by plan.ts before passing
   // intent.body to any reviewer spawn.
-  const intentForReviewer = stripPriorArtSection(intent.body ?? "")
+  const intentForReviewer = stripBackChannelSections(intent.body ?? "")
 
   const diff = opts.diffOverride ?? captureDiff(opts.base ?? "HEAD")
 

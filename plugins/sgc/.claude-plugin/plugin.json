@@ -1,7 +1,7 @@
 {
   "name": "sgc",
   "version": "1.3.0",
-  "description": "SGC — L0-L3 task classifier + 13 runtime invariants + dedup-enforced .sgc/ knowledge engine. A 规范层 + 知识引擎 that coexists with Superpowers, gstack, and Compound Engineering. CLI ships separately via npm (@sdsrss/sgc) or source clone.",
+  "description": "SGC — L0-L3 task classifier + 13 runtime invariants + dedup-enforced .sgc/ knowledge engine. A 规范层 + 知识引擎 that coexists with Superpowers, gstack, and Compound Engineering. CLI ships separately via npm (@sdsrs/sgc) or source clone.",
   "author": {
     "name": "SDS"
   },

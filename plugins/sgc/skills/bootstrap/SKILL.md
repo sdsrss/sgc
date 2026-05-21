@@ -14,7 +14,7 @@ The plugin layer is markdown-only; **every `/sgc:*` command shells out to `sgc <
 **Recommended — npm (global install):**
 
 ```bash
-npm install -g @sdsrss/sgc       # requires bun >=1.3 as the runtime
+npm install -g @sdsrs/sgc       # requires bun >=1.3 as the runtime
 sgc --version
 ```
 

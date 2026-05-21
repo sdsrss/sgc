@@ -4,7 +4,7 @@ name: publish-npm
 # version field in package.json — the publish step refuses if they differ.
 #
 # Prerequisites (one-time setup):
-#   1. npm account exists for @sdsrss scope (npmjs.com → create token →
+#   1. npm account exists for @sdsrs scope (npmjs.com → create token →
 #      "Automation" type for CI use).
 #   2. Add the token as repo secret `NPM_TOKEN` (Settings → Secrets and
 #      variables → Actions → New repository secret).

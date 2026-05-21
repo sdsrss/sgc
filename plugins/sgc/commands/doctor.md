@@ -20,7 +20,7 @@ else
   printf '%s\n' \
     "ERROR: sgc CLI not found." "" \
     "Install via npm (recommended):" \
-    "  npm install -g @sdsrss/sgc       # requires bun >=1.3 runtime" "" \
+    "  npm install -g @sdsrs/sgc       # requires bun >=1.3 runtime" "" \
     "Or clone from source:" \
     "  git clone https://github.com/sdsrss/sgc && cd sgc" \
     "  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install" "" \

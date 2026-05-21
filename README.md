@@ -15,7 +15,7 @@ sgc has two pieces: the **CLI** (the dispatcher) and the **Claude Code plugin** 
 **Recommended — npm (global):**
 
 ```bash
-npm install -g @sdsrss/sgc
+npm install -g @sdsrs/sgc
 sgc --version
 ```
 
@@ -51,7 +51,7 @@ Installs the prompt layer in `~/.claude/plugins/cache/sgc/sgc/`: 11 slash comman
 /plugin update sgc                # pull the new plugin version
 
 # CLI — npm install
-npm update -g @sdsrss/sgc
+npm update -g @sdsrs/sgc
 
 # CLI — source clone
 git pull && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install

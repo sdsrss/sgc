@@ -12,8 +12,10 @@ off that the failure is happening.
 ## Scope
 
 - Token scope: read:decisions:*, read:progress, exec:git:read
-- Forbidden: read:solutions (planner-adjacent isolation — do not
-  consult past answers)
+- Input channel: prior_preventions — when present, the spawn input
+  carries keyword-matched preventions from solutions/ pre-fetched by
+  /plan (CE-1). The agent itself holds NO read:solutions capability;
+  the data flows in via input only.
 - Allowed outputs: failure_modes
 
 ## Your analysis
@@ -55,6 +57,15 @@ off that the failure is happening.
 4. Emit only modes that are PLAUSIBLY triggered by this change.
    Inventing failure modes that have no plausible link to the intent
    is itself a failure pattern (see anti-pattern #2).
+
+5. When `prior_preventions` is non-empty in the input, treat each
+   entry as a likely failure shape this codebase has already learned
+   about. If the prevention_text plausibly applies to the current
+   intent_draft, include a corresponding failure_mode in the output
+   with `probability: high` (recurrence, not novel) and reference the
+   prevention's `solution_ref` in the `early_signal` field so the
+   operator sees the source. Do not invent a recurrence when the
+   prevention does not actually apply — that is anti-pattern #2.
 
 ## Anti-patterns: do NOT output
 

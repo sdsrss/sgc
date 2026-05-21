@@ -175,6 +175,38 @@ describe("extractPreventions (CE-1 T2)", () => {
   })
 })
 
+describe("planner-adversarial.md prompt template (CE-1 T4)", () => {
+  const templatePath = "prompts/planner-adversarial.md"
+  let templateText: string
+  beforeEach(() => {
+    const fs = require("node:fs") as typeof import("node:fs")
+    templateText = fs.readFileSync(templatePath, "utf8")
+  })
+
+  it("mentions prior_preventions input channel", () => {
+    expect(templateText.includes("prior_preventions")).toBe(true)
+    expect(templateText.includes("Input channel: prior_preventions")).toBe(true)
+  })
+
+  it("dropped the legacy Forbidden: read:solutions bullet", () => {
+    expect(templateText.includes("Forbidden: read:solutions")).toBe(false)
+  })
+
+  it("preserves the v6.x banned-vocab regex caveat for 'may break IF X'", () => {
+    // Memory #18: do not over-fire on concrete-conditional usage.
+    // The caveat itself does not need to appear in this prompt verbatim;
+    // assert instead that the banned-vocab section (if present) does NOT
+    // ban the bare phrase "may break", which would conflict with the v6.x
+    // caveat. The adversarial prompt should permit "may break IF X" usage.
+    const banLines = templateText.split("\n").filter((l) =>
+      l.includes("`could potentially`") || l.includes("`might affect`"),
+    )
+    for (const line of banLines) {
+      expect(line.includes("`may break`")).toBe(false)
+    }
+  })
+})
+
 describe("PlannerAdversarialInput.prior_preventions optional field (CE-1 T3)", () => {
   it("heuristic output is identical with and without prior_preventions", () => {
     const baseline = plannerAdversarialHeuristic({

@@ -112,6 +112,12 @@ One more CLI from the same repo:
     └── {reviewer}.md      ← append-only per (task, stage, reviewer) (Invariant §6).
 ```
 
+### Storage model — operator-local by design
+
+`.sgc/` is **gitignored** and lives per-project, per-machine. `solutions/` is the knowledge corpus that `researcher.history` mines, and it accumulates on whichever machine runs `sgc compound`. There is **no built-in team-sync** today — cross-machine and cross-teammate continuity is a future-work item.
+
+If you want continuity across machines or with a teammate, the manual workaround is to version `.sgc/solutions/` into a private side repo (push from machine A, pull on machine B). A native `sgc solutions sync` command + opinionated local/team partition is on the roadmap once the right partition shape emerges from real usage; see review notes for the design space (local/team split vs `sgc solutions sync` vs SQLite backend).
+
 ## Architecture
 
 ```

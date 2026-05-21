@@ -7,19 +7,25 @@ description: "Use when starting any conversation - establishes SGC commands, rou
 
 Load SGC rules, verify `.sgc/` state integrity, route user intent to the correct command.
 
+## ⚠️ Install the CLI before first command
+
+The plugin layer is markdown-only; **every `/sgc:*` command shells out to `bun src/sgc.ts <cmd>`** in the user's current working directory. If `src/sgc.ts` isn't present, every command preflight-fails. Run this **once per project** before invoking any `/sgc:*` command:
+
+```bash
+git clone https://github.com/sdsrss/sgc
+cd sgc
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install
+```
+
+`bun ≥1.3` is also required as the runtime (`bun --version` to verify).
+
+After install, run `/sgc:*` commands from inside the `sgc/` directory. CLI bundling (`npm publish sgc` or single-file binary) is roadmap — see [README.md#install](../../../../README.md#install) for the canonical reference.
+
+When a user hits the preflight error, surface this block **once per session** — do not repeat on every command.
+
 ## When to Use
 
 At the start of every conversation. Runs before any other SGC skill.
-
-## CLI Dependency
-
-This plugin ships **only the prompt layer** (commands, skills, hook). Every `/sgc:*` command shells out to `bun src/sgc.ts <cmd>` relative to the user's current working directory; the dispatcher CLI is NOT bundled. If a command prints `sgc CLI not in cwd`, surface the clone step once:
-
-```bash
-git clone https://github.com/sdsrss/sgc && cd sgc && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install
-```
-
-Do not repeat this notice on every command — once per session is enough. CLI bundling is a roadmap item (see CHANGELOG).
 
 ## Initialization Sequence
 

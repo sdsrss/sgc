@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased — Audit follow-up batch (P1 / P3 / P7 + P2 / P6 / P9)
+## Unreleased — Audit follow-up batch (P1 / P3 / P7 + P2 / P6 / P9 + P4-lite / P5-T1)
+
+### Docs (P4-lite: storage expectation-setting, defer team-sync)
+- `README.md`: new `### Storage model — operator-local by design` subsection under `## State layout`. Sets explicit expectation that `.sgc/` is per-project, per-machine; calls out the no-team-sync gap; documents the manual side-repo workaround; references the design space (local/team split vs `sgc solutions sync` vs SQLite). Full team-sync feature deferred until real cross-user usage emerges.
+
+### UX (P5 Tier 1: first-failure install guidance)
+- `plugins/sgc/skills/bootstrap/SKILL.md`: hoisted the CLI install commands to the top of the file under `## ⚠️ Install the CLI before first command`. New users see the clone-and-install block before any `/sgc:*` command can fail.
+- 11 `plugins/sgc/commands/*.md` files (agent-loop / compound / discover / doctor / plan / qa / review / ship / status / tail / work): replaced the one-line preflight `echo` with a multi-line `printf` that shows ERROR header + ready-to-paste install commands + reference link. Same single-statement bash form (sed-safe, no shell quoting traps).
+- No CLI behavior change. The full bundling answer (`npm publish sgc` or single-file binary, Tier 2) waits on adoption signal.
 
 ### Hardening (P2: output-side Invariant §1 leak check)
 - `src/dispatcher/fingerprint.ts` (new): walks `<stateRoot>/solutions/<cat>/<slug>.md`, hashes every fingerprintable line (≥25 chars, not pure markdown structure) with SHA256→16-hex. After-output scan in `spawn.ts` (post-`validateOutputShape`, pre-return) recursively walks reviewer.* / qa.* output string fields, throws `SpawnError` on collision. Other agents (planner.*, compound.*, researcher.history) exempt — they legitimately quote solutions. Per-process cache keyed by stateRoot; `clearFingerprintCache()` exposed for tests.

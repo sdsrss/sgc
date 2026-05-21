@@ -128,7 +128,25 @@ export interface CompoundRelatedOutput {
   }
 }
 
-export function compoundRelated(
+/**
+ * Heuristic — INTENTIONALLY not LLM-swapped (Invariant §3 write-gate).
+ *
+ * Unlike sibling compound.* agents that gained `prompt_path` in P2#7,
+ * compound.related's `dedup_stamp` output authorizes `state.ts:writeSolution`
+ * via Invariant §3. Routing it through an LLM would let the model mint
+ * `best_similarity: 0` and bypass dedup, corrupting the solutions corpus
+ * that researcher.history mines. The 2026-05-20 session evaluated four
+ * routing options (in-agent hybrid / two-spawn orchestration / separate
+ * compound.related_enrich / decline) and chose decline. See:
+ *   - sgc-capabilities.yaml:427-434 (manifest comment + permanent null prompt_path)
+ *   - ~/.claude/projects/-mnt-Sda2-dev-sdsbp-sgc/memory/feedback_compound_related_invariant3.md
+ *   - claude-mem-lite obs #92 (decision narrative) + #93 (gate ordering)
+ *
+ * The `Heuristic` suffix mirrors compoundPreventionHeuristic / plannerEngHeuristic /
+ * etc., but means "design-deterministic by choice" here, not "swap pending".
+ * The `compoundRelated` alias below keeps callers and tests stable.
+ */
+export function compoundRelatedHeuristic(
   input: CompoundRelatedInput,
 ): CompoundRelatedOutput {
   const candidate = {
@@ -169,6 +187,11 @@ export function compoundRelated(
     },
   }
 }
+
+/** Alias — kept stable for callers + tests. Same naming pattern as
+ * compoundPrevention/compoundPreventionHeuristic, but semantically this
+ * pair will never split (heuristic is the final form, see header comment). */
+export const compoundRelated = compoundRelatedHeuristic
 
 // ── compound.prevention ─────────────────────────────────────────────────────
 

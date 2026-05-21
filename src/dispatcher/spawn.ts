@@ -105,23 +105,32 @@ export class SpawnError extends Error {
 // review.ts:stripPriorArtSection is the producer-side strip (P3#9 keeps
 // it for defense-in-depth); this is the consumer-side structural gate.
 //
-// Pre-spawn, scan the `intent` input field for researcher.history's
-// canonical heading:
+// Pre-spawn, scan the `intent` input field for either of:
 //
-//   ## Prior art (researcher.history)
+//   (A) HTML-comment sentinel pair (current producer format, P3 hardening):
+//         <!-- sgc:prior-art:begin -->
+//         ...
+//         <!-- sgc:prior-art:end -->
 //
-// The `(researcher.history)` parenthetical disambiguates it from any
-// generic "## Prior art" a user might write in their motivation. Only
-// the `intent`-named string field is scanned — sibling fields like
+//   (B) Legacy markdown heading (back-compat — pre-P3 intent.md files are
+//       immutable per §2, so this branch must stay):
+//         ## Prior art (researcher.history)
+//
+// Either match throws. Producers MUST wrap in (A); (B) acts as defense-in-
+// depth so a refactor regression that drops the sentinel still trips the
+// gate. The `(researcher.history)` parenthetical on (B) disambiguates from
+// a generic "## Prior art" a user might write in their own motivation.
+// Only the `intent`-named string field is scanned — sibling fields like
 // `diff` legitimately echo arbitrary code/text (a user's PR may itself
-// add a "Prior art" doc heading) and would false-positive a whole-input
-// scan.
+// add a "Prior art" doc heading or even sgc sentinel string) and would
+// false-positive a whole-input scan.
 //
-// Producer-side strip can be forgotten; the gate catches drift before
-// the LLM sees the leaked content. Throws SpawnError so spawn.start
-// does NOT fire (§13 Tier 1 paired-event contract preserved — failure
-// happens before the spawn is even announced).
-const PRIOR_ART_BACK_CHANNEL_RE = /(^|\n)[ \t]*## Prior art \(researcher\.history\)/
+// Throws SpawnError so spawn.start does NOT fire (§13 Tier 1 paired-event
+// contract preserved — failure happens before the spawn is announced).
+export const PRIOR_ART_SENTINEL_BEGIN = "<!-- sgc:prior-art:begin -->"
+export const PRIOR_ART_SENTINEL_END = "<!-- sgc:prior-art:end -->"
+const PRIOR_ART_BACK_CHANNEL_RE =
+  /(^|\n)[ \t]*(<!--[ \t]*sgc:prior-art:begin[ \t]*-->|## Prior art \(researcher\.history\))/
 
 function isReviewerOrQaAgent(name: string): boolean {
   return name.startsWith("reviewer.") || name.startsWith("qa.")

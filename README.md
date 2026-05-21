@@ -1,10 +1,8 @@
-# SGC — Unified Engineering Agent
+# SGC — Spec Layer + Knowledge Engine
 
-A single Claude Code workflow combining process discipline (Superpowers), real-world QA + ship pipeline (gstack), and knowledge compounding (Compound Engineering). One CLI, one state layer, one set of invariants.
+L0-L3 task classification, 13 runtime invariants, and a dedup-enforced `.sgc/` knowledge base. A **规范层 + 知识引擎** that *coexists* with `superpowers` (sp) and `gstack` (gs) rather than replacing them — sgc owns classification + invariants + the solutions corpus; sp owns deep planning / TDD / debugging; gs owns ship + browser QA + deploy. See [docs/POSITIONING.md](docs/POSITIONING.md) for the delegate pattern.
 
-**Status**: v1.1 — full L0→L3 pipeline with stub agents end-to-end. All 8 sgc commands, 9 agent stubs, all 12 invariants enforced at runtime. Real LLM integration via `ANTHROPIC_API_KEY` (Anthropic SDK) or local `claude` binary (subscription) — auto-detected. See [docs/c-phase-dispatcher.md](docs/c-phase-dispatcher.md) + [docs/d-phase-plan.md](docs/d-phase-plan.md) for the build history; roadmap (E-phase) in [#/] TBD.
-
-> **Positioning**: sgc is a 规范层 + 知识引擎 that coexists with `superpowers` (sp) and `gstack` (gs). See [docs/POSITIONING.md](docs/POSITIONING.md) for the delegate pattern.
+**Status**: v1.2.1 — full L0→L3 pipeline with 10 commands, 10 LLM-backed agents (`prompt_path` templates with `cache_control` split), 1 intentionally heuristic (`compound.related` — its `dedup_stamp` authorizes Invariant §3 writes and must stay deterministic), all 13 invariants enforced at runtime. LLM integration via `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` / local `claude` binary — auto-detected per `resolveMode` priority. See [CHANGELOG.md](CHANGELOG.md) for shipped phases and [docs/c-phase-dispatcher.md](docs/c-phase-dispatcher.md) for the build history.
 
 ---
 

@@ -4,6 +4,8 @@ import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import {
   OutputShapeMismatch,
+  PRIOR_ART_SENTINEL_BEGIN,
+  PRIOR_ART_SENTINEL_END,
   SpawnError,
   SpawnTimeout,
   checkInvariantOneBackChannel,
@@ -427,6 +429,63 @@ describe("checkInvariantOneBackChannel — unit (P3#9)", () => {
     expect(() =>
       checkInvariantOneBackChannel("reviewer.correctness", midline),
     ).not.toThrow()
+  })
+
+  // ── P3 sentinel hardening ──────────────────────────────────────────────
+
+  test("T8b: sentinel-begin marker (without legacy heading) → throws", () => {
+    // The new producer wraps the prior-art block in HTML-comment sentinels.
+    // The gate must detect the sentinel even if the heading is renamed,
+    // translated, or stripped — that is the whole point of the hardening.
+    const leaky = {
+      intent:
+        `# Title\n\n${PRIOR_ART_SENTINEL_BEGIN}\n` +
+        `## 前期工作\n\n- runtime/foo (score 0.9)\n\n` +
+        `${PRIOR_ART_SENTINEL_END}\n`,
+    }
+    expect(() =>
+      checkInvariantOneBackChannel("reviewer.correctness", leaky),
+    ).toThrow(SpawnError)
+    expect(() =>
+      checkInvariantOneBackChannel("reviewer.correctness", leaky),
+    ).toThrow(/Invariant §1 violation/)
+  })
+
+  test("T8c: malformed sentinel (begin only, no end) still trips gate", () => {
+    // A producer regression that emits begin without end is still a leak.
+    // The gate matches the begin marker alone — fail-closed over fail-open.
+    const partial = {
+      intent: `${PRIOR_ART_SENTINEL_BEGIN}\n- runtime/foo`,
+    }
+    expect(() =>
+      checkInvariantOneBackChannel("reviewer.correctness", partial),
+    ).toThrow(SpawnError)
+  })
+
+  test("T8d: sentinel-end alone (no begin, no content) → no throw", () => {
+    // An orphaned end marker carries no solutions content; legitimate diff/
+    // doc that quotes the literal `<!-- sgc:prior-art:end -->` (e.g. in this
+    // very test file's contributors-doc snapshot) should not false-positive.
+    const tail = {
+      intent: `# Title\n\nMotivation. ${PRIOR_ART_SENTINEL_END}\n`,
+    }
+    expect(() =>
+      checkInvariantOneBackChannel("reviewer.correctness", tail),
+    ).not.toThrow()
+  })
+
+  test("T8e: legacy heading still detected (defense-in-depth on Phase G/H intent.md)", () => {
+    // Invariant §2 makes intent.md immutable. Phase G/H tasks wrote intent
+    // files with the heading-only format; if any future reviewer flow reads
+    // such a file, the gate MUST still trip. This branch is permanent, not
+    // a transition shim.
+    const legacyOnly = {
+      intent:
+        "# Title\n\n## Prior art (researcher.history)\n\n- runtime/foo (score 0.8)",
+    }
+    expect(() =>
+      checkInvariantOneBackChannel("reviewer.correctness", legacyOnly),
+    ).toThrow(SpawnError)
   })
 })
 

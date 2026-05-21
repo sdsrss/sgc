@@ -16,7 +16,11 @@
 //   6. Aggregate verdict = worst across all reviewers; print summary.
 
 import { execSync } from "node:child_process"
-import { spawn } from "../dispatcher/spawn"
+import {
+  spawn,
+  PRIOR_ART_SENTINEL_BEGIN,
+  PRIOR_ART_SENTINEL_END,
+} from "../dispatcher/spawn"
 import {
   reviewerCorrectness,
   type ReviewerCorrectnessOutput,
@@ -67,17 +71,43 @@ function captureDiff(base: string, cwd?: string): string {
   }
 }
 
-// Strip the "## Prior art (researcher.history)" section from intent.body
-// before passing it to reviewer subagents. Invariant §1 (sgc-invariants.md +
+// Strip the researcher.history Prior-art block from intent.body before
+// passing it to reviewer subagents. Invariant §1 (sgc-invariants.md +
 // sgc-capabilities.yaml:142-146 `/review.solutions: []`) requires reviewers
-// to remain amnesiac to past solutions. plan.ts:367-378 embeds up to 5 ×
-// 500-char solution excerpts (back-filled from the candidates map) plus
-// LLM-generated relevance_reason commentary into intent.body — passing that
-// to reviewer.correctness back-channels solutions content past the explicit
-// scope_token denial. Phase H pre-ship review surfaced this leak (red team
-// finding RT-1); the heuristic-mode pre-Phase-H 160-char excerpts already
-// leaked, but the LLM-mode amplification made the gap impossible to ignore.
+// to remain amnesiac to past solutions. plan.ts embeds up to 5 × 500-char
+// solution excerpts + LLM-generated relevance_reason commentary — passing
+// that to reviewer.correctness back-channels solutions content past the
+// explicit scope_token denial. Phase H pre-ship review surfaced this leak
+// (red team finding RT-1); P3 hardening wraps the block in sentinel HTML
+// comments so strip + spawn.ts gate share a single literal contract.
+//
+// Two paths:
+//   (A) Sentinel-wrapped (current producer, plan.ts:371): exact begin/end
+//       pair — remove everything between (heading lives INSIDE the
+//       sentinels and goes with the block).
+//   (B) Legacy heading-only (pre-P3 intent.md files, immutable per §2):
+//       fall back to heading-to-next-`## ` heuristic.
+//
+// Sentinel path is preferred and short-circuits; legacy path only runs if
+// no sentinel is found. A malformed producer that emits begin without end
+// strips from begin to next `## ` heading (or to EOF) — fail-safe toward
+// "remove more, not less", since under-stripping leaks solutions content.
 function stripPriorArtSection(body: string): string {
+  const begin = body.indexOf(PRIOR_ART_SENTINEL_BEGIN)
+  if (begin !== -1) {
+    const end = body.indexOf(PRIOR_ART_SENTINEL_END, begin)
+    if (end !== -1) {
+      const after = end + PRIOR_ART_SENTINEL_END.length
+      // Eat one trailing newline so removal doesn't leave a blank-line scar.
+      const cut = body[after] === "\n" ? after + 1 : after
+      return body.slice(0, begin) + body.slice(cut)
+    }
+    // Malformed: begin without end. Cut from begin to next `## ` or EOF.
+    const tail = body.slice(begin)
+    const next = /\n## /.exec(tail)
+    const cutEnd = begin + (next?.index ?? tail.length)
+    return body.slice(0, begin) + body.slice(cutEnd)
+  }
   const headingRe = /^## Prior art \(researcher\.history\)\r?\n/m
   const m = headingRe.exec(body)
   if (!m) return body

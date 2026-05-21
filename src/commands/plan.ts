@@ -14,7 +14,11 @@
 // (for real Claude main-session integration, future work).
 
 import { existsSync, readFileSync } from "node:fs"
-import { spawn } from "../dispatcher/spawn"
+import {
+  spawn,
+  PRIOR_ART_SENTINEL_BEGIN,
+  PRIOR_ART_SENTINEL_END,
+} from "../dispatcher/spawn"
 import {
   classifierLevel,
   type ClassifierOutput,
@@ -369,7 +373,8 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
               : "")
           : "") +
         (researcherOut
-          ? `## Prior art (researcher.history)\n\n` +
+          ? `${PRIOR_ART_SENTINEL_BEGIN}\n` +
+            `## Prior art (researcher.history)\n\n` +
             (researcherOut.prior_art.length === 0
               ? `_No prior art found._\n\n`
               : researcherOut.prior_art
@@ -382,7 +387,8 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
                   .join("\n") + "\n\n") +
             (researcherOut.warnings.length
               ? `### Research warnings\n\n${researcherOut.warnings.map((w) => `- ${w}`).join("\n")}\n\n`
-              : "")
+              : "") +
+            `${PRIOR_ART_SENTINEL_END}\n\n`
           : "") +
         (adversarialOut
           ? `## Pre-mortem (planner.adversarial)\n\n` +

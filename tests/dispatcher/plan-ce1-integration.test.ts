@@ -72,4 +72,47 @@ describe("plan.ts CE-1 wiring (L3 prior_preventions injection)", () => {
     expect(l3BlockStart).toBeGreaterThan(-1)
     expect(extractCallIdx).toBeGreaterThan(l3BlockStart)
   })
+
+  it("RT-6: extractPreventions throw emits Tier-2 audit event + plan continues", () => {
+    // Source-level assertion: the try/catch block + audit event are present.
+    // Mirrors the handleCoerceFailure pattern from researcher-history.ts:348
+    // (agent failure must emit a Tier-2 event under §13, not silently crash
+    // the entire planner cluster).
+    const planSrc = readFileSync(
+      resolve(import.meta.dir, "../../src/commands/plan.ts"),
+      "utf8",
+    )
+    // try { await extractPreventions(...) } catch — single regex matching
+    // across whitespace + arbitrary intermediate tokens.
+    expect(
+      /try\s*\{[\s\S]{0,200}await\s+extractPreventions[\s\S]{0,400}catch\s*\(/.test(
+        planSrc,
+      ),
+    ).toBe(true)
+    // Audit event emission with the expected event_type + warn level.
+    expect(planSrc.includes("prevention.extract_failed")).toBe(true)
+    expect(
+      /event_type:\s*"prevention\.extract_failed"[\s\S]{0,200}level:\s*"warn"/.test(
+        planSrc,
+      ),
+    ).toBe(true)
+  })
+
+  it("Perf-1: extractPreventions runs inside the planner-cluster IIFE (not serial before Promise.all)", () => {
+    // Source-level assertion: the L3 branch wraps the extractor + spawn
+    // inside `tasks.push((async () => ...)())` (mirroring researcher.history
+    // IIFE at plan.ts:201-235), instead of awaiting before tasks.push.
+    // Serial await would block eng+ceo+researcher+adversarial on disk I/O.
+    const planSrc = readFileSync(
+      resolve(import.meta.dir, "../../src/commands/plan.ts"),
+      "utf8",
+    )
+    // tasks.push((async ... => — match across whitespace
+    expect(/tasks\.push\(\s*\(async\b[^)]*\)\s*[:=]/.test(planSrc)).toBe(
+      true,
+    )
+    // No bare `await extractPreventions(` at the top of the L3 branch —
+    // the only one must be inside an arrow-async body.
+    expect(planSrc.match(/await\s+extractPreventions\(/g)?.length).toBe(1)
+  })
 })

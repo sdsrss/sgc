@@ -38,7 +38,10 @@ import {
   type PlannerAdversarialInput,
   type PlannerAdversarialOutput,
 } from "../dispatcher/agents/planner-adversarial"
-import { extractPreventions } from "../dispatcher/preventions"
+import {
+  extractPreventions,
+  type PriorPrevention,
+} from "../dispatcher/preventions"
 import { validateClassifierRationale } from "../dispatcher/rationale"
 import {
   ensureSgcStructure,
@@ -235,35 +238,64 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
       })(),
     ]
     if (level === "L3") {
-      // CE-1 (task 94913CB45F9D4C3E906B3C2C8E#f2): keyword-match preventions
-      // from solutions/ and feed to planner.adversarial as spawn input.
-      // The agent does NOT hold read:solutions itself; /plan pre-fetches.
-      const priorPreventions = await extractPreventions(taskDescription, stateRoot)
-      if (priorPreventions.length > 0) {
-        log(
-          `prevention recall: ${priorPreventions.length} prior failure shape(s) matched`,
-        )
-        for (const p of priorPreventions) {
-          log(`  prevention: ${p.solution_ref}`)
-        }
-      }
-      const adversarialInput: PlannerAdversarialInput = {
-        intent_draft: taskDescription,
-        ...(priorPreventions.length > 0
-          ? { prior_preventions: priorPreventions }
-          : {}),
-      }
+      // CE-1: keyword-match preventions from solutions/ and feed to
+      // planner.adversarial as spawn input. The agent does NOT hold
+      // read:solutions itself; /plan pre-fetches. Data crosses as input,
+      // not capability — Invariant §1 partial relaxation for .adversarial
+      // only. See CHANGELOG "Feature (CE-1)" + tasks/specs/ce-1-prevention-injection.md.
+      //
+      // Wrapped as IIFE pushed into `tasks` so the disk walk runs in
+      // parallel with eng/ceo/researcher.history (Perf-1 — mirrors the
+      // researcher.history IIFE pattern above). try/catch around the
+      // extractor emits a Tier-2 audit event on failure and falls back
+      // to empty preventions instead of crashing the L3 cluster (RT-6 —
+      // mirrors handleCoerceFailure in researcher-history.ts:348).
       tasks.push(
-        spawn<unknown, PlannerAdversarialOutput>(
-          "planner.adversarial",
-          adversarialInput,
-          {
-            stateRoot,
-            inlineStub: (i) => plannerAdversarial(i as PlannerAdversarialInput),
-            logger,
-            taskId,
-          },
-        ),
+        (async (): Promise<{ output: PlannerAdversarialOutput }> => {
+          let priorPreventions: PriorPrevention[] = []
+          try {
+            priorPreventions = await extractPreventions(
+              taskDescription,
+              stateRoot,
+            )
+          } catch (err) {
+            const errName = err instanceof Error ? err.name : "unknown"
+            const errMsg = err instanceof Error ? err.message : ""
+            logger.event({
+              task_id: taskId,
+              spawn_id: null,
+              agent: "plan.preventions",
+              event_type: "prevention.extract_failed",
+              level: "warn",
+              payload: { error_class: errName, error_message: errMsg },
+            })
+          }
+          if (priorPreventions.length > 0) {
+            log(
+              `prevention recall: ${priorPreventions.length} prior failure shape(s) matched`,
+            )
+            for (const p of priorPreventions) {
+              log(`  prevention: ${p.solution_ref}`)
+            }
+          }
+          const adversarialInput: PlannerAdversarialInput = {
+            intent_draft: taskDescription,
+            ...(priorPreventions.length > 0
+              ? { prior_preventions: priorPreventions }
+              : {}),
+          }
+          return spawn<unknown, PlannerAdversarialOutput>(
+            "planner.adversarial",
+            adversarialInput,
+            {
+              stateRoot,
+              inlineStub: (i) =>
+                plannerAdversarial(i as PlannerAdversarialInput),
+              logger,
+              taskId,
+            },
+          )
+        })(),
       )
     }
     const results = (await Promise.all(tasks)) as {

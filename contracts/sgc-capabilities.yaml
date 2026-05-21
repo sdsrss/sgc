@@ -280,7 +280,7 @@ subagents:
     timeout_s: 120
 
   planner.adversarial:
-    version: "0.2"
+    version: "0.3"
     source: gstack pre-mortem pattern (P2#7b LLM swap mirrors G.2.a planner.eng)
     purpose: L3 pre-mortem. "What is the most likely way this fails?"
     prompt_path: prompts/planner-adversarial.md
@@ -290,6 +290,12 @@ subagents:
       # access via this spawn and the prompt explicitly forbids inventing
       # file paths. Heuristic also ignored the field.
       intent_draft: markdown
+      # CE-1 (v0.3): /plan L3 branch pre-fetches keyword-matched preventions
+      # from solutions/ via extractPreventions() and passes them as input —
+      # the agent itself holds NO read:solutions in scope_tokens; data
+      # crosses the boundary as input only. Optional: absent on L1/L2
+      # paths, and absent on L3 when corpus produces no keyword match.
+      prior_preventions: array[{solution_ref, category, prevention_text}]
     outputs:
       failure_modes: array[{scenario, probability, impact, early_signal}]
     scope_tokens: ["read:decisions:*", "read:progress", "exec:git:read"]

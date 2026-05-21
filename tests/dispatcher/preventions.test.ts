@@ -192,6 +192,25 @@ describe("extractPreventions (CE-1 T2)", () => {
   })
 })
 
+describe("planner.adversarial manifest (CE-1 RT-3 repair)", () => {
+  it("declares prior_preventions input field", () => {
+    const fs = require("node:fs") as typeof import("node:fs")
+    const manifest = fs.readFileSync("contracts/sgc-capabilities.yaml", "utf8")
+    // Locate planner.adversarial block + read its inputs
+    const block = manifest.slice(
+      manifest.indexOf("planner.adversarial:"),
+      manifest.indexOf("researcher.history:"),
+    )
+    expect(block.includes("prior_preventions")).toBe(true)
+    expect(
+      block.includes(
+        "array[{solution_ref, category, prevention_text}]",
+      ),
+    ).toBe(true)
+    expect(block.includes('version: "0.3"')).toBe(true)
+  })
+})
+
 describe("planner-adversarial.md prompt template (CE-1 T4)", () => {
   const templatePath = "prompts/planner-adversarial.md"
   let templateText: string

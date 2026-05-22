@@ -58,6 +58,12 @@ import { computeCommandTokens } from "../dispatcher/capabilities"
 import { delegationHintsFor, formatHint } from "../dispatcher/delegation"
 import type { Handoff, IntentDoc, Level } from "../dispatcher/types"
 import { createLogger, type Logger } from "../dispatcher/logger"
+import {
+  completePlanJob,
+  emitAsyncStart,
+  failPlanJob,
+  forkAsyncPlanJob,
+} from "../dispatcher/plan-jobs"
 
 export interface PlanOptions {
   stateRoot?: string
@@ -72,6 +78,11 @@ export interface PlanOptions {
   forceNewTask?: boolean
   // --auto flag; REFUSED at L3 per Invariant §4.
   autoConfirm?: boolean
+  // CE-4 (f5): --async flag. Parent forks a detached child running the
+  // sync flow; parent prints job summary and exits. Child mode is
+  // signaled to `runPlan` via the `SGC_PLAN_ASYNC_CHILD` env var and
+  // runs runPlanCore wrapped in completePlanJob/failPlanJob.
+  async?: boolean
   // Test hook: inject the interactive confirmation reader (returns user
   // input, e.g. "yes"). Default reads one line from process.stdin.
   readConfirmation?: () => Promise<string>
@@ -115,7 +126,118 @@ async function defaultReadConfirmation(): Promise<string> {
   return readLineSync()
 }
 
-export async function runPlan(taskDescription: string, opts: PlanOptions = {}): Promise<{
+/**
+ * CE-4 (f5) async wrapper. Three paths:
+ *
+ *   1. Parent mode (`opts.async === true` AND no SGC_PLAN_ASYNC_CHILD):
+ *      fork detached child running `bun sgc.ts plan <task>`, write a
+ *      job-handle file, print operator-facing summary, return synthetic
+ *      shape. Child runs the same `runPlan` in path 2.
+ *
+ *   2. Child mode (`SGC_PLAN_ASYNC_CHILD=<job-id>` in env): wrap the
+ *      synchronous `runPlanCore` in try/catch; on success call
+ *      completePlanJob with classification metadata, on throw call
+ *      failPlanJob + re-throw so the child process exits non-zero.
+ *
+ *   3. Sync mode (default): call `runPlanCore` directly. Identical to
+ *      the pre-CE-4 behavior.
+ */
+export async function runPlan(
+  taskDescription: string,
+  opts: PlanOptions = {},
+): Promise<{
+  taskId: string
+  level: Level
+  intentPath: string
+}> {
+  const asyncChildJobId = process.env["SGC_PLAN_ASYNC_CHILD"]
+
+  // Parent branch — fork and exit.
+  if (opts.async && !asyncChildJobId) {
+    const parentLogger =
+      opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log })
+    // Freeze the parent's flag-derived options into a JSON env var so
+    // the child sees them. Child argv is `[bun, sgc.ts, "plan", task]`
+    // only — flags like --motivation / --signed-by / --level don't
+    // round-trip via argv. async/log/logger/readConfirmation are NOT
+    // forwarded (they're parent-process-only concerns).
+    const childOpts: Partial<PlanOptions> = {}
+    if (opts.forceLevel !== undefined) childOpts.forceLevel = opts.forceLevel
+    if (opts.userSignature !== undefined)
+      childOpts.userSignature = opts.userSignature
+    if (opts.motivation !== undefined) childOpts.motivation = opts.motivation
+    if (opts.autoConfirm !== undefined) childOpts.autoConfirm = opts.autoConfirm
+    if (opts.forceNewTask !== undefined)
+      childOpts.forceNewTask = opts.forceNewTask
+    const fork = await forkAsyncPlanJob(taskDescription, {
+      stateRoot: opts.stateRoot,
+      extraEnv: { SGC_PLAN_CHILD_OPTS: JSON.stringify(childOpts) },
+    })
+    emitAsyncStart(fork.job.job_id, taskDescription, parentLogger, {
+      pid: fork.job.pid,
+      log_path: fork.job.log_path,
+    })
+    process.stderr.write(
+      `async plan job ${fork.job.job_id} (pid=${fork.job.pid})\n`,
+    )
+    process.stderr.write(`  task:    ${taskDescription}\n`)
+    process.stderr.write(`  log:     ${fork.job.log_path}\n`)
+    process.stderr.write(`  watch:   sgc plan --status ${fork.job.job_id}\n`)
+    process.stderr.write(
+      `  events:  sgc tail --event-type plan.async_start,plan.async_complete,plan.async_failed --follow\n`,
+    )
+    // Synthetic shape; sgc.ts handler ignores the return value.
+    return {
+      taskId: fork.job.job_id,
+      level: "L0",
+      intentPath: fork.jobPath,
+    }
+  }
+
+  // Child branch — run sync flow, then mark job done/failed.
+  if (asyncChildJobId) {
+    // Restore parent-frozen options from SGC_PLAN_CHILD_OPTS env.
+    // CLI args in the child are bare (`plan <task>` only) so flag-
+    // derived opts come through this channel.
+    let childMerged = opts
+    const rawChildOpts = process.env["SGC_PLAN_CHILD_OPTS"]
+    if (rawChildOpts) {
+      try {
+        const parsed = JSON.parse(rawChildOpts) as Partial<PlanOptions>
+        childMerged = { ...opts, ...parsed, async: false }
+      } catch {
+        // Malformed env JSON — fall through with raw opts; child will
+        // likely fail validation downstream, which we'll capture as
+        // failPlanJob below.
+      }
+    }
+    try {
+      const result = await runPlanCore(taskDescription, childMerged)
+      await completePlanJob(
+        asyncChildJobId,
+        {
+          taskId: result.taskId,
+          level: result.level,
+          intentPath: result.intentPath,
+        },
+        { stateRoot: opts.stateRoot, logger: opts.logger },
+      )
+      return result
+    } catch (err) {
+      await failPlanJob(
+        asyncChildJobId,
+        err instanceof Error ? err.message : String(err),
+        { stateRoot: opts.stateRoot, logger: opts.logger },
+      )
+      throw err
+    }
+  }
+
+  // Default: pre-CE-4 sync behavior.
+  return runPlanCore(taskDescription, opts)
+}
+
+async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Promise<{
   taskId: string
   level: Level
   intentPath: string

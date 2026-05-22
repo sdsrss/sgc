@@ -92,6 +92,14 @@ describe("sgc CLI smoke", () => {
     expect(exitCode).toBe(0)
     expect(stdout).toContain("TASK")
   })
+
+  test("plan --help lists --async / --jobs / --status / --log (CE-4)", async () => {
+    const { stdout, exitCode } = await runSgc(["plan", "--help"])
+    expect(exitCode).toBe(0)
+    for (const flag of ["--async", "--jobs", "--status", "--log"]) {
+      expect(stdout).toContain(flag)
+    }
+  })
 })
 
 describe("sgc status (implemented)", () => {

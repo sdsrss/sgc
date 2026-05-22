@@ -41,8 +41,8 @@ const plan = defineCommand({
   args: {
     task: {
       type: "positional",
-      required: true,
-      description: "Task description (one sentence)",
+      required: false,
+      description: "Task description (one sentence) — required unless --jobs or --status is set",
     },
     level: {
       type: "string",
@@ -69,20 +69,90 @@ const plan = defineCommand({
       required: false,
       description: "Override active handoff and start a new task",
     },
+    async: {
+      type: "boolean",
+      required: false,
+      description:
+        "CE-4: fork a detached child running the planner cluster; print job_id and exit. Tail with `sgc plan --status <id>`.",
+    },
+    jobs: {
+      type: "boolean",
+      required: false,
+      description: "List async plan jobs (running, done, failed, stale). No TASK arg needed.",
+    },
+    status: {
+      type: "string",
+      required: false,
+      description: "Show one async plan job by id (frontmatter + tail log). No TASK arg needed.",
+    },
+    log: {
+      type: "boolean",
+      required: false,
+      description: "With --status: print the entire log file instead of the last 100 lines.",
+    },
   },
   async run({ args }) {
+    const showJobsFlag = args.jobs as boolean | undefined
+    const showStatusId = args.status as string | undefined
+    const showLog = args.log as boolean | undefined
+
+    if (showJobsFlag) {
+      const { listJobs } = await import("./dispatcher/plan-jobs")
+      const jobs = await listJobs()
+      if (jobs.length === 0) {
+        process.stderr.write("no plan jobs found.\n")
+        return
+      }
+      for (const j of jobs) {
+        process.stdout.write(
+          `${j.job_id}  ${j.status.padEnd(7)}  pid=${String(j.pid).padEnd(7)}  started=${j.started_at}  task=${j.task}\n`,
+        )
+      }
+      return
+    }
+
+    if (showStatusId !== undefined && showStatusId.length > 0) {
+      const { showJob } = await import("./dispatcher/plan-jobs")
+      const r = await showJob(showStatusId, {
+        logTailLines: showLog ? Number.MAX_SAFE_INTEGER : 100,
+      })
+      const j = r.job
+      process.stdout.write(`job_id:       ${j.job_id}\n`)
+      process.stdout.write(`task:         ${j.task}\n`)
+      process.stdout.write(`status:       ${j.status}\n`)
+      process.stdout.write(`pid:          ${j.pid}\n`)
+      process.stdout.write(`started_at:   ${j.started_at}\n`)
+      if (j.completed_at) process.stdout.write(`completed_at: ${j.completed_at}\n`)
+      if (j.level) process.stdout.write(`level:        ${j.level}\n`)
+      if (j.task_id) process.stdout.write(`task_id:      ${j.task_id}\n`)
+      if (j.intent_path) process.stdout.write(`intent_path:  ${j.intent_path}\n`)
+      if (j.error) process.stdout.write(`error:        ${j.error}\n`)
+      process.stdout.write(`log_path:     ${j.log_path}\n`)
+      process.stdout.write(`\n--- log${showLog ? "" : " (tail 100)"} ---\n`)
+      process.stdout.write(r.logTail)
+      return
+    }
+
+    const task = args.task as string | undefined
+    if (!task) {
+      process.stderr.write(
+        "error: TASK arg required (unless --jobs or --status <id> is set)\n",
+      )
+      process.exit(1)
+    }
     const { runPlan } = await import("./commands/plan")
     const force = args.level as "L0" | "L1" | "L2" | "L3" | undefined
     const signedBy = args["signed-by"] as string | undefined
     const userSignature = signedBy
       ? { signed_at: new Date().toISOString(), signer_id: signedBy }
       : undefined
-    await runPlan(args.task as string, {
+    await runPlan(task, {
       forceLevel: force,
       userSignature,
       motivation: args.motivation as string | undefined,
       autoConfirm: args.auto as boolean | undefined,
       forceNewTask: args["force-new-task"] as boolean | undefined,
+      async: args.async as boolean | undefined,
     })
   },
 })

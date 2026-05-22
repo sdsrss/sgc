@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased — CE-4 async plan (P2.CE-4 from the original compound list)
+
+### Added (CE-4: `sgc plan <task> --async` + job lifecycle)
+
+- **CE-4** (f5, sits OUTSIDE the closed CE-1/2/3 parent intent). New `--async` flag on `sgc plan` forks a detached child running the existing synchronous planner cluster + writes a job handle at `<stateRoot>/plan-jobs/<job-id>.md`. Parent prints `job_id`, `pid`, `log_path`, `watch` command + `events` tail hint to stderr and exits in <100ms — operator can do other work while the planner cluster runs. Closes P2.CE-4 from the original 6-item compound list ("返回 handle 立即退出；后台跑 cluster；完成时写入 events.ndjson + 通知").
+- **Single active job per project** (HARD): scanning `<stateRoot>/plan-jobs/*.md` at fork time refuses a second `--async` when any prior job has `status:running` AND the recorded `pid` is alive (`process.kill(pid, 0)` liveness probe). Stale jobs (running-status but dead pid) are marked `status:stale` lazily on read — both `listJobs` and `showJob` apply the probe and persist the transition to disk. Per-job-isolated `progress/` dirs deferred to a future "CE-5 orchestration" pass.
+- **Notify channels**: dual signal on terminal status — events.ndjson event (`plan.async_start` / `plan.async_complete` / `plan.async_failed`; additive to schema, template literal `${string}.${string}` still typed) AND sentinel file (`<job-id>.done` or `<job-id>.failed`, zero-byte). External watchers pick whichever fits: Claude main session uses `sgc tail --event-type plan.async_start,plan.async_complete,plan.async_failed --follow`; fswatch / inotify hooks the sentinel file.
+- **Status surface**: `sgc plan --jobs` lists all jobs sorted by `started_at` desc with status + pid + task summary; `sgc plan --status <job-id>` renders frontmatter + tail 100 log lines; `--status <id> --log` prints the entire log. Positional `task` arg is now optional (was required) — required only for the run path; `--jobs` and `--status` short-circuit before the task check.
+- **Child-mode signal via env var** (`SGC_PLAN_ASYNC_CHILD=<job-id>`) NOT CLI flag — citty has no API to hide a defined arg from `--help`, and operator CLI surface stays clean. Parent's flag-derived `PlanOptions` (motivation / forceLevel / userSignature / autoConfirm / forceNewTask) are frozen into `SGC_PLAN_CHILD_OPTS` JSON env so they survive the parent→child re-exec (child argv carries only `[bun, sgc.ts, "plan", task]`).
+- **Detached subprocess via `node:child_process.spawn({detached:true})`** — Bun's `Bun.spawn` lacks first-class detached semantics in current builds; node's child_process detached path is well-supported under Bun runtime. Parent calls `proc.unref()` so the parent process can exit while the child keeps running. Stdio: stdin=ignore; stdout+stderr = inherited fd opened by parent with `openSync(<log_path>, "a")` so the child writes append-mode to `<job-id>.log`.
+- **Async layer wraps the sync flow at the parent/child boundary** — spawn() architecture inside the planner cluster is unchanged. The existing `runPlan` body was extracted to `runPlanCore` (private) and `runPlan` became a 3-branch wrapper: parent-async (fork+exit) / child-async (try/catch with completePlanJob/failPlanJob) / sync (call runPlanCore). Pre-CE-4 sync invocation is identical.
+- `src/dispatcher/plan-jobs.ts` (new, ~280 LOC): `forkAsyncPlanJob` / `completePlanJob` / `failPlanJob` / `listJobs` / `showJob` / `emitAsyncStart` / `PlanJobError`. All take optional test hooks (`spawnImpl` / `now` / `ulid` / `isAlive`) so units don't touch real processes or clocks.
+- `src/commands/plan.ts`: imports the new plan-jobs API + adds the 3-branch wrapper. `PlanOptions.async?: boolean` added.
+- `src/sgc.ts`: plan defineCommand gains `--async` / `--jobs` / `--status <id>` / `--log` flags; positional task becomes optional. Run handler dispatches based on which flag is set.
+
+### Tests
+
+- 11 new tests in `tests/dispatcher/plan-jobs.test.ts`: happy fork (argv + env shape) / concurrent guard (alive pid refuse) / stale-lock clear (dead pid proceeds + persists status:stale) / completePlanJob (frontmatter + sentinel + event) / failPlanJob (frontmatter + sentinel + event) / listJobs empty / listJobs sort + stale probe / showJob tail / showJob JobNotFound / showJob lazy-stale persistence / PlanJobError shape.
+- 1 new test in `tests/dispatcher/sgc-cli.test.ts`: `plan --help` lists `--async` + `--jobs` + `--status` + `--log`.
+- Dispatcher CI gate: 690 → 702 pass / 0 fail (+12, 1754 expect calls, 121.99s wall).
+- Live dogfood (`/tmp/sgc-ce4-dogfood/` fresh state root, SGC_FORCE_INLINE=1): 4 paths exercised — happy fork (L1 plan completed; sentinel + events.ndjson `plan.async_start` / `plan.async_complete` pair; status renders); failed fork (motivation too short → `status:failed` + `.failed` sentinel + `plan.async_failed` event); `--jobs` listing sorts newest-first; concurrent refuse (synthetic running job with alive shell pid → `ConcurrentJobActive` error message).
+
+### Notes
+
+- **`--async` overhead vs. payoff**: cluster runtime for L3 is typically 10–60s (planner cluster + researcher.history + specialist reviewers). For L0/L1 tasks the cluster is essentially a single classifier+planner.eng spawn (~100–500ms inline). `--async` is operator-explicit; the fork overhead isn't worth it for L0/L1, but the flag isn't gated by level (operator's call).
+- **`progress/current-task.md` under async**: the child mutates `current-task.md` as the sync flow does. A foreground `sgc status` invocation in the same project will reflect the child's task. Documented; not isolated in v0.
+
 ## v1.7.0 — 2026-05-22 — CE-3 promote helper (CE-3 vision end-to-end closed)
 
 ### Added (CE-3 promote: `sgc compound --from-ship-failure <slug>`)

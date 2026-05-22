@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.4.0 — 2026-05-22 — CE-1 prevention injection + Red Team hardening
 
 ### Feature (CE-1: prevention injection into planner.adversarial)
 

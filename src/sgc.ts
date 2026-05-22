@@ -235,8 +235,33 @@ const compound = defineCommand({
       required: false,
       description: "Override the solution filename slug (default: slugify(problem_summary))",
     },
+    "from-ship-failure": {
+      type: "string",
+      required: false,
+      description:
+        "CE-3 promote: convert a captured ship-failure record into a solutions/ entry. Pass the slug under <stateRoot>/ship-failures/<slug>.md.",
+    },
+    "solution-slug": {
+      type: "string",
+      required: false,
+      description:
+        "Override the solution slug when promoting (default: ship-failure-<short-sha>). Only valid alongside --from-ship-failure.",
+    },
   },
   async run({ args }) {
+    const fromShipFailure = args["from-ship-failure"] as string | undefined
+    if (fromShipFailure !== undefined && fromShipFailure.length > 0) {
+      const { runCompoundPromote } = await import("./commands/compound")
+      const result = await runCompoundPromote({
+        slug: fromShipFailure,
+        force: args.force as boolean | undefined,
+        solutionSlug: args["solution-slug"] as string | undefined,
+      })
+      process.stderr.write(
+        `promote: action=${result.dedupAction} solution=${result.solutionPath} ship-failure=${result.shipFailurePath}\n`,
+      )
+      return
+    }
     const { runCompound } = await import("./commands/compound")
     await runCompound({
       force: args.force as boolean | undefined,

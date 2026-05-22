@@ -248,6 +248,18 @@ sgc watch-ci-failure
 
 ## Change log
 
+- 2026-05-22 r4 — Open Question #4 (`sgc compound --from-ship-failure <slug>`
+  promote helper) resolved by sibling spec
+  `tasks/specs/ce-3-promote-helper.md`. CE-3 capture spec status stays
+  `implemented`; promote sibling is the second-half close. After r4
+  the original CE-3 vision ("ship failure → automatic compound
+  prevention", P1.CE-3 on the parent compound list) is fully wired
+  end-to-end: failure auto-captured here, operator edits
+  `prevention_seed:`, promote writes solutions/, CE-1
+  `extractPreventions` discovers it on next L3 plan, feeds into
+  `planner.adversarial` pre-mortem. Test delta: dispatcher 678 →
+  690 pass / 0 fail (+12 across both arcs).
+
 - 2026-05-22 r1 — initial draft from `开 CE-3` brainstorm align
   (2026-05-22 chat). Locks in: opt-in `--watch-ci-failure` flag
   on `sgc ship`, heuristic-templated capture (no LLM, no agent

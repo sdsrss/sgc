@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased — CE-3 promote helper (sibling: closes CE-3 Open Question #4)
+
+### Added (CE-3 promote: `sgc compound --from-ship-failure <slug>`)
+
+- **CE-3 second half**: `sgc compound --from-ship-failure <slug>` promotes a captured `<stateRoot>/ship-failures/<slug>.md` record into a finished `<stateRoot>/solutions/<category>/<solution-slug>.md` entry. Closes the deferred Open Question #4 in `tasks/specs/ce-3-ship-failure-capture.md`. After this lands, the operator flow is: `git push --tags` → `sgc watch-ci-failure` (captures red ship) → `$EDITOR .sgc/ship-failures/<slug>.md` (operator edits `prevention_seed:`) → `sgc compound --from-ship-failure <slug>` (promotes to corpus).
+- **Heuristic-only promote path**: routes through the same Invariant §3 write-gate as `runCompound` (real `compound.related` spawn, real `DedupStamp`, real `writeSolution`); no LLM call. `compoundContextHeuristic` derives category/tags/problem_summary from `<summary>\n\n<workflow_name>` (the spec-locked input shape); operator-edited `prevention_seed:` is authoritative for the `prevention:` field.
+- **Four refuse guards** (operator footguns surface as clean errors, not corpus writes): `MissingShipFailure` (file not at `<stateRoot>/ship-failures/<slug>.md`); `PlaceholderPreventionSeed` (seed still starts with `TODO: operator-fill` or is empty); `AlreadyPromoted` (file already carries `promoted_to:` — idempotent re-run); `DuplicateMatch` (compound.related found similarity ≥ DEDUP_THRESHOLD; refuses without `--force`). `--force` bypasses only `DuplicateMatch`, NOT `AlreadyPromoted` (orthogonal guards).
+- **Audit trail / idempotency anchor**: on success the ship-failure file's frontmatter gains `promoted_to: <category>/<solution-slug>`. Subsequent `--from-ship-failure <same-slug>` refuses via the `AlreadyPromoted` guard (operator must remove the field manually to re-promote).
+- **Compound-engineering close**: once promoted, the new `solutions/<cat>/<slug>.md` carries a non-empty `prevention:` field that `extractPreventions` (CE-1, `src/dispatcher/preventions.ts`) discovers on the next L3 `sgc plan` call for the matching category — feeding the failure-derived prevention into a future `planner.adversarial` pre-mortem. End-to-end: ship failure → operator edit → corpus → planner anti-pattern injection.
+- `src/dispatcher/compound-promote.ts` (new, ~225 LOC): `promoteShipFailure(opts)` + `PromoteError` + types.
+- `src/commands/compound.ts`: new exported `runCompoundPromote(opts)` wrapping `promoteShipFailure`. `runCompound` unchanged.
+- `src/sgc.ts`: `compound` defineCommand gains `--from-ship-failure <slug>` and `--solution-slug <s>` flags; routes to `runCompoundPromote` when `--from-ship-failure` is set, otherwise unchanged.
+
+### Tests
+
+- 8 new tests in `tests/dispatcher/compound-promote.test.ts`: missing file / placeholder seed / already-promoted / dedup-match-refuse (asserts no solutions write + no ship-failure mutation) / happy-path (asserts solution lands + `promoted_to:` stamped + `prevention:` carries operator seed verbatim) / `--force` bypass / `--force` does NOT bypass `AlreadyPromoted` / `PromoteError` shape (instanceof + `.code`).
+- 1 new test in `tests/dispatcher/sgc-cli.test.ts`: `compound --help` lists `--from-ship-failure` + `--solution-slug` + `--force`.
+- Dispatcher suite (CI gate, `tests/dispatcher`): 681 → 690 pass / 0 fail (+9, 1698 expect calls, 121.94s wall).
+- Live dogfood (`/tmp/sgc-promote-dogfood/` fixture, SGC_FORCE_INLINE=1): all 4 paths exercised end-to-end — happy promote writes `solutions/other/ship-failure-dead123.md` with operator's seed in `prevention:` field; ship-failure file gains `promoted_to: other/ship-failure-dead123`; re-promote refuses with `AlreadyPromoted`; placeholder seed refuses with `PlaceholderPreventionSeed`; missing slug refuses with `MissingShipFailure`.
+
+### Notes
+
+- **Why a flag, not a new subcommand**: `compound` is the existing entry point for "extract knowledge into solutions/"; ship-failure promotion is a sibling input source, not a sibling concept. Flag form keeps the operator vocabulary tight.
+- **Invariant §3 fidelity**: the promote path's `dedup_stamp.compound_related_spawn_id` references a real spawn directory just like `runCompound` does. Downstream `compound_related_spawn_id` audit consumers see one shape.
+- **No LLM rewrite of operator input**: `prevention_seed:` is copied verbatim into `prevention:` (Invariant §1 doesn't apply — operator-typed text is not LLM output). This is the corpus author's intent, untouched.
+
 ## v1.6.1 — 2026-05-22 — CE-3 watch-ci-failure dogfood-found bugfix (DOG-1 + DOG-2)
 
 ### Fixed

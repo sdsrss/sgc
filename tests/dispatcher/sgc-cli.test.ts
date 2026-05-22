@@ -53,6 +53,14 @@ describe("sgc CLI smoke", () => {
     }
   })
 
+  test("compound --help shows --from-ship-failure + --solution-slug (CE-3 promote)", async () => {
+    const { stdout, exitCode } = await runSgc(["compound", "--help"])
+    expect(exitCode).toBe(0)
+    for (const flag of ["--from-ship-failure", "--solution-slug", "--force"]) {
+      expect(stdout).toContain(flag)
+    }
+  })
+
   test("--version prints the package version", async () => {
     const { stdout, exitCode } = await runSgc(["--version"])
     expect(exitCode).toBe(0)

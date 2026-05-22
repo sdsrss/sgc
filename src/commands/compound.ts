@@ -23,6 +23,11 @@ import {
   compoundRelated,
   compoundSolution,
 } from "../dispatcher/agents/compound"
+import {
+  promoteShipFailure,
+  type PromoteOptions,
+  type PromoteResult,
+} from "../dispatcher/compound-promote"
 import { computeSignature } from "../dispatcher/dedup"
 import { spawn } from "../dispatcher/spawn"
 import {
@@ -249,4 +254,19 @@ export async function runCompound(opts: CompoundOptions = {}): Promise<CompoundR
         ? `forced write despite similarity ${related.duplicate_match.similarity.toFixed(3)}`
         : "new solution entry created",
   }
+}
+
+/**
+ * CE-3 promote entry point — operator path, separate from runCompound.
+ * Wraps promoteShipFailure with the same logger+stateRoot scaffolding
+ * the dispatcher uses. The CLI in sgc.ts routes `--from-ship-failure
+ * <slug>` here; absent the flag, runCompound runs as today.
+ *
+ * Returns the underlying PromoteResult unchanged; the CLI handler in
+ * sgc.ts owns the operator-facing stderr summary.
+ */
+export async function runCompoundPromote(
+  opts: PromoteOptions,
+): Promise<PromoteResult> {
+  return promoteShipFailure(opts)
 }

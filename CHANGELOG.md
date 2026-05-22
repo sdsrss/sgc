@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.6.0 — 2026-05-22 — CE-3 watch-ci-failure (CE loop closed)
 
 ### Added (CE-3: `sgc watch-ci-failure` ship-failure capture)
 

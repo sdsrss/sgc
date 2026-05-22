@@ -1,6 +1,6 @@
 ---
-status: draft
-revision: 1
+status: implemented
+revision: 2
 task_id: 94913CB45F9D4C3E906B3C2C8E
 feature_id: f3
 parent_intent: .sgc/decisions/94913CB45F9D4C3E906B3C2C8E/intent.md
@@ -165,3 +165,19 @@ engineering: "did we surface this lesson when we made that decision?"
   (solution_ref substring OR ≥3-keyword pre-mortem early_signal
   overlap). Reuses CE-1 exports `extractKeywords` +
   `walkSolutionsCorpus` + `parseFrontmatter`.
+- 2026-05-22 r2 — status → implemented. Shipped in commit
+  `f3ff3ab` (single feature commit). Dispatcher suite 650 → 668
+  pass / 0 fail (+18 = 16 reflect-unit + 2 sgc-cli integration).
+  All 7 success criteria met. Dogfood verified end-to-end via
+  `sgc reflect --task 94913CB45F9D4C3E906B3C2C8E` against the
+  parent CE intent — the seed prevention
+  `other/sgc-plan-motivation-word-vendor-2026-05-21` (authored
+  2026-05-21) correctly lands `silent` (overlap: 14) because the
+  parent intent's pre-mortem was written before the seed
+  existed; that is the right v0 answer (no false-positive
+  `discussed`, no false `silent` once the loop closes
+  post-CE-1). No version bump yet; release lands at ship time
+  as a separate AUTH decision. Open Question #1 (pre-CE-1
+  legacy `pre_ce1_legacy: true` confidence flag) and #2
+  (cross-decision rollup) remain deferred until v0 stdout
+  noise turns out to need them in practice.

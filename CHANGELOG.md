@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased — CE-5 sgc loop orchestrator (P2.CE-5 from the original compound list)
+
+### Added (CE-5: `sgc loop <task>` end-to-end orchestrator)
+
+- **CE-5** (f6, sibling to CE-4 outside parent intent `94913CB45F9D4C3E906B3C2C8E`). New CLI `sgc loop <task>` chains the per-task SGC workflow: `plan → [pause work] → review → qa → [pause ship] → compound`. State at `<stateRoot>/loop-runs/<run-id>.md` with frontmatter tracking per-step status (`pending` / `in_progress` / `paused` / `done` / `failed` / `skipped`). Manual gates at `work` (operator implements code) and `ship` (Invariant §4 human signature at L3) pause + exit; `sgc loop --resume <run-id>` marks paused→done before continuing. Fail-fast on any step throw: state captures `failed_step` + `error`; `--resume` retries the failed step. Closes P2.CE-5 from the original 6-item compound list. **`reflect` deliberately NOT in chain** — it's post-hoc audit across the whole project, not a per-task step.
+- **L0 carve-out**: L0 plans don't write `intent.md` (existing plan behavior), so review/qa/compound have nothing to operate on. After plan succeeds, if `level === "L0"`, the orchestrator auto-marks review/qa/ship/compound as `skipped` — L0 loop becomes `plan → [pause work] → complete` (4 skipped). Surfaced via first dogfood; +1 regression test guards.
+- **Sync orchestration in single process**: each auto-able step is an inline call to the existing `runPlan` / `runReview` / `runQa` / `runCompound`. No subprocess fork. CE-4 (`sgc plan --async`) is the async story; CE-5 is the linear-orchestration story. Step runners are injectable via `opts.steps` for test isolation; production wiring lazy-imports the command modules.
+- **Concurrency guard**: starting `sgc loop <task>` refuses if any prior run for the same task is `running` / `paused` / `failed` — operator must `--resume <run-id>` or delete the run file. Distinct from CE-4's pid-liveness probe (loop state is fully file-based; no process aliveness).
+- **Status surfaces**: `sgc loop --runs` lists all runs sorted by `started_at` desc; `sgc loop --status <run-id>` shows full frontmatter + per-step status table. Operator-readable hints printed on every terminal-state exit (`paused_work` / `paused_ship` / `failed` / `complete`).
+- **Pass-through flags to plan**: `--motivation` / `--level` / `--signed-by` on `sgc loop` propagate into the inner plan step via `LoopOptions`.
+- `src/dispatcher/loop.ts` (new, ~330 LOC): `STEPS` const + `runLoop` / `listLoopRuns` / `showLoopRun` + `LoopError` + types + `getDefaultRunners` lazy-import wrapper.
+- `src/commands/loop.ts` (new, ~95 LOC): CLI handler `runLoopCommand(opts)` that renders run summary + terminal-reason hint.
+- `src/sgc.ts`: registers `loop` defineCommand + adds to `subCommands` map.
+
+### Tests
+
+- 14 new tests in `tests/dispatcher/loop.test.ts`: fresh-start work pause / plan throw → failed / forceLevel propagation / resume past work → ship pause / resume past ship → complete / resume on complete = no re-run / failed retry on resume / listLoopRuns empty / sorted listing / showLoopRun RunNotFound / concurrency refuse / state frontmatter round-trip / LoopError shape / **L0 carve-out** (regression test asserts review/qa/compound runners are NEVER invoked at L0).
+- 2 new tests in `tests/dispatcher/sgc-cli.test.ts`: `loop --help` lists `--resume` / `--runs` / `--status`; `sgc --help` lists `loop` subcommand.
+- Dispatcher CI gate: 702 → 717 pass / 0 fail (+15, 1829 expect calls, 122.06s wall).
+- Live dogfood (`/tmp/sgc-ce5-dogfood/` fresh state root): fresh `sgc loop "fix CHANGELOG typo"` → L0 plan completes → 4 post-work steps auto-marked skipped → pause at work; `sgc loop --resume <id>` → work paused→done → status:complete. Pre-fix dogfood had review crashing with `intent.md not found for <task_id>` — surfaced the L0 carve-out need.
+
+### Notes
+
+- **Why pause at ship even at L0/L1/L2**: ship is a deliberate operator gate regardless of level. Operator decides timing (CI green / coordinate teammates / etc). v0 keeps it consistent.
+- **Loop and CE-4 async-plan**: orthogonal — `sgc plan --async` runs ONE plan in the background; `sgc loop` runs an EXPLICIT chain in the foreground. A future "loop --async" pass could compose, but v0 keeps them separate.
+- **`agent-loop` (existing) vs `sgc loop` (new)**: completely different concepts. `agent-loop` is the file-poll handshake helper for external actors to fulfill pending spawns. `loop` is the task-workflow orchestrator. The name collision is unfortunate but agent-loop predates this work.
+
 ## v1.8.0 — 2026-05-22 — CE-4 async plan (P2.CE-4 from the original compound list)
 
 ### Added (CE-4: `sgc plan <task> --async` + job lifecycle)

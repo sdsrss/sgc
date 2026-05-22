@@ -100,6 +100,20 @@ describe("sgc CLI smoke", () => {
       expect(stdout).toContain(flag)
     }
   })
+
+  test("loop --help lists --resume / --runs / --status (CE-5)", async () => {
+    const { stdout, exitCode } = await runSgc(["loop", "--help"])
+    expect(exitCode).toBe(0)
+    for (const flag of ["--resume", "--runs", "--status"]) {
+      expect(stdout).toContain(flag)
+    }
+  })
+
+  test("--help lists loop subcommand (CE-5)", async () => {
+    const { stdout, exitCode } = await runSgc(["--help"])
+    expect(exitCode).toBe(0)
+    expect(stdout).toContain("loop")
+  })
 })
 
 describe("sgc status (implemented)", () => {

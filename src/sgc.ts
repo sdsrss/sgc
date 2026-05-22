@@ -591,6 +591,66 @@ const watchCiFailure = defineCommand({
   },
 })
 
+// ── loop (CE-5 f6) ────────────────────────────────────────────────────────
+
+const loop = defineCommand({
+  meta: {
+    name: "loop",
+    description:
+      "CE-5: end-to-end orchestrator chaining plan → [pause work] → review → qa → [pause ship] → compound. Resume with --resume <run-id>.",
+  },
+  args: {
+    task: {
+      type: "positional",
+      required: false,
+      description:
+        "Task description (one sentence) — required unless --resume, --runs, or --status is set",
+    },
+    resume: {
+      type: "string",
+      required: false,
+      description: "Resume a paused/failed loop run by id",
+    },
+    runs: {
+      type: "boolean",
+      required: false,
+      description: "List loop runs (running, paused, failed, complete). No TASK arg needed.",
+    },
+    status: {
+      type: "string",
+      required: false,
+      description: "Show one loop run by id (frontmatter + per-step status). No TASK arg needed.",
+    },
+    motivation: {
+      type: "string",
+      required: false,
+      description: "Pass-through to plan: long-form rationale (≥20 words)",
+    },
+    level: {
+      type: "string",
+      required: false,
+      description: "Pass-through to plan: override classifier level (upgrade only)",
+    },
+    "signed-by": {
+      type: "string",
+      required: false,
+      description: "Pass-through to plan: human signer_id required for L3 intents (Invariant §4)",
+    },
+  },
+  async run({ args }) {
+    const { runLoopCommand } = await import("./commands/loop")
+    await runLoopCommand({
+      task: args.task as string | undefined,
+      resume: args.resume as string | undefined,
+      runs: args.runs as boolean | undefined,
+      status: args.status as string | undefined,
+      motivation: args.motivation as string | undefined,
+      forceLevel: args.level as "L0" | "L1" | "L2" | "L3" | undefined,
+      signedBy: args["signed-by"] as string | undefined,
+    })
+  },
+})
+
 // ── main ────────────────────────────────────────────────────────────────────
 
 const main = defineCommand({
@@ -609,6 +669,7 @@ const main = defineCommand({
     ship: () => ship,
     compound: () => compound,
     reflect: () => reflect,
+    loop: () => loop,
     "watch-ci-failure": () => watchCiFailure,
     status: () => status,
     "agent-loop": () => agentLoop,

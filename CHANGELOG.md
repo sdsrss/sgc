@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — CE-3 promote helper (sibling: closes CE-3 Open Question #4)
+## v1.7.0 — 2026-05-22 — CE-3 promote helper (CE-3 vision end-to-end closed)
 
 ### Added (CE-3 promote: `sgc compound --from-ship-failure <slug>`)
 

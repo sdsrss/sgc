@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — CE-4 async plan (P2.CE-4 from the original compound list)
+## v1.8.0 — 2026-05-22 — CE-4 async plan (P2.CE-4 from the original compound list)
 
 ### Added (CE-4: `sgc plan <task> --async` + job lifecycle)
 

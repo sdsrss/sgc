@@ -187,6 +187,120 @@ describe("watchPublishWorkflow (CE-3 T2)", () => {
     expect(result.run?.id).toBe("5")
   })
 
+  it("discovery filters by expectedSha when gh returns multiple runs (DOG-2 regression)", async () => {
+    // Reproducer for the v1.6.0 dogfood bug: tag-triggered workflows
+    // (publish.yml fires on `on: push: tags: [v*]`) yield runs whose
+    // `headBranch` is the TAG name, not the branch. gh's --branch
+    // filter therefore silently excludes them. Watch must filter
+    // client-side by expectedSha instead.
+    const clock = makeClock(0)
+    const runCommand = makeRunCommand([
+      {
+        match: listMatcher(),
+        result: jsonResult([
+          // Most-recent first (gh's natural order).
+          {
+            databaseId: 999,
+            status: "completed",
+            conclusion: "success",
+            name: "publish-npm",
+            headSha: "e663e3eaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            headBranch: "v1.6.0",  // ← tag, not main
+            url: "https://github.com/sdsrss/sgc/actions/runs/999",
+          },
+          {
+            databaseId: 888,
+            status: "completed",
+            conclusion: "success",
+            name: "publish-npm",
+            headSha: "9c8bc57aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            headBranch: "v1.5.0",
+            url: "https://github.com/sdsrss/sgc/actions/runs/888",
+          },
+        ]),
+      },
+    ])
+    const result = await watchPublishWorkflow({
+      runCommand,
+      now: clock.now,
+      sleep: clock.sleep,
+      expectedSha: "9c8bc57aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    })
+    expect(result.status).toBe("success")
+    expect(result.run?.id).toBe("888")
+    expect(result.run?.headSha).toBe("9c8bc57aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+  })
+
+  it("discovery does NOT pass --branch to gh (DOG-2 regression)", async () => {
+    // The --branch filter is broken for tag-triggered workflows
+    // because headBranch is the tag. Watch must not include
+    // --branch in its `gh run list` call.
+    const clock = makeClock(0)
+    let observedArgs: string[] | null = null
+    const runCommand = async (args: string[]): Promise<RunResult> => {
+      const tail = args[0] === "gh" ? args.slice(1) : args
+      if (tail[0] === "run" && tail[1] === "list") {
+        observedArgs = tail
+        return jsonResult([
+          {
+            databaseId: 1,
+            status: "completed",
+            conclusion: "success",
+            name: "publish-npm",
+            headSha: "abc",
+            headBranch: "v0",
+            url: "u",
+          },
+        ])
+      }
+      return { stdout: "", stderr: "unmatched", exitCode: 1 }
+    }
+    await watchPublishWorkflow({
+      runCommand,
+      now: clock.now,
+      sleep: clock.sleep,
+      branch: "main",  // explicitly set; impl should still NOT pass it to gh
+    })
+    expect(observedArgs).not.toBeNull()
+    expect(observedArgs!.includes("--branch")).toBe(false)
+  })
+
+  it("default workflowName is publish-npm (DOG-1 regression)", async () => {
+    // `gh run list --workflow publish.yml` returns [] silently
+    // because gh's --workflow flag wants the display name
+    // (`publish-npm`) or filename basename (`publish`), not the
+    // path-style `publish.yml`. Default must be the display name.
+    const clock = makeClock(0)
+    let observedArgs: string[] | null = null
+    const runCommand = async (args: string[]): Promise<RunResult> => {
+      const tail = args[0] === "gh" ? args.slice(1) : args
+      if (tail[0] === "run" && tail[1] === "list") {
+        observedArgs = tail
+        return jsonResult([
+          {
+            databaseId: 7,
+            status: "completed",
+            conclusion: "success",
+            name: "publish-npm",
+            headSha: "x",
+            headBranch: "v0",
+            url: "u",
+          },
+        ])
+      }
+      return { stdout: "", stderr: "", exitCode: 1 }
+    }
+    await watchPublishWorkflow({
+      runCommand,
+      now: clock.now,
+      sleep: clock.sleep,
+    })
+    expect(observedArgs).not.toBeNull()
+    const i = observedArgs!.indexOf("--workflow")
+    expect(i).toBeGreaterThan(-1)
+    expect(observedArgs![i + 1]).toBe("publish-npm")
+  })
+
   it("attaches directly via --run-id, skipping discovery", async () => {
     const clock = makeClock(0)
     let listCalls = 0

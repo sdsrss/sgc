@@ -17,7 +17,31 @@ import { resolveStateRoot, serializeFrontmatter } from "./state"
 export interface WatchOptions {
   intervalSec?: number
   timeoutSec?: number
+  /**
+   * Branch hint — kept for backward compat / non-tag-triggered
+   * workflows. NOT passed to `gh run list` directly because
+   * tag-triggered workflows (publish.yml fires `on: push: tags`)
+   * yield runs whose `headBranch` is the TAG name, not the
+   * branch — `--branch main` silently excludes them. v0 dogfood
+   * on v1.6.0 caught this (DOG-2). Prefer `expectedSha` for
+   * tag-triggered workflows.
+   */
   branch?: string
+  /**
+   * Client-side filter: select the first discovered run whose
+   * `headSha` starts with this. Used by `runWatchCiFailure` to pin
+   * the watch to the just-pushed HEAD commit independently of
+   * gh's branch/tag confusion.
+   */
+  expectedSha?: string
+  /**
+   * Display name of the workflow (e.g. "publish-npm"), NOT the
+   * file path (`publish.yml`). gh CLI's `--workflow` flag accepts
+   * the display name or file basename without extension. The
+   * file-path form (`publish.yml`) returns `[]` silently in
+   * `gh run list` — v0 dogfood on v1.6.0 caught this (DOG-1).
+   * Default: "publish-npm".
+   */
   workflowName?: string
   /** Skip discovery; attach to a specific gh run id directly. */
   runId?: string
@@ -126,8 +150,8 @@ export async function watchPublishWorkflow(
     MIN_TIMEOUT_SEC,
     MAX_TIMEOUT_SEC,
   )
-  const workflowName = opts.workflowName ?? "publish.yml"
-  const branch = opts.branch ?? null
+  const workflowName = opts.workflowName ?? "publish-npm"
+  const expectedSha = opts.expectedSha ?? null
   const startMs = now()
   const timeoutMs = timeoutSec * 1000
   const intervalMs = intervalSec * 1000
@@ -146,9 +170,11 @@ export async function watchPublishWorkflow(
       "list",
       "--workflow",
       workflowName,
-      ...(branch ? ["--branch", branch] : []),
+      // DO NOT pass `--branch`: publish.yml is tag-triggered and gh
+      // reports headBranch as the tag name (e.g. "v1.6.0"), so
+      // --branch main excludes all matching runs (DOG-2).
       "--limit",
-      "5",
+      "10",
       "--json",
       "databaseId,status,conclusion,name,headSha,headBranch,url",
     ]
@@ -164,19 +190,23 @@ export async function watchPublishWorkflow(
           headBranch: string
           url: string
         }>
-        if (rows.length > 0) {
-          const r = rows[0]!
-          runId = String(r.databaseId)
+        // Client-side SHA filter when expectedSha is set, else
+        // take the most-recent row.
+        const matched = expectedSha
+          ? rows.find((r) => r.headSha.startsWith(expectedSha))
+          : rows[0]
+        if (matched) {
+          runId = String(matched.databaseId)
           cachedRun = {
             id: runId,
-            url: r.url,
-            name: r.name,
-            headSha: r.headSha,
-            headBranch: r.headBranch,
+            url: matched.url,
+            name: matched.name,
+            headSha: matched.headSha,
+            headBranch: matched.headBranch,
           }
-          if (r.status === "completed") {
+          if (matched.status === "completed") {
             // Already concluded between push and our first poll.
-            if (r.conclusion === "success") {
+            if (matched.conclusion === "success") {
               return { status: "success", run: cachedRun }
             }
             const excerpt = await fetchFailingLog(runCommand, runId)

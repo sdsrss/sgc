@@ -38,6 +38,7 @@ export async function runWatchCiFailure(opts: WatchCliOptions = {}): Promise<voi
 
   const result = await watchPublishWorkflow({
     branch: branch ?? undefined,
+    expectedSha: headSha ?? undefined,
     runId: opts.runId,
     intervalSec: opts.intervalSec,
     timeoutSec: opts.timeoutSec,

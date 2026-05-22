@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.5.0 — 2026-05-22 — CE-2 reflect audit
 
 ### Added (CE-2: `sgc reflect` decisions↔solutions audit)
 

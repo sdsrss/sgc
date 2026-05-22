@@ -1,6 +1,6 @@
 ---
-status: draft
-revision: 2
+status: implemented
+revision: 3
 task_id: 94913CB45F9D4C3E906B3C2C8E
 feature_id: f4
 parent_intent: .sgc/decisions/94913CB45F9D4C3E906B3C2C8E/intent.md
@@ -258,6 +258,22 @@ sgc watch-ci-failure
   slug, `prevention_seed:` field flagging the capture as raw
   material awaiting `sgc compound` promotion. Reuses existing
   `gh-runner.ts` shell-out pattern; no new dependency.
+- 2026-05-22 r3 — status → implemented. Shipped in commit
+  `707e438` (single feature commit). Dispatcher suite 668 → 678
+  pass / 0 fail (+10 = 9 ship-failure-unit + 1 `--help`-listing
+  extension + 1 `watch-ci-failure --help` flags test). All
+  success criteria met: module + types (S1), `watch-ci-failure.ts`
+  CLI handler (S2), `src/sgc.ts` defineCommand registration (S3),
+  9 unit tests + 2 CLI tests covering all watch/capture branches
+  (S4), CHANGELOG `## Unreleased` entry (S5). Live dogfood verified
+  end-to-end against v1.5.0's real publish.yml run
+  (`--run-id 26273501194` → `CI green for 9c8bc57; no capture.`
+  exit 0). No version bump yet; release lands at ship time as a
+  separate AUTH decision. Open Questions #3 (`prevention_seed:`
+  placeholder structure) + #4 (`sgc compound
+  --from-ship-failure <slug>` promotion helper) remain deferred
+  until operator field experience clarifies the promotion
+  workflow.
 - 2026-05-22 r2 — design pivot to **standalone `sgc
   watch-ci-failure` command** (user ACK same session). Inspecting
   `src/commands/ship.ts:117` `runShip` revealed `sgc ship` does

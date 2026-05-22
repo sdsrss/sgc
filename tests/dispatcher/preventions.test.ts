@@ -16,6 +16,7 @@ import {
   plannerAdversarialHeuristic,
   type PlannerAdversarialInput,
 } from "../../src/dispatcher/agents/planner-adversarial"
+import type { EventRecord, Logger } from "../../src/dispatcher/logger"
 
 let stateRoot: string
 
@@ -322,5 +323,193 @@ describe("PlannerAdversarialInput.prior_preventions optional field (CE-1 T3)", (
     }
     const result = plannerAdversarialHeuristic(withPrev)
     expect(result.failure_modes).toEqual(baseline.failure_modes)
+  })
+})
+
+// CE-1.1 hardening — RT-5 cap clamps, opts.logger Tier-2 events, walker
+// file-size cap, and RT-4 prompt-template regression.
+
+describe("extractPreventions opts caps (CE-1.1 L1.c / RT-5)", () => {
+  it("clamps opts.topN above MAX_TOP_N (10)", async () => {
+    for (let i = 0; i < 12; i++) {
+      seedSolution(
+        "runtime",
+        `cap-${i}-2026-05-22`,
+        { intent: "x", category: "runtime", prevention: `p-${i}` },
+        "alpha keyword body",
+      )
+    }
+    const out = await extractPreventions(
+      "alpha keyword body",
+      stateRoot,
+      { topN: 999 },
+    )
+    expect(out.length).toBeLessThanOrEqual(10)
+    expect(out.length).toBeGreaterThan(0)
+  })
+
+  it("clamps opts.topN below MIN_TOP_N (1)", async () => {
+    seedSolution(
+      "runtime",
+      "min-2026-05-22",
+      { intent: "x", category: "runtime", prevention: "p" },
+      "alpha keyword body",
+    )
+    const out = await extractPreventions(
+      "alpha keyword body",
+      stateRoot,
+      { topN: 0 },
+    )
+    expect(out).toHaveLength(1)
+  })
+
+  it("clamps opts.maxCharsPerText above MAX_MAX_CHARS (1000)", async () => {
+    const longText = "lock contention boundary check ".repeat(80) // ~2400 chars
+    seedSolution(
+      "runtime",
+      "cap-long-2026-05-22",
+      { intent: "x", category: "runtime", prevention: longText },
+      "alpha keyword body",
+    )
+    const out = await extractPreventions(
+      "alpha keyword body",
+      stateRoot,
+      { maxCharsPerText: 99999 },
+    )
+    expect(out).toHaveLength(1)
+    expect(out[0]!.prevention_text.length).toBeLessThanOrEqual(1000)
+  })
+
+  it("clamps opts.maxCharsPerText below MIN_MAX_CHARS (40) up to floor", async () => {
+    const text = "x".repeat(200)
+    seedSolution(
+      "runtime",
+      "cap-floor-2026-05-22",
+      { intent: "x", category: "runtime", prevention: text },
+      "alpha keyword body",
+    )
+    const out = await extractPreventions(
+      "alpha keyword body",
+      stateRoot,
+      { maxCharsPerText: 10 },
+    )
+    expect(out).toHaveLength(1)
+    expect(out[0]!.prevention_text.length).toBeLessThanOrEqual(40)
+  })
+})
+
+describe("extractPreventions opts.logger Tier-2 events (CE-1.1 L1.d)", () => {
+  function makeLoggerStub(): {
+    logger: Logger
+    events: Array<Omit<EventRecord, "schema_version" | "ts">>
+  } {
+    const events: Array<Omit<EventRecord, "schema_version" | "ts">> = []
+    const logger: Logger = {
+      say: () => {},
+      event: (e) => events.push(e),
+    }
+    return { logger, events }
+  }
+
+  it("emits prevention.skipped reason=frontmatter_parse_failed on raw markdown", async () => {
+    mkdirSync(join(stateRoot, "solutions", "_seed"), { recursive: true })
+    writeFileSync(
+      join(stateRoot, "solutions", "_seed", "raw-2026-05-22.md"),
+      "raw markdown alpha keyword body no frontmatter fence.",
+    )
+    const { logger, events } = makeLoggerStub()
+    const out = await extractPreventions(
+      "alpha keyword body",
+      stateRoot,
+      { logger, taskId: "T-1234" },
+    )
+    expect(out).toEqual([])
+    const skip = events.find((e) => e.event_type === "prevention.skipped")
+    expect(skip).toBeDefined()
+    expect(skip!.payload["reason"]).toBe("frontmatter_parse_failed")
+    expect(skip!.payload["solution_ref"]).toBe("_seed/raw-2026-05-22")
+    expect(skip!.task_id).toBe("T-1234")
+    expect(skip!.agent).toBe("plan.preventions")
+    expect(skip!.level).toBe("warn")
+  })
+
+  it("emits prevention.skipped reason=prevention_field_missing", async () => {
+    seedSolution(
+      "runtime",
+      "missing-2026-05-22",
+      { intent: "x", category: "runtime" },
+      "alpha keyword body",
+    )
+    const { logger, events } = makeLoggerStub()
+    await extractPreventions("alpha keyword body", stateRoot, { logger })
+    const skip = events.find((e) => e.event_type === "prevention.skipped")
+    expect(skip).toBeDefined()
+    expect(skip!.payload["reason"]).toBe("prevention_field_missing")
+  })
+
+  it("emits prevention.skipped reason=prevention_field_empty", async () => {
+    seedSolution(
+      "runtime",
+      "empty-2026-05-22",
+      { intent: "x", category: "runtime", prevention: "   " },
+      "alpha keyword body",
+    )
+    const { logger, events } = makeLoggerStub()
+    await extractPreventions("alpha keyword body", stateRoot, { logger })
+    const skip = events.find((e) => e.event_type === "prevention.skipped")
+    expect(skip).toBeDefined()
+    expect(skip!.payload["reason"]).toBe("prevention_field_empty")
+  })
+
+  it("is silent and does not throw when logger is omitted", async () => {
+    seedSolution(
+      "runtime",
+      "no-logger-2026-05-22",
+      { intent: "x", category: "runtime" },
+      "alpha keyword body",
+    )
+    const out = await extractPreventions("alpha keyword body", stateRoot)
+    expect(out).toEqual([])
+  })
+})
+
+describe("walkSolutionsCorpus file-size cap (CE-1.1 L1.e)", () => {
+  it("skips files > 256KB even with matching keywords", async () => {
+    mkdirSync(join(stateRoot, "solutions", "runtime"), { recursive: true })
+    // ~380KB of matchable text — well above MAX_SOLUTION_FILE_BYTES.
+    const bigBody = "alpha keyword body\n".repeat(20000)
+    writeFileSync(
+      join(stateRoot, "solutions", "runtime", "huge-2026-05-22.md"),
+      `---\nintent: x\ncategory: runtime\nprevention: should-be-skipped\n---\n\n${bigBody}`,
+    )
+    const out = await extractPreventions("alpha keyword body", stateRoot)
+    expect(out).toEqual([])
+  })
+
+  it("accepts files at or under 256KB", async () => {
+    mkdirSync(join(stateRoot, "solutions", "runtime"), { recursive: true })
+    writeFileSync(
+      join(stateRoot, "solutions", "runtime", "small-2026-05-22.md"),
+      `---\nintent: x\ncategory: runtime\nprevention: small-prevention-text\n---\n\nalpha keyword body small file well under cap.`,
+    )
+    const out = await extractPreventions("alpha keyword body", stateRoot)
+    expect(out).toHaveLength(1)
+    expect(out[0]!.prevention_text).toBe("small-prevention-text")
+  })
+})
+
+describe("planner-adversarial.md prompt template RT-4 (CE-1.1)", () => {
+  it("step 5 frames prior_preventions as hypothesis-to-test, not default-include", () => {
+    const fs = require("node:fs") as typeof import("node:fs")
+    const text = fs.readFileSync("prompts/planner-adversarial.md", "utf8")
+    // Legacy over-inclusion phrasing must be gone.
+    expect(text.includes("treat each entry as a likely failure shape")).toBe(false)
+    // New framing must be present.
+    expect(text.includes("hypothesis to test")).toBe(true)
+    expect(text.includes("recurrence gate")).toBe(true)
+    // Probability is no longer fixed at high; medium is now an explicit option.
+    expect(text.includes("`probability: medium`")).toBe(true)
+    // Negative gate is explicit (Do NOT emit when prevention does not apply).
+    expect(text.includes("Do NOT emit")).toBe(true)
   })
 })

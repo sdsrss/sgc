@@ -12,10 +12,19 @@
 // Scope contract: planner.adversarial's declared scope_tokens still
 // do NOT include read:solutions. The data crosses the boundary as a
 // spawn input field pre-fetched by /plan (which holds the scope).
+//
+// CE-1.1 hardening additions:
+//   L1.a — extractKeywords lifted from researcher-history.ts (DRY).
+//   L1.b — resolveStateRoot lifted to state.ts (DRY across 3 sites).
+//   L1.c — RT-5 cap clamps on opts.topN and opts.maxCharsPerText to
+//          prevent caller-side prompt-budget bypass (e.g. topN: 9999).
+//   L1.d — opts.logger + opts.taskId; on every skip-reason a Tier-2
+//          `prevention.skipped` event surfaces via sgc tail so operators
+//          can see why a corpus match did not produce an emission.
 
-import { parseFrontmatter } from "./state"
-import { walkSolutionsCorpus } from "./agents/researcher-history"
-import { tokenize } from "./dedup"
+import { extractKeywords, walkSolutionsCorpus } from "./agents/researcher-history"
+import type { Logger } from "./logger"
+import { parseFrontmatter, resolveStateRoot } from "./state"
 import type { SolutionCategory } from "./types"
 
 export interface PriorPrevention {
@@ -27,10 +36,25 @@ export interface PriorPrevention {
 export interface ExtractPreventionsOptions {
   topN?: number
   maxCharsPerText?: number
+  /** CE-1.1 L1.d: when provided, Tier-2 prevention.skipped events fire on
+   *  parse/missing/empty/oversize skips so operators see drop reasons. */
+  logger?: Logger
+  /** CE-1.1 L1.d: paired with `logger`; surfaces task_id on the audit event. */
+  taskId?: string | null
 }
 
 const DEFAULT_TOP_N = 3
 const DEFAULT_MAX_CHARS = 240
+
+// CE-1.1 L1.c (RT-5): cap clamps. Caller-side `topN: 9999` previously
+// returned the full keyword-matched corpus, bloating the planner.adversarial
+// input past prompt budgets. Defensive max chosen so a malicious / buggy
+// caller cannot exceed ≈10 KB of prevention text in the planner spawn
+// (10 entries × 1000 chars).
+const MIN_TOP_N = 1
+const MAX_TOP_N = 10
+const MIN_MAX_CHARS = 40
+const MAX_MAX_CHARS = 1000
 
 /**
  * Word-boundary-aware truncation with "..." sentinel (RT-2 repair).
@@ -52,16 +76,46 @@ function truncateOnWordBoundary(text: string, maxChars: number): string {
   return text.slice(0, cutAt).trimEnd() + "..."
 }
 
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, n))
+}
+
+type SkipReason =
+  | "frontmatter_parse_failed"
+  | "prevention_field_missing"
+  | "prevention_field_empty"
+
+function emitSkip(
+  logger: Logger | undefined,
+  taskId: string | null | undefined,
+  solutionRef: string,
+  reason: SkipReason,
+): void {
+  if (!logger) return
+  logger.event({
+    task_id: taskId ?? null,
+    spawn_id: null,
+    agent: "plan.preventions",
+    event_type: "prevention.skipped",
+    level: "warn",
+    payload: { solution_ref: solutionRef, reason },
+  })
+}
+
 export async function extractPreventions(
   intentDraft: string,
   stateRoot?: string,
   opts: ExtractPreventionsOptions = {},
 ): Promise<PriorPrevention[]> {
-  const root = stateRoot ?? process.env["SGC_STATE_ROOT"] ?? ".sgc"
-  const topN = opts.topN ?? DEFAULT_TOP_N
-  const maxChars = opts.maxCharsPerText ?? DEFAULT_MAX_CHARS
+  const root = resolveStateRoot(stateRoot)
+  const topN = clamp(opts.topN ?? DEFAULT_TOP_N, MIN_TOP_N, MAX_TOP_N)
+  const maxChars = clamp(
+    opts.maxCharsPerText ?? DEFAULT_MAX_CHARS,
+    MIN_MAX_CHARS,
+    MAX_MAX_CHARS,
+  )
 
-  const keywords = Array.from(tokenize(intentDraft ?? ""))
+  const keywords = extractKeywords(intentDraft ?? "")
   if (keywords.length === 0) return []
 
   const scans = await walkSolutionsCorpus(root, keywords)
@@ -69,6 +123,7 @@ export async function extractPreventions(
   type Scored = { scan: (typeof scans)[number]; text: string }
   const scored: Scored[] = []
   for (const scan of scans) {
+    const solutionRef = `${scan.category}/${scan.slug}`
     let parsed: { data: Record<string, unknown> }
     try {
       parsed = parseFrontmatter<Record<string, unknown>>(scan.text)
@@ -76,12 +131,19 @@ export async function extractPreventions(
       // Defensive: solutions/ may contain test fixtures or legacy files
       // with no frontmatter fence (e.g. raw markdown blobs). Skip silently —
       // preFilterSolutions tolerates the same shape on its own path.
+      emitSkip(opts.logger, opts.taskId, solutionRef, "frontmatter_parse_failed")
       continue
     }
     const raw = parsed.data["prevention"]
-    if (typeof raw !== "string") continue
+    if (typeof raw !== "string") {
+      emitSkip(opts.logger, opts.taskId, solutionRef, "prevention_field_missing")
+      continue
+    }
     const folded = raw.replace(/\s+/g, " ").trim()
-    if (folded.length === 0) continue
+    if (folded.length === 0) {
+      emitSkip(opts.logger, opts.taskId, solutionRef, "prevention_field_empty")
+      continue
+    }
     scored.push({ scan, text: truncateOnWordBoundary(folded, maxChars) })
   }
 

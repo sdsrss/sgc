@@ -259,6 +259,7 @@ export async function runPlan(taskDescription: string, opts: PlanOptions = {}): 
             priorPreventions = await extractPreventions(
               taskDescription,
               stateRoot,
+              { logger, taskId },
             )
           } catch (err) {
             const errName = err instanceof Error ? err.name : "unknown"

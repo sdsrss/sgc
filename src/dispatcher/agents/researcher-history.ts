@@ -20,12 +20,22 @@
 // scope_tokens + computeSubagentTokens — not redundantly here.
 
 import { existsSync } from "node:fs"
-import { readFile, readdir } from "node:fs/promises"
+import { readFile, readdir, stat } from "node:fs/promises"
 import { resolve } from "node:path"
 import { tokenize } from "../dedup"
 import type { Logger } from "../logger"
+import { resolveStateRoot } from "../state"
 import type { SolutionCategory } from "../types"
 import { OutputShapeMismatch, composeArrayObjectValidator } from "../validation"
+
+// CE-1.1 L1.e: defensive cap on per-file size in walkSolutionsCorpus.
+// 256 KB is well above any plausible compound-written solution
+// (frontmatter + 5-line prevention + narrative body — typically < 4 KB)
+// while protecting the dispatcher from accidental log dumps, screenshot
+// blobs, or pathological copy-paste leaving multi-MB markdown in
+// solutions/. Files at or below the cap are read whole; oversize files
+// are skipped silently — they are operator misuse, not a runtime mode.
+const MAX_SOLUTION_FILE_BYTES = 256 * 1024
 
 export interface ResearcherHistoryInput {
   intent_draft: string
@@ -125,6 +135,10 @@ export async function walkSolutionsCorpus(
       const filePath = resolve(catPath, file)
       let raw: string
       try {
+        // CE-1.1 L1.e: stat first, skip oversize files before allocating
+        // a multi-MB string for keyword scan / NFC normalize.
+        const st = await stat(filePath)
+        if (st.size > MAX_SOLUTION_FILE_BYTES) continue
         raw = await readFile(filePath, "utf8")
       } catch {
         continue
@@ -159,10 +173,9 @@ export async function preFilterSolutions(
   intentDraft: string,
   stateRoot?: string,
 ): Promise<PriorArtCandidate[]> {
-  // Canonical 3-step state-root fallback (mirrors researcherHistoryHeuristic):
-  // explicit arg → SGC_STATE_ROOT env → ".sgc". Centralizing here prevents
-  // call sites from accidentally bypassing the env var (T6 review C-1).
-  const root = stateRoot ?? process.env["SGC_STATE_ROOT"] ?? ".sgc"
+  // CE-1.1 L1.b: lifted to resolveStateRoot helper in state.ts. Was previously
+  // duplicated here + in researcherHistoryHeuristic + in preventions.ts.
+  const root = resolveStateRoot(stateRoot)
   const keywords = extractKeywords(intentDraft)
   const scans = await walkSolutionsCorpus(root, keywords)
 
@@ -187,7 +200,11 @@ export async function preFilterSolutions(
   return candidates.slice(0, 20)
 }
 
-function extractKeywords(text: string): string[] {
+// CE-1.1 (DRY): exported so preventions.ts can share the same tokenization
+// path (NFC + Intl.Segmenter via dedup.ts:tokenize) instead of inlining
+// `Array.from(tokenize(...))`. Single source of truth across dedup.ts,
+// researcher-history.ts, preventions.ts.
+export function extractKeywords(text: string): string[] {
   // Reuse dedup.ts tokenize: NFC + Intl.Segmenter (ICU word-granularity,
   // script-aware length floor — ASCII ≥3, non-ASCII ≥2). Single source of
   // truth for tokenization across dedup.ts and researcher-history.ts.
@@ -222,8 +239,8 @@ export async function researcherHistoryHeuristic(
   input: ResearcherHistoryInput,
   opts: ResearcherHistoryOptions = {},
 ): Promise<ResearcherHistoryOutput> {
-  const stateRoot =
-    opts.stateRoot ?? process.env["SGC_STATE_ROOT"] ?? ".sgc"
+  // CE-1.1 L1.b: lifted to resolveStateRoot helper in state.ts.
+  const stateRoot = resolveStateRoot(opts.stateRoot)
   const keywords = extractKeywords(input.intent_draft ?? "")
 
   const prior_art = await mineSolutions(stateRoot, keywords)

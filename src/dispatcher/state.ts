@@ -66,9 +66,17 @@ export class StateError extends Error {
 
 const DEFAULT_STATE_DIR = ".sgc"
 
-function root(custom?: string): string {
+// CE-1.1 (DRY): exported variant for cross-module reuse. preventions.ts +
+// researcher-history.ts both resolve the 3-step fallback (explicit arg →
+// SGC_STATE_ROOT env → ".sgc") and previously inlined identical code at
+// 3 sites. Centralizing here prevents call sites from silently bypassing
+// the env var (T6 review C-1) and ensures resolve() canonicalizes to an
+// absolute path uniformly.
+export function resolveStateRoot(custom?: string): string {
   return resolve(custom ?? process.env["SGC_STATE_ROOT"] ?? DEFAULT_STATE_DIR)
 }
+
+const root = resolveStateRoot
 
 const LAYERS = ["decisions", "progress", "solutions", "reviews"] as const
 

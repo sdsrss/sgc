@@ -58,14 +58,37 @@ off that the failure is happening.
    Inventing failure modes that have no plausible link to the intent
    is itself a failure pattern (see anti-pattern #2).
 
-5. When `prior_preventions` is non-empty in the input, treat each
-   entry as a likely failure shape this codebase has already learned
-   about. If the prevention_text plausibly applies to the current
-   intent_draft, include a corresponding failure_mode in the output
-   with `probability: high` (recurrence, not novel) and reference the
-   prevention's `solution_ref` in the `early_signal` field so the
-   operator sees the source. Do not invent a recurrence when the
-   prevention does not actually apply — that is anti-pattern #2.
+5. The `prior_preventions` field in the input lists failure shapes
+   this codebase has already learned about. Treat each entry as a
+   *hypothesis to test against intent_draft*, NOT a guaranteed
+   inclusion. For each entry, apply the recurrence gate before
+   deciding whether to emit a failure_mode:
+
+   **Gate** — would the conditions that triggered the prevention
+   actually re-arise under this intent_draft? Concrete questions:
+   - Does intent_draft touch the same module / boundary / shape the
+     prevention names? Keyword overlap alone is NOT sufficient (the
+     word "migration" matching a docstring is not a migration intent).
+   - Does intent_draft preserve the structural cause? A prevention
+     about "schema lock contention" only applies if THIS intent
+     mutates schema; renaming a comment is a no-op against it.
+
+   **Emit when the gate clears**, with calibrated probability:
+   - `probability: high` when the recurrence is *direct* — same
+     module, same shape, no mitigating factor in intent_draft.
+   - `probability: medium` when the shape is plausible but
+     conditions partially differ (related module, similar boundary,
+     same root cause type but different surface).
+   - **Do NOT emit** when the prevention's structural cause does
+     not apply to this intent_draft — fabricating a recurrence is
+     anti-pattern #2 even when keyword overlap is high.
+
+   When emitting, reference the prevention's `solution_ref` in the
+   `early_signal` field (after the concrete signal text) so the
+   operator sees the source. Cap at most one failure_mode per
+   applicable prior_prevention — do not split one prevention across
+   multiple modes, and do not stack a duplicate prevention-driven
+   mode on top of a novel mode that already covers the same shape.
 
 ## Anti-patterns: do NOT output
 

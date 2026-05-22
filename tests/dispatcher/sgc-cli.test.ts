@@ -26,11 +26,30 @@ async function runSgc(
 }
 
 describe("sgc CLI smoke", () => {
-  test("--help lists registered subcommands incl. reflect (CE-2)", async () => {
+  test("--help lists registered subcommands incl. reflect (CE-2) + watch-ci-failure (CE-3)", async () => {
     const { stdout, exitCode } = await runSgc(["--help"])
     expect(exitCode).toBe(0)
-    for (const cmd of ["discover", "plan", "work", "review", "qa", "ship", "compound", "reflect", "status"]) {
+    for (const cmd of [
+      "discover",
+      "plan",
+      "work",
+      "review",
+      "qa",
+      "ship",
+      "compound",
+      "reflect",
+      "watch-ci-failure",
+      "status",
+    ]) {
       expect(stdout).toContain(cmd)
+    }
+  })
+
+  test("watch-ci-failure --help shows all 5 flags (CE-3)", async () => {
+    const { stdout, exitCode } = await runSgc(["watch-ci-failure", "--help"])
+    expect(exitCode).toBe(0)
+    for (const flag of ["--workflow", "--branch", "--run-id", "--interval", "--timeout"]) {
+      expect(stdout).toContain(flag)
     }
   })
 

@@ -440,6 +440,62 @@ const reflect = defineCommand({
   },
 })
 
+// ── watch-ci-failure (CE-3 f4) ─────────────────────────────────────────────
+
+const watchCiFailure = defineCommand({
+  meta: {
+    name: "watch-ci-failure",
+    description:
+      "Poll the publish CI workflow for the current branch's HEAD and capture failures as ship-failure seed records",
+  },
+  args: {
+    workflow: {
+      type: "string",
+      required: false,
+      description: "Workflow filename (default: publish.yml)",
+    },
+    branch: {
+      type: "string",
+      required: false,
+      description: "Branch to watch (default: current git branch)",
+    },
+    "run-id": {
+      type: "string",
+      required: false,
+      description: "Attach directly to a specific gh run id; skips discovery polling",
+    },
+    interval: {
+      type: "string",
+      required: false,
+      description: "Polling interval seconds (default: 15; clamped to [5, 60])",
+    },
+    timeout: {
+      type: "string",
+      required: false,
+      description: "Total timeout seconds (default: 600; clamped to [60, 1800])",
+    },
+  },
+  async run({ args }) {
+    const { runWatchCiFailure } = await import("./commands/watch-ci-failure")
+    const parseSec = (key: string): number | undefined => {
+      const v = args[key] as string | undefined
+      if (v === undefined) return undefined
+      const n = Number.parseInt(v, 10)
+      if (!Number.isFinite(n) || n < 1) {
+        throw new Error(`--${key} must be a positive integer; got ${v}`)
+      }
+      return n
+    }
+    await runWatchCiFailure({
+      workflow: args.workflow as string | undefined,
+      branch: args.branch as string | undefined,
+      runId: args["run-id"] as string | undefined,
+      intervalSec: parseSec("interval"),
+      timeoutSec: parseSec("timeout"),
+    })
+  },
+})
+
 // ── main ────────────────────────────────────────────────────────────────────
 
 const main = defineCommand({
@@ -458,6 +514,7 @@ const main = defineCommand({
     ship: () => ship,
     compound: () => compound,
     reflect: () => reflect,
+    "watch-ci-failure": () => watchCiFailure,
     status: () => status,
     "agent-loop": () => agentLoop,
     tail: () => tail,

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — CE-5 sgc loop orchestrator (P2.CE-5 from the original compound list)
+## v1.9.0 — 2026-05-22 — CE-5 sgc loop orchestrator (P2.CE-5 from the original compound list)
 
 ### Added (CE-5: `sgc loop <task>` end-to-end orchestrator)
 

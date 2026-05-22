@@ -400,6 +400,46 @@ const doctor = defineCommand({
   },
 })
 
+// ── reflect (CE-2 f3) ──────────────────────────────────────────────────────
+
+const reflect = defineCommand({
+  meta: {
+    name: "reflect",
+    description: "Audit decisions against accumulated preventions (read-only, heuristic-only)",
+  },
+  args: {
+    task: {
+      type: "string",
+      required: false,
+      description: "Audit only this task_id (default: all decisions/)",
+    },
+    since: {
+      type: "string",
+      required: false,
+      description: "YYYY-MM-DD; audit only decisions created on or after this date",
+    },
+    save: {
+      type: "boolean",
+      required: false,
+      description: "Write each report to <stateRoot>/reflections/<task_id>.md (replace semantics)",
+    },
+    json: {
+      type: "boolean",
+      required: false,
+      description: "Emit JSON ReflectReport[] (default: human-readable)",
+    },
+  },
+  async run({ args }) {
+    const { runReflect } = await import("./commands/reflect")
+    await runReflect({
+      task: args.task as string | undefined,
+      since: args.since as string | undefined,
+      save: args.save as boolean | undefined,
+      json: args.json as boolean | undefined,
+    })
+  },
+})
+
 // ── main ────────────────────────────────────────────────────────────────────
 
 const main = defineCommand({
@@ -417,6 +457,7 @@ const main = defineCommand({
     qa: () => qa,
     ship: () => ship,
     compound: () => compound,
+    reflect: () => reflect,
     status: () => status,
     "agent-loop": () => agentLoop,
     tail: () => tail,

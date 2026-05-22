@@ -26,10 +26,10 @@ async function runSgc(
 }
 
 describe("sgc CLI smoke", () => {
-  test("--help lists 8 subcommands", async () => {
+  test("--help lists registered subcommands incl. reflect (CE-2)", async () => {
     const { stdout, exitCode } = await runSgc(["--help"])
     expect(exitCode).toBe(0)
-    for (const cmd of ["discover", "plan", "work", "review", "qa", "ship", "compound", "status"]) {
+    for (const cmd of ["discover", "plan", "work", "review", "qa", "ship", "compound", "reflect", "status"]) {
       expect(stdout).toContain(cmd)
     }
   })
@@ -114,5 +114,59 @@ describe("sgc status (implemented)", () => {
     expect(stdout).toContain("01HABCDEFG")
     expect(stdout).toContain("L1")
     expect(stdout).toContain("f1")
+  })
+})
+
+describe("sgc reflect (CE-2 f3)", () => {
+  let tmp: string
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), "sgc-cli-reflect-"))
+  })
+  afterEach(() => {
+    rmSync(tmp, { recursive: true, force: true })
+  })
+
+  function seedFixture(): void {
+    const decDir = join(tmp, "decisions", "T1")
+    const solDir = join(tmp, "solutions", "data")
+    mkdirSync(decDir, { recursive: true })
+    mkdirSync(solDir, { recursive: true })
+    const fs = require("node:fs") as typeof import("node:fs")
+    fs.writeFileSync(
+      join(decDir, "intent.md"),
+      `---\ntask_id: "T1"\ntitle: "orders migration"\nmotivation: "Add archived_at column to orders table for analytics"\ncreated_at: "2026-05-22T00:00:00.000Z"\n---\n\n## Pre-mortem\n\nEarly signal: unrelated typo risk in column name\n`,
+    )
+    fs.writeFileSync(
+      join(solDir, "migration-lock.md"),
+      `---\ncategory: "data"\nintent: "lock avoidance"\nprevention: "Chunked backfill on huge orders tables avoids long migration locks under concurrent writes."\n---\n\nbody\n`,
+    )
+  }
+
+  test("--task on seeded fixture → human-readable output with [silent] marker", async () => {
+    seedFixture()
+    const { stdout, exitCode } = await runSgc(["reflect", "--task", "T1"], {
+      SGC_STATE_ROOT: tmp,
+    })
+    expect(exitCode).toBe(0)
+    expect(stdout).toContain("# Reflect: T1")
+    expect(stdout).toContain("[silent]")
+    expect(stdout).toContain("data/migration-lock")
+  })
+
+  test("--json emits parseable ReflectReport[]", async () => {
+    seedFixture()
+    const { stdout, exitCode } = await runSgc(["reflect", "--task", "T1", "--json"], {
+      SGC_STATE_ROOT: tmp,
+    })
+    expect(exitCode).toBe(0)
+    // Strip optional consola CI-mode "[log] " prefix (see --version test).
+    const jsonText = stdout.trim().replace(/^\[log\] /, "")
+    const reports = JSON.parse(jsonText)
+    expect(Array.isArray(reports)).toBe(true)
+    expect(reports.length).toBe(1)
+    expect(reports[0].task_id).toBe("T1")
+    expect(Array.isArray(reports[0].candidates)).toBe(true)
+    expect(reports[0].candidates[0].solution_ref).toBe("data/migration-lock")
+    expect(reports[0].candidates[0].discussed).toBe(false)
   })
 })

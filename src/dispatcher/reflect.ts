@@ -27,6 +27,9 @@ export interface ReflectCandidate {
   keyword_overlap: number
   discussed: boolean
   discussed_evidence: string | null
+  // CE-6 (f7): count of task_ids in the solution's applied_in array
+  // (always present; defaults to 0 when frontmatter has no applied_in).
+  applied_count: number
 }
 
 export interface ReflectReport {
@@ -51,6 +54,8 @@ interface SolutionFrontmatter {
   category?: string
   prevention?: string
   intent?: string
+  // CE-6 (f7): read by reflect to compute applied_count per candidate.
+  applied_in?: string[]
 }
 
 const MIN_SIGNAL_OVERLAP = 3
@@ -202,6 +207,9 @@ export async function auditDecision(
       keyword_overlap: scan.hits,
       discussed,
       discussed_evidence: evidence,
+      applied_count: Array.isArray(solutionFrontmatter.applied_in)
+        ? solutionFrontmatter.applied_in.length
+        : 0,
     })
   }
 
@@ -297,7 +305,9 @@ export function formatReport(report: ReflectReport): string {
   lines.push(`Matched preventions: ${report.candidates.length}`)
   for (const c of report.candidates) {
     const tag = c.discussed ? "[discussed]" : "[silent]    "
-    lines.push(`  - ${tag} ${c.solution_ref} (overlap: ${c.keyword_overlap})`)
+    lines.push(
+      `  - ${tag} ${c.solution_ref} (overlap: ${c.keyword_overlap}, applied: ${c.applied_count})`,
+    )
     if (c.discussed && c.discussed_evidence) {
       lines.push(`    evidence: ${c.discussed_evidence}`)
     }

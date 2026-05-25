@@ -1,6 +1,6 @@
 // CE-2 (task 94913CB45F9D4C3E906B3C2C8E#f3) — `sgc reflect` audit tests.
 
-import { describe, expect, it, beforeEach, afterEach } from "bun:test"
+import { describe, expect, it, test, beforeEach, afterEach } from "bun:test"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -279,6 +279,7 @@ describe("formatReport + writeReflectionFile (CE-2 T5)", () => {
           keyword_overlap: 5,
           discussed: false,
           discussed_evidence: null,
+          applied_count: 0,
         },
         {
           solution_ref: "perf/c",
@@ -287,6 +288,7 @@ describe("formatReport + writeReflectionFile (CE-2 T5)", () => {
           keyword_overlap: 2,
           discussed: true,
           discussed_evidence: "solution_ref direct match: perf/c",
+          applied_count: 0,
         },
       ],
     })
@@ -319,6 +321,7 @@ describe("formatReport + writeReflectionFile (CE-2 T5)", () => {
           keyword_overlap: 1,
           discussed: false,
           discussed_evidence: null,
+          applied_count: 0,
         },
       ],
     }
@@ -326,5 +329,68 @@ describe("formatReport + writeReflectionFile (CE-2 T5)", () => {
     const after = readFileSync(path, "utf8")
     expect(after).not.toContain("No matched preventions.")
     expect(after).toContain("data/m")
+  })
+})
+
+describe("reflect — CE-6 applied_count surfacing", () => {
+  test("CE6-R1: applied_count populated from solution frontmatter; stdout shows it", async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs")
+    const { tmpdir } = await import("node:os")
+    const { resolve } = await import("node:path")
+    const { auditDecision, formatReport } = await import("../../src/dispatcher/reflect")
+
+    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-reflect-r1-"))
+    // Seed a solution with applied_in already populated
+    const solDir = resolve(root, "solutions/runtime")
+    mkdirSync(solDir, { recursive: true })
+    writeFileSync(
+      resolve(solDir, "alpha-2026.md"),
+      `---\nid: runtime-alpha-2026\nsignature: x\ncategory: runtime\nproblem: p\nsymptoms: [s]\nwhat_didnt_work: []\nsolution: s\nprevention: rate limit middleware bucket refill\ntags: [rate-limit]\nfirst_seen: 2026-01-01T00:00:00.000Z\nlast_updated: 2026-01-01T00:00:00.000Z\ntimes_referenced: 0\nsource_task_ids: [T-FX]\napplied_in:\n  - T-A\n  - T-B\n  - T-C\n---\n\nbody\n`,
+      "utf8",
+    )
+    // Seed a decision intent.md that keyword-overlaps with the prevention
+    const decDir = resolve(root, "decisions", "TASK-DEC-001")
+    mkdirSync(decDir, { recursive: true })
+    writeFileSync(
+      resolve(decDir, "intent.md"),
+      `---\ntask_id: TASK-DEC-001\nlevel: L3\ncreated_at: '2026-05-25T00:00:00.000Z'\ntitle: refactor rate limit\nmotivation: change rate limit middleware bucket refill window\n---\n\n## Pre-mortem (planner.adversarial)\n\n### [high/high] rate limit bucket refill drift\nEarly signal: see runtime/alpha-2026 for the source incident\n`,
+      "utf8",
+    )
+
+    const report = await auditDecision("TASK-DEC-001", root)
+    expect(report.candidates.length).toBeGreaterThan(0)
+    const c = report.candidates.find((c) => c.solution_ref === "runtime/alpha-2026")
+    expect(c).toBeDefined()
+    expect(c!.applied_count).toBe(3)
+
+    const out = formatReport(report)
+    expect(out).toContain("applied: 3")
+  })
+
+  test("CE6-R2: candidate without applied_in field → applied_count: 0", async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs")
+    const { tmpdir } = await import("node:os")
+    const { resolve } = await import("node:path")
+    const { auditDecision } = await import("../../src/dispatcher/reflect")
+
+    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-reflect-r2-"))
+    const solDir = resolve(root, "solutions/runtime")
+    mkdirSync(solDir, { recursive: true })
+    writeFileSync(
+      resolve(solDir, "beta-2026.md"),
+      `---\nid: runtime-beta-2026\nsignature: x\ncategory: runtime\nproblem: p\nsymptoms: [s]\nwhat_didnt_work: []\nsolution: s\nprevention: cache invalidation lag\ntags: [cache]\nfirst_seen: 2026-01-01T00:00:00.000Z\nlast_updated: 2026-01-01T00:00:00.000Z\ntimes_referenced: 0\nsource_task_ids: [T-FX]\n---\n\nbody\n`,
+      "utf8",
+    )
+    const decDir = resolve(root, "decisions", "TASK-DEC-002")
+    mkdirSync(decDir, { recursive: true })
+    writeFileSync(
+      resolve(decDir, "intent.md"),
+      `---\ntask_id: TASK-DEC-002\nlevel: L3\ncreated_at: '2026-05-25T00:00:00.000Z'\ntitle: cache work\nmotivation: cache invalidation lag fixes\n---\n\n## Pre-mortem (planner.adversarial)\n\nEarly signal: nothing specific\n`,
+      "utf8",
+    )
+
+    const report = await auditDecision("TASK-DEC-002", root)
+    const c = report.candidates.find((c) => c.solution_ref === "runtime/beta-2026")
+    expect(c?.applied_count).toBe(0)
   })
 })

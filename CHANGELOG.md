@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased — GS-1 `sgc canary` post-publish health check (first ship of GS-N absorb arc)
+
+### Added (GS-1: `sgc canary` heuristic post-publish check)
+
+- **You can now catch the "CI green ≠ npm propagated ≠ binary works" gap.** GS-1 (f8, sibling to the CE-N arc, no parent intent) adds a standalone CLI `sgc canary` that runs up to three sequential phases against a just-released package: (1) `npm_propagation` — poll `npm view <pkg> dist-tags.latest --json` until the value equals `<expected_version>` or timeout; (2) `smoke_install` — `npx --yes <pkg>@<expected_version> --version` and assert exit 0 + stdout includes the version; (3) `health_url` (optional, when `--health-url <u>` is set) — `fetch(u)` with retry (3× spaced 5s), assert 2xx + optional body regex via `--health-regex`. First-failure short-circuits subsequent phases. On `success` → stderr `canary green for <pkg>@<ver>; no capture.` exit 0. On `failure` → templated record at `.sgc/canaries/<YYYY-MM-DD>-<short-sha>-<phase>.md` with `regression_seed: TODO …`, stderr `canary failure: …` exit 1. On `timeout` → `[PARTIAL: …]` exit 0. This is the post-CI complement to CE-3 `sgc watch-ci-failure`: CE-3 watches publish.yml turn green; GS-1 watches the actual artifact reach npm and execute. The v1.6.0 publish CI was green but the just-published binary mis-defaulted `--workflow` and was unusable until CE-3.1 (v1.6.1) — that's exactly the gap GS-1 closes.
+- **First ship of the GS-N absorb arc.** sgc-native heuristic implementation of `gs:/canary` intent per `docs/POSITIONING.md`. **Not vendored from gstack** — no gstack source copied, no gstack binary called, no gstack dependency introduced (explicit not-doing per `feedback_sgc_plan_motivation_word_vendor.md`). Operator workflow: `git push --tags && sgc watch-ci-failure && sgc canary`.
+
+### Architecture
+
+- New module `src/dispatcher/canary.ts` (~290 LOC): `runCanaryChecks(opts)` runs the phase ladder with first-failure short-circuit; `captureCanaryFailure(failure, stateRoot)` writes the templated record. Test hooks `npmView` / `npxSmoke` / `httpFetch` / `now` / `sleep` are injectable; production uses `Bun.spawn(["npm", "view", …])` / `Bun.spawn(["npx", "--yes", …])` / native `fetch()` / `Date.now` / `setTimeout`. URL safety: `isSafeUrl` rejects non-`https?://` schemes; `UnsafeUrlScheme` error class thrown BEFORE any side effect.
+- New CLI handler `src/commands/canary.ts` (~140 LOC): resolves `packageName` (flag → `package.json` `name` → refuse), `expectedVersion` (flag → `package.json` `version` → `git describe --tags --exact-match HEAD` → refuse), `commitSha` via `git rev-parse HEAD`, `tag` via `git tag --points-at HEAD`. Exposes `parsePhases(csv)` helper validating the 3 phase names.
+- `src/sgc.ts`: registers `canary` defineCommand with 7 flags (`--package` / `--version` / `--phases` / `--health-url` / `--health-regex` / `--interval` / `--timeout`); added to `subCommands` map after `watch-ci-failure`. Lazy-imports `runCanary` (matches CE-3 / CE-4 / CE-5 pattern).
+- **New namespace, not solutions/**: `.sgc/canaries/` is created lazily via `mkdir { recursive: true }` on first write (mirrors CE-3 `ship-failures/` and CE-2 `reflections/` precedents that sidestep Invariant §3 dedup-stamp requirement). Dedup key = `(short-sha, phase)` tuple in the slug; same SHA failing different phases writes separate records.
+- **No event emission in v0**: no `spawn.start/end`, no `llm.request/response`. Future `canary.start / canary.phase_done / canary.failed` events are permitted but out of v0 scope (matches CE-3 r1 conservatism — events are easier to add later than to schema-break later).
+- **Exit-code split from CE-3**: GS-1 exits 1 on `failure` (gating signal — operator may chain `sgc canary && ./deploy-promote.sh`); CE-3 exits 0 on `failure` (silent observer). Deliberate: CE-3 captures CI red as raw material without asserting operator action; GS-1 declares post-publish red as a reason-to-halt-deploy.
+- **Defensive parsing**: malformed `npm view` JSON is treated as "not yet propagated" (continue polling), NOT thrown as failure — matches CE-3 `watchPublishWorkflow` malformed-JSON handling. Only the timeout itself signals failure on the propagation phase.
+
+### Tests
+
+- 14 new unit tests in `tests/dispatcher/canary.test.ts`: happy path (T1) / npm_propagation pending→ready + timeout + malformed-JSON (T2 ×3) / smoke_install exit-non-zero + stdout-mismatch (T3 ×2) / phase short-circuit (T4) / health_url 2xx + regex-mismatch + UnsafeUrlScheme refuse (T5 ×3) / capture happy + dedup + different-phase-same-sha + truncate-> 2000 (T6 ×4).
+- 1 new test in `tests/dispatcher/sgc-cli.test.ts`: `sgc canary --help` lists all 7 flags. `sgc --help` listing extended to assert `canary` appears (no test count delta — extends existing helpers test).
+- Dispatcher CI gate **739 → 754** (+15 = 14 canary unit + 1 sgc-cli help-listing). 1961 expect() calls; ~122s wall.
+
+### Compatibility
+
+- Additive command + additive namespace — no migration. Operators unchanged unless they invoke `sgc canary`. Reverting via `git revert <release-sha>` leaves any `.sgc/canaries/*.md` data behind harmlessly (operator-local state, reversible).
+- No `contracts/sgc-capabilities.yaml`, `prompts/*.md`, `src/dispatcher/spawn.ts`, `src/dispatcher/validation.ts`, `src/commands/compound.ts`, `src/commands/watch-ci-failure.ts`, `src/commands/ship.ts`, or any Invariant §1 / §3 / §6 / §13 enforcement path is touched.
+- **Deferred to GS-1.1** (sibling spec, mirrors CE-3 → CE-3-promote pattern): `sgc compound --from-canary <slug>` promotion helper; `--health-retry-count` + `--health-retry-interval` flags; multi-package canary.
+
 ## v1.10.0 — 2026-05-25 — CE-6 applied_in 评分回流 (P3.CE-6 — original 6-item compound list 6/6 closed)
 
 ### Added (CE-6: applied_in score feedback loop)

@@ -26,7 +26,7 @@ async function runSgc(
 }
 
 describe("sgc CLI smoke", () => {
-  test("--help lists registered subcommands incl. reflect (CE-2) + watch-ci-failure (CE-3)", async () => {
+  test("--help lists registered subcommands incl. reflect (CE-2) + watch-ci-failure (CE-3) + canary (GS-1)", async () => {
     const { stdout, exitCode } = await runSgc(["--help"])
     expect(exitCode).toBe(0)
     for (const cmd of [
@@ -39,6 +39,7 @@ describe("sgc CLI smoke", () => {
       "compound",
       "reflect",
       "watch-ci-failure",
+      "canary",
       "status",
     ]) {
       expect(stdout).toContain(cmd)
@@ -49,6 +50,22 @@ describe("sgc CLI smoke", () => {
     const { stdout, exitCode } = await runSgc(["watch-ci-failure", "--help"])
     expect(exitCode).toBe(0)
     for (const flag of ["--workflow", "--branch", "--run-id", "--interval", "--timeout"]) {
+      expect(stdout).toContain(flag)
+    }
+  })
+
+  test("canary --help shows all 7 flags (GS-1)", async () => {
+    const { stdout, exitCode } = await runSgc(["canary", "--help"])
+    expect(exitCode).toBe(0)
+    for (const flag of [
+      "--package",
+      "--version",
+      "--phases",
+      "--health-url",
+      "--health-regex",
+      "--interval",
+      "--timeout",
+    ]) {
       expect(stdout).toContain(flag)
     }
   })

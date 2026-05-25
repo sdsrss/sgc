@@ -591,6 +591,75 @@ const watchCiFailure = defineCommand({
   },
 })
 
+// ── canary (GS-1 f8) ──────────────────────────────────────────────────────
+
+const canary = defineCommand({
+  meta: {
+    name: "canary",
+    description:
+      "GS-1: post-publish health check — poll npm propagation, smoke install via npx, optional health-url GET. Failure writes a templated record under .sgc/canaries/ and exits 1.",
+  },
+  args: {
+    package: {
+      type: "string",
+      required: false,
+      description: "Package name (default: package.json `name` in cwd)",
+    },
+    version: {
+      type: "string",
+      required: false,
+      description: "Expected version (default: package.json `version` → `git describe --tags --exact-match HEAD`)",
+    },
+    phases: {
+      type: "string",
+      required: false,
+      description:
+        "Comma-separated phases (default: npm_propagation,smoke_install); valid: npm_propagation, smoke_install, health_url",
+    },
+    "health-url": {
+      type: "string",
+      required: false,
+      description: "Required when phases includes health_url. https?:// only.",
+    },
+    "health-regex": {
+      type: "string",
+      required: false,
+      description: "On a 2xx response, body must match this regex.",
+    },
+    interval: {
+      type: "string",
+      required: false,
+      description: "Polling interval seconds (default: 15; clamped to [5, 60])",
+    },
+    timeout: {
+      type: "string",
+      required: false,
+      description: "npm_propagation timeout seconds (default: 300; clamped to [60, 1800])",
+    },
+  },
+  async run({ args }) {
+    const { parsePhases, runCanary } = await import("./commands/canary")
+    const parseSec = (key: string): number | undefined => {
+      const v = args[key] as string | undefined
+      if (v === undefined) return undefined
+      const n = Number.parseInt(v, 10)
+      if (!Number.isFinite(n) || n < 1) {
+        throw new Error(`--${key} must be a positive integer; got ${v}`)
+      }
+      return n
+    }
+    await runCanary({
+      packageName: args.package as string | undefined,
+      expectedVersion: args.version as string | undefined,
+      phases: parsePhases(args.phases as string | undefined),
+      healthUrl: args["health-url"] as string | undefined,
+      healthRegex: args["health-regex"] as string | undefined,
+      intervalSec: parseSec("interval"),
+      timeoutSec: parseSec("timeout"),
+    })
+  },
+})
+
 // ── loop (CE-5 f6) ────────────────────────────────────────────────────────
 
 const loop = defineCommand({
@@ -671,6 +740,7 @@ const main = defineCommand({
     reflect: () => reflect,
     loop: () => loop,
     "watch-ci-failure": () => watchCiFailure,
+    canary: () => canary,
     status: () => status,
     "agent-loop": () => agentLoop,
     tail: () => tail,

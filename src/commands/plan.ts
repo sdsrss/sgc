@@ -44,6 +44,10 @@ import {
   extractPreventions,
   type PriorPrevention,
 } from "../dispatcher/preventions"
+import {
+  extractAppliedSolutionRefs,
+  recordApplied,
+} from "../dispatcher/applied-tracker"
 import { validateClassifierRationale } from "../dispatcher/rationale"
 import {
   ensureSgcStructure,
@@ -306,6 +310,10 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
   let plannerCeoOut: PlannerCeoOutput | null = null
   let researcherOut: ResearcherHistoryOutput | null = null
   let adversarialOut: PlannerAdversarialOutput | null = null
+  // CE-6 (f7): hoisted so the wire-up block (after Promise.all) can read
+  // the preventions that were fed to planner.adversarial. The IIFE assigns
+  // capturedPriorPreventions after extractPreventions resolves.
+  let capturedPriorPreventions: PriorPrevention[] = []
   if (LEVEL_RANK[level] >= 2) {
     // P1.6: surface delegation hints once per plan invocation before the
     // parallel planner cluster fires. Nudge only — sgc continues with its
@@ -383,6 +391,8 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
               stateRoot,
               { logger, taskId },
             )
+            // CE-6 (f7): hoist to outer scope for wire-up block after Promise.all.
+            capturedPriorPreventions = priorPreventions
           } catch (err) {
             const errName = err instanceof Error ? err.name : "unknown"
             const errMsg = err instanceof Error ? err.message : ""
@@ -431,6 +441,55 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
     researcherOut = results[2]!.output as ResearcherHistoryOutput
     if (level === "L3") {
       adversarialOut = results[3]!.output as PlannerAdversarialOutput
+      // CE-6 (f7): score-feedback writeback. When planner.adversarial
+      // surfaces a prior_prevention via recurrence flag (substring match
+      // in early_signal per CE-1 step 5), record the consuming task_id
+      // back to the source solution's applied_in array. Iron Law:
+      // writeback failure NEVER fails plan — wrapped in try/catch and
+      // converted to a plan.applied_failed event.
+      if (capturedPriorPreventions.length > 0 && adversarialOut.failure_modes.length > 0) {
+        try {
+          const refs = extractAppliedSolutionRefs(
+            adversarialOut.failure_modes,
+            capturedPriorPreventions,
+          )
+          if (refs.length > 0) {
+            const appliedResult = recordApplied(stateRoot, refs, taskId, { logger })
+            logger.event({
+              task_id: taskId,
+              spawn_id: null,
+              agent: "plan.applied",
+              event_type: "plan.applied_recorded",
+              level: "info",
+              payload: {
+                solution_refs_input: refs,
+                updated: appliedResult.updated,
+                skipped_already_applied: appliedResult.skipped_already_applied,
+                skipped_missing: appliedResult.skipped_missing,
+                skipped_malformed: appliedResult.skipped_malformed,
+                stale_skipped: appliedResult.stale_skipped,
+                write_failed: appliedResult.write_failed,
+              },
+            })
+            if (appliedResult.updated.length > 0) {
+              log(
+                `applied_in updated: ${appliedResult.updated.length} solution(s) tracked task ${taskId}`,
+              )
+            }
+          }
+        } catch (err) {
+          const errName = err instanceof Error ? err.name : "unknown"
+          const errMsg = err instanceof Error ? err.message : String(err)
+          logger.event({
+            task_id: taskId,
+            spawn_id: null,
+            agent: "plan.applied",
+            event_type: "plan.applied_failed",
+            level: "warn",
+            payload: { error_class: errName, error_message: errMsg, reason: "wire_up_throw" },
+          })
+        }
+      }
     }
     log(`planner.eng verdict: ${plannerEngOut.verdict}`)
     if (plannerEngOut.concerns.length > 0) {

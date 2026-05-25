@@ -1,6 +1,6 @@
 ---
-status: draft
-revision: 1
+status: implemented
+revision: 2
 task_id: ce-6-applied-in-tracker
 feature_id: f7
 parent_intent: (none — CE-6 is P3.CE-6 from the original 6-item compound list; sibling to CE-4/CE-5 outside parent intent 94913CB45F9D4C3E906B3C2C8E)
@@ -306,6 +306,24 @@ this lands the original list is 6/6 shipped.
 
 ## Change log
 
+- 2026-05-25 r2 — status → implemented. Shipped across 11 commits
+  on main (`5cd9e41`..`99d3030`): T1 writeAtomic export, T2
+  SolutionEntry.applied_in optional field, T3 applied-tracker
+  scaffold (+ T3-review-repair commit adding `write_failed`
+  bucket and dropping `RecordAppliedOptions.taskId` redundancy),
+  T4-T9 unit suite (15 tests across E1-E7 + H1-H10), T10 plan.ts
+  L3 wire-up (+ capturedPriorPreventions hoist), T11
+  adversarialOverride test seam + 2 integration tests CE6-W1/W2,
+  T12 sgc reflect `applied: N` surfacing + 2 tests CE6-R1/R2,
+  T13 CHANGELOG v1.10.0, T15 final-review repairs (env save+restore
+  in plan-ce6-integration beforeEach/afterEach to prevent
+  cross-file env-var contamination; `plan.applied_wire_failed`
+  event split to harmonize payload schemas; H9 TODO comment).
+  Dispatcher CI gate 718 → 739 (+21). All 8 success criteria met.
+  Test 2 (additive SolutionEntry field) and Invariant §3
+  metadata-only carve-out verified by H8 regression. Original
+  6-item P#699 compound list now **6/6 shipped**. v1.10.0 release
+  pending (lands at ship time as a separate AUTH decision).
 - 2026-05-25 r1 — initial draft from `继续 CE-6` clarification
   conversation. Locks in: planner.adversarial substring-match as
   the applied signal (NOT sgc reflect, NOT hybrid); direct frontmatter

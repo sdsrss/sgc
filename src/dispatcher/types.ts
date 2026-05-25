@@ -86,6 +86,11 @@ export interface SolutionEntry {
   source_task_ids: TaskId[]
   related_entries?: string[]
   confidence?: "provisional" | "confirmed" | "canonical"
+  // CE-6 (f7): task_ids that consumed this prevention via planner.adversarial
+  // recurrence flag (CE-1 step 5). Mutated by applied-tracker.recordApplied,
+  // which bypasses writeSolution() — see tasks/specs/ce-6-applied-in-tracker.md
+  // "Invariant §3 carve-out (metadata-only mutation)".
+  applied_in?: TaskId[]
 }
 
 export interface Finding {

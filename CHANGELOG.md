@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — GS-1 `sgc canary` post-publish health check (first ship of GS-N absorb arc)
+## v1.11.0 — 2026-05-25 — GS-1 `sgc canary` post-publish health check (first ship of GS-N absorb arc)
 
 ### Added (GS-1: `sgc canary` heuristic post-publish check)
 

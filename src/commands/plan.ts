@@ -94,6 +94,9 @@ export interface PlanOptions {
   log?: (msg: string) => void
   // Explicit logger injection (wraps log if provided)
   logger?: Logger
+  /** CE-6 test hook: override the planner.adversarial inline stub output.
+   *  Production path unchanged — undefined by default. Requires SGC_FORCE_INLINE=1. */
+  adversarialOverride?: PlannerAdversarialOutput
 }
 
 const LEVEL_RANK: Record<Level, number> = { L0: 0, L1: 1, L2: 2, L3: 3 }
@@ -425,7 +428,7 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
             {
               stateRoot,
               inlineStub: (i) =>
-                plannerAdversarial(i as PlannerAdversarialInput),
+                opts.adversarialOverride ?? plannerAdversarial(i as PlannerAdversarialInput),
               logger,
               taskId,
             },

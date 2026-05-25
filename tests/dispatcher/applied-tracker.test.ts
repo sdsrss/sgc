@@ -296,6 +296,7 @@ describe("recordApplied — mtime-CAS concurrency", () => {
     // write succeeds) + the production logger.event surface; a true
     // stress-repro lives in tests/perf/ as a future follow-up if
     // contention surfaces.
+    // TODO: stress-repro for stale_skipped path → tests/perf/applied-tracker-concurrent.ts
     const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-h9-"))
     seedSolution(root, "runtime", "alpha-2026")
     const result = recordApplied(root, ["runtime/alpha-2026"], "TASK-CONCURRENT")

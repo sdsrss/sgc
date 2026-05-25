@@ -24,13 +24,25 @@ const LONG_MOTIVATION =
 
 describe("plan.ts — CE-6 applied_in wire-up (L3)", () => {
   let stateRoot: string
+  let priorForceInline: string | undefined
 
   beforeEach(() => {
     stateRoot = mkdtempSync(join(tmpdir(), "sgc-ce6-plan-"))
+    // Save+restore (NOT blind delete) — sibling test files inherit
+    // SGC_FORCE_INLINE from the parent `bun test` invocation and break
+    // hard if we unset it. Reproduced: regression of 63 fails when
+    // afterEach unconditionally deleted the var.
+    priorForceInline = process.env["SGC_FORCE_INLINE"]
+    process.env["SGC_FORCE_INLINE"] = "1"
   })
 
   afterEach(() => {
     rmSync(stateRoot, { recursive: true, force: true })
+    if (priorForceInline === undefined) {
+      delete process.env["SGC_FORCE_INLINE"]
+    } else {
+      process.env["SGC_FORCE_INLINE"] = priorForceInline
+    }
   })
 
   test("CE6-W1: applied_in lands on disk when planner.adversarial early_signal references a prior_prevention", async () => {

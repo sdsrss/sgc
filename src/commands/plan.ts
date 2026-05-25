@@ -487,7 +487,7 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
             task_id: taskId,
             spawn_id: null,
             agent: "plan.applied",
-            event_type: "plan.applied_failed",
+            event_type: "plan.applied_wire_failed",
             level: "warn",
             payload: { error_class: errName, error_message: errMsg, reason: "wire_up_throw" },
           })

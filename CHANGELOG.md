@@ -1,5 +1,35 @@
 # Changelog
 
+## v1.10.0 — 2026-05-25 — CE-6 applied_in 评分回流 (P3.CE-6 — original 6-item compound list 6/6 closed)
+
+### Added (CE-6: applied_in score feedback loop)
+
+- **CE-6** (f7, sibling to CE-4/CE-5 outside parent intent `94913CB45F9D4C3E906B3C2C8E`). New optional `applied_in: TaskId[]` field on `solutions/<cat>/<slug>.md` frontmatter — tracks which decisions consumed each prevention via `planner.adversarial` recurrence flag (CE-1 step 5). Score derives as `applied_in.length`. Closes the score-feedback half of the CE compound-engineering loop: CE-1 forward-injects preventions into the planner; CE-2 audits decisions against the corpus; CE-6 now writes the actually-surfaced applications back to each lesson. **Original 6-item compound list from prompt P#699 is now 6/6 shipped.**
+
+### Architecture
+
+- New module `src/dispatcher/applied-tracker.ts` (186 LOC): `extractAppliedSolutionRefs(failure_modes, prior_preventions)` substring-matches refs out of `early_signal` strings; `recordApplied(stateRoot, refs, task_id)` does per-file read-merge-write with mtime-CAS retry (max 1) and emits `plan.applied_recorded` / `plan.applied_failed` events.
+- Plan.ts L3 branch wires the call after `planner.adversarial` returns, BEFORE writeIntent. Wrapped in try/catch — writeback failure NEVER aborts plan. Activation gate: `capturedPriorPreventions.length > 0 AND adversarialOut.failure_modes.length > 0`. `capturedPriorPreventions` is hoisted to outer scope because `priorPreventions` is captured inside the parallel-task IIFE.
+- `sgc reflect` stdout gains `applied: N` annotation per candidate; `--json` adds `applied_count: number` to each `ReflectCandidate`. Read off the existing scan, no extra fs traffic.
+- New event types (additive to events.ndjson schema, template-literal typed): `plan.applied_recorded` / `plan.applied_failed`.
+- New `RecordAppliedResult` shape has 6 buckets: `updated / skipped_already_applied / skipped_missing / skipped_malformed / stale_skipped / write_failed`. `write_failed` is reserved for `writeAtomic` throws (disk full, EPERM); `skipped_malformed` is reserved for ref-shape and frontmatter-parse failures — buckets do not overlap.
+- New test seam: `PlanOptions.adversarialOverride?: PlannerAdversarialOutput` lets integration tests pin deterministic adversarial output. Production path unchanged when undefined.
+
+### Invariant §3 carve-out (metadata-only)
+
+`recordApplied` writes to `solutions/*.md` **without going through `writeSolution()`** (which is Invariant §3 write-gated by `dedup_stamp`). Rationale: §3 binds *solution-content* mutations (intent / prevention / what_didnt_work / source_task_ids / times_referenced) to keep dedup-stamp deterministic per `feedback_compound_related_invariant3.md`. CE-6 mutates ONLY the new `applied_in` audit-trail field — not part of the dedup signature. Regression test `tests/dispatcher/applied-tracker.test.ts` H8 (`recordApplied — Invariant §3 metadata-only carve-out (CRITICAL)`) enforces that no solution-content field ever changes through `recordApplied`.
+
+### Tests
+
+- 15 new unit tests in `tests/dispatcher/applied-tracker.test.ts` (extract: E1–E7 / record happy: H1 / idempotent: H2–H3 / errors: H4–H7 / content-preservation: H8 / mtime+sequential: H9–H10).
+- 2 new integration tests in `tests/dispatcher/plan.test.ts` (CE6-W1: applied_in lands on disk when adversarial early_signal refs a prior_prevention via `adversarialOverride` test hook; CE6-W2: plan tolerates absent solutions/ corpus).
+- 2 new integration tests in `tests/dispatcher/reflect.test.ts` (CE6-R1: stdout shows `applied: N`; CE6-R2: applied_count: 0 when field absent).
+- Dispatcher CI gate 718 → 739 (+21 = 15 unit + 2 plan + 2 reflect + 2 bun-counts-describe-wrappers).
+
+### Compatibility
+
+- Schema is **additive-optional** — existing `solutions/*.md` files without `applied_in:` are valid (treated as empty array). No migration. Reverting via `git revert <release-sha>` leaves data behind harmlessly; future code without the field-aware code path ignores it.
+
 ## v1.9.0 — 2026-05-22 — CE-5 sgc loop orchestrator (P2.CE-5 from the original compound list)
 
 ### Added (CE-5: `sgc loop <task>` end-to-end orchestrator)

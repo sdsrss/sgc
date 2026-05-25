@@ -29,11 +29,12 @@ import {
 import type { SolutionCategory, SolutionEntry, TaskId } from "./types"
 
 // Allowed shape: `<lowercase-category>/<slug>`. The category half is the
-// SolutionCategory union (other / runtime / planning / ops); slug is computed
-// from `walkSolutionsCorpus` directory listing per preventions.ts:153, so it
-// is filesystem-safe by construction. The regex is a defensive belt-and-braces
-// check against accidental upstream changes that might let user-controlled
-// strings slip through.
+// SolutionCategory union (see src/dispatcher/types.ts); slug is computed
+// from `walkSolutionsCorpus` directory listing per preventions.ts:153, so
+// it is filesystem-safe by construction. The regex is a defensive
+// belt-and-braces check against accidental upstream changes that might let
+// user-controlled strings slip through; it does NOT enforce the category
+// half is a real SolutionCategory member.
 const SOLUTION_REF_RE = /^[a-z0-9_]+\/[a-zA-Z0-9._-]+$/
 
 // Mtime-CAS retry depth. The realistic race is an operator running two sync
@@ -53,12 +54,12 @@ export interface RecordAppliedResult {
   skipped_malformed: string[]
   /** mtime changed under us and retry also lost the race. */
   stale_skipped: string[]
+  /** writeAtomic threw (disk full, EPERM, etc). */
+  write_failed: string[]
 }
 
 export interface RecordAppliedOptions {
   logger?: Logger
-  /** Pass-through for logger events; null is acceptable when no task context. */
-  taskId?: string | null
 }
 
 export function extractAppliedSolutionRefs(
@@ -68,6 +69,7 @@ export function extractAppliedSolutionRefs(
   if (failure_modes.length === 0 || prior_preventions.length === 0) return []
   const refs = new Set<string>()
   for (const fm of failure_modes) {
+    // Defensive: type says string, but LLM JSON drift could omit; keep ?? "" as runtime guard.
     const signal = fm.early_signal ?? ""
     if (signal.length === 0) continue
     for (const pp of prior_preventions) {
@@ -89,6 +91,7 @@ export function recordApplied(
     skipped_missing: [],
     skipped_malformed: [],
     stale_skipped: [],
+    write_failed: [],
   }
   for (const ref of solution_refs) {
     recordOne(ref, task_id, stateRoot, opts, result)
@@ -109,17 +112,17 @@ function recordOne(
     return
   }
   const [category, slug] = ref.split("/") as [SolutionCategory, string]
-  const path = solutionPath(category, slug, stateRoot)
-  if (!existsSync(path)) {
+  const filePath = solutionPath(category, slug, stateRoot)
+  if (!existsSync(filePath)) {
     result.skipped_missing.push(ref)
     return
   }
 
   for (let attempt = 0; attempt <= MAX_MTIME_RETRIES; attempt++) {
-    const mtimeBefore = statSync(path).mtimeMs
+    const mtimeBefore = statSync(filePath).mtimeMs
     let parsed: { data: SolutionEntry; body: string }
     try {
-      parsed = parseFrontmatter<SolutionEntry>(readFileSync(path, "utf8"))
+      parsed = parseFrontmatter<SolutionEntry>(readFileSync(filePath, "utf8"))
     } catch (err) {
       result.skipped_malformed.push(ref)
       emitFailed(
@@ -138,7 +141,7 @@ function recordOne(
       applied_in: [...existing, task_id],
     }
     // Re-check mtime; if it changed under us, the read is stale.
-    const mtimeReread = statSync(path).mtimeMs
+    const mtimeReread = statSync(filePath).mtimeMs
     if (mtimeReread !== mtimeBefore) {
       if (attempt === MAX_MTIME_RETRIES) {
         result.stale_skipped.push(ref)
@@ -149,7 +152,7 @@ function recordOne(
     }
     try {
       writeAtomic(
-        path,
+        filePath,
         serializeFrontmatter(nextEntry as unknown as Record<string, unknown>, parsed.body),
       )
       result.updated.push(ref)
@@ -159,7 +162,7 @@ function recordOne(
         opts, task_id, ref, "io_error",
         err instanceof Error ? err.message : String(err),
       )
-      result.skipped_malformed.push(ref)
+      result.write_failed.push(ref)
       return
     }
   }
@@ -173,7 +176,7 @@ function emitFailed(
   error_message: string,
 ): void {
   opts.logger?.event({
-    task_id: opts.taskId ?? task_id,
+    task_id,
     spawn_id: null,
     agent: "plan.applied",
     event_type: "plan.applied_failed",

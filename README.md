@@ -2,7 +2,7 @@
 
 L0-L3 task classification, 13 runtime invariants, and a dedup-enforced `.sgc/` knowledge base. A **规范层 + 知识引擎** that *coexists* with `superpowers` (sp) and `gstack` (gs) rather than replacing them — sgc owns classification + invariants + the solutions corpus; sp owns deep planning / TDD / debugging; gs owns ship + browser QA + deploy. See [docs/POSITIONING.md](docs/POSITIONING.md) for the delegate pattern.
 
-**Status**: v1.2.1 — full L0→L3 pipeline with 10 commands, 10 LLM-backed agents (`prompt_path` templates with `cache_control` split), 1 intentionally heuristic (`compound.related` — its `dedup_stamp` authorizes Invariant §3 writes and must stay deterministic), all 13 invariants enforced at runtime. LLM integration via `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` / local `claude` binary — auto-detected per `resolveMode` priority. See [CHANGELOG.md](CHANGELOG.md) for shipped phases and [docs/c-phase-dispatcher.md](docs/c-phase-dispatcher.md) for the build history.
+**Status**: v1.10.0 — full L0→L3 pipeline with 14 CLI commands, 10 LLM-backed agents (`prompt_path` templates with `cache_control` split), 1 intentionally heuristic (`compound.related` — its `dedup_stamp` authorizes Invariant §3 writes and must stay deterministic), all 13 invariants enforced at runtime, plus the **CE compound-engineering loop end-to-end** (CE-1 prevention injection → planner.adversarial; CE-2 `sgc reflect` decisions↔solutions audit; CE-3 `sgc watch-ci-failure` + `sgc compound --from-ship-failure` ship-failure capture/promote; CE-4 `sgc plan --async` detached planner; CE-5 `sgc loop` orchestrator; CE-6 `applied_in` score feedback to source solutions). LLM integration via `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` / local `claude` binary — auto-detected per `resolveMode` priority. See [CHANGELOG.md](CHANGELOG.md) for shipped phases and [docs/c-phase-dispatcher.md](docs/c-phase-dispatcher.md) for the build history.
 
 ---
 
@@ -100,10 +100,16 @@ State files land under `.sgc/` in the project (override via `SGC_STATE_ROOT`). T
 | `sgc review [--base <ref>]` | ✅ | reviewer.correctness on git diff → append-only review report |
 | `sgc qa [<target>] [--flows a,b,c]` | ✅ | qa.browser agent writes review report; L2+ ship requires this |
 | `sgc ship [--auto\|--pr\|--no-janitor\|--force-compound]` | ✅ | 8-gate ship; writeShip; optional `gh pr create`; auto-janitor invokes compound |
-| `sgc compound [--force\|--slug]` | ✅ | 4-agent compound cluster + dedup (0.85 threshold) + write `solutions/{cat}/{slug}.md` |
+| `sgc compound [--force\|--slug\|--from-ship-failure <slug>]` | ✅ | 4-agent compound cluster + dedup (0.85 threshold) + write `solutions/{cat}/{slug}.md`. CE-3: `--from-ship-failure` promotes a captured ship-failure record through the same Invariant §3 write-gate. |
 | `sgc status` | ✅ | Active task + level + last activity |
 | `sgc agent-loop [--list\|--show\|--submit]` | ✅ | File-poll fulfillment helper (for external Claude session) |
 | `sgc discover <topic>` | ✅ | clarifier.discover forcing-questions; feeds into `sgc plan --motivation` |
+| `sgc tail [--task\|--agent\|--event-type\|--since\|--follow\|--limit]` | ✅ | Read `.sgc/progress/events.ndjson` (Invariant §13 two-tier audit stream); `--follow` polls with rotation handling |
+| `sgc plan --async <task>` | ✅ | CE-4: fork detached planner cluster, return job handle in <100ms. Surfaces via `sgc plan --jobs` / `--status <id>`. Single active job per project enforced. |
+| `sgc reflect [--task\|--since\|--save\|--json]` | ✅ | CE-2: read-only audit of `.sgc/decisions/*/intent.md` against `.sgc/solutions/*/*.md` `prevention:` field; classifies each match as `discussed` or `silent`. CE-6 surfaces `applied: N` per candidate. |
+| `sgc loop <task> [--resume <run-id>\|--runs\|--status]` | ✅ | CE-5: end-to-end orchestrator chaining `plan → [pause work] → review → qa → [pause ship] → compound`. Manual gates at `work` and `ship`; `--resume` continues from paused/failed step. L0 auto-skips review/qa/ship/compound. |
+| `sgc watch-ci-failure [--run-id <id>\|--workflow <name>]` | ✅ | CE-3: poll publish CI for current branch HEAD; on `failure`, write templated record at `.sgc/ship-failures/<date>-<sha>.md` with `prevention_seed: "TODO …"` for operator to fill. Pairs with `sgc compound --from-ship-failure` to promote. |
+| `sgc doctor` | ✅ | Consistency check across `contracts/sgc-capabilities.yaml` ↔ `prompts/` ↔ slot-only annotations. Exit 1 on any failure. |
 
 One more CLI from the same repo:
 

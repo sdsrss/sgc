@@ -4,14 +4,14 @@
 
 ### Added (CE-6: applied_in score feedback loop)
 
-- **CE-6** (f7, sibling to CE-4/CE-5 outside parent intent `94913CB45F9D4C3E906B3C2C8E`). New optional `applied_in: TaskId[]` field on `solutions/<cat>/<slug>.md` frontmatter — tracks which decisions consumed each prevention via `planner.adversarial` recurrence flag (CE-1 step 5). Score derives as `applied_in.length`. Closes the score-feedback half of the CE compound-engineering loop: CE-1 forward-injects preventions into the planner; CE-2 audits decisions against the corpus; CE-6 now writes the actually-surfaced applications back to each lesson. **Original 6-item compound list from prompt P#699 is now 6/6 shipped.**
+- **You can now see which lessons actually fired.** CE-6 (f7, sibling to CE-4/CE-5 outside parent intent `94913CB45F9D4C3E906B3C2C8E`) adds an optional `applied_in: TaskId[]` field to every solution's frontmatter. Each time `planner.adversarial` flags a recurrence at L3 plan time (CE-1 step 5), the consuming `task_id` is appended back to the source `solutions/<cat>/<slug>.md`. Score = `applied_in.length`. `sgc reflect` surfaces the count per candidate as `(overlap: M, applied: N)`. This closes the score-feedback half of the CE compound-engineering loop: CE-1 forward-injects preventions into the planner; CE-2 audits decisions against the corpus; CE-6 now writes the actually-surfaced applications back to each lesson — so a lesson that has saved you N times tells you so on its own face. **Original 6-item compound list from prompt P#699 is now 6/6 shipped.**
 
 ### Architecture
 
 - New module `src/dispatcher/applied-tracker.ts` (186 LOC): `extractAppliedSolutionRefs(failure_modes, prior_preventions)` substring-matches refs out of `early_signal` strings; `recordApplied(stateRoot, refs, task_id)` does per-file read-merge-write with mtime-CAS retry (max 1) and emits `plan.applied_recorded` / `plan.applied_failed` events.
 - Plan.ts L3 branch wires the call after `planner.adversarial` returns, BEFORE writeIntent. Wrapped in try/catch — writeback failure NEVER aborts plan. Activation gate: `capturedPriorPreventions.length > 0 AND adversarialOut.failure_modes.length > 0`. `capturedPriorPreventions` is hoisted to outer scope because `priorPreventions` is captured inside the parallel-task IIFE.
 - `sgc reflect` stdout gains `applied: N` annotation per candidate; `--json` adds `applied_count: number` to each `ReflectCandidate`. Read off the existing scan, no extra fs traffic.
-- New event types (additive to events.ndjson schema, template-literal typed): `plan.applied_recorded` / `plan.applied_failed`.
+- New event types (additive to events.ndjson schema, template-literal typed): `plan.applied_recorded` (success path) / `plan.applied_failed` (per-ref failure, payload `{solution_ref, reason, error_message}`) / `plan.applied_wire_failed` (outer wire-up throw, payload `{error_class, error_message, reason: "wire_up_throw"}`). Per-ref and wire-up failures use distinct event types so `sgc tail` consumers can filter on either without payload-shape surprises.
 - New `RecordAppliedResult` shape has 6 buckets: `updated / skipped_already_applied / skipped_missing / skipped_malformed / stale_skipped / write_failed`. `write_failed` is reserved for `writeAtomic` throws (disk full, EPERM); `skipped_malformed` is reserved for ref-shape and frontmatter-parse failures — buckets do not overlap.
 - New test seam: `PlanOptions.adversarialOverride?: PlannerAdversarialOutput` lets integration tests pin deterministic adversarial output. Production path unchanged when undefined.
 
@@ -22,7 +22,7 @@
 ### Tests
 
 - 15 new unit tests in `tests/dispatcher/applied-tracker.test.ts` (extract: E1–E7 / record happy: H1 / idempotent: H2–H3 / errors: H4–H7 / content-preservation: H8 / mtime+sequential: H9–H10).
-- 2 new integration tests in `tests/dispatcher/plan.test.ts` (CE6-W1: applied_in lands on disk when adversarial early_signal refs a prior_prevention via `adversarialOverride` test hook; CE6-W2: plan tolerates absent solutions/ corpus).
+- 2 new integration tests in `tests/dispatcher/plan-ce6-integration.test.ts` (CE6-W1: applied_in lands on disk when adversarial early_signal refs a prior_prevention via `adversarialOverride` test hook; CE6-W2: plan tolerates absent solutions/ corpus). beforeEach saves+restores `SGC_FORCE_INLINE` env to prevent cross-file env-var contamination.
 - 2 new integration tests in `tests/dispatcher/reflect.test.ts` (CE6-R1: stdout shows `applied: N`; CE6-R2: applied_count: 0 when field absent).
 - Dispatcher CI gate 718 → 739 (+21 = 15 unit + 2 plan + 2 reflect + 2 bun-counts-describe-wrappers).
 

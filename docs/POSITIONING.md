@@ -7,7 +7,7 @@ sgc coexists with the `superpowers` (sp) and `gstack` (gs) plugins. It does NOT 
 ### sgc owns (authoritative)
 
 - **L0-L3 classification** — `sgc plan` classifies every task
-- **12 invariants** — scope isolation, immutability, dedup, generator-evaluator separation
+- **13 invariants** — scope isolation, immutability, dedup, generator-evaluator separation, two-tier event audit (§13)
 - **State layer** — `.sgc/{decisions,progress,solutions,reviews}/` with schema validation
 - **Knowledge compression** — dedup (Jaccard ≥0.85) + compound cluster + janitor decisions
 - **Solutions base** — append-only, signed, dedup-enforced

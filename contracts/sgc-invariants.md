@@ -25,6 +25,10 @@ This is the single most important defense against the failure mode where `soluti
 
 Similarity threshold is fixed at 0.85 and is not user-tunable. Making it tunable would mean users lower it the first time dedup inconveniences them. The evaluation framework includes a regression test for this.
 
+### Metadata-only carve-out (CE-6, v1.10.0)
+
+`applied_in: TaskId[]` on solution frontmatter — written by `src/dispatcher/applied-tracker.ts` `recordApplied` from `plan.ts` L3 wire-up — is an **explicit, named exemption** from the dedup write-gate. The rule that binds §3 is "solution-content changes (intent / prevention / what_didnt_work / source_task_ids / times_referenced) must route through `writeSolution()` with a `dedup_stamp` from `compound.related`". `applied_in` is audit-trail metadata, not part of the dedup signature, so mutating it does not destabilize the corpus the way duplicated solution content would. `recordApplied` therefore bypasses `writeSolution()` and goes directly through `parseFrontmatter` → spread-preserve-all-other-fields → `serializeFrontmatter` → `writeAtomic`. The regression test `tests/dispatcher/applied-tracker.test.ts` H8 ("Invariant §3 metadata-only carve-out (CRITICAL)") is the binding contract: it snapshots every solution-content field before `recordApplied` and asserts byte-for-byte equality after. If that test ever changes shape, the carve-out must be re-evaluated. Future metadata-only fields (anything that does not affect compound-related similarity scoring) may extend this carve-out by the same pattern; new fields that affect dedup MUST route through `writeSolution()`.
+
 ## §4. L3 Forbids --auto
 
 Any command invocation at task level L3 with `--auto` or equivalent automation flag is refused at the dispatcher level, with a non-overridable error. L3 tasks require a human signature in `intent.md` and a human confirmation at `/ship`. This is not a default, it is a hard rule.

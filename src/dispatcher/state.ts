@@ -118,7 +118,7 @@ export function serializeFrontmatter(
   return `---\n${yaml}\n---\n\n${trimmedBody}`
 }
 
-function writeAtomic(path: string, content: string): void {
+export function writeAtomic(path: string, content: string): void {
   mkdirSync(dirname(path), { recursive: true })
   const tmp = `${path}.tmp.${process.pid}.${Date.now()}`
   writeFileSync(tmp, content, "utf8")

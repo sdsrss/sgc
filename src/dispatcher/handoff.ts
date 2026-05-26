@@ -452,7 +452,46 @@ export async function gatherHandoffState(
   repoRoot: string,
   opts?: GatherOptions,
 ): Promise<HandoffSnapshot> {
-  throw new Error("not implemented")
+  const now = opts?.now ?? new Date()
+  const probe = opts?.git ?? defaultGitProbe(repoRoot)
+  const sgcVersion = opts?.sgcVersion ?? "unknown"
+
+  const [
+    slug,
+    activeIntent,
+    planJobs,
+    loopRuns,
+    unpromoted,
+    unclosed,
+    git,
+    recentCommits,
+  ] = await Promise.all([
+    deriveSlug(stateRoot, now),
+    gatherActiveIntent(stateRoot),
+    gatherPlanJobs(stateRoot),
+    gatherLoopRuns(stateRoot),
+    gatherUnpromotedCaptures(stateRoot),
+    gatherUnclosedSpawns(stateRoot, EVENTS_TAIL_LINES),
+    gatherGit(probe),
+    gatherRecentCommits(probe),
+  ])
+
+  const partial: HandoffSnapshot = {
+    slug,
+    generated_at: now.toISOString(),
+    cwd: repoRoot,
+    sgc_version: sgcVersion,
+    active_intent: activeIntent,
+    verify_command: { source: "todo" }, // placeholder; filled next
+    plan_jobs: planJobs,
+    loop_runs: loopRuns,
+    unpromoted_captures: unpromoted,
+    git,
+    recent_commits: recentCommits,
+    unclosed_spawns: unclosed,
+  }
+  partial.verify_command = inferVerifyCommand(partial)
+  return partial
 }
 
 export function renderHandoffMarkdown(snapshot: HandoffSnapshot): string {

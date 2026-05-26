@@ -531,3 +531,49 @@ describe("gatherRecentCommits (GS-2 T10b)", () => {
     expect(result).toEqual([])
   })
 })
+
+describe("gatherHandoffState orchestrator (GS-2 T11)", () => {
+  it("composes 7 sub-gathers into a complete snapshot", async () => {
+    writeYaml(join(stateRoot, "decisions", "DEC1", "intent.md"), {
+      task_id: "DEC1",
+      level: "L3",
+      title: "GS-2 integration",
+    })
+    mkdirSync(join(stateRoot, "loop-runs"), { recursive: true })
+    writeYaml(join(stateRoot, "loop-runs", "LR1.md"), {
+      run_id: "LR1",
+      task: "loop paused",
+      started_at: "2026-05-26T18:00:00Z",
+      last_updated_at: "2026-05-26T18:05:00Z",
+      current_step: "qa",
+      status: "paused",
+    })
+    mkdirSync(join(stateRoot, "ship-failures"), { recursive: true })
+    writeYaml(join(stateRoot, "ship-failures", "SF1.md"), {
+      kind: "ship-failure",
+      commit_sha: "deadbeef",
+      prevention_seed: "TODO: operator-fill",
+    })
+
+    const fakeProbe: GitProbe = {
+      branchAheadBehind: async () => ({ branch: "main", ahead: 0, behind: 0 }),
+      statusPorcelain: async () => ["?? new.md"],
+      recentCommits: async () => [{ sha: "abc1234", subject: "test commit" }],
+    }
+    const snap = await gatherHandoffState(stateRoot, repoRoot, {
+      now: new Date("2026-05-26T18:42:15Z"),
+      git: fakeProbe,
+      sgcVersion: "1.13.0",
+    })
+
+    expect(snap.slug).toBe("2026-05-26-gs-2-integration")
+    expect(snap.sgc_version).toBe("1.13.0")
+    expect(snap.active_intent?.task_id).toBe("DEC1")
+    expect(snap.loop_runs.length).toBe(1)
+    expect(snap.unpromoted_captures.length).toBe(1)
+    expect(snap.verify_command.source).toBe("loop-run")
+    expect(snap.verify_command.command).toBe("sgc loop --resume LR1")
+    expect(snap.git.branch).toBe("main")
+    expect(snap.recent_commits.length).toBe(1)
+  })
+})

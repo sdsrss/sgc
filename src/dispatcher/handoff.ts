@@ -14,6 +14,7 @@ import * as fs from "node:fs/promises"
 import { join, dirname } from "node:path"
 import { parseFrontmatter } from "./state"
 import { listJobs } from "./plan-jobs"
+import { listLoopRuns } from "./loop"
 
 export interface ActiveIntentSummary {
   task_id: string
@@ -247,7 +248,20 @@ export async function gatherPlanJobs(stateRoot: string): Promise<PlanJobSummary[
 }
 
 export async function gatherLoopRuns(stateRoot: string): Promise<LoopRunSummary[]> {
-  throw new Error("not implemented")
+  try {
+    const runs = await listLoopRuns({ stateRoot })
+    return runs
+      .filter((r) => r.status !== "complete")
+      .map((r) => ({
+        run_id: r.run_id,
+        status: r.status as LoopRunSummary["status"],
+        current_step: String(r.current_step),
+        task: r.task.slice(0, TASK_EXCERPT_MAX),
+        started_at: r.started_at,
+      }))
+  } catch {
+    return []
+  }
 }
 
 export async function gatherUnpromotedCaptures(stateRoot: string): Promise<UnpromotedCapture[]> {

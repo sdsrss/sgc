@@ -324,3 +324,35 @@ describe("gatherPlanJobs (GS-2 T6)", () => {
     expect(result).toEqual([])
   })
 })
+
+describe("gatherLoopRuns (GS-2 T7)", () => {
+  it("maps listLoopRuns to LoopRunSummary, filters out complete runs", async () => {
+    const runsDir = join(stateRoot, "loop-runs")
+    mkdirSync(runsDir, { recursive: true })
+    writeYaml(join(runsDir, "L1.md"), {
+      run_id: "L1",
+      task: "Loop paused",
+      started_at: "2026-05-26T18:42:00Z",
+      last_updated_at: "2026-05-26T18:45:00Z",
+      current_step: "review",
+      status: "paused",
+    })
+    writeYaml(join(runsDir, "L2.md"), {
+      run_id: "L2",
+      task: "Loop complete",
+      started_at: "2026-05-26T17:00:00Z",
+      last_updated_at: "2026-05-26T17:30:00Z",
+      current_step: "done",
+      status: "complete",
+    })
+    const result = await gatherLoopRuns(stateRoot)
+    expect(result.map((r) => r.run_id)).toEqual(["L1"])
+    expect(result[0]!.status).toBe("paused")
+    expect(result[0]!.current_step).toBe("review")
+  })
+
+  it("returns empty array when .sgc/loop-runs/ absent", async () => {
+    const result = await gatherLoopRuns(stateRoot)
+    expect(result).toEqual([])
+  })
+})

@@ -1,5 +1,110 @@
 # Changelog
 
+## v1.13.0 — 2026-05-26 — GS-2 sgc handoff session-state checkpoint
+
+**GS-2 (feature f9, sibling to CE-N + GS-1, no parent intent).** Third
+ship of the **GS-N absorb arc**: sgc-native heuristic implementations of
+selected gstack-style capabilities per `docs/POSITIONING.md`. Absorbs
+`gs:/context-save` + `gs:/context-restore` intent into a sgc-protocol-
+aware checkpoint that survives `/clear`, `/exit`, and context-window
+compaction (CLAUDE.md §11 SESSION post-compaction recovery).
+
+### Added — `sgc handoff --auto` + `sgc handoff --print <slug>`
+
+- `sgc handoff --auto` scans `.sgc/` state across **6 namespaces**
+  (`decisions/`, `plan-jobs/`, `loop-runs/`, `ship-failures/`,
+  `canaries/`, `progress/events.ndjson`) + `git status` + recent
+  commits, then writes a structured `tasks/<slug>-paused.md` markdown
+  checkpoint **outside `.sgc/`**.
+- Iron Law #2 verify command derived via **3-tier priority cascade**:
+  1. `loop-runs/<id>.md status:paused` → `sgc loop --resume <id>`
+  2. `plan-jobs/<id>.md status:running` (pid alive per existing lazy
+     stale-detect in `listJobs()`) → `sgc plan --status <id>`
+  3. `progress/events.ndjson` tail unclosed `spawn.start` →
+     `sgc tail --since <ts>` (operator inspects)
+  4. Fallback when no signal: `verify_command: "TODO: operator-fill"`
+     (string sentinel parallel to CE-3 `prevention_seed:` and GS-1
+     `regression_seed:` conventions).
+- `sgc handoff --print <slug>` reads back the existing paused.md to
+  stdout (exit 0 found / exit 1 missing).
+- Slug derivation: `<YYYY-MM-DD>-<kebab(title)[:40]>` from mtime-newest
+  `.sgc/decisions/<id>/intent.md` `title` field; trailing `-` trimmed
+  post-truncation. Fallback `<YYYY-MM-DD>-<HHMM>-handoff` when no
+  parseable intent.
+
+### Constraints (heuristic-only, zero new dependency)
+
+- **No LLM call**, no agent spawn, **no Invariant §13 paired event** in
+  v0 (matches CE-3 r1 + GS-1 r1 conservatism). No event written either.
+- **No new `.sgc/` namespace** — paused.md lives at project repo root
+  `tasks/<slug>-paused.md`, alongside the existing `tasks/specs/`. No
+  Invariant §3 / §6 entanglement; tasks/ default-tracked in git for
+  cross-machine carryover (operator opts out via `.gitignore` if pure-
+  local).
+- **Atomic overwrite** semantics: re-running `--auto` replaces existing
+  paused.md via temp-file + rename (POSIX-atomic), no dedup gate.
+- **Complementary** (not competing) with `claude-mem-lite`'s
+  `<session-handoff>` SessionStart hook (different consumer: agent-
+  context vs operator-read). Zero hook surface added by GS-2.
+- **Defensive per-section parsing**: each sub-gather independently
+  try/catch wrapped. Failing one section returns safe empty value
+  (empty array / `undefined` / placeholder string); never aborts the
+  whole snapshot. Pattern mirrors CE-1 `walkSolutionsCorpus` defensive
+  parseFrontmatter precedent.
+
+### Tests
+
+- New `tests/dispatcher/handoff.test.ts` (42 unit tests across kebab/
+  slug derivation, verify-command cascade priorities, all 7 sub-gathers,
+  orchestrator integration, render determinism, atomic write, CLI exit
+  codes).
+- `tests/dispatcher/sgc-cli.test.ts` +2 help integration tests (verifies
+  `sgc --help` lists `handoff` + `sgc handoff --help` shows
+  `--auto`/`--print`).
+- Dispatcher CI gate **773 → 815** (+42; target was +20). Full suite
+  2820 expect() calls; ~122s wall via `SGC_FORCE_INLINE=1 bun test
+  tests/dispatcher/`. Eval-tier tests (`tests/eval/*-llm.test.ts`)
+  remain CI-skip when no `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` set
+  (unchanged from v1.12.1 baseline).
+
+### No migration required
+
+Additive command; operators not invoking `sgc handoff` are unaffected.
+No changes to `contracts/sgc-capabilities.yaml`, `prompts/*.md`,
+`src/dispatcher/spawn.ts`, `src/dispatcher/validation.ts`,
+`src/commands/plan.ts`, `src/commands/work.ts`, `src/commands/ship.ts`,
+`src/commands/compound.ts`, `src/commands/canary.ts`,
+`src/commands/loop.ts`, `src/commands/reflect.ts`,
+`src/commands/watch-ci-failure.ts`, or any Invariant §1 / §3 / §6 / §13
+enforcement path. CE-1 / CE-2 / CE-3 / CE-4 / CE-5 / CE-6 / GS-1 /
+GS-1.1 / GS-1.2 byte-for-byte unchanged.
+
+### Modules added
+
+- `src/dispatcher/handoff.ts` (~620 LOC with types + 7 sub-gathers +
+  orchestrator + cascade + render + atomic write + `defaultGitProbe`).
+- `src/commands/handoff.ts` (~74 LOC CLI wrapper).
+- `src/sgc.ts` extended with `handoff` defineCommand registration +
+  `subCommands` map entry (lazy-import pattern matching CE-3 / CE-4 /
+  CE-5 / GS-1 precedent).
+
+### Discoverability
+
+- `sgc --help` now lists `handoff` subcommand between `canary` and
+  `status`.
+- `sgc handoff --help` documents `--auto` + `--print` flags.
+- POSITIONING.md update (new "Session-state checkpoint" bullet in
+  `### sgc owns`) deferred to GS-7 ship per prior session roadmap.
+
+### Invariant §4 orthogonality (clarification)
+
+`sgc handoff --auto` is an **L0 read-only tool command** — its `--auto`
+flag is the auto-discover-slug-and-state shorthand, NOT the L3
+auto-confirm flag that Invariant §4 forbids. §4 binds `runPlan` /
+`runShip` when task level is L3; `runHandoff` is not in that
+enforcement path. Documented explicitly in spec Constraints to avoid
+future reviewer false-positive.
+
 ## v1.12.1 — 2026-05-25 — GS-1.2 dispatcher dedup robustness (GS-1.1 live-dogfood DOG-2)
 
 ### Fixed (`tokenize`/`similarity` crash on legacy minimal-frontmatter solutions)

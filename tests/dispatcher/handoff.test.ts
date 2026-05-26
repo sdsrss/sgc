@@ -476,3 +476,58 @@ describe("gatherUnclosedSpawns (GS-2 T9)", () => {
     expect(result[0]!.spawn_id).toBe("D")
   })
 })
+
+describe("gatherGit (GS-2 T10a)", () => {
+  it("uses injected probe to return branch + changes", async () => {
+    const probe: GitProbe = {
+      branchAheadBehind: async () => ({ branch: "main", ahead: 0, behind: 0 }),
+      statusPorcelain: async () => ["?? new-file.ts", "M  changed.ts"],
+      recentCommits: async () => [],
+    }
+    const result = await gatherGit(probe)
+    expect(result.branch).toBe("main")
+    expect(result.ahead).toBe(0)
+    expect(result.changes).toEqual(["?? new-file.ts", "M  changed.ts"])
+  })
+
+  it("returns '(not a git repo)' when probe throws", async () => {
+    const probe: GitProbe = {
+      branchAheadBehind: async () => {
+        throw new Error("not a git repo")
+      },
+      statusPorcelain: async () => [],
+      recentCommits: async () => [],
+    }
+    const result = await gatherGit(probe)
+    expect(result.branch).toBe("(not a git repo)")
+    expect(result.changes).toEqual([])
+  })
+})
+
+describe("gatherRecentCommits (GS-2 T10b)", () => {
+  it("uses injected probe to return last N commits", async () => {
+    const probe: GitProbe = {
+      branchAheadBehind: async () => ({ branch: "main" }),
+      statusPorcelain: async () => [],
+      recentCommits: async (_n) => [
+        { sha: "a34d60d", subject: "docs: sync v1.12.1 doc drift" },
+        { sha: "bf35053", subject: "docs(GS-1.1): bump spec" },
+      ],
+    }
+    const result = await gatherRecentCommits(probe)
+    expect(result.length).toBe(2)
+    expect(result[0]!.sha).toBe("a34d60d")
+  })
+
+  it("returns empty array when probe throws", async () => {
+    const probe: GitProbe = {
+      branchAheadBehind: async () => ({ branch: "main" }),
+      statusPorcelain: async () => [],
+      recentCommits: async () => {
+        throw new Error("no git")
+      },
+    }
+    const result = await gatherRecentCommits(probe)
+    expect(result).toEqual([])
+  })
+})

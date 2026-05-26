@@ -12,6 +12,7 @@
 import { existsSync } from "node:fs"
 import * as fs from "node:fs/promises"
 import { join, dirname } from "node:path"
+import { spawn as nodeSpawn } from "node:child_process"
 import { parseFrontmatter } from "./state"
 import { listJobs } from "./plan-jobs"
 import { listLoopRuns } from "./loop"
@@ -363,12 +364,79 @@ export async function gatherUnclosedSpawns(
   }
 }
 
+async function runGit(args: string[], cwd: string = process.cwd()): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = nodeSpawn("git", args, { cwd })
+    let stdout = ""
+    let stderr = ""
+    child.stdout?.on("data", (d) => (stdout += d.toString()))
+    child.stderr?.on("data", (d) => (stderr += d.toString()))
+    child.on("error", (err) => reject(err))
+    child.on("close", (code) => {
+      if (code === 0) resolve(stdout)
+      else reject(new Error(`git ${args.join(" ")} exited ${code}: ${stderr}`))
+    })
+  })
+}
+
+export function defaultGitProbe(cwd: string = process.cwd()): GitProbe {
+  return {
+    async branchAheadBehind() {
+      const branch = (await runGit(["rev-parse", "--abbrev-ref", "HEAD"], cwd)).trim()
+      let ahead: number | undefined
+      let behind: number | undefined
+      try {
+        const counts = (
+          await runGit(["rev-list", "--left-right", "--count", "@{upstream}...HEAD"], cwd)
+        ).trim()
+        const [b, a] = counts.split(/\s+/).map(Number)
+        if (!Number.isNaN(a) && !Number.isNaN(b)) {
+          ahead = a
+          behind = b
+        }
+      } catch {
+        // no upstream — leave ahead/behind undefined
+      }
+      return { branch, ahead, behind }
+    },
+    async statusPorcelain() {
+      const text = await runGit(["status", "--porcelain=v1"], cwd)
+      return text
+        .split(/\r?\n/)
+        .filter((l) => l.length > 0)
+        .slice(0, 10)
+    },
+    async recentCommits(n) {
+      const text = await runGit(["log", `-${n}`, "--pretty=format:%h\t%s"], cwd)
+      return text
+        .split(/\r?\n/)
+        .filter((l) => l.length > 0)
+        .map((l) => {
+          const [sha, ...rest] = l.split("\t")
+          return { sha: sha ?? "", subject: rest.join("\t").slice(0, 80) }
+        })
+    },
+  }
+}
+
 export async function gatherGit(probe?: GitProbe): Promise<GitStatus> {
-  throw new Error("not implemented")
+  const p = probe ?? defaultGitProbe()
+  try {
+    const { branch, ahead, behind } = await p.branchAheadBehind()
+    const changes = await p.statusPorcelain()
+    return { branch, ahead, behind, changes }
+  } catch {
+    return { branch: "(not a git repo)", changes: [] }
+  }
 }
 
 export async function gatherRecentCommits(probe?: GitProbe): Promise<CommitOneline[]> {
-  throw new Error("not implemented")
+  const p = probe ?? defaultGitProbe()
+  try {
+    return await p.recentCommits(3)
+  } catch {
+    return []
+  }
 }
 
 // ── orchestrator + render + write ─────────────────────────────────────────

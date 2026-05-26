@@ -12,6 +12,7 @@
 import { existsSync } from "node:fs"
 import * as fs from "node:fs/promises"
 import { join, dirname } from "node:path"
+import { parseFrontmatter } from "./state"
 
 export interface ActiveIntentSummary {
   task_id: string
@@ -106,7 +107,41 @@ export function timestampFallback(now: Date): string {
 }
 
 export async function deriveSlug(stateRoot: string, now: Date): Promise<string> {
-  throw new Error("not implemented")
+  const dateStr = now.toISOString().slice(0, 10)
+  const decisionsDir = join(stateRoot, "decisions")
+  if (!existsSync(decisionsDir)) return timestampFallback(now)
+
+  const entries = await fs.readdir(decisionsDir, { withFileTypes: true })
+  type IntentRef = { path: string; mtime: number; id: string }
+  const intents: IntentRef[] = []
+  for (const e of entries) {
+    if (!e.isDirectory()) continue
+    const intentPath = join(decisionsDir, e.name, "intent.md")
+    try {
+      const stat = await fs.stat(intentPath)
+      intents.push({ path: intentPath, mtime: stat.mtimeMs, id: e.name })
+    } catch {
+      // intent.md missing — skip this decision
+    }
+  }
+  if (intents.length === 0) return timestampFallback(now)
+
+  // Sort: mtime DESC, then id ASC (deterministic tie-break)
+  intents.sort((a, b) => b.mtime - a.mtime || a.id.localeCompare(b.id))
+  const newest = intents[0]!
+
+  try {
+    const text = await fs.readFile(newest.path, "utf-8")
+    const fm = parseFrontmatter<{ title?: unknown }>(text).data
+    const title = typeof fm.title === "string" ? fm.title : ""
+    const kebab = kebabize(title)
+    if (kebab.length === 0) return timestampFallback(now)
+    const truncated = kebab.slice(0, SLUG_KEBAB_MAX).replace(/-+$/, "")
+    if (truncated.length === 0) return timestampFallback(now)
+    return `${dateStr}-${truncated}`
+  } catch {
+    return timestampFallback(now)
+  }
 }
 
 // ── verify-command cascade (pure) ─────────────────────────────────────────

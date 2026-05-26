@@ -28,6 +28,7 @@ import {
   type VerifyCommandResult,
   type GitProbe,
 } from "../../src/dispatcher/handoff"
+import { runHandoff, type HandoffCliOptions } from "../../src/commands/handoff"
 
 let stateRoot: string
 let repoRoot: string
@@ -662,5 +663,64 @@ describe("writeHandoffMarkdown (GS-2 T13)", () => {
     const target = await writeHandoffMarkdown(repoRoot, slug, "second")
     const fs2 = await import("node:fs/promises")
     expect(await fs2.readFile(target, "utf-8")).toBe("second")
+  })
+})
+
+describe("runHandoff (GS-2 T14)", () => {
+  it("--auto writes tasks/<slug>-paused.md and returns 0 exit", async () => {
+    writeYaml(join(stateRoot, "decisions", "X", "intent.md"), {
+      task_id: "X",
+      level: "L1",
+      title: "Auto Write Test",
+    })
+    const fakeProbe: GitProbe = {
+      branchAheadBehind: async () => ({ branch: "main" }),
+      statusPorcelain: async () => [],
+      recentCommits: async () => [],
+    }
+    const result = await runHandoff({
+      auto: true,
+      stateRoot,
+      repoRoot,
+      gitProbe: fakeProbe,
+      now: new Date("2026-05-26T18:00:00Z"),
+      sgcVersion: "1.13.0",
+    })
+    expect(result.exitCode).toBe(0)
+    expect(result.writtenPath).toMatch(/2026-05-26-auto-write-test-paused\.md$/)
+    expect(existsSync(result.writtenPath!)).toBe(true)
+  })
+
+  it("--print <slug> prints existing file to stdout buffer (exit 0)", async () => {
+    const slug = "2026-05-26-test-print"
+    const content = "test file body"
+    await writeHandoffMarkdown(repoRoot, slug, content)
+    let captured = ""
+    const result = await runHandoff({
+      print: slug,
+      repoRoot,
+      stdoutWrite: (s) => {
+        captured += s
+      },
+    })
+    expect(result.exitCode).toBe(0)
+    expect(captured).toBe(content)
+  })
+
+  it("--print <missing-slug> returns exit 1", async () => {
+    const result = await runHandoff({ print: "nonexistent", repoRoot })
+    expect(result.exitCode).toBe(1)
+  })
+
+  it("no flag returns exit 1 with usage message", async () => {
+    let stderr = ""
+    const result = await runHandoff({
+      repoRoot,
+      stderrWrite: (s) => {
+        stderr += s
+      },
+    })
+    expect(result.exitCode).toBe(1)
+    expect(stderr).toContain("usage")
   })
 })

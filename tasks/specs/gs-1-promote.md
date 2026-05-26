@@ -1,6 +1,6 @@
 ---
 status: implemented
-revision: 2
+revision: 3
 task_id: gs-1-promote
 feature_id: f8-promote
 parent_intent: (none — GS-1 arc is sibling to CE-N, outside any compound parent intent)
@@ -360,6 +360,85 @@ carry across unchanged.
   in GS-1.x (not blocking this spec).
 
 ## Change log
+
+- 2026-05-25 r3 — **end-to-end loop closed against real data**. Post-
+  v1.12.0 ship + CE-3 self-watch confirmed green for fd5227b. First
+  live promote dogfood (`sgc compound --from-canary
+  2026-05-25-c29f021-smoke_install` against the real PATH-shadow capture
+  from v1.11.0 dogfood, after operator edited `regression_seed:` to
+  the actual safeguard) **caught a dispatcher robustness gap**:
+  ```
+  ERROR  undefined is not an object (evaluating 'text.normalize')
+    at tokenize (src/dispatcher/dedup.ts:46:22)
+    at similarity / findBestMatch / compoundRelatedHeuristic / promoteCanaryFailure
+  ```
+  Root cause: 2 of 3 legacy `.sgc/solutions/runtime/*.md` entries from
+  pre-CE-1 phases carry minimal frontmatter (intent + category only —
+  missing schema-required signature/tags/problem). `tokenize(undefined)`
+  crashes at `.normalize()`. NOT GS-1.1-specific — same crash hits
+  `runCompound` + `runCompoundPromote`; dispatcher gap that escaped
+  detection because no compound iteration had hit those entries since
+  they were authored. Identical-shape to CE-3.1 (v1.6.1) + GS-1.1
+  (v1.11.1) dogfood-found bugfix pattern — **third dogfood-found bug
+  in the GS-1 arc; validates dogfood-as-test paradigm a third time**.
+
+  **GS-1.2 fix shipped as v1.12.1** (commits f95fe5b fix + 879cc86
+  chore release, CE-3 self-watch green for 879cc86): defensive guards
+  in `src/dispatcher/dedup.ts` — `tokenize` coerces non-string → empty
+  Set; `similarity` coalesces tags → []. Behavior on malformed entries:
+  similarity degrades to "no overlap" (score 0) rather than throwing.
+  Tests +8 in new `tests/dispatcher/dedup.test.ts`. Dispatcher CI gate
+  765 → 773.
+
+  **Post-fix live re-dogfood SUCCESS**:
+  ```
+  $ sgc compound --from-canary 2026-05-25-c29f021-smoke_install
+  promote: action=new_entry
+  solution=.sgc/solutions/other/canary-c29f021-smoke_install.md
+  canary=.sgc/canaries/2026-05-25-c29f021-smoke_install.md  [exit=0]
+  ```
+
+  **Solution shape verified** (`.sgc/solutions/other/canary-c29f021-smoke_install.md`):
+  - `prevention:` = operator-edited regression_seed verbatim (the npx
+    PATH-shadow safeguard from [[feedback_npx_path_shadow]] memory)
+  - `solution:` = templated "Canary failure of @sdsrs/sgc@1.11.0 at
+    phase smoke_install on c29f021..."
+  - `category: other` (heuristic-derived)
+  - `source_task_ids: [94913CB45F9D4C3E906B3C2C8E]` (active CE parent
+    intent picked up)
+  - `related_entries:` 3 refs (legacy entries safely scored 0 via
+    new dedup guard; harmless audit trail)
+  - `confidence: provisional`
+  - Canary file mutation: `promoted_to: other/canary-c29f021-smoke_install`
+    stamped (idempotency guard + audit anchor)
+
+  **GS-1 → GS-1-promote → CE-1 hand-off VERIFIED end-to-end against
+  real data**: `extractPreventions` on the next L3 `sgc plan` for
+  category `other` will discover this prevention (matching the
+  `prevention:` field non-empty) and feed it into
+  `planner.adversarial` as a prior-prevention. Identical-shape closure
+  to CE-3 → CE-3-promote → CE-1 (v1.7.0) — both arcs now end-to-end
+  closed.
+
+  All 9 spec success criteria met:
+  - #1 module + types ✓ (canary-promote.ts)
+  - #2 runCanaryPromote ✓ (commands/compound.ts)
+  - #3 --from-canary arg ✓ (sgc.ts)
+  - #4 ≥7 unit tests ✓ (9 cases)
+  - #5 zero touch on CE-3-promote / GS-1 capture / invariant paths ✓
+  - #6 CHANGELOG ## Unreleased → v1.12.0 (then v1.12.1 dedup fix) ✓
+  - #7 parent spec r5 entry ✓
+  - #8 v1.12.0 release shipped + v1.12.1 dogfood-fix shipped ✓
+  - #9 dogfood green ✓ (above)
+
+  Open Question carryover: cross-record dedup CE-3 vs GS-1 records on
+  same SHA (OQ #3) remains as documented — operator chooses
+  differentiate / --force per case.
+
+  **GS-1 arc fully closed**. v1.11.0 (capture) → v1.11.1 (PATH-shadow
+  fix) → v1.12.0 (promote) → v1.12.1 (dedup robustness). 4 ships,
+  3 dogfood-found bugs, all 3 fixed inside the same session. Spec
+  status: implemented r3.
 
 - 2026-05-25 r2 — status → implemented. Shipped in a single in-session
   commit batch (un-pushed, awaiting separate ship AUTH for v1.12.0

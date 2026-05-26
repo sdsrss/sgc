@@ -14,8 +14,9 @@
 //   - Bun.spawn shell-out                     (ship-failure.ts pattern)
 //   - dedup-by-filesystem-stat                (CE-3 ship-failures/)
 
-import { mkdir, stat, writeFile } from "node:fs/promises"
-import { resolve } from "node:path"
+import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises"
+import { tmpdir as osTmpdir } from "node:os"
+import { join, resolve } from "node:path"
 import { resolveStateRoot, serializeFrontmatter } from "./state"
 
 export type CanaryPhase = "npm_propagation" | "smoke_install" | "health_url"
@@ -29,16 +30,32 @@ export interface CanaryOptions {
   healthUrl?: string
   /** Optional body regex; on a 2xx response, body must match. */
   healthRegex?: string
+  /**
+   * Bin name to invoke during smoke_install. Defaults to the package
+   * name's last segment (e.g. `@sdsrs/sgc` → `sgc`). GS-1.1 fix: needed
+   * because `npx --yes <pkg>@<ver>` (and `--package=` form) silently
+   * shadow-resolves <bin> from PATH, bypassing the requested @version.
+   * Production smoke_install installs into an isolated prefix and
+   * invokes that install's own `.bin/<binName>` instead.
+   */
+  binName?: string
   /** Polling interval seconds; clamped to [MIN_INTERVAL_SEC, MAX_INTERVAL_SEC]. */
   intervalSec?: number
   /** Total timeout seconds for npm_propagation; clamped to [MIN, MAX]. */
   timeoutSec?: number
   /** Test hook: inject a fake `npm view <pkg> dist-tags.latest --json`. */
   npmView?: (pkg: string) => Promise<string>
-  /** Test hook: inject a fake `npx --yes <pkg>@<ver> --version`. */
+  /**
+   * Test hook: inject a fake smoke installer. Production default does
+   * isolated `npm install --prefix <tmpdir>` + invokes
+   * `<tmpdir>/node_modules/.bin/<binName> --version` (GS-1.1 fix —
+   * field name kept for back-compat though implementation no longer
+   * uses npx).
+   */
   npxSmoke?: (
     pkg: string,
     ver: string,
+    bin?: string,
   ) => Promise<{ exitCode: number; stdout: string; stderr: string }>
   /** Test hook: inject a fake `fetch` for the health-url phase. */
   httpFetch?: (url: string) => Promise<{ status: number; body: string }>
@@ -124,20 +141,73 @@ async function defaultNpmView(pkg: string): Promise<string> {
   return stdout
 }
 
+export function deriveBinName(pkg: string): string {
+  // `@scope/foo` → `foo` (typical for scoped packages whose bin name
+  // matches the package's unscoped basename). Unscoped → identity.
+  if (pkg.startsWith("@")) {
+    const tail = pkg.split("/")[1]
+    return tail ?? pkg
+  }
+  return pkg
+}
+
 async function defaultNpxSmoke(
   pkg: string,
   ver: string,
+  bin?: string,
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-  const proc = Bun.spawn(
-    ["npx", "--yes", `${pkg}@${ver}`, "--version"],
-    { stdout: "pipe", stderr: "pipe" },
-  )
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ])
-  return { stdout, stderr, exitCode }
+  // GS-1.1 dogfood-found fix (v1.11.1, 2026-05-25): `npx --yes
+  // <pkg>@<ver>` (and `npx --package=<pkg>@<ver> -- <bin>`) silently
+  // resolve <bin> from PATH first, bypassing the requested @version.
+  // Self-dogfood of v1.11.0 returned `1.3.0` (the globally-installed
+  // sgc on this machine) instead of `1.11.0`. Fix: install into an
+  // isolated prefix then invoke the install's own `.bin/<name>`,
+  // which cannot resolve via PATH.
+  const dir = await mkdtemp(join(osTmpdir(), "sgc-canary-smoke-"))
+  try {
+    const install = Bun.spawn(
+      [
+        "npm",
+        "install",
+        "--prefix",
+        dir,
+        "--no-save",
+        "--silent",
+        `${pkg}@${ver}`,
+      ],
+      {
+        stdout: "pipe",
+        stderr: "pipe",
+        env: { ...process.env, PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1" },
+      },
+    )
+    const [installStdout, installStderr, installExit] = await Promise.all([
+      new Response(install.stdout).text(),
+      new Response(install.stderr).text(),
+      install.exited,
+    ])
+    if (installExit !== 0) {
+      return {
+        exitCode: installExit,
+        stdout: installStdout,
+        stderr: `npm install ${pkg}@${ver} failed: ${installStderr}`,
+      }
+    }
+    const binName = bin ?? deriveBinName(pkg)
+    const binPath = resolve(dir, "node_modules", ".bin", binName)
+    const run = Bun.spawn([binPath, "--version"], {
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(run.stdout).text(),
+      new Response(run.stderr).text(),
+      run.exited,
+    ])
+    return { stdout, stderr, exitCode }
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
 }
 
 async function defaultHttpFetch(
@@ -226,7 +296,11 @@ export async function runCanaryChecks(
         await sleep(intervalMs)
       }
     } else if (phase === "smoke_install") {
-      const res = await npxSmoke(opts.packageName, opts.expectedVersion)
+      const res = await npxSmoke(
+        opts.packageName,
+        opts.expectedVersion,
+        opts.binName,
+      )
       if (res.exitCode !== 0) {
         const out = truncate(
           res.stderr || res.stdout || `npx exited ${res.exitCode}`,

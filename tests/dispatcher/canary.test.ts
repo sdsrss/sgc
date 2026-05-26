@@ -13,6 +13,7 @@ import { join } from "node:path"
 import {
   captureCanaryFailure,
   type CanaryFailure,
+  deriveBinName,
   PHASE_OUTPUT_MAX_CHARS,
   runCanaryChecks,
   TRUNCATION_SENTINEL,
@@ -136,6 +137,41 @@ describe("runCanaryChecks smoke_install (GS-1 T3)", () => {
     expect(result.status).toBe("failure")
     expect(result.failedPhase).toBe("smoke_install")
     expect(result.phaseOutputs.smoke_install).toContain("command not found")
+  })
+
+  it("passes binName through to npxSmoke (GS-1.1 DOG regression — PATH-shadow fix)", async () => {
+    // Reproducer for the v1.11.0 dogfood bug: `npx --yes <pkg>@<ver>`
+    // (and `--package=` form) shadow-resolves <bin> from PATH first,
+    // bypassing the requested @version. Self-dogfood of v1.11.0
+    // returned `1.3.0` (globally-installed sgc) instead of `1.11.0`.
+    // Fix: production default does isolated `npm install --prefix
+    // <tmpdir>` + invokes `<tmpdir>/node_modules/.bin/<binName>`.
+    // The injection-hook contract is: third arg `bin` is passed
+    // through verbatim from `opts.binName` (allowing CLI to override
+    // the default derivation when bin name diverges from package name).
+    const clock = makeClock(0)
+    let observedBin: string | undefined
+    const result = await runCanaryChecks({
+      packageName: "@sdsrs/sgc",
+      expectedVersion: "1.11.0",
+      binName: "sgc-custom",
+      phases: ["smoke_install"],
+      npxSmoke: async (_pkg, _ver, bin) => {
+        observedBin = bin
+        return { exitCode: 0, stdout: "1.11.0\n", stderr: "" }
+      },
+      now: clock.now,
+      sleep: clock.sleep,
+    })
+    expect(result.status).toBe("success")
+    expect(observedBin).toBe("sgc-custom")
+  })
+
+  it("deriveBinName: @scope/foo → foo; bare foo → foo (GS-1.1 default)", () => {
+    expect(deriveBinName("@sdsrs/sgc")).toBe("sgc")
+    expect(deriveBinName("@scope/my-tool")).toBe("my-tool")
+    expect(deriveBinName("citty")).toBe("citty")
+    expect(deriveBinName("npm")).toBe("npm")
   })
 
   it("returns failure when npx exits 0 but stdout omits expected version", async () => {

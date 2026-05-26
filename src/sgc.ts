@@ -626,6 +626,12 @@ const canary = defineCommand({
       required: false,
       description: "On a 2xx response, body must match this regex.",
     },
+    bin: {
+      type: "string",
+      required: false,
+      description:
+        "Bin name to invoke during smoke_install (default: derived from package name; @scope/foo → foo)",
+    },
     interval: {
       type: "string",
       required: false,
@@ -654,6 +660,7 @@ const canary = defineCommand({
       phases: parsePhases(args.phases as string | undefined),
       healthUrl: args["health-url"] as string | undefined,
       healthRegex: args["health-regex"] as string | undefined,
+      binName: args.bin as string | undefined,
       intervalSec: parseSec("interval"),
       timeoutSec: parseSec("timeout"),
     })

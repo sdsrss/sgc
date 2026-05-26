@@ -415,6 +415,32 @@ SPINE: spec → plan → implement → dogfood → main-direct → tag → publi
 
 ## Change log
 
+- 2026-05-25 r3 — GS-1.1 dogfood-found bugfix lands as **v1.11.1**.
+  v1.11.0's first self-dogfood (`sgc canary --package @sdsrs/sgc
+  --version 1.11.0` from a fresh source checkout against the
+  just-published npm artifact) returned `canary failure: phase
+  smoke_install … exitCode=0 but stdout missing 1.11.0;
+  stdout=1.3.0`. Root cause: `npx --yes <pkg>@<ver>` (and
+  `--package=<pkg>@<ver> -- <bin>`) shadow-resolves `<bin>` from
+  PATH, so the globally-installed `sgc` at
+  `/home/sds/.nvm/versions/node/v24.11.1/bin/sgc` (at 1.3.0)
+  ran instead of the requested 1.11.0. Identical-shape to CE-3.1's
+  DOG-1 (v1.6.0 → v1.6.1). **Fix**: `defaultNpxSmoke` rewritten
+  to install via `npm install --prefix <mkdtemp> --no-save
+  --silent <pkg>@<ver>` and invoke `<tmp>/node_modules/.bin/<bin>`
+  directly. Added `binName?: string` to `CanaryOptions` +
+  `--bin <name>` CLI flag + `deriveBinName(pkg)` helper export
+  (`@scope/foo → foo`). `npxSmoke` injection contract extended
+  additively `(pkg, ver) → (pkg, ver, bin?)`. Dispatcher CI gate
+  754 → 756 (+2 unit tests; sgc-cli `canary --help` extends existing
+  test to assert the new `--bin` flag — no count delta there). Spec entries
+  unchanged (Success criterion #1 hook signature additive; #4 test
+  count target was ≥14 — now 16 unit). The validation thesis holds:
+  GS-1 caught its own first real regression, exactly as designed.
+  Live dogfood evidence post-v1.11.1 ship will land as r4 update
+  upon `sgc canary --version 1.11.1` returning
+  `canary green for @sdsrs/sgc@1.11.1; no capture.` exit 0.
+
 - 2026-05-25 r2 — status → implemented. Shipped in a single in-session
   commit batch (un-pushed, awaiting separate ship AUTH for v1.11.0
   release per [[project_sgc_ship_workflow]]):

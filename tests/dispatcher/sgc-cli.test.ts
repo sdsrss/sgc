@@ -54,7 +54,7 @@ describe("sgc CLI smoke", () => {
     }
   })
 
-  test("canary --help shows all 7 flags (GS-1)", async () => {
+  test("canary --help shows all 8 flags incl. --bin (GS-1 + GS-1.1 PATH-shadow fix)", async () => {
     const { stdout, exitCode } = await runSgc(["canary", "--help"])
     expect(exitCode).toBe(0)
     for (const flag of [
@@ -63,6 +63,7 @@ describe("sgc CLI smoke", () => {
       "--phases",
       "--health-url",
       "--health-regex",
+      "--bin",
       "--interval",
       "--timeout",
     ]) {

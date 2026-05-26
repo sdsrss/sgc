@@ -26,6 +26,7 @@ export interface CanaryCliOptions {
   phases?: CanaryPhase[]
   healthUrl?: string
   healthRegex?: string
+  binName?: string
   intervalSec?: number
   timeoutSec?: number
 }
@@ -103,6 +104,7 @@ export async function runCanary(opts: CanaryCliOptions = {}): Promise<void> {
     phases,
     healthUrl: opts.healthUrl,
     healthRegex: opts.healthRegex,
+    binName: opts.binName,
     intervalSec: opts.intervalSec,
     timeoutSec: opts.timeoutSec,
   })

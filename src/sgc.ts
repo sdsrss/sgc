@@ -686,6 +686,38 @@ const canary = defineCommand({
   },
 })
 
+// ── handoff (GS-2 f9) ─────────────────────────────────────────────────────
+
+const handoff = defineCommand({
+  meta: {
+    name: "handoff",
+    description:
+      "GS-2: session-state checkpoint capture — scans .sgc/ state across 6 namespaces, derives Iron Law #2 verify command, writes tasks/<slug>-paused.md.",
+  },
+  args: {
+    auto: {
+      type: "boolean",
+      required: false,
+      description:
+        "Auto-detect slug + state from mtime-newest .sgc/decisions/<id>/intent.md and scan all 6 namespaces.",
+    },
+    print: {
+      type: "string",
+      required: false,
+      description: "Print existing tasks/<slug>-paused.md to stdout (exit 1 if missing).",
+    },
+  },
+  async run({ args }) {
+    const { runHandoff } = await import("./commands/handoff")
+    const result = await runHandoff({
+      auto: args.auto as boolean | undefined,
+      print: args.print as string | undefined,
+      sgcVersion: packageJson.version,
+    })
+    process.exit(result.exitCode)
+  },
+})
+
 // ── loop (CE-5 f6) ────────────────────────────────────────────────────────
 
 const loop = defineCommand({
@@ -767,6 +799,7 @@ const main = defineCommand({
     loop: () => loop,
     "watch-ci-failure": () => watchCiFailure,
     canary: () => canary,
+    handoff: () => handoff,
     status: () => status,
     "agent-loop": () => agentLoop,
     tail: () => tail,

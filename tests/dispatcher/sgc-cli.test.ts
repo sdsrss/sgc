@@ -242,3 +242,16 @@ describe("sgc reflect (CE-2 f3)", () => {
     expect(reports[0].candidates[0].discussed).toBe(false)
   })
 })
+
+describe("sgc handoff CLI help (GS-2 T15)", () => {
+  test("sgc --help lists handoff subcommand", async () => {
+    const { stdout } = await runSgc(["--help"])
+    expect(stdout).toContain("handoff")
+  })
+
+  test("sgc handoff --help shows --auto and --print flags", async () => {
+    const { stdout } = await runSgc(["handoff", "--help"])
+    expect(stdout).toContain("--auto")
+    expect(stdout).toContain("--print")
+  })
+})

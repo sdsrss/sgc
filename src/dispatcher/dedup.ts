@@ -43,6 +43,18 @@ const STOPWORDS = new Set([
 const SEGMENTER = new Intl.Segmenter([], { granularity: "word" })
 
 export function tokenize(text: string): Set<string> {
+  // GS-1.2 live-dogfood fix (v1.12.1, 2026-05-25): operator-local
+  // `.sgc/solutions/*.md` corpora may carry legacy hand-written entries
+  // missing schema-required fields (e.g. only `intent:` + `category:`
+  // frontmatter from pre-CE-1 phases). When findBestMatch iterates such
+  // entries, `tokenize(existing.problem)` receives undefined and crashes
+  // at `.normalize()`. Coerce non-string input to an empty Set so
+  // similarity() degrades to "no overlap" rather than throwing — keeps
+  // the entire compound/promote pipeline operational against partially
+  // malformed corpora. Caught by GS-1.1 live promote dogfood of
+  // .sgc/canaries/2026-05-25-c29f021-smoke_install.md against the
+  // local solutions/ corpus (2 of 3 entries are legacy minimal-frontmatter).
+  if (typeof text !== "string" || text.length === 0) return new Set()
   const normalized = text.normalize("NFC").toLowerCase()
   const tokens = new Set<string>()
   for (const seg of SEGMENTER.segment(normalized)) {
@@ -87,7 +99,14 @@ export function similarity(
   existing: SimilarityCandidate,
 ): number {
   if (candidate.signature && candidate.signature === existing.signature) return 1
-  const tagScore = jaccard(new Set(candidate.tags), new Set(existing.tags))
+  // GS-1.2 live-dogfood fix: defensive against legacy corpus entries
+  // missing the `tags:` field (TypeScript declares string[]; runtime
+  // shape from minimal-frontmatter files yields undefined). tokenize()
+  // already coerces undefined → empty Set for the `problem` field; do
+  // the same shape for tags here.
+  const candTags = Array.isArray(candidate.tags) ? candidate.tags : []
+  const exTags = Array.isArray(existing.tags) ? existing.tags : []
+  const tagScore = jaccard(new Set(candTags), new Set(exTags))
   const probScore = jaccard(tokenize(candidate.problem), tokenize(existing.problem))
   return (tagScore + probScore) / 2
 }

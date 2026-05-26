@@ -1,5 +1,37 @@
 # Changelog
 
+## v1.12.1 — 2026-05-25 — GS-1.2 dispatcher dedup robustness (GS-1.1 live-dogfood DOG-2)
+
+### Fixed (`tokenize`/`similarity` crash on legacy minimal-frontmatter solutions)
+
+- **GS-1.1 live promote dogfood caught a dispatcher robustness gap.** Running `sgc compound --from-canary 2026-05-25-c29f021-smoke_install` (the v1.11.0 PATH-shadow capture, after operator edited `regression_seed:`) against this repo's own `.sgc/solutions/` corpus (3 existing entries) crashed: `ERROR  undefined is not an object (evaluating 'text.normalize')` at `tokenize` → `similarity` → `findBestMatch` → `compoundRelatedHeuristic` → `promoteCanaryFailure`. Root cause: 2 of the 3 legacy solution files (`runtime/review-specialist-fanout-append-only-2026-04-26.md` + `runtime/review-strip-prior-art-back-channel-2026-04-29.md` from pre-CE-1 phases) have minimal frontmatter (`intent:` + `category:` only) — missing `signature` / `tags` / `problem` / `solution` / `prevention`. When `findBestMatch` iterates, `tokenize(existing.problem)` receives `undefined` and crashes at `.normalize()`. TypeScript declared `problem: string` but runtime data violated the type. **NOT GS-1.1-specific** — the same crash hits `runCompound` + `runCompoundPromote` against this corpus; the gap had escaped detection because no `compound` run had iterated those entries since they were authored.
+- **Identical-shape to CE-3.1 (v1.6.1) and GS-1.1 (v1.11.1) dogfood pattern**: the new tool catches a real bug on first use against real-world state. Validates the dogfood-as-test paradigm a third time.
+
+### Changed (defensive guards in `src/dispatcher/dedup.ts`)
+
+- `tokenize(text)`: coerce non-string input to empty `Set` before `text.normalize("NFC")`. Inline comment cites the live-dogfood reproducer.
+- `similarity()`: coerce `candidate.tags` and `existing.tags` to `[]` before `new Set()` (symmetric defensive shape for the other TypeScript-declared-as-`string[]`-but-runtime-may-be-`undefined` field).
+- Behavior on malformed entries: similarity degrades to "no overlap" (score 0) rather than throwing. signature-match path still returns 1.0 even when other fields malformed. Pipeline stays operational; legacy entries get scored deterministically as non-matches and surface in `related_entries:` as scored-0 refs (harmless).
+
+### Tests
+
+- 8 new unit tests in new `tests/dispatcher/dedup.test.ts`: `tokenize` (undefined / null / empty string → empty Set + well-formed input no behavior regression) / `similarity` (existing.problem undefined / candidate.problem undefined → no throw; signature match still wins over malformed shape) / `findBestMatch` (mixed-quality corpus iterates without throwing).
+- Dispatcher CI gate **765 → 773** (+8). 2017 expect() calls; ~122s wall.
+
+### Live dogfood verification post-fix
+
+```
+$ sgc compound --from-canary 2026-05-25-c29f021-smoke_install
+promote: action=new_entry solution=.../solutions/other/canary-c29f021-smoke_install.md canary=.../.sgc/canaries/2026-05-25-c29f021-smoke_install.md
+[exit=0]
+```
+
+Solution landed at `.sgc/solutions/other/canary-c29f021-smoke_install.md` with `prevention:` = operator-edited `regression_seed:` verbatim (the npx PATH-shadow safeguard from [[feedback_npx_path_shadow]] memory). Canary file gained `promoted_to: other/canary-c29f021-smoke_install`. `related_entries:` lists all 3 existing solutions (legacy entries safely scored 0 via the new dedup guard). **GS-1 → GS-1-promote → CE-1 hand-off verified end-to-end against real data** — `extractPreventions` on the next L3 `sgc plan` for category `other` will discover this prevention and feed it into `planner.adversarial`.
+
+### Compatibility
+
+- Patch release — no API change, no schema change, no migration. Existing operator state unchanged. Pure defensive hardening of an already-public function contract (TypeScript types were correct; the fix protects against runtime data that violates the type).
+
 ## v1.12.0 — 2026-05-25 — GS-1.1 promote helper `sgc compound --from-canary <slug>` (closes GS-1 OQ #4)
 
 ### Added (GS-1.1: canary-failure → solutions/ promote bridge)

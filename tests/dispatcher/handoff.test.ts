@@ -400,3 +400,79 @@ describe("gatherUnpromotedCaptures (GS-2 T8)", () => {
     expect(result).toEqual([])
   })
 })
+
+describe("gatherUnclosedSpawns (GS-2 T9)", () => {
+  it("pairs spawn.start with spawn.end by spawn_id; surfaces unclosed", async () => {
+    const eventsPath = join(stateRoot, "progress", "events.ndjson")
+    mkdirSync(join(stateRoot, "progress"), { recursive: true })
+    const lines = [
+      JSON.stringify({
+        schema_version: 1,
+        ts: "2026-05-26T17:50:00Z",
+        spawn_id: "A",
+        agent: "planner.eng",
+        event_type: "spawn.start",
+        level: "info",
+        payload: {},
+      }),
+      JSON.stringify({
+        schema_version: 1,
+        ts: "2026-05-26T17:50:30Z",
+        spawn_id: "A",
+        agent: "planner.eng",
+        event_type: "spawn.end",
+        level: "info",
+        payload: {},
+      }),
+      JSON.stringify({
+        schema_version: 1,
+        ts: "2026-05-26T17:55:00Z",
+        spawn_id: "B",
+        agent: "compound.related",
+        event_type: "spawn.start",
+        level: "info",
+        payload: {},
+      }),
+      JSON.stringify({
+        schema_version: 1,
+        ts: "2026-05-26T17:58:00Z",
+        spawn_id: "C",
+        agent: "qa.browser",
+        event_type: "spawn.start",
+        level: "info",
+        payload: {},
+      }),
+    ]
+    writeFileSync(eventsPath, lines.join("\n") + "\n")
+    const result = await gatherUnclosedSpawns(stateRoot, 500)
+    const ids = result.map((s) => s.spawn_id).sort()
+    expect(ids).toEqual(["B", "C"])
+    expect(result.find((s) => s.spawn_id === "B")?.agent).toBe("compound.related")
+  })
+
+  it("returns empty array when events.ndjson absent", async () => {
+    const result = await gatherUnclosedSpawns(stateRoot, 500)
+    expect(result).toEqual([])
+  })
+
+  it("skips malformed NDJSON lines, parses valid ones", async () => {
+    const eventsPath = join(stateRoot, "progress", "events.ndjson")
+    mkdirSync(join(stateRoot, "progress"), { recursive: true })
+    const lines = [
+      "not-json-at-all{{{",
+      JSON.stringify({
+        schema_version: 1,
+        ts: "2026-05-26T17:50:00Z",
+        spawn_id: "D",
+        agent: "x.y",
+        event_type: "spawn.start",
+        level: "info",
+        payload: {},
+      }),
+    ]
+    writeFileSync(eventsPath, lines.join("\n") + "\n")
+    const result = await gatherUnclosedSpawns(stateRoot, 500)
+    expect(result.length).toBe(1)
+    expect(result[0]!.spawn_id).toBe("D")
+  })
+})

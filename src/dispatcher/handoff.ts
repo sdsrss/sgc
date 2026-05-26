@@ -312,7 +312,55 @@ export async function gatherUnclosedSpawns(
   stateRoot: string,
   tailLines: number,
 ): Promise<UnclosedSpawn[]> {
-  throw new Error("not implemented")
+  const eventsPath = join(stateRoot, "progress", "events.ndjson")
+  if (!existsSync(eventsPath)) return []
+
+  try {
+    const text = await fs.readFile(eventsPath, "utf-8")
+    const allLines = text.split("\n").filter((l) => l.length > 0)
+    const lines = allLines.slice(-tailLines)
+
+    type StartEvent = { spawn_id: string; agent: string; ts: string }
+    const starts = new Map<string, StartEvent>()
+    const endedIds = new Set<string>()
+
+    for (const line of lines) {
+      let evt: {
+        event_type?: unknown
+        spawn_id?: unknown
+        agent?: unknown
+        ts?: unknown
+      }
+      try {
+        evt = JSON.parse(line)
+      } catch {
+        continue
+      }
+      if (typeof evt.spawn_id !== "string" || typeof evt.event_type !== "string") continue
+      if (evt.event_type === "spawn.start") {
+        if (typeof evt.agent === "string" && typeof evt.ts === "string") {
+          starts.set(evt.spawn_id, {
+            spawn_id: evt.spawn_id,
+            agent: evt.agent,
+            ts: evt.ts,
+          })
+        }
+      } else if (evt.event_type === "spawn.end") {
+        endedIds.add(evt.spawn_id)
+      }
+    }
+
+    const unclosed: UnclosedSpawn[] = []
+    for (const [id, s] of starts) {
+      if (!endedIds.has(id)) {
+        unclosed.push({ spawn_id: id, agent: s.agent, start_ts: s.ts })
+      }
+    }
+    unclosed.sort((a, b) => b.start_ts.localeCompare(a.start_ts))
+    return unclosed
+  } catch {
+    return []
+  }
 }
 
 export async function gatherGit(probe?: GitProbe): Promise<GitStatus> {

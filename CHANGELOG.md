@@ -1,5 +1,34 @@
 # Changelog
 
+## v1.11.1 — 2026-05-25 — GS-1.1 dogfood-found bugfix (DOG-1: PATH-shadowed npx)
+
+### Fixed (smoke_install PATH shadow — caught by own first dogfood)
+
+- **GS-1 v1.11.0's self-dogfood caught its own bug.** Running `sgc canary --package @sdsrs/sgc --version 1.11.0` against the freshly-published v1.11.0 returned `canary failure: phase smoke_install … exitCode=0 but stdout missing 1.11.0; stdout=1.3.0`. Root cause: `npx --yes <pkg>@<ver>` (AND the `--package=<pkg>@<ver> -- <bin>` form) silently shadow-resolves `<bin>` from PATH first, bypassing the requested `@version` — when a globally-installed `sgc` (here at 1.3.0 via `/home/sds/.nvm/.../bin/sgc`) is on PATH, both npx forms run that binary instead of fetching v1.11.0 from the registry. This is identical-shape to CE-3.1's DOG-1 fix (v1.6.0 → v1.6.1): the new tool catches its own first regression on first use. **Fix**: `defaultNpxSmoke` rewritten to install into an isolated `mkdtemp` prefix via `npm install --prefix <tmp> --no-save --silent <pkg>@<ver>` and then invoke `<tmp>/node_modules/.bin/<bin>` directly — bypassing PATH lookup entirely.
+
+### Added
+
+- New `binName?: string` field on `CanaryOptions` and `CanaryCliOptions` (CLI flag `--bin <name>`). Defaults to the package name's last segment via `deriveBinName(pkg)` helper (`@sdsrs/sgc` → `sgc`; bare `npm` → `npm`). Lets operators override when bin name diverges from the unscoped package basename.
+- New export `deriveBinName(pkg: string): string` from `src/dispatcher/canary.ts` so the CLI handler can derive defaults without re-implementing the rule.
+
+### Changed
+
+- `defaultNpxSmoke` no longer calls `npx`. Renames intentionally avoided — field stays `npxSmoke` on `CanaryOptions` for back-compat with the v1.11.0 test-injection contract (added a comment noting the field name lags the implementation).
+- `npxSmoke` injection signature extended additively: `(pkg, ver) → ...` is now `(pkg, ver, bin?) → ...`. Existing v1.11.0 test mocks that ignore the third arg continue to work; new tests can capture it.
+- `runCanaryChecks` propagates `opts.binName` as the third argument when calling `npxSmoke` (was previously absent — fix wires it through).
+
+### Tests
+
+- 2 new unit tests in `tests/dispatcher/canary.test.ts`: (a) binName pass-through from `runCanaryChecks` → `npxSmoke` injection (DOG regression); (b) `deriveBinName` covers `@scope/foo → foo` + bare-name identity for 4 cases.
+- `tests/dispatcher/sgc-cli.test.ts` `canary --help` expanded 7 → 8 flags (adds `--bin`).
+- Dispatcher CI gate 754 → 756 (+2 unit tests; sgc-cli `canary --help` extends existing test to assert the new `--bin` flag — no test-count delta there).
+
+### Compatibility
+
+- API additive — `binName` is optional everywhere; `npxSmoke` 3rd arg is optional. v1.11.0 consumers see no breakage.
+- `npm install` (per-smoke-invocation) adds ~5-10s wall to phase-2 vs the broken v1.11.0 `npx` form (which was instant but wrong). Accepted: correctness > speed on a once-per-release path.
+- Spec `tasks/specs/gs-1-canary.md` change log adds r3 entry documenting the dogfood-found bug + fix.
+
 ## v1.11.0 — 2026-05-25 — GS-1 `sgc canary` post-publish health check (first ship of GS-N absorb arc)
 
 ### Added (GS-1: `sgc canary` heuristic post-publish check)

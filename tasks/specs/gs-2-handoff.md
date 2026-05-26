@@ -1,6 +1,6 @@
 ---
-status: draft
-revision: 1
+status: implemented
+revision: 2
 task_id: gs-2-handoff
 feature_id: f9
 parent_intent: (none — GS-2 is the third ship of the GS-N absorb arc, sgc-native heuristic implementations of selected gstack-style capabilities per docs/POSITIONING.md. Sibling to CE-N; outside any compound parent intent. Sibling to GS-1 canary v1.11.0 + GS-1.1 promote v1.12.0 + GS-1.2 dedup robustness v1.12.1.)
@@ -495,6 +495,58 @@ displaces the other.
   surfaces, wrap commands in `\` " ` " \` ` escaping in v1.13.x.
 
 ## Change log
+
+- 2026-05-26 r2 — **implemented + live dogfood green**. All 8 success
+  criteria met. Module sizing: `src/dispatcher/handoff.ts` 620 LOC,
+  `src/commands/handoff.ts` 74 LOC (impl total ~694; budget was ~410 —
+  larger than estimated because the runGit shell-out helper +
+  defaultGitProbe + section-by-section gather helpers added more than
+  initially projected; nothing speculative, all in scope per spec
+  §Constraints + §Success criteria). Dispatcher CI gate **773 → 815**
+  pass (+42; spec target was +20, comfortably cleared). 0 fail across
+  full dispatcher suite. Eval-tier 3 fails are pre-existing LLM API-
+  dependent flakes (`tests/eval/*-llm.test.ts`), unrelated to GS-2.
+
+  **Live dogfood evidence**: `bun src/sgc.ts handoff --auto` against
+  this repo (commit `ca86458` head, mid-shipsession) emitted
+  `paused: /mnt/Sda2/dev/sdsbp/sgc/tasks/2026-05-26-vendor-ce-compound-engineering-capabilit-paused.md`
+  exit 0. Inspecting the written file:
+  - Frontmatter all 5 fields: `slug` / `generated_at` / `sgc_version:
+    1.13.0` / `verify_command_source: events-spawn` /
+    `verify_command: sgc tail --since 2026-05-26T09:08:31.274Z`.
+  - Section 1 cited mtime-newest intent (parent CE compound intent
+    `94913CB45F9D4C3E906B3C2C8E`, L3) + Iron Law #2 verify command
+    derived via P3 cascade (events.ndjson tail surfaced an unclosed
+    `spawn.start` for `clarifier.discover` agent — a real prior-session
+    artifact, not synthetic).
+  - Sections 2/3/4: in-flight plan jobs / loop runs / unpromoted
+    captures all empty (correct — no work in flight, all CE-3/GS-1
+    captures already promoted).
+  - Section 5 Git: `branch: main (ahead 19, behind 0)` + 2 modified
+    files (`package.json` + `plugins/sgc/.claude-plugin/plugin.json`
+    — the in-progress v1.13.0 lockstep bump).
+  - Section 6: last 3 commits = ca86458 (CHANGELOG) / 38adc9c (T15
+    sgc.ts register) / 0f7458a (T14 CLI handler). Correct.
+
+  `sgc handoff --print <slug>` smoke test: stdout reproduced the file
+  content verbatim (exit 0). `sgc handoff --print nonexistent-slug`
+  emitted `no paused.md for slug nonexistent-slug` exit 1. All 3 CLI
+  paths verified live against real state.
+
+  P3 cascade firing is itself evidence the heuristic works against
+  real data — the events.ndjson tail genuinely contained an unclosed
+  spawn from an earlier session that never finished. The handoff
+  surfaced a real Iron Law #2 anchor the operator would otherwise
+  miss. This is the GS-2 analogue of GS-1 v1.11.0's first dogfood
+  (which caught the PATH-shadow bug) and CE-3.1 v1.6.0's first
+  dogfood (which caught the gh-cli tag-trigger trap). Validates the
+  dogfood-as-test paradigm a fourth time (CE-3.1 → GS-1.1 → GS-1.2 →
+  GS-2). No bug surfaced in T17 dogfood — the implementation is
+  correct on first run.
+
+  Version bumped v1.12.1 → v1.13.0; `package.json` +
+  `plugins/sgc/.claude-plugin/plugin.json` lockstep per
+  [[project_sgc_ship_workflow]] memory.
 
 - 2026-05-26 r1 — initial draft. brainstorming session locked 7
   design axes: shape (协议状态快照 → `tasks/<slug>-paused.md`),

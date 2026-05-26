@@ -264,8 +264,48 @@ export async function gatherLoopRuns(stateRoot: string): Promise<LoopRunSummary[
   }
 }
 
+type CaptureFM = {
+  promoted_to?: unknown
+  prevention_seed?: unknown
+  regression_seed?: unknown
+}
+
+async function scanCaptureDir(
+  dir: string,
+  kind: "ship-failure" | "canary",
+  seedField: "prevention_seed" | "regression_seed",
+): Promise<UnpromotedCapture[]> {
+  if (!existsSync(dir)) return []
+  try {
+    const entries = await fs.readdir(dir)
+    const out: UnpromotedCapture[] = []
+    for (const name of entries) {
+      if (!name.endsWith(".md")) continue
+      const slug = name.slice(0, -3)
+      try {
+        const text = await fs.readFile(join(dir, name), "utf-8")
+        const fm = parseFrontmatter<CaptureFM>(text).data
+        if (typeof fm.promoted_to === "string" && fm.promoted_to.length > 0) continue
+        const rawSeed = fm[seedField]
+        const seed =
+          typeof rawSeed === "string" ? rawSeed.slice(0, SEED_EXCERPT_MAX) : undefined
+        out.push({ kind, slug, seed_excerpt: seed })
+      } catch {
+        // malformed file — skip
+      }
+    }
+    return out
+  } catch {
+    return []
+  }
+}
+
 export async function gatherUnpromotedCaptures(stateRoot: string): Promise<UnpromotedCapture[]> {
-  throw new Error("not implemented")
+  const [ships, canaries] = await Promise.all([
+    scanCaptureDir(join(stateRoot, "ship-failures"), "ship-failure", "prevention_seed"),
+    scanCaptureDir(join(stateRoot, "canaries"), "canary", "regression_seed"),
+  ])
+  return [...ships, ...canaries]
 }
 
 export async function gatherUnclosedSpawns(

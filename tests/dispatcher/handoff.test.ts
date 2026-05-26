@@ -356,3 +356,47 @@ describe("gatherLoopRuns (GS-2 T7)", () => {
     expect(result).toEqual([])
   })
 })
+
+describe("gatherUnpromotedCaptures (GS-2 T8)", () => {
+  it("combines ship-failures + canaries, filters promoted_to set", async () => {
+    const sfDir = join(stateRoot, "ship-failures")
+    const caDir = join(stateRoot, "canaries")
+    mkdirSync(sfDir, { recursive: true })
+    mkdirSync(caDir, { recursive: true })
+    writeYaml(join(sfDir, "2026-05-22-c2c534a.md"), {
+      kind: "ship-failure",
+      commit_sha: "c2c534a",
+      prevention_seed: "TODO: operator-fill the prevention here",
+    })
+    writeYaml(join(sfDir, "2026-05-20-promoted.md"), {
+      kind: "ship-failure",
+      commit_sha: "promoted",
+      prevention_seed: "operator-edited",
+      promoted_to: "other/promoted-slug",
+    })
+    writeYaml(join(caDir, "2026-05-25-c29f021-smoke_install.md"), {
+      kind: "canary-failure",
+      commit_sha: "c29f021",
+      regression_seed: "TODO: operator-fill canary failed at smoke_install",
+    })
+    writeYaml(join(caDir, "2026-05-24-already-promoted.md"), {
+      kind: "canary-failure",
+      commit_sha: "alreadyp",
+      regression_seed: "operator-edited",
+      promoted_to: "other/already-promoted",
+    })
+    const result = await gatherUnpromotedCaptures(stateRoot)
+    expect(result.length).toBe(2)
+    const sf = result.find((c) => c.kind === "ship-failure")
+    const ca = result.find((c) => c.kind === "canary")
+    expect(sf?.slug).toBe("2026-05-22-c2c534a")
+    expect(sf?.seed_excerpt).toContain("TODO: operator-fill")
+    expect(ca?.slug).toBe("2026-05-25-c29f021-smoke_install")
+    expect(ca?.seed_excerpt).toContain("TODO: operator-fill")
+  })
+
+  it("returns empty array when no capture dirs present", async () => {
+    const result = await gatherUnpromotedCaptures(stateRoot)
+    expect(result).toEqual([])
+  })
+})

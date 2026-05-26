@@ -13,6 +13,7 @@ import { existsSync } from "node:fs"
 import * as fs from "node:fs/promises"
 import { join, dirname } from "node:path"
 import { parseFrontmatter } from "./state"
+import { listJobs } from "./plan-jobs"
 
 export interface ActiveIntentSummary {
   task_id: string
@@ -229,7 +230,20 @@ export async function gatherActiveIntent(
 }
 
 export async function gatherPlanJobs(stateRoot: string): Promise<PlanJobSummary[]> {
-  throw new Error("not implemented")
+  try {
+    const jobs = await listJobs({ stateRoot })
+    return jobs
+      .filter((j) => j.status !== "done")
+      .map((j) => ({
+        job_id: j.job_id,
+        status: j.status,
+        task: j.task.slice(0, TASK_EXCERPT_MAX),
+        pid: j.pid,
+        started_at: j.started_at,
+      }))
+  } catch {
+    return []
+  }
 }
 
 export async function gatherLoopRuns(stateRoot: string): Promise<LoopRunSummary[]> {

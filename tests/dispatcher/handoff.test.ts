@@ -283,3 +283,44 @@ describe("gatherActiveIntent (GS-2 T5)", () => {
     expect(result).toBeUndefined()
   })
 })
+
+describe("gatherPlanJobs (GS-2 T6)", () => {
+  it("maps listJobs output to PlanJobSummary (running + failed visible, done filtered out)", async () => {
+    const jobsDir = join(stateRoot, "plan-jobs")
+    mkdirSync(jobsDir, { recursive: true })
+    writeYaml(join(jobsDir, "R1.md"), {
+      job_id: "R1",
+      task: "task running",
+      started_at: "2026-05-26T18:00:00Z",
+      pid: 99999,
+      log_path: "/tmp/r1.log",
+      status: "running",
+    })
+    writeYaml(join(jobsDir, "D1.md"), {
+      job_id: "D1",
+      task: "task done",
+      started_at: "2026-05-26T17:00:00Z",
+      pid: 1,
+      log_path: "/tmp/d1.log",
+      status: "done",
+    })
+    writeYaml(join(jobsDir, "F1.md"), {
+      job_id: "F1",
+      task: "task failed",
+      started_at: "2026-05-26T16:00:00Z",
+      pid: 2,
+      log_path: "/tmp/f1.log",
+      status: "failed",
+    })
+    const result = await gatherPlanJobs(stateRoot)
+    const ids = result.map((j) => j.job_id).sort()
+    expect(ids).toContain("R1")
+    expect(ids).toContain("F1")
+    expect(ids).not.toContain("D1")
+  })
+
+  it("returns empty array when .sgc/plan-jobs/ absent", async () => {
+    const result = await gatherPlanJobs(stateRoot)
+    expect(result).toEqual([])
+  })
+})

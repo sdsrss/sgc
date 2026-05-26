@@ -1,6 +1,6 @@
 ---
 status: implemented
-revision: 2
+revision: 4
 task_id: gs-1-canary
 feature_id: f8
 parent_intent: (none — GS-1 is the first ship of the GS-N absorb arc, sgc-native heuristic implementations of selected gstack-style capabilities per docs/POSITIONING.md. Not vendored from gstack — original implementation. Sibling arc to CE-N; outside any compound parent intent)
@@ -414,6 +414,28 @@ SPINE: spec → plan → implement → dogfood → main-direct → tag → publi
   consistent chaining. Not blocking GS-1 ship.
 
 ## Change log
+
+- 2026-05-25 r4 — **end-to-end loop closed**. Post-v1.11.1 ship
+  dogfood: `sgc watch-ci-failure` on `e844320` (v1.11.1 release
+  commit) → `CI green for e844320; no capture.` exit 0. Then
+  `bun src/sgc.ts canary --package @sdsrs/sgc --version 1.11.1` →
+  **`canary green for @sdsrs/sgc@1.11.1; no capture.`** exit 0.
+  The PATH-shadow fix is now verified end-to-end against the real
+  npm registry + a freshly-published artifact (not just unit-tested
+  via injection). GS-1 has now caught its own first regression
+  (v1.11.0 dogfood) AND verified its own fix (v1.11.1 dogfood) —
+  the dogfood-as-test paradigm closes. All 8 spec success criteria
+  now met (criterion #7 release shipped; criterion #8 dogfood green
+  on-record). Open Question #4 (GS-1.1 `sgc compound --from-canary`
+  promote helper) remains deferred to sibling spec; OQ #7 (CE-3 +
+  GS-1 chaining semantics — CE-3 `--strict` flag for `&&` chain
+  correctness) opened but not yet pressing. New cross-project lesson
+  captured at [[feedback_npx_path_shadow]] (memory file) — applicable
+  to any future canary-style version-verification tooling. The
+  validation thesis holds: GS-1 v0 design enabled the bug to be
+  caught and the fix to be verified inside one ship window
+  (v1.11.0 → v1.11.1), identical-shape to CE-3 → CE-3.1 (v1.6.0 →
+  v1.6.1).
 
 - 2026-05-25 r3 — GS-1.1 dogfood-found bugfix lands as **v1.11.1**.
   v1.11.0's first self-dogfood (`sgc canary --package @sdsrs/sgc

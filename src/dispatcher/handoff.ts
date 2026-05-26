@@ -186,8 +186,46 @@ export function inferVerifyCommand(snapshot: HandoffSnapshot): VerifyCommandResu
 
 // ── sub-gather stubs ──────────────────────────────────────────────────────
 
-export async function gatherActiveIntent(stateRoot: string): Promise<ActiveIntentSummary | undefined> {
-  throw new Error("not implemented")
+export async function gatherActiveIntent(
+  stateRoot: string,
+): Promise<ActiveIntentSummary | undefined> {
+  const decisionsDir = join(stateRoot, "decisions")
+  if (!existsSync(decisionsDir)) return undefined
+
+  try {
+    const entries = await fs.readdir(decisionsDir, { withFileTypes: true })
+    type Ref = { path: string; mtime: number; id: string }
+    const refs: Ref[] = []
+    for (const e of entries) {
+      if (!e.isDirectory()) continue
+      const p = join(decisionsDir, e.name, "intent.md")
+      try {
+        const stat = await fs.stat(p)
+        refs.push({ path: p, mtime: stat.mtimeMs, id: e.name })
+      } catch {}
+    }
+    if (refs.length === 0) return undefined
+    refs.sort((a, b) => b.mtime - a.mtime || a.id.localeCompare(b.id))
+    const newest = refs[0]!
+    const text = await fs.readFile(newest.path, "utf-8")
+    const fm = parseFrontmatter<{ task_id?: unknown; level?: unknown; title?: unknown }>(text).data
+    if (
+      typeof fm.task_id !== "string" ||
+      typeof fm.title !== "string" ||
+      (fm.level !== "L0" && fm.level !== "L1" && fm.level !== "L2" && fm.level !== "L3")
+    ) {
+      return undefined
+    }
+    return {
+      task_id: fm.task_id,
+      level: fm.level,
+      title: fm.title,
+      intent_path: newest.path,
+      mtime: new Date(newest.mtime).toISOString(),
+    }
+  } catch {
+    return undefined
+  }
 }
 
 export async function gatherPlanJobs(stateRoot: string): Promise<PlanJobSummary[]> {

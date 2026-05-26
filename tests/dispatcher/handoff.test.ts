@@ -248,3 +248,38 @@ describe("inferVerifyCommand cascade (GS-2 T4)", () => {
     expect(result.source).toBe("loop-run")
   })
 })
+
+describe("gatherActiveIntent (GS-2 T5)", () => {
+  it("returns mtime-newest intent summary with all fields populated", async () => {
+    writeYaml(join(stateRoot, "decisions", "OLD", "intent.md"), {
+      task_id: "OLD",
+      level: "L1",
+      title: "Older Decision",
+    })
+    await new Promise((r) => setTimeout(r, 50))
+    writeYaml(join(stateRoot, "decisions", "NEW1", "intent.md"), {
+      task_id: "NEW1",
+      level: "L3",
+      title: "Newer Decision",
+    })
+    const result = await gatherActiveIntent(stateRoot)
+    expect(result).toBeDefined()
+    expect(result!.task_id).toBe("NEW1")
+    expect(result!.level).toBe("L3")
+    expect(result!.title).toBe("Newer Decision")
+    expect(result!.intent_path).toContain("NEW1/intent.md")
+    expect(result!.mtime).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
+
+  it("returns undefined when no .sgc/decisions/", async () => {
+    const result = await gatherActiveIntent(stateRoot)
+    expect(result).toBeUndefined()
+  })
+
+  it("returns undefined when intent.md is malformed YAML (no throw)", async () => {
+    mkdirSync(join(stateRoot, "decisions", "BAD"), { recursive: true })
+    writeFileSync(join(stateRoot, "decisions", "BAD", "intent.md"), "not yaml at all")
+    const result = await gatherActiveIntent(stateRoot)
+    expect(result).toBeUndefined()
+  })
+})

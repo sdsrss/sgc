@@ -12,21 +12,27 @@ sgc is a **规范层 + 知识引擎** that coexists with `superpowers` (sp) and 
 
 User mental model: sgc decides the level, enforces the protocol, records the knowledge. sp does the thinking. gs ships.
 
-## Implementation Status (v1.1, D-phase complete)
+## Implementation Status (v1.12.1, GS-1 arc closed)
 
-The full L0→L3 pipeline is executable end-to-end via `bun src/sgc.ts <cmd>`. All 13 invariants enforced at runtime. See [README.md](../../README.md) for the command table and [docs/c-phase-demo.md](../../docs/c-phase-demo.md) for a worked run.
+The full L0→L3 pipeline is executable end-to-end via `bun src/sgc.ts <cmd>`. All 13 invariants enforced at runtime. The **CE compound-engineering loop is closed end-to-end** (CE-1 prevention injection → CE-2 reflect audit → CE-3 ship-failure capture/promote → CE-4 async plan → CE-5 loop orchestrator → CE-6 applied_in score feedback) plus **GS-1 post-publish canary + GS-1.1 promote helper**. See [README.md](../../README.md) for the authoritative 15-command table; this section lists the original D-phase set.
 
 | Command | Status | CLI |
 |---------|--------|-----|
-| `/plan` | ✅ L0-L3 + planner cluster (eng/ceo/adversarial) + researcher.history | `sgc plan <task> [--motivation\|--signed-by\|--level]` |
+| `/plan` | ✅ L0-L3 + planner cluster (eng/ceo/adversarial) + researcher.history + CE-4 `--async` | `sgc plan <task> [--motivation\|--signed-by\|--level\|--async]` |
 | `/work` | ✅ feature-list tracker | `sgc work [--add\|--done <id>]` |
 | `/review` | ✅ reviewer.correctness on git diff | `sgc review [--base <ref>]` |
 | `/qa` | ✅ qa.browser stub; real browse binary opt-in | `sgc qa [<target>] [--flows a,b,c]` |
 | `/ship` | ✅ 8-gate ship + writeShip + optional `gh pr create` + auto-janitor | `sgc ship [--auto\|--pr\|--no-janitor\|--force-compound]` |
-| `/compound` | ✅ 4-agent cluster + dedup + writeSolution | `sgc compound [--force\|--slug]` |
+| `/compound` | ✅ 4-agent cluster + dedup + writeSolution; CE-3 `--from-ship-failure` + GS-1.1 `--from-canary` promote bridges | `sgc compound [--force\|--slug\|--from-ship-failure <s>\|--from-canary <s>\|--solution-slug <s>]` |
 | `/status` | ✅ active task + level + last_activity | `sgc status` |
 | `/agent-loop` | ✅ file-poll submission helper (non-SDK path) | `sgc agent-loop [--list\|--show\|--submit]` |
 | `/discover` | ✅ clarifier.discover forcing-questions stub | `sgc discover <topic>` |
+| `/tail` | ✅ read `.sgc/progress/events.ndjson` (Invariant §13 stream) | `sgc tail [--task\|--agent\|--event-type\|--since\|--follow\|--limit]` |
+| `/reflect` | ✅ CE-2 decisions↔solutions audit; CE-6 surfaces `applied: N` | `sgc reflect [--task\|--since\|--save\|--json]` |
+| `/loop` | ✅ CE-5 end-to-end orchestrator (plan→work→review→qa→ship→compound) | `sgc loop <task> [--resume\|--runs\|--status]` |
+| `/watch-ci-failure` | ✅ CE-3 publish-CI poller → templated `.sgc/ship-failures/<sha>.md` | `sgc watch-ci-failure [--run-id\|--workflow]` |
+| `/canary` | ✅ GS-1 post-publish health check (npm_propagation → smoke_install → health_url) | `sgc canary [--package\|--version\|--phases\|--health-url\|--health-regex\|--interval\|--timeout\|--bin]` |
+| `/doctor` | ✅ contracts/prompts/manifest consistency check | `sgc doctor` |
 
 Agent modes (auto-detected per priority):
   `ANTHROPIC_API_KEY` set → anthropic-sdk (SDK + prompt caching)
@@ -39,13 +45,20 @@ Agent modes (auto-detected per priority):
 | Command | Purpose |
 |---------|---------|
 | `/discover` | Clarify requirements before planning |
-| `/plan <task>` | Classify task level, run appropriate reviewers, produce intent |
+| `/plan <task>` | Classify task level, run appropriate reviewers, produce intent (CE-4 `--async` forks detached) |
 | `/work` | Execute plan with task tracking, TDD, worktree isolation |
 | `/review` | Independent static review with reviewer cluster |
 | `/qa <target>` | Real browser end-to-end testing |
 | `/ship` | Ship gate: verify evidence, deploy, trigger compound decision |
-| `/compound` | Extract and store knowledge (usually auto-triggered by janitor) |
+| `/compound` | Extract and store knowledge; CE-3 `--from-ship-failure` + GS-1.1 `--from-canary` promote captured failures |
 | `/status` | Show current task state, decisions history, knowledge stats |
+| `/agent-loop` | File-poll fulfillment helper for external Claude session (`--list / --show / --submit`) |
+| `/tail` | Stream `.sgc/progress/events.ndjson` (Invariant §13 two-tier audit) |
+| `/reflect` | CE-2 audit: which solutions/ preventions surfaced in intent.md discussions (CE-6 `applied: N`) |
+| `/loop` | CE-5 orchestrator: plan→work→review→qa→ship→compound with manual gates |
+| `/watch-ci-failure` | CE-3: poll publish CI for current branch HEAD; on failure write templated `.sgc/ship-failures/<sha>.md` |
+| `/canary` | GS-1: post-publish health check (npm propagation → npx smoke → optional health URL) |
+| `/doctor` | Consistency check across contracts/sgc-capabilities.yaml ↔ prompts/ ↔ slot annotations |
 
 ## State Layer (.sgc/)
 

@@ -8,9 +8,10 @@ sgc coexists with the `superpowers` (sp) and `gstack` (gs) plugins. It does NOT 
 
 - **L0-L3 classification** — `sgc plan` classifies every task
 - **13 invariants** — scope isolation, immutability, dedup, generator-evaluator separation, two-tier event audit (§13)
-- **State layer** — `.sgc/{decisions,progress,solutions,reviews}/` with schema validation
+- **State layer** — `.sgc/{decisions,progress,solutions,reviews,ship-failures,canaries}/` with schema validation
 - **Knowledge compression** — dedup (Jaccard ≥0.85) + compound cluster + janitor decisions
 - **Solutions base** — append-only, signed, dedup-enforced
+- **Capture → promote loops** — `sgc watch-ci-failure` (CE-3 ship-failure capture) + `sgc canary` (GS-1 post-publish capture); `sgc compound --from-ship-failure` / `--from-canary` promote each capture into `solutions/` through the **same Invariant §3 write-gate** (real `compound.related` spawn → `DedupStamp` → `writeSolution`). Promoted preventions feed back into `planner.adversarial` via CE-1 on next L3 plan.
 
 ### sgc delegates (when sp/gs are available)
 
@@ -29,6 +30,19 @@ sgc coexists with the `superpowers` (sp) and `gstack` (gs) plugins. It does NOT 
 
 Each `sgc` command keeps a working inline implementation. The delegate is a
 recommendation surfaced in the command's output, not a hard dependency.
+
+### GS-N absorb arc (sgc-native heuristic absorptions)
+
+Selected gstack-style capabilities are re-implemented in sgc as small,
+heuristic, dependency-free dispatcher commands when (a) the capability is a
+natural fit for sgc's capture → promote → CE-1 loop, and (b) the gstack
+implementation isn't a forced dependency for sgc users. Absorptions are
+sgc-native — **no gstack source copied, no gstack binary called, no gstack
+dependency introduced**. The gs delegate stays the recommended path when
+gs is installed (see delegate table); the sgc-native version is the
+zero-dep fallback. Shipped: **GS-1 `sgc canary`** (post-publish health
+check, v1.11.0) + **GS-1.1 `sgc compound --from-canary`** (canary →
+solutions promote, v1.12.0).
 
 ### Non-goals
 

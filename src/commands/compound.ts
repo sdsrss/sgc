@@ -28,6 +28,11 @@ import {
   type PromoteOptions,
   type PromoteResult,
 } from "../dispatcher/compound-promote"
+import {
+  promoteCanaryFailure,
+  type PromoteCanaryOptions,
+  type PromoteCanaryResult,
+} from "../dispatcher/canary-promote"
 import { computeSignature } from "../dispatcher/dedup"
 import { spawn } from "../dispatcher/spawn"
 import {
@@ -269,4 +274,20 @@ export async function runCompoundPromote(
   opts: PromoteOptions,
 ): Promise<PromoteResult> {
   return promoteShipFailure(opts)
+}
+
+/**
+ * GS-1.1 promote entry point — operator path for canary-failure
+ * records, sibling to CE-3 `runCompoundPromote`. Wraps
+ * `promoteCanaryFailure` with the same logger+stateRoot scaffolding.
+ * The CLI in sgc.ts routes `--from-canary <slug>` here; absent the
+ * flag, runCompound or runCompoundPromote runs as today.
+ *
+ * Returns the underlying PromoteCanaryResult unchanged; the CLI
+ * handler in sgc.ts owns the operator-facing stderr summary.
+ */
+export async function runCanaryPromote(
+  opts: PromoteCanaryOptions,
+): Promise<PromoteCanaryResult> {
+  return promoteCanaryFailure(opts)
 }

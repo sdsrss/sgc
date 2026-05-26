@@ -311,14 +311,33 @@ const compound = defineCommand({
       description:
         "CE-3 promote: convert a captured ship-failure record into a solutions/ entry. Pass the slug under <stateRoot>/ship-failures/<slug>.md.",
     },
+    "from-canary": {
+      type: "string",
+      required: false,
+      description:
+        "GS-1.1 promote: convert a captured canary-failure record into a solutions/ entry. Pass the slug under <stateRoot>/canaries/<slug>.md (e.g. 2026-05-25-c29f021-smoke_install).",
+    },
     "solution-slug": {
       type: "string",
       required: false,
       description:
-        "Override the solution slug when promoting (default: ship-failure-<short-sha>). Only valid alongside --from-ship-failure.",
+        "Override the solution slug when promoting (default: ship-failure-<short-sha> for --from-ship-failure; canary-<short-sha>-<phase> for --from-canary). Only valid alongside a promote flag.",
     },
   },
   async run({ args }) {
+    const fromCanary = args["from-canary"] as string | undefined
+    if (fromCanary !== undefined && fromCanary.length > 0) {
+      const { runCanaryPromote } = await import("./commands/compound")
+      const result = await runCanaryPromote({
+        slug: fromCanary,
+        force: args.force as boolean | undefined,
+        solutionSlug: args["solution-slug"] as string | undefined,
+      })
+      process.stderr.write(
+        `promote: action=${result.dedupAction} solution=${result.solutionPath} canary=${result.canaryPath}\n`,
+      )
+      return
+    }
     const fromShipFailure = args["from-ship-failure"] as string | undefined
     if (fromShipFailure !== undefined && fromShipFailure.length > 0) {
       const { runCompoundPromote } = await import("./commands/compound")

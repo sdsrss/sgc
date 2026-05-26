@@ -1,6 +1,6 @@
 ---
 status: implemented
-revision: 4
+revision: 5
 task_id: gs-1-canary
 feature_id: f8
 parent_intent: (none — GS-1 is the first ship of the GS-N absorb arc, sgc-native heuristic implementations of selected gstack-style capabilities per docs/POSITIONING.md. Not vendored from gstack — original implementation. Sibling arc to CE-N; outside any compound parent intent)
@@ -414,6 +414,20 @@ SPINE: spec → plan → implement → dogfood → main-direct → tag → publi
   consistent chaining. Not blocking GS-1 ship.
 
 ## Change log
+
+- 2026-05-25 r5 — Open Question #4 (GS-1.1 promote helper `sgc compound
+  --from-canary <slug>`) resolved by sibling spec
+  `tasks/specs/gs-1-promote.md` (status: implemented r2). Parent feature
+  (GS-1 capture, v1.11.0 + v1.11.1) does NOT regress — promote is a
+  net-additive CLI flag on the existing `compound` command + a new
+  sibling module `src/dispatcher/canary-promote.ts` forked from
+  CE-3-promote. The GS-1 → GS-1-promote → CE-1 hand-off is now
+  end-to-end-closeable (identical-shape to CE-3 → CE-3-promote → CE-1
+  which closed CE compound-engineering loop at v1.7.0). Dispatcher CI
+  gate 756 → 765 (+9 canary-promote unit). v1.12.0 release pending
+  separate ship AUTH. **All 8 spec success criteria + all 7 open
+  questions either resolved (#4 → sibling) or status-locked (deferred
+  per spec).**
 
 - 2026-05-25 r4 — **end-to-end loop closed**. Post-v1.11.1 ship
   dogfood: `sgc watch-ci-failure` on `e844320` (v1.11.1 release

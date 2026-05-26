@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased — GS-1.1 promote helper `sgc compound --from-canary <slug>` (closes GS-1 OQ #4)
+
+### Added (GS-1.1: canary-failure → solutions/ promote bridge)
+
+- **You can now promote captured canary failures into the knowledge corpus**, exactly like CE-3 ship-failures. New flag `sgc compound --from-canary <slug>` converts a `.sgc/canaries/<slug>.md` record (after the operator edits its `regression_seed:` frontmatter into the actual safeguard) into a finished `solutions/<category>/<slug>.md` entry through the **same Invariant §3 write-gate** that `runCompound` and `runCompoundPromote` (CE-3 promote) use. Heuristic-only — no LLM call, no new agent; the existing `compoundContextHeuristic` derives category/tags/problem, and `compoundRelatedHeuristic` mints the `DedupStamp` that authorizes `writeSolution`. **`compound.related` stays deterministic** per [[feedback_compound_related_invariant3]] — an LLM minting `best_similarity: 0` could bypass the corpus dedup; that contract is unchanged.
+- Identical-shape to CE-3-promote: 4 refuse guards (`MissingCanaryFailure` / `PlaceholderRegressionSeed` / `AlreadyPromoted` / `DuplicateMatch`), `--force` bypasses `DuplicateMatch` only (does NOT bypass `AlreadyPromoted`), `promoted_to:` frontmatter mutation is the audit anchor + idempotency guard, `--solution-slug` flag reused for slug override. Operator-edited `regression_seed:` is authoritative (Invariant §1 doesn't apply — operator input, not LLM output).
+- **Default solution slug** is `canary-<short-sha>-<phase>` (e.g. `canary-c29f021-smoke_install`), distinguishing GS-1.1 from CE-3-promote's single-key `ship-failure-<short-sha>` shape. Reason: GS-1 capture dedup is by (sha, phase), so two canary records on the same commit at different phases must promote to distinct solution slugs without collision. Regression test T8 (`tests/dispatcher/canary-promote.test.ts`) pins this.
+- **Closes GS-1 spec Open Question #4** (promote helper deferred from v1.11.0 ship per sibling-spec pattern, identical to CE-3 → CE-3-promote at v1.6.1 → v1.7.0). Parent spec `tasks/specs/gs-1-canary.md` r5 marks OQ #4 resolved-by-sibling-spec.
+
+### Architecture
+
+- New module `src/dispatcher/canary-promote.ts` (~250 LOC): exports `promoteCanaryFailure(opts)`, `PromoteCanaryOptions` / `PromoteCanaryResult` / `PromoteCanaryErrorCode` / `PromoteCanaryError` types. Fork of `src/dispatcher/compound-promote.ts` (CE-3 promote) with ship-failure → canary-failure shape swaps: `ship-failures/` → `canaries/`, `prevention_seed` → `regression_seed`, `workflow_run_id/url + workflow_name` → `package_name + expected_version + failed_phase + health_url`, `SHIP-FAILURE-<sha>` synthetic task_id → `CANARY-<sha>-<phase>`, slug `ship-failure-<sha>` → `canary-<sha>-<phase>`.
+- `src/commands/compound.ts` extended: new exported `runCanaryPromote(opts)` wrapping `promoteCanaryFailure`. `runCompound` + `runCompoundPromote` (CE-3) unchanged. The CLI dispatcher in `src/sgc.ts` adds an `--from-canary <slug>` arg + early-branch routing (checked before `--from-ship-failure` for predictable ordering); absent the flag, existing `runCompound` / `runCompoundPromote` paths are unchanged.
+- `--solution-slug` flag description updated to note dual-purpose (works for both `--from-ship-failure` and `--from-canary` paths). No third override flag introduced.
+- Heuristic input shape for `compoundContextHeuristic`: `<phase_output_excerpt>\n\n<package_name> <failed_phase>` (mirrors CE-3-promote's `<summary>\n\n<workflow_name>` posture but routes the GS-1 package+phase dimensions into tag candidates). `problem_summary` is the first 400 chars of that input per `compoundContextHeuristic` contract.
+
+### Tests
+
+- 9 new unit tests in `tests/dispatcher/canary-promote.test.ts`: T1 MissingCanaryFailure / T2 PlaceholderRegressionSeed / T3 AlreadyPromoted / T4 DuplicateMatch no-force (asserts no solutions/ write + no canary mutation on refuse path) / T5 happy path (default slug `canary-<sha>-<phase>` + prevention = operator seed + promoted_to: stamped on canary file) / T6 `--force` bypasses DuplicateMatch / T7 `--force` does NOT bypass AlreadyPromoted (orthogonal guard) / T8 phase-disambiguation regression (same SHA two different phases → two distinct solution slugs, both succeed, distinct prevention fields preserved) / T9 PromoteCanaryError shape sanity (Error subclass with readonly .code).
+- 1 extended test in `tests/dispatcher/sgc-cli.test.ts`: `compound --help` listing now asserts `--from-canary` alongside existing `--from-ship-failure` / `--solution-slug` / `--force`.
+- Dispatcher CI gate **756 → 765** (+9 = 9 canary-promote unit tests; sgc-cli extension doesn't add a test count). 1999 expect() calls; ~122s wall.
+
+### Compatibility
+
+- Additive command flag — `--from-canary` is optional on the existing `compound` command; absent it, behavior is unchanged. Operators see no breakage unless they invoke the new flag.
+- `compound-promote.ts` (CE-3-promote module) is **byte-for-byte unchanged**. `canary.ts` (GS-1 capture) is **byte-for-byte unchanged**. Invariant §1 / §3 / §6 / §13 enforcement paths untouched. No `prompts/*.md`, `contracts/sgc-capabilities.yaml`, agent manifest, or `spawn.ts` / `validation.ts` edits.
+- Reverting via `git revert <release-sha>` leaves any `promoted_to:` data in `.sgc/canaries/*.md` behind harmlessly (operator-local state, reversible — matches CE-3-promote release exemption rationale).
+- **Closes the GS-1 → GS-1-promote → CE-1 hand-off**: promoted canary solutions' `prevention:` field becomes discoverable by `extractPreventions` on the next L3 `sgc plan`, feeding `planner.adversarial` as a prior-prevention. Identical-shape closure to CE-3 → CE-3-promote → CE-1 (which closed CE loop end-to-end at v1.7.0).
+
 ## v1.11.1 — 2026-05-25 — GS-1.1 dogfood-found bugfix (DOG-1: PATH-shadowed npx)
 
 ### Fixed (smoke_install PATH shadow — caught by own first dogfood)

@@ -642,3 +642,25 @@ describe("renderHandoffMarkdown (GS-2 T12)", () => {
     expect(md).toContain('verify_command: "TODO: operator-fill"')
   })
 })
+
+describe("writeHandoffMarkdown (GS-2 T13)", () => {
+  it("writes atomically: target file exists with full content; tmp file cleaned", async () => {
+    const slug = "2026-05-26-test"
+    const content = "---\nslug: " + slug + "\n---\nbody"
+    const target = await writeHandoffMarkdown(repoRoot, slug, content)
+    expect(target).toBe(join(repoRoot, "tasks", `${slug}-paused.md`))
+    const fs2 = await import("node:fs/promises")
+    const written = await fs2.readFile(target, "utf-8")
+    expect(written).toBe(content)
+    const entries = await fs2.readdir(join(repoRoot, "tasks"))
+    expect(entries).toEqual([`${slug}-paused.md`])
+  })
+
+  it("overwrites existing paused.md atomically", async () => {
+    const slug = "2026-05-26-overwrite"
+    await writeHandoffMarkdown(repoRoot, slug, "first")
+    const target = await writeHandoffMarkdown(repoRoot, slug, "second")
+    const fs2 = await import("node:fs/promises")
+    expect(await fs2.readFile(target, "utf-8")).toBe("second")
+  })
+})

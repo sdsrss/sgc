@@ -610,7 +610,13 @@ export async function writeHandoffMarkdown(
   slug: string,
   content: string,
 ): Promise<string> {
-  throw new Error("not implemented")
+  const tasksDir = join(repoRoot, "tasks")
+  await fs.mkdir(tasksDir, { recursive: true })
+  const target = join(tasksDir, `${slug}-paused.md`)
+  const tmp = join(tasksDir, `.${slug}-paused.md.tmp.${process.pid}.${Date.now()}`)
+  await fs.writeFile(tmp, content, "utf-8")
+  await fs.rename(tmp, target)
+  return target
 }
 
 export const EVENTS_TAIL_LINES = 500

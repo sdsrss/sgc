@@ -147,3 +147,104 @@ describe("deriveSlug (GS-2 T3)", () => {
     expect(kebabTail.endsWith("-")).toBe(false)
   })
 })
+
+describe("inferVerifyCommand cascade (GS-2 T4)", () => {
+  const emptySnapshot = (): HandoffSnapshot => ({
+    slug: "2026-05-26-test",
+    generated_at: "2026-05-26T18:00:00Z",
+    cwd: "/tmp",
+    sgc_version: "1.13.0",
+    verify_command: { source: "todo" },
+    plan_jobs: [],
+    loop_runs: [],
+    unpromoted_captures: [],
+    git: { branch: "main", changes: [] },
+    recent_commits: [],
+    unclosed_spawns: [],
+  })
+
+  it("P1: loop-run paused → sgc loop --resume", () => {
+    const snap = emptySnapshot()
+    snap.loop_runs = [
+      {
+        run_id: "2026-05-26-1842-gs-2",
+        status: "paused",
+        current_step: "review",
+        task: "GS-2 spec",
+        started_at: "2026-05-26T18:42:00Z",
+      },
+    ]
+    const result = inferVerifyCommand(snap)
+    expect(result.source).toBe("loop-run")
+    expect(result.command).toBe("sgc loop --resume 2026-05-26-1842-gs-2")
+    expect(result.context).toContain("paused at step:review")
+  })
+
+  it("P2: no paused loop, plan-job running (alive) → sgc plan --status", () => {
+    const snap = emptySnapshot()
+    snap.plan_jobs = [
+      {
+        job_id: "2026-05-26-1800-handoff",
+        status: "running",
+        task: "GS-2 design",
+        pid: 12345,
+        started_at: "2026-05-26T18:00:00Z",
+      },
+    ]
+    const result = inferVerifyCommand(snap)
+    expect(result.source).toBe("plan-job")
+    expect(result.command).toBe("sgc plan --status 2026-05-26-1800-handoff")
+    expect(result.context).toContain("pid 12345")
+  })
+
+  it("P3: no loop/plan, unclosed spawn → sgc tail --since", () => {
+    const snap = emptySnapshot()
+    snap.unclosed_spawns = [
+      {
+        spawn_id: "spawn-abc",
+        agent: "planner.eng",
+        start_ts: "2026-05-26T17:55:00Z",
+      },
+    ]
+    const result = inferVerifyCommand(snap)
+    expect(result.source).toBe("events-spawn")
+    expect(result.command).toBe("sgc tail --since 2026-05-26T17:55:00Z")
+    expect(result.context).toContain("planner.eng")
+    expect(result.context).toContain("spawn-abc")
+  })
+
+  it("P4: all signals empty → source:todo, no command", () => {
+    const snap = emptySnapshot()
+    const result = inferVerifyCommand(snap)
+    expect(result.source).toBe("todo")
+    expect(result.command).toBeUndefined()
+    expect(result.context).toContain("no in-flight")
+  })
+
+  it("paused loop wins over running plan + unclosed spawn (priority)", () => {
+    const snap = emptySnapshot()
+    snap.loop_runs = [
+      {
+        run_id: "L1",
+        status: "paused",
+        current_step: "qa",
+        task: "T1",
+        started_at: "2026-05-26T16:00:00Z",
+      },
+    ]
+    snap.plan_jobs = [
+      {
+        job_id: "P1",
+        status: "running",
+        task: "T2",
+        pid: 99,
+        started_at: "2026-05-26T17:00:00Z",
+      },
+    ]
+    snap.unclosed_spawns = [
+      { spawn_id: "S1", agent: "qa.browser", start_ts: "2026-05-26T18:00:00Z" },
+    ]
+    const result = inferVerifyCommand(snap)
+    expect(result.source).toBe("loop-run")
+  })
+})

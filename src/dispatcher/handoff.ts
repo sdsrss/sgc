@@ -147,7 +147,41 @@ export async function deriveSlug(stateRoot: string, now: Date): Promise<string> 
 // ── verify-command cascade (pure) ─────────────────────────────────────────
 
 export function inferVerifyCommand(snapshot: HandoffSnapshot): VerifyCommandResult {
-  throw new Error("not implemented")
+  // P1 — loop-run paused (strongest signal)
+  const pausedLoop = snapshot.loop_runs.find((r) => r.status === "paused")
+  if (pausedLoop) {
+    return {
+      source: "loop-run",
+      command: `sgc loop --resume ${pausedLoop.run_id}`,
+      context: `loop-run ${pausedLoop.run_id} paused at step:${pausedLoop.current_step}`,
+    }
+  }
+
+  // P2 — plan-job running (pid alive, post lazy stale-detect)
+  const runningJob = snapshot.plan_jobs.find((j) => j.status === "running")
+  if (runningJob) {
+    return {
+      source: "plan-job",
+      command: `sgc plan --status ${runningJob.job_id}`,
+      context: `plan-job ${runningJob.job_id} running (pid ${runningJob.pid ?? "unknown"})`,
+    }
+  }
+
+  // P3 — events.ndjson tail unclosed spawn
+  const unclosed = snapshot.unclosed_spawns[0]
+  if (unclosed) {
+    return {
+      source: "events-spawn",
+      command: `sgc tail --since ${unclosed.start_ts}`,
+      context: `spawn.start for agent ${unclosed.agent} (spawn_id ${unclosed.spawn_id}) at ${unclosed.start_ts} has no paired spawn.end in last ${EVENTS_TAIL_LINES} lines`,
+    }
+  }
+
+  // P4 — TODO fallback
+  return {
+    source: "todo",
+    context: "no in-flight loop/plan/spawn detected — operator-fill",
+  }
 }
 
 // ── sub-gather stubs ──────────────────────────────────────────────────────

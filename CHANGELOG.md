@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — GS-1.1 promote helper `sgc compound --from-canary <slug>` (closes GS-1 OQ #4)
+## v1.12.0 — 2026-05-25 — GS-1.1 promote helper `sgc compound --from-canary <slug>` (closes GS-1 OQ #4)
 
 ### Added (GS-1.1: canary-failure → solutions/ promote bridge)
 

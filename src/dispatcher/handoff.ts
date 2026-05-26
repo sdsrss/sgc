@@ -31,7 +31,7 @@ export interface VerifyCommandResult {
 
 export interface PlanJobSummary {
   job_id: string
-  status: "running" | "paused" | "failed" | "stale"
+  status: "running" | "failed" | "stale"
   task: string
   pid?: number
   started_at: string
@@ -236,7 +236,7 @@ export async function gatherPlanJobs(stateRoot: string): Promise<PlanJobSummary[
       .filter((j) => j.status !== "done")
       .map((j) => ({
         job_id: j.job_id,
-        status: j.status,
+        status: j.status as PlanJobSummary["status"],
         task: j.task.slice(0, TASK_EXCERPT_MAX),
         pid: j.pid,
         started_at: j.started_at,

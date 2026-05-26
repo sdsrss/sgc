@@ -577,3 +577,68 @@ describe("gatherHandoffState orchestrator (GS-2 T11)", () => {
     expect(snap.recent_commits.length).toBe(1)
   })
 })
+
+describe("renderHandoffMarkdown (GS-2 T12)", () => {
+  const fullSnapshot = (): HandoffSnapshot => ({
+    slug: "2026-05-26-gs-2-handoff",
+    generated_at: "2026-05-26T18:42:15Z",
+    cwd: "/mnt/Sda2/dev/sdsbp/sgc",
+    sgc_version: "1.13.0",
+    active_intent: {
+      task_id: "DEC1",
+      level: "L3",
+      title: "GS-2 handoff",
+      intent_path: ".sgc/decisions/DEC1/intent.md",
+      mtime: "2026-05-26T18:30:00Z",
+    },
+    verify_command: {
+      source: "loop-run",
+      command: "sgc loop --resume LR1",
+      context: "loop-run LR1 paused at step:qa",
+    },
+    plan_jobs: [
+      { job_id: "PJ1", status: "running", task: "design", pid: 99, started_at: "2026-05-26T18:00:00Z" },
+    ],
+    loop_runs: [
+      { run_id: "LR1", status: "paused", current_step: "qa", task: "spec", started_at: "2026-05-26T18:00:00Z" },
+    ],
+    unpromoted_captures: [
+      { kind: "ship-failure", slug: "2026-05-22-c2c534a", seed_excerpt: "TODO: operator-fill" },
+    ],
+    git: { branch: "main", ahead: 0, behind: 0, changes: ["?? new.ts"] },
+    recent_commits: [{ sha: "a34d60d", subject: "docs: sync" }],
+    unclosed_spawns: [],
+  })
+
+  it("renders 6 sections + frontmatter; deterministic for same input", () => {
+    const snap = fullSnapshot()
+    const md1 = renderHandoffMarkdown(snap)
+    const md2 = renderHandoffMarkdown(snap)
+    expect(md1).toBe(md2)
+    expect(md1).toContain("slug: 2026-05-26-gs-2-handoff")
+    expect(md1).toContain("verify_command_source: loop-run")
+    expect(md1).toContain("verify_command: sgc loop --resume LR1")
+    expect(md1).toContain("## 1 — Active decision + verify command")
+    expect(md1).toContain("## 2 — Plan jobs")
+    expect(md1).toContain("## 3 — Loop runs")
+    expect(md1).toContain("## 4 — Unpromoted captures")
+    expect(md1).toContain("## 5 — Git")
+    expect(md1).toContain("## 6 — Recent commits")
+    expect(md1).toContain("DEC1")
+    expect(md1).toContain("PJ1")
+    expect(md1).toContain("LR1")
+    expect(md1).toContain("2026-05-22-c2c534a")
+    expect(md1).toContain("a34d60d")
+  })
+
+  it("TODO fallback renders 'TODO: operator-fill' in frontmatter", () => {
+    const snap = fullSnapshot()
+    snap.verify_command = { source: "todo", context: "no in-flight loop/plan/spawn detected — operator-fill" }
+    snap.loop_runs = []
+    snap.plan_jobs = []
+    snap.unclosed_spawns = []
+    const md = renderHandoffMarkdown(snap)
+    expect(md).toContain("verify_command_source: todo")
+    expect(md).toContain('verify_command: "TODO: operator-fill"')
+  })
+})

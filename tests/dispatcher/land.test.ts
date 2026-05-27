@@ -280,4 +280,31 @@ describe("runLand", () => {
     expect(stderrChunks.join("")).toContain("land error in canary")
     expect(stderrChunks.join("")).toContain("npm registry unreachable")
   })
+
+  test("T8: arg-error → exit 1, land.start NOT emitted, no step runner called", async () => {
+    // no package.json; no overrides
+    const { steps, watchSpy, canarySpy } = makeSteps({ status: "success" })
+    const stderrChunks: string[] = []
+    // capture events via custom Logger
+    const events: Array<{ event_type: string }> = []
+    const logger: Logger = {
+      say: () => {},
+      event: (e) => { events.push(e as { event_type: string }) },
+    } as Logger
+    const result = await runLand({
+      repoRoot,
+      stateRoot,
+      logger,
+      steps,
+      stderrWrite: (c) => stderrChunks.push(c),
+      stdoutWrite: () => {},
+    })
+    expect(result.exitCode).toBe(1)
+    expect(result.step).toBe("arg-error")
+    expect(watchSpy).toHaveBeenCalledTimes(0)
+    expect(canarySpy).toHaveBeenCalledTimes(0)
+    expect(events.filter((e) => e.event_type === "land.start").length).toBe(0)
+    expect(events.filter((e) => e.event_type === "land.failed").length).toBe(0)
+    expect(stderrChunks.join("")).toContain("land error: cannot derive package name")
+  })
 })

@@ -683,3 +683,69 @@ describe("runDebugClose Iron Law #3", () => {
     rmSync(repoRoot, { recursive: true, force: true })
   })
 })
+
+describe("runDebugClose refusals", () => {
+  test("missing file → refuse", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    const stderrChunks: string[] = []
+    const result = await runDebugClose({
+      id: "nonexistent-id",
+      rootCause: "x",
+      fixCommit: "abc1234",
+      verifyCommand: "y",
+      stateRoot,
+      stderrWrite: (c) => { stderrChunks.push(c) },
+      stdoutWrite: () => {},
+    })
+    expect(result.exitCode).toBe(1)
+    expect(stderrChunks.join("")).toContain("no investigation at")
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+
+  test("already-closed → refuse + no overwrite", async () => {
+    const { repoRoot, stateRoot, id } = await (async () => {
+      const tmp = makeTmpState()
+      await runDebugStart({
+        symptom: "test",
+        stateRoot: tmp.stateRoot,
+        repoRoot: tmp.repoRoot,
+        now: () => new Date("2026-05-27T14:23:00.000Z"),
+        stderrWrite: () => {},
+        stdoutWrite: () => {},
+      })
+      return { ...tmp, id: "2026-05-27-1423-test" }
+    })()
+
+    // First close: success
+    await runDebugClose({
+      id,
+      rootCause: "first close",
+      fixCommit: "abc1234",
+      verifyCommand: "y",
+      stateRoot,
+      stderrWrite: () => {},
+      stdoutWrite: () => {},
+    })
+
+    // Second close: refuse
+    const stderrChunks: string[] = []
+    const result = await runDebugClose({
+      id,
+      rootCause: "second close attempt",
+      fixCommit: "deadbeef",
+      verifyCommand: "z",
+      stateRoot,
+      stderrWrite: (c) => { stderrChunks.push(c) },
+      stdoutWrite: () => {},
+    })
+    expect(result.exitCode).toBe(1)
+    expect(stderrChunks.join("")).toContain(`${id} already closed`)
+
+    // File still reflects first close (no overwrite)
+    const content = readFileSync(join(stateRoot, "investigations", `${id}.md`), "utf8")
+    expect(content).toContain("first close")
+    expect(content).not.toContain("second close attempt")
+
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+})

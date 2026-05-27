@@ -13,6 +13,7 @@
 import { defineCommand, runMain } from "citty"
 import { existsSync } from "node:fs"
 import packageJson from "../package.json"
+import { debugCommand } from "./commands/debug"
 
 class NotImplementedYet extends Error {
   constructor(cmd: string) {
@@ -827,6 +828,7 @@ const main = defineCommand({
     loop: () => loop,
     "watch-ci-failure": () => watchCiFailure,
     canary: () => canary,
+    debug: () => debugCommand,
     land: () => land,
     handoff: () => handoff,
     status: () => status,

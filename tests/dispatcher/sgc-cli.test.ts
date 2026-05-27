@@ -256,6 +256,27 @@ describe("sgc handoff CLI help (GS-2 T15)", () => {
   })
 })
 
+describe("sgc debug CLI help (GS-4 T14)", () => {
+  test("sgc --help lists debug subcommand", async () => {
+    const r = await runSgc(["--help"])
+    // Use multiple toContain to dodge citty-under-consola-CI-mode backtick trap
+    // per feedback_citty_help_consola_ci_mode (GS-7 DOG-3 lesson).
+    expect(r.stdout).toContain("debug")
+    expect(r.stdout).toContain("4-phase systematic-debugging walker")
+    expect(r.stdout).toContain("Iron Law #3")
+  })
+
+  test("sgc debug --help shows start/close/runs/status surface", async () => {
+    const r = await runSgc(["debug", "--help"])
+    // Multiple toContain — same backtick trap defense.
+    expect(r.stdout.toLowerCase()).toContain("start")
+    expect(r.stdout.toLowerCase()).toContain("close")
+    expect(r.stdout.toLowerCase()).toContain("--root-cause")
+    expect(r.stdout.toLowerCase()).toContain("--fix-commit")
+    expect(r.stdout.toLowerCase()).toContain("--verify-command")
+  })
+})
+
 describe("sgc land CLI help (GS-7 T11)", () => {
   test("sgc --help lists land subcommand", async () => {
     const { stdout, exitCode } = await runSgc(["--help"])

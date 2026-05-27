@@ -1,5 +1,38 @@
 # Changelog
 
+## v1.14.1 — 2026-05-27 — GS-7 DOG-3 dogfood-found bugfix (T11 regex)
+
+**GS-7 follow-on bugfix** discovered via self-dogfood: v1.14.0 publish.yml
+failed the `Run dispatcher tests (gate publish)` step because T11's
+`sgc --help lists land subcommand` regex was too tight. The pattern
+`/land\s+.*watch-ci-failure.*canary/i` passes locally where citty renders
+the command name as bare-word `land    Post-publish ...` but fails under
+GitHub Actions where consola CI-mode wraps the command in literal
+backticks: `` `land`    Post-publish ... ``. The regex's `\s+` anchor
+matches the bare-word form but not the backtick. v1.14.0 never landed
+on npm (publish gated on test-pass); no consumer-facing version skew.
+
+### Fixed
+
+- `tests/dispatcher/sgc-cli.test.ts:264` — replaced the tight regex with
+  three separate `toContain` assertions ("Post-publish ship chain" +
+  "watch-ci-failure" + "canary"). Format-agnostic; still catches "land
+  never rendered." Reproduced locally with `CI=1` env before fix
+  (`SGC_FORCE_INLINE=1 CI=1 bun test ...`).
+
+### Dogfood lesson
+
+5th dogfood-as-test win in the GS-N arc (CE-3.1 → GS-1.1 → GS-1.2 → GS-2
+clean → GS-7 DOG-3). Paradigm validated again: the failure surfaced
+**after** local test green (833/0) and **after** push+tag, when v1.14.0's
+own CI ran. `sgc watch-ci-failure` captured `c7ccce2` at
+`.sgc/ship-failures/2026-05-27-c7ccce2.md` exactly as designed.
+
+### No migration required
+
+Test-only fix; no production-code change, no schema change, no behavior
+change. Dispatcher CI gate stays at 833 pass / 0 fail.
+
 ## v1.14.0 — 2026-05-27 — GS-7 sgc land post-publish ship chain
 
 **GS-7 (feature f10, sibling to CE-N + GS-1 + GS-2, no parent intent).**

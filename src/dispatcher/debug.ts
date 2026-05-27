@@ -20,6 +20,11 @@ export type DebugPhase =
 
 export type DebugStatus = "in_progress" | "closed"
 
+/**
+ * Invariant (writer responsibility, not type-enforced):
+ * `status === "closed"` MUST coexist with `current_phase === "closed"`.
+ * Set both atomically in `runDebugClose` after Iron Law #3 gate passes.
+ */
 export interface InvestigationFrontmatter {
   id: string
   status: DebugStatus

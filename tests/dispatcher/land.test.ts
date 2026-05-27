@@ -188,4 +188,51 @@ describe("runLand", () => {
     expect(canarySpy).toHaveBeenCalledTimes(0)
     expect(stderrChunks.join("")).toContain("land failed at watch-ci-failure")
   })
+
+  test("T6a: canary capture → exit 1, stderr canary guidance", async () => {
+    writePackageJson("@sdsrs/sgc", "1.14.0")
+    const { steps, watchSpy, canarySpy } = makeSteps(
+      { status: "success" },
+      {
+        status: "failure",
+        failedPhase: "smoke_install",
+        captured: {
+          action: "captured",
+          path: "/x/.sgc/canaries/2026-05-27-abc1234-smoke_install.md",
+        },
+      },
+    )
+    const stderrChunks: string[] = []
+    const result = await runLand({
+      repoRoot,
+      stateRoot,
+      steps,
+      stderrWrite: (c) => stderrChunks.push(c),
+      stdoutWrite: () => {},
+    })
+    expect(result.exitCode).toBe(1)
+    expect(result.step).toBe("canary")
+    expect(watchSpy).toHaveBeenCalledTimes(1)
+    expect(canarySpy).toHaveBeenCalledTimes(1)
+    const stderr = stderrChunks.join("")
+    expect(stderr).toContain("land failed at canary")
+    expect(stderr).toContain("/x/.sgc/canaries/2026-05-27-abc1234-smoke_install.md")
+    expect(stderr).toContain("check npm registry propagation")
+  })
+
+  test("T6b: canary timeout → exit 1 (no capture path)", async () => {
+    writePackageJson("@sdsrs/sgc", "1.14.0")
+    const { steps } = makeSteps({ status: "success" }, { status: "timeout" })
+    const stderrChunks: string[] = []
+    const result = await runLand({
+      repoRoot,
+      stateRoot,
+      steps,
+      stderrWrite: (c) => stderrChunks.push(c),
+      stdoutWrite: () => {},
+    })
+    expect(result.exitCode).toBe(1)
+    expect(result.step).toBe("canary")
+    expect(stderrChunks.join("")).toContain("land failed at canary")
+  })
 })

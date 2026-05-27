@@ -217,6 +217,28 @@ export async function runLand(opts: LandOptions = {}): Promise<LandResult> {
     stateRoot,
   })
 
+  if (canaryResult.status !== "success") {
+    const capturePath = canaryResult.captured?.path
+    const detail = capturePath ? `inspect ${capturePath}; ` : ""
+    stderrWrite(
+      `land failed at canary: ${detail}check npm registry propagation; rerun sgc land\n`,
+    )
+    emitLandEvent(logger, "land.failed", "warn", {
+      package: derived.packageName,
+      version: derived.version,
+      failed_step: "canary",
+      capture_path: capturePath ?? null,
+    })
+    return {
+      exitCode: 1,
+      step: "canary",
+      package: derived.packageName,
+      version: derived.version,
+      watchResult,
+      canaryResult,
+    }
+  }
+
   stdoutWrite(`land complete: ${derived.packageName}@${derived.version}\n`)
   const end = now()
   emitLandEvent(logger, "land.complete", "info", {

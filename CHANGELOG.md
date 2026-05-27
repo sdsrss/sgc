@@ -1,5 +1,50 @@
 # Changelog
 
+## v1.14.0 — 2026-05-27 — GS-7 sgc land post-publish ship chain
+
+**GS-7 (feature f10, sibling to CE-N + GS-1 + GS-2, no parent intent).**
+Fourth ship of the **GS-N absorb arc**: post-publish ship chain
+orchestrator. Single command chains `sgc watch-ci-failure` (CE-3) +
+`sgc canary` (GS-1) with fail-fast on either.
+
+### Added — `sgc land`
+
+- **`sgc land`** post-publish ship chain orchestrator. Single command
+  chains `sgc watch-ci-failure` (CE-3) + `sgc canary` (GS-1) with
+  fail-fast on either. Default reads package + version from cwd-nearest
+  `package.json`; per-flag override via `--package` / `--version`.
+- **Stateless** (no `land-runs/` namespace) — emits 3 voluntary events
+  (`land.start` / `land.complete` / `land.failed`) to `events.ndjson`
+  for telemetry. Underlying CE-3 / GS-1 capture artifacts
+  (`.sgc/ship-failures/<slug>.md` / `.sgc/canaries/<slug>.md`) remain
+  the operator-actionable failure anchors.
+
+### Changed
+
+- **POSITIONING.md** refreshed: GS-N arc paragraph extended to mention
+  GS-1.1 / GS-1.2 / GS-2 / GS-7 ships (previously listed only GS-1.0 /
+  GS-1.1). One new delegate-table row for `sgc land`.
+
+### Tests
+
+- Dispatcher CI gate **815 → 833** pass (+18, beats plan target of +12
+  by 50%): 16 `land.test.ts` (deriveLandInputs / defaultStepRunners /
+  happy path / watch-capture / canary-capture / runner-throw /
+  arg-error) + 2 sgc-cli help-surface. 0 fail. Eval-tier 3 fails
+  pre-existing LLM-API-dependent flakes, unrelated.
+
+### Invariants
+
+- No impact. No schema bump. `land.start` / `land.complete` /
+  `land.failed` event_types are additive under existing
+  `${string}.${string}` template literal.
+
+### No migration required
+
+Additive command; operators not invoking `sgc land` are unaffected.
+CE-1 / CE-2 / CE-3 / CE-4 / CE-5 / CE-6 / GS-1 / GS-1.1 / GS-1.2 / GS-2
+byte-for-byte unchanged.
+
 ## v1.13.0 — 2026-05-26 — GS-2 sgc handoff session-state checkpoint
 
 **GS-2 (feature f9, sibling to CE-N + GS-1, no parent intent).** Third

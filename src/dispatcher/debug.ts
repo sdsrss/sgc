@@ -10,6 +10,9 @@
 // telemetry on events.ndjson.
 
 import type { Logger } from "./logger"
+import { readFile } from "node:fs/promises"
+import { join } from "node:path"
+import { spawnSync } from "node:child_process"
 
 export type DebugPhase =
   | "investigate"
@@ -146,4 +149,95 @@ export function deriveInvestigationId(symptom: string, now: Date): string {
 
   const truncated = kebab.slice(0, 30).replace(/-+$/, "")
   return `${prefix}-${truncated}`
+}
+
+async function readEventsTail(
+  stateRoot: string,
+  lineLimit: number,
+): Promise<{ lines: string[]; error?: string }> {
+  const path = join(stateRoot, "progress", "events.ndjson")
+  try {
+    const content = await readFile(path, "utf8")
+    const all = content.split("\n").filter((l) => l.length > 0)
+    return { lines: all.slice(-lineLimit) }
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code === "ENOENT") return { lines: [], error: "events_tail: file missing" }
+    return {
+      lines: [],
+      error: `events_tail: ${(err as Error).message.slice(0, 80)}`,
+    }
+  }
+}
+
+async function gatherInvestigateFactsImpl(opts: {
+  stateRoot: string
+  repoRoot: string
+}): Promise<InvestigateFacts> {
+  const errors: string[] = []
+  const facts: InvestigateFacts = {
+    git_status_paths: [],
+    recent_events: [],
+    errors,
+  }
+
+  // git head
+  try {
+    const r = spawnSync("git", ["rev-parse", "HEAD"], {
+      cwd: opts.repoRoot,
+      encoding: "utf8",
+    })
+    if (r.status === 0) facts.git_head = r.stdout.trim()
+    else errors.push(`git_head: ${(r.stderr || "non-zero exit").trim().slice(0, 80)}`)
+  } catch (err) {
+    errors.push(`git_head: ${(err as Error).message.slice(0, 80)}`)
+  }
+
+  // git status (first 20 paths)
+  try {
+    const r = spawnSync("git", ["status", "--porcelain=v1"], {
+      cwd: opts.repoRoot,
+      encoding: "utf8",
+    })
+    if (r.status === 0) {
+      facts.git_status_paths = r.stdout
+        .split(/\r?\n/)
+        .filter((l) => l.length > 0)
+        .slice(0, 20)
+    } else {
+      errors.push(`git_status: ${(r.stderr || "non-zero exit").trim().slice(0, 80)}`)
+    }
+  } catch (err) {
+    errors.push(`git_status: ${(err as Error).message.slice(0, 80)}`)
+  }
+
+  // events tail (last 50 lines for investigate; analyze uses 500)
+  const tail = await readEventsTail(opts.stateRoot, 50)
+  if (tail.error) errors.push(tail.error)
+  for (const line of tail.lines) {
+    try {
+      const e = JSON.parse(line)
+      facts.recent_events.push({
+        ts: String(e.ts ?? ""),
+        event_type: String(e.event_type ?? ""),
+        agent: String(e.agent ?? ""),
+      })
+    } catch {
+      // skip malformed line silently — debug.heuristic_failed will be emitted
+      // at orchestrator layer when errors[] non-empty
+    }
+  }
+
+  return facts
+}
+
+export function defaultHeuristic(): HeuristicReaders {
+  return {
+    gatherInvestigateFacts: gatherInvestigateFactsImpl,
+    // analyzeCorpus / detectThreeStrike / scanHistoricalSignatures
+    // implemented in Tasks 3-5.
+    analyzeCorpus: async () => [],
+    detectThreeStrike: async () => [],
+    scanHistoricalSignatures: async () => [],
+  }
 }

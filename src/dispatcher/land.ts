@@ -23,7 +23,7 @@ import {
   type CaptureCanaryResult,
   runCanaryChecks,
 } from "./canary"
-import type { Logger } from "./logger"
+import { createLogger, type Logger } from "./logger"
 
 export type LandStepName = "watch-ci-failure" | "canary"
 
@@ -139,8 +139,79 @@ export async function deriveLandInputs(
   return { packageName: pkgName, version: pkgVersion }
 }
 
-export async function runLand(_opts: LandOptions = {}): Promise<LandResult> {
-  throw new Error("not implemented")
+function emitLandEvent(
+  logger: Logger,
+  event_type: `${string}.${string}`,
+  level: "info" | "warn",
+  payload: Record<string, unknown>,
+): void {
+  logger.event({
+    task_id: null,
+    spawn_id: null,
+    agent: "land",
+    event_type,
+    level,
+    payload,
+  })
+}
+
+export async function runLand(opts: LandOptions = {}): Promise<LandResult> {
+  const repoRoot = opts.repoRoot ?? process.cwd()
+  const stateRoot = opts.stateRoot ?? resolve(repoRoot, ".sgc")
+  const stdoutWrite = opts.stdoutWrite ?? ((c: string) => { process.stdout.write(c) })
+  const stderrWrite = opts.stderrWrite ?? ((c: string) => { process.stderr.write(c) })
+  const now = opts.now ?? (() => new Date())
+  const logger = opts.logger ?? createLogger({ stateRoot })
+  const steps = opts.steps ?? defaultStepRunners()
+
+  let derived: DerivedLandInputs
+  try {
+    derived = await deriveLandInputs({
+      repoRoot,
+      package: opts.package,
+      version: opts.version,
+    })
+  } catch (e) {
+    if (e instanceof LandError) {
+      stderrWrite(`land error: ${e.message}\n`)
+      return { exitCode: 1, step: "arg-error", errorMessage: e.message }
+    }
+    throw e
+  }
+
+  const start = now()
+  emitLandEvent(logger, "land.start", "info", {
+    package: derived.packageName,
+    version: derived.version,
+  })
+
+  stdoutWrite(`[1/2] watch-ci-failure ...\n`)
+  const watchResult = await steps.watchCiFailure({ logger, stateRoot })
+
+  stdoutWrite(`[2/2] canary ${derived.packageName}@${derived.version} ...\n`)
+  const canaryResult = await steps.canary({
+    packageName: derived.packageName,
+    expectedVersion: derived.version,
+    logger,
+    stateRoot,
+  })
+
+  stdoutWrite(`land complete: ${derived.packageName}@${derived.version}\n`)
+  const end = now()
+  emitLandEvent(logger, "land.complete", "info", {
+    package: derived.packageName,
+    version: derived.version,
+    duration_ms: end.getTime() - start.getTime(),
+  })
+
+  return {
+    exitCode: 0,
+    step: "complete",
+    package: derived.packageName,
+    version: derived.version,
+    watchResult,
+    canaryResult,
+  }
 }
 
 async function gitOutput(args: string[]): Promise<string | null> {

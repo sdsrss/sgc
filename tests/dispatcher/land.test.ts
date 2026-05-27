@@ -114,3 +114,33 @@ describe("defaultStepRunners", () => {
     expect(typeof runners.canary).toBe("function")
   })
 })
+
+describe("runLand", () => {
+  test("T4: happy path — watch green + canary green → exit 0", async () => {
+    writePackageJson("@sdsrs/sgc", "1.14.0")
+    const { steps, watchSpy, canarySpy } = makeSteps(
+      { status: "success" },
+      { status: "success" },
+    )
+    const stdoutChunks: string[] = []
+    const stderrChunks: string[] = []
+    const logger = createLogger({ stateRoot })
+    const result = await runLand({
+      repoRoot,
+      stateRoot,
+      steps,
+      logger,
+      stdoutWrite: (c) => stdoutChunks.push(c),
+      stderrWrite: (c) => stderrChunks.push(c),
+    })
+    expect(result.exitCode).toBe(0)
+    expect(result.step).toBe("complete")
+    expect(result.package).toBe("@sdsrs/sgc")
+    expect(result.version).toBe("1.14.0")
+    expect(watchSpy).toHaveBeenCalledTimes(1)
+    expect(canarySpy).toHaveBeenCalledTimes(1)
+    expect(stdoutChunks.join("")).toContain("land complete: @sdsrs/sgc@1.14.0")
+    expect(stdoutChunks.join("")).toContain("[1/2] watch-ci-failure")
+    expect(stdoutChunks.join("")).toContain("[2/2] canary")
+  })
+})

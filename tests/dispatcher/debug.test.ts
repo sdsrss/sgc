@@ -494,7 +494,7 @@ describe("runDebugStart", () => {
       .filter((l) => l.length > 0)
       .map((l) => JSON.parse(l))
     const types = eventLines.map((e: { event_type: string }) => e.event_type)
-    expect(types).toContain("debug.start")
+    expect(types.filter((t: string) => t === "debug.start")).toHaveLength(1)
     expect(types.filter((t: string) => t === "debug.phase_complete")).toHaveLength(3)
 
     rmSync(repoRoot, { recursive: true, force: true })

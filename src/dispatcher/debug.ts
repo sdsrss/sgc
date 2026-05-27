@@ -325,8 +325,10 @@ async function scanDir(
     } catch {
       continue
     }
-    if (!content.toLowerCase().includes(needle.toLowerCase())) continue
-    const idx = content.toLowerCase().indexOf(needle.toLowerCase())
+    const contentLower = content.toLowerCase()
+    const needleLower = needle.toLowerCase()
+    const idx = contentLower.indexOf(needleLower)
+    if (idx < 0) continue
     const excerptStart = Math.max(0, idx - 30)
     const excerpt = content
       .slice(excerptStart, excerptStart + 160)
@@ -335,7 +337,7 @@ async function scanDir(
     hits.push({
       kind: dir === "ship-failures" ? "ship-failure" : "canary",
       slug: name.replace(/\.md$/, ""),
-      excerpt: excerpt.slice(0, 160),
+      excerpt,
     })
   }
   return hits

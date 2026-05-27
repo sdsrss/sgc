@@ -261,7 +261,13 @@ describe("sgc land CLI help (GS-7 T11)", () => {
     const { stdout, exitCode } = await runSgc(["--help"])
     expect(exitCode).toBe(0)
     expect(stdout).toContain("land")
-    expect(stdout).toMatch(/land\s+.*watch-ci-failure.*canary/i)
+    // GS-7 DOG-3 fix: citty wraps cmd names in backticks under consola CI-mode
+    // (`land`) but uses plain text locally (land). Assert the description text
+    // appears separately instead of a tight one-line regex that breaks on the
+    // backtick separator.
+    expect(stdout).toContain("Post-publish ship chain")
+    expect(stdout).toContain("watch-ci-failure")
+    expect(stdout).toContain("canary")
   })
 
   test("sgc land --help shows --package and --version flags", async () => {

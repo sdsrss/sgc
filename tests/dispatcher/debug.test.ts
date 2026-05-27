@@ -750,7 +750,47 @@ describe("runDebugClose refusals", () => {
   })
 })
 
-import { runDebugList } from "../../src/dispatcher/debug"
+import { runDebugList, runDebugStatus } from "../../src/dispatcher/debug"
+
+describe("runDebugStatus", () => {
+  test("found → stdout passthrough exit 0", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    await runDebugStart({
+      symptom: "status test",
+      stateRoot,
+      repoRoot,
+      now: () => new Date("2026-05-27T14:23:00.000Z"),
+      stdoutWrite: () => {},
+      stderrWrite: () => {},
+    })
+    const stdoutChunks: string[] = []
+    const result = await runDebugStatus({
+      id: "2026-05-27-1423-status-test",
+      stateRoot,
+      stdoutWrite: (c) => { stdoutChunks.push(c) },
+      stderrWrite: () => {},
+    })
+    expect(result.exitCode).toBe(0)
+    const stdout = stdoutChunks.join("")
+    expect(stdout).toContain("status: in_progress")
+    expect(stdout).toContain("## 1 — Investigate")
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+
+  test("missing → exit 1", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    const stderrChunks: string[] = []
+    const result = await runDebugStatus({
+      id: "nonexistent",
+      stateRoot,
+      stdoutWrite: () => {},
+      stderrWrite: (c) => { stderrChunks.push(c) },
+    })
+    expect(result.exitCode).toBe(1)
+    expect(stderrChunks.join("")).toContain("no investigation at")
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+})
 
 describe("runDebugList", () => {
   test("lists investigations sorted started_at desc", async () => {

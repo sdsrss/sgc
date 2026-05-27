@@ -609,6 +609,20 @@ export async function runDebugClose(opts: DebugCloseOptions): Promise<DebugResul
   return { exitCode: 0 }
 }
 
+export async function runDebugStatus(opts: DebugStatusOptions): Promise<DebugResult> {
+  const stateRoot = opts.stateRoot ?? join(process.cwd(), ".sgc")
+  const stdoutWrite = opts.stdoutWrite ?? ((c: string) => { process.stdout.write(c) })
+  const stderrWrite = opts.stderrWrite ?? ((c: string) => { process.stderr.write(c) })
+
+  const result = await readInvestigationContent(stateRoot, opts.id)
+  if (!result) {
+    stderrWrite(`no investigation at ${join(stateRoot, "investigations", `${opts.id}.md`)}\n`)
+    return { exitCode: 1 }
+  }
+  stdoutWrite(result.content)
+  return { exitCode: 0 }
+}
+
 export async function runDebugList(opts: DebugListOptions): Promise<DebugResult> {
   const stateRoot = opts.stateRoot ?? join(process.cwd(), ".sgc")
   const stdoutWrite = opts.stdoutWrite ?? ((c: string) => { process.stdout.write(c) })

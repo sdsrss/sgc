@@ -5,6 +5,7 @@ import { join } from "node:path"
 import { spawnSync } from "node:child_process"
 import { deriveInvestigationId, defaultHeuristic } from "../../src/dispatcher/debug"
 
+
 describe("deriveInvestigationId", () => {
   test("kebabizes symptom + prefixes YYYY-MM-DD-HHMM", () => {
     const now = new Date("2026-05-27T14:23:00.000Z")
@@ -98,6 +99,96 @@ describe("gatherInvestigateFacts", () => {
     })
     // non-git → git_head undefined, git_status_paths empty (or error recorded)
     expect(facts.git_status_paths).toEqual([])
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+})
+
+describe("analyzeCorpus", () => {
+  test("returns corpus hits ranked by overlap_score desc", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    const solutionsDir = join(stateRoot, "solutions", "other")
+    mkdirSync(solutionsDir, { recursive: true })
+
+    writeFileSync(
+      join(solutionsDir, "timeout-plan-handler.md"),
+      `---
+intent: plan handler timeout under load
+category: other
+tags: [timeout, plan]
+signature: "timeout in plan dispatcher"
+problem: dispatcher hangs on plan command
+dedup_stamp: aaa
+prevention: "wrap planner.eng spawn in 30s timeout per F robustness"
+---
+
+Body.
+`,
+    )
+
+    writeFileSync(
+      join(solutionsDir, "unrelated-canary-network.md"),
+      `---
+intent: canary network flake
+category: other
+tags: [network]
+signature: "ECONNRESET during npm install"
+problem: network blip
+dedup_stamp: bbb
+prevention: "retry npm install with backoff"
+---
+
+Body.
+`,
+    )
+
+    const hits = await defaultHeuristic().analyzeCorpus({
+      stateRoot,
+      symptom: "plan dispatcher timeout",
+    })
+
+    expect(hits.length).toBeGreaterThanOrEqual(1)
+    expect(hits[0].solution_ref).toContain("timeout-plan-handler")
+    expect(hits[0].prevention_excerpt).toContain("wrap planner.eng spawn")
+    expect(hits[0].overlap_score).toBeGreaterThan(0)
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+
+  test("returns empty array when no solutions dir exists", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    const hits = await defaultHeuristic().analyzeCorpus({
+      stateRoot,
+      symptom: "anything",
+    })
+    expect(hits).toEqual([])
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+
+  test("caps results at top-N=5", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    const solutionsDir = join(stateRoot, "solutions", "other")
+    mkdirSync(solutionsDir, { recursive: true })
+    for (let i = 0; i < 8; i++) {
+      writeFileSync(
+        join(solutionsDir, `timeout-${i}.md`),
+        `---
+intent: timeout symptom variant ${i}
+category: other
+tags: [timeout]
+signature: "timeout in plan dispatcher ${i}"
+problem: dispatcher hangs
+dedup_stamp: stamp${i}
+prevention: "mitigation for timeout case ${i}"
+---
+
+Body.
+`,
+      )
+    }
+    const hits = await defaultHeuristic().analyzeCorpus({
+      stateRoot,
+      symptom: "plan dispatcher timeout",
+    })
+    expect(hits.length).toBeLessThanOrEqual(5)
     rmSync(repoRoot, { recursive: true, force: true })
   })
 })

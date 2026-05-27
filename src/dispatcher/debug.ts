@@ -13,6 +13,8 @@ import type { Logger } from "./logger"
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 import { spawnSync } from "node:child_process"
+import { walkSolutionsCorpus, extractKeywords } from "./agents/researcher-history"
+import { parseFrontmatter } from "./state"
 
 export type DebugPhase =
   | "investigate"
@@ -234,12 +236,47 @@ async function gatherInvestigateFactsImpl(opts: {
   return facts
 }
 
+async function analyzeCorpusImpl(opts: {
+  stateRoot: string
+  symptom: string
+}): Promise<CorpusHit[]> {
+  const keywords = extractKeywords(opts.symptom)
+  if (keywords.length === 0) return []
+
+  let scans: Awaited<ReturnType<typeof walkSolutionsCorpus>>
+  try {
+    scans = await walkSolutionsCorpus(opts.stateRoot, keywords)
+  } catch {
+    return []
+  }
+
+  const hits: CorpusHit[] = []
+  for (const scan of scans) {
+    let prevention: string
+    try {
+      const fm = parseFrontmatter<{ prevention?: string }>(scan.text)
+      prevention = (fm.data.prevention ?? "").trim()
+    } catch {
+      continue
+    }
+    if (prevention.length === 0) continue
+
+    hits.push({
+      solution_ref: `${scan.category}/${scan.slug}.md`,
+      prevention_excerpt: prevention.slice(0, 240),
+      overlap_score: scan.hits,
+    })
+  }
+
+  hits.sort((a, b) => b.overlap_score - a.overlap_score)
+  return hits.slice(0, 5)
+}
+
 export function defaultHeuristic(): HeuristicReaders {
   return {
     gatherInvestigateFacts: gatherInvestigateFactsImpl,
-    // analyzeCorpus / detectThreeStrike / scanHistoricalSignatures
-    // implemented in Tasks 3-5.
-    analyzeCorpus: async () => [],
+    analyzeCorpus: analyzeCorpusImpl,
+    // detectThreeStrike / scanHistoricalSignatures implemented in Tasks 4-5.
     detectThreeStrike: async () => [],
     scanHistoricalSignatures: async () => [],
   }

@@ -497,6 +497,118 @@ async function resolveCollisionId(stateRoot: string, baseId: string): Promise<st
   throw new Error(`collision: too many same-minute investigations for ${baseId}`)
 }
 
+const SHA_RE = /^[0-9a-f]{7,40}$/
+
+async function readInvestigationContent(
+  stateRoot: string,
+  id: string,
+): Promise<{ path: string; content: string } | null> {
+  const path = join(stateRoot, "investigations", `${id}.md`)
+  try {
+    const content = await readFile(path, "utf8")
+    return { path, content }
+  } catch {
+    return null
+  }
+}
+
+export async function runDebugClose(opts: DebugCloseOptions): Promise<DebugResult> {
+  const stateRoot = opts.stateRoot ?? join(process.cwd(), ".sgc")
+  const stderrWrite = opts.stderrWrite ?? ((c: string) => { process.stderr.write(c) })
+  const stdoutWrite = opts.stdoutWrite ?? ((c: string) => { process.stdout.write(c) })
+  const now = (opts.now ?? (() => new Date()))()
+  const logger = opts.logger ?? createLogger({ stateRoot })
+
+  // Suppress unused variable warning — stdoutWrite is part of the public API
+  void stdoutWrite
+
+  // Iron Law #3 hard-gate: validate flags BEFORE any disk read.
+  const rootCause = opts.rootCause.trim()
+  const fixCommit = opts.fixCommit.trim()
+  const verifyCommand = opts.verifyCommand.trim()
+
+  if (rootCause.length === 0) {
+    stderrWrite("close refused: --root-cause required (Iron Law #3)\n")
+    return { exitCode: 1 }
+  }
+  if (!SHA_RE.test(fixCommit)) {
+    stderrWrite("close refused: --fix-commit must be 7-40 hex chars (Iron Law #3)\n")
+    return { exitCode: 1 }
+  }
+  if (verifyCommand.length === 0) {
+    stderrWrite("close refused: --verify-command required (Iron Law #3)\n")
+    return { exitCode: 1 }
+  }
+
+  const existing = await readInvestigationContent(stateRoot, opts.id)
+  if (!existing) {
+    stderrWrite(`close refused: no investigation at ${join(stateRoot, "investigations", `${opts.id}.md`)}\n`)
+    return { exitCode: 1 }
+  }
+
+  // Parse frontmatter to check status.
+  let fmData: Partial<InvestigationFrontmatter> = {}
+  try {
+    const fm = parseFrontmatter<Partial<InvestigationFrontmatter>>(existing.content)
+    fmData = fm.data
+  } catch {
+    stderrWrite(`close refused: ${opts.id} frontmatter unparseable\n`)
+    return { exitCode: 1 }
+  }
+  if (fmData.status === "closed") {
+    stderrWrite(`close refused: ${opts.id} already closed\n`)
+    return { exitCode: 1 }
+  }
+
+  // Extract body (everything after closing ---). Preserve existing sections 1-4
+  // and append section 5.
+  const bodyStart = existing.content.indexOf("\n---\n")
+  const bodyContent =
+    bodyStart >= 0 ? existing.content.slice(bodyStart + "\n---\n".length) : ""
+
+  const updatedBody =
+    bodyContent.trimEnd() +
+    "\n\n## 5 — Fix evidence\n\n" +
+    `- root_cause: ${rootCause}\n` +
+    `- fix_commit: ${fixCommit}\n` +
+    `- verify_command: \`${verifyCommand}\`\n` +
+    `- closed_at: ${now.toISOString()}\n`
+
+  await writeInvestigation({
+    stateRoot,
+    id: opts.id,
+    frontmatter: {
+      id: opts.id,
+      status: "closed",
+      current_phase: "closed",
+      symptom: String(fmData.symptom ?? ""),
+      started_at: String(fmData.started_at ?? ""),
+      closed_at: now.toISOString(),
+      root_cause: rootCause,
+      fix_commit: fixCommit,
+      verify_command: verifyCommand,
+    },
+    body: updatedBody,
+  })
+
+  logger.event({
+    task_id: opts.id,
+    spawn_id: opts.id,
+    agent: "sgc.debug",
+    event_type: "debug.closed",
+    level: "info",
+    payload: {
+      investigation_id: opts.id,
+      root_cause: rootCause,
+      fix_commit: fixCommit,
+      verify_command: verifyCommand,
+    },
+  })
+
+  stderrWrite(`closed: ${opts.id}\n`)
+  return { exitCode: 0 }
+}
+
 export async function runDebugStart(opts: DebugStartOptions): Promise<DebugResult> {
   const stateRoot = opts.stateRoot ?? join(opts.repoRoot ?? process.cwd(), ".sgc")
   const repoRoot = opts.repoRoot ?? process.cwd()

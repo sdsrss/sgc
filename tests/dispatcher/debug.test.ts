@@ -366,7 +366,7 @@ regression_seed: "TODO: smoke install hit ECONNRESET against registry"
 })
 
 import { readFileSync } from "node:fs"
-import { renderInvestigationBody, writeInvestigation, runDebugStart } from "../../src/dispatcher/debug"
+import { renderInvestigationBody, writeInvestigation, runDebugStart, runDebugClose } from "../../src/dispatcher/debug"
 
 describe("renderInvestigationBody", () => {
   test("renders 4 body sections deterministically", () => {
@@ -550,6 +550,136 @@ describe("runDebugStart", () => {
     })
     expect(stderrA.join("")).toMatch(/2026-05-27-1423-x\.md/)
     expect(stderrB.join("")).toMatch(/2026-05-27-1423-x-2\.md/)
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+})
+
+describe("runDebugClose Iron Law #3", () => {
+  async function makeInProgress() {
+    const { repoRoot, stateRoot } = makeTmpState()
+    await runDebugStart({
+      symptom: "test sym",
+      stateRoot,
+      repoRoot,
+      now: () => new Date("2026-05-27T14:23:00.000Z"),
+      stdoutWrite: () => {},
+      stderrWrite: () => {},
+    })
+    return { repoRoot, stateRoot, id: "2026-05-27-1423-test-sym" }
+  }
+
+  test("refuses missing --root-cause", async () => {
+    const { repoRoot, stateRoot, id } = await makeInProgress()
+    const stderrChunks: string[] = []
+    const result = await runDebugClose({
+      id,
+      rootCause: "",
+      fixCommit: "abc1234",
+      verifyCommand: "bun test",
+      stateRoot,
+      stderrWrite: (c) => { stderrChunks.push(c) },
+      stdoutWrite: () => {},
+    })
+    expect(result.exitCode).toBe(1)
+    expect(stderrChunks.join("")).toContain("--root-cause required (Iron Law #3)")
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+
+  test("refuses missing --fix-commit", async () => {
+    const { repoRoot, stateRoot, id } = await makeInProgress()
+    const stderrChunks: string[] = []
+    const result = await runDebugClose({
+      id,
+      rootCause: "race condition in foo()",
+      fixCommit: "",
+      verifyCommand: "bun test",
+      stateRoot,
+      stderrWrite: (c) => { stderrChunks.push(c) },
+      stdoutWrite: () => {},
+    })
+    expect(result.exitCode).toBe(1)
+    expect(stderrChunks.join("")).toContain("--fix-commit must be 7-40 hex chars (Iron Law #3)")
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+
+  test("refuses bad SHA shape", async () => {
+    const { repoRoot, stateRoot, id } = await makeInProgress()
+    const stderrChunks: string[] = []
+    const result = await runDebugClose({
+      id,
+      rootCause: "race condition",
+      fixCommit: "not-a-sha",
+      verifyCommand: "bun test",
+      stateRoot,
+      stderrWrite: (c) => { stderrChunks.push(c) },
+      stdoutWrite: () => {},
+    })
+    expect(result.exitCode).toBe(1)
+    expect(stderrChunks.join("")).toContain("--fix-commit must be 7-40 hex chars")
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+
+  test("refuses missing --verify-command", async () => {
+    const { repoRoot, stateRoot, id } = await makeInProgress()
+    const stderrChunks: string[] = []
+    const result = await runDebugClose({
+      id,
+      rootCause: "race condition",
+      fixCommit: "abc1234",
+      verifyCommand: "",
+      stateRoot,
+      stderrWrite: (c) => { stderrChunks.push(c) },
+      stdoutWrite: () => {},
+    })
+    expect(result.exitCode).toBe(1)
+    expect(stderrChunks.join("")).toContain("--verify-command required (Iron Law #3)")
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+
+  test("happy path: 3 valid flags → frontmatter updated + section 5 appended + event emitted", async () => {
+    const { repoRoot, stateRoot, id } = await makeInProgress()
+    const stderrChunks: string[] = []
+    const result = await runDebugClose({
+      id,
+      rootCause: "planner.eng spawn missing timeout",
+      fixCommit: "deadbeef",
+      verifyCommand: "SGC_FORCE_INLINE=1 bun test tests/dispatcher/spawn.test.ts",
+      stateRoot,
+      stderrWrite: (c) => { stderrChunks.push(c) },
+      stdoutWrite: () => {},
+    })
+    expect(result.exitCode).toBe(0)
+    expect(stderrChunks.join("")).toContain(`closed: ${id}`)
+
+    const content = readFileSync(join(stateRoot, "investigations", `${id}.md`), "utf8")
+    expect(content).toContain("status: closed")
+    expect(content).toContain("current_phase: closed")
+    expect(content).toContain("fix_commit: deadbeef")
+    expect(content).toContain("## 5 — Fix evidence")
+    expect(content).toContain("planner.eng spawn missing timeout")
+
+    const eventsPath = join(stateRoot, "progress", "events.ndjson")
+    const events = readFileSync(eventsPath, "utf8")
+      .split("\n")
+      .filter((l) => l.length > 0)
+      .map((l) => JSON.parse(l))
+    expect(events.some((e: { event_type: string }) => e.event_type === "debug.closed")).toBe(true)
+
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+
+  test("accepts 40-char SHA", async () => {
+    const { repoRoot, stateRoot, id } = await makeInProgress()
+    const result = await runDebugClose({
+      id,
+      rootCause: "X",
+      fixCommit: "deadbeef".repeat(5),
+      verifyCommand: "Y",
+      stateRoot,
+      stderrWrite: () => {},
+      stdoutWrite: () => {},
+    })
+    expect(result.exitCode).toBe(0)
     rmSync(repoRoot, { recursive: true, force: true })
   })
 })

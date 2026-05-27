@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { runLand, defaultStepRunners } from "../../src/dispatcher/land"
+import { runLand, defaultStepRunners, deriveLandInputs, LandError } from "../../src/dispatcher/land"
 import type {
   CanaryStepResult,
   LandStepRunners,
@@ -50,9 +50,60 @@ function makeSteps(
   }
 }
 
-describe("runLand", () => {
-  test("placeholder — replaced in Task 2", () => {
-    expect(true).toBe(true)
+describe("deriveLandInputs", () => {
+  test("T2a: reads package.json#name + version when no overrides", async () => {
+    writePackageJson("@sdsrs/sgc", "1.14.0")
+    const out = await deriveLandInputs({ repoRoot })
+    expect(out).toEqual({ packageName: "@sdsrs/sgc", version: "1.14.0" })
+  })
+
+  test("T2b: --package override; version still from package.json", async () => {
+    writePackageJson("@sdsrs/sgc", "1.14.0")
+    const out = await deriveLandInputs({ repoRoot, package: "custom-pkg" })
+    expect(out).toEqual({ packageName: "custom-pkg", version: "1.14.0" })
+  })
+
+  test("T2c: --version override; package still from package.json", async () => {
+    writePackageJson("@sdsrs/sgc", "1.14.0")
+    const out = await deriveLandInputs({ repoRoot, version: "1.15.0" })
+    expect(out).toEqual({ packageName: "@sdsrs/sgc", version: "1.15.0" })
+  })
+
+  test("T2d: both flags given; package.json not read", async () => {
+    // no package.json written
+    const out = await deriveLandInputs({
+      repoRoot,
+      package: "foo",
+      version: "9.9.9",
+    })
+    expect(out).toEqual({ packageName: "foo", version: "9.9.9" })
+  })
+
+  test("T2e: missing package.json + no --package → LandError cannot_derive_package", async () => {
+    await expect(deriveLandInputs({ repoRoot, version: "1.14.0" })).rejects.toBeInstanceOf(
+      LandError,
+    )
+    try {
+      await deriveLandInputs({ repoRoot, version: "1.14.0" })
+    } catch (e) {
+      expect((e as LandError).code).toBe("cannot_derive_package")
+    }
+  })
+
+  test("T2f: missing package.json + no --version → LandError cannot_derive_version", async () => {
+    await expect(deriveLandInputs({ repoRoot, package: "foo" })).rejects.toBeInstanceOf(
+      LandError,
+    )
+    try {
+      await deriveLandInputs({ repoRoot, package: "foo" })
+    } catch (e) {
+      expect((e as LandError).code).toBe("cannot_derive_version")
+    }
+  })
+
+  test("T2g: malformed package.json + no overrides → LandError cannot_derive_package", async () => {
+    writeFileSync(join(repoRoot, "package.json"), "{ not json", "utf8")
+    await expect(deriveLandInputs({ repoRoot })).rejects.toBeInstanceOf(LandError)
   })
 })
 

@@ -7,6 +7,8 @@
 // (.sgc/ship-failures/, .sgc/canaries/); land itself emits only three
 // voluntary events.ndjson telemetry entries.
 
+import { readFile } from "node:fs/promises"
+import { resolve } from "node:path"
 import type { CaptureResult, WatchedRun } from "./ship-failure"
 import type { CanaryPhase, CaptureCanaryResult } from "./canary"
 import type { Logger } from "./logger"
@@ -78,6 +80,51 @@ export class LandError extends Error {
     super(message)
     this.name = "LandError"
   }
+}
+
+export interface DeriveInputsOpts {
+  repoRoot?: string
+  package?: string
+  version?: string
+}
+
+export interface DerivedLandInputs {
+  packageName: string
+  version: string
+}
+
+export async function deriveLandInputs(
+  opts: DeriveInputsOpts,
+): Promise<DerivedLandInputs> {
+  const repoRoot = opts.repoRoot ?? process.cwd()
+  let pkgName = opts.package
+  let pkgVersion = opts.version
+
+  if (!pkgName || !pkgVersion) {
+    let parsed: { name?: string; version?: string } | null = null
+    try {
+      const raw = await readFile(resolve(repoRoot, "package.json"), "utf8")
+      parsed = JSON.parse(raw) as { name?: string; version?: string }
+    } catch {
+      parsed = null
+    }
+    if (!pkgName) pkgName = parsed?.name
+    if (!pkgVersion) pkgVersion = parsed?.version
+  }
+
+  if (!pkgName) {
+    throw new LandError(
+      "cannot_derive_package",
+      `cannot derive package name (no readable package.json at ${repoRoot}; pass --package <name>)`,
+    )
+  }
+  if (!pkgVersion) {
+    throw new LandError(
+      "cannot_derive_version",
+      `cannot derive version (no readable package.json at ${repoRoot}; pass --version <ver>)`,
+    )
+  }
+  return { packageName: pkgName, version: pkgVersion }
 }
 
 export async function runLand(_opts: LandOptions = {}): Promise<LandResult> {

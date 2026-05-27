@@ -609,6 +609,54 @@ export async function runDebugClose(opts: DebugCloseOptions): Promise<DebugResul
   return { exitCode: 0 }
 }
 
+export async function runDebugList(opts: DebugListOptions): Promise<DebugResult> {
+  const stateRoot = opts.stateRoot ?? join(process.cwd(), ".sgc")
+  const stdoutWrite = opts.stdoutWrite ?? ((c: string) => { process.stdout.write(c) })
+  const dir = join(stateRoot, "investigations")
+
+  let entries: string[]
+  try {
+    entries = await readdir(dir)
+  } catch {
+    stdoutWrite("no investigations\n")
+    return { exitCode: 0 }
+  }
+
+  const records: Array<{
+    id: string
+    status: string
+    started_at: string
+    symptom: string
+  }> = []
+  for (const name of entries) {
+    if (!name.endsWith(".md")) continue
+    try {
+      const content = await readFile(join(dir, name), "utf8")
+      const fm = parseFrontmatter<Partial<InvestigationFrontmatter>>(content)
+      records.push({
+        id: String(fm.data.id ?? name.replace(/\.md$/, "")),
+        status: String(fm.data.status ?? "?"),
+        started_at: String(fm.data.started_at ?? ""),
+        symptom: String(fm.data.symptom ?? "").slice(0, 60),
+      })
+    } catch {
+      continue
+    }
+  }
+
+  if (records.length === 0) {
+    stdoutWrite("no investigations\n")
+    return { exitCode: 0 }
+  }
+
+  records.sort((a, b) => b.started_at.localeCompare(a.started_at))
+  stdoutWrite("ID                                    STATUS       SYMPTOM\n")
+  for (const r of records) {
+    stdoutWrite(`${r.id.padEnd(38)}${r.status.padEnd(13)}${r.symptom}\n`)
+  }
+  return { exitCode: 0 }
+}
+
 export async function runDebugStart(opts: DebugStartOptions): Promise<DebugResult> {
   const stateRoot = opts.stateRoot ?? join(opts.repoRoot ?? process.cwd(), ".sgc")
   const repoRoot = opts.repoRoot ?? process.cwd()

@@ -749,3 +749,51 @@ describe("runDebugClose refusals", () => {
     rmSync(repoRoot, { recursive: true, force: true })
   })
 })
+
+import { runDebugList } from "../../src/dispatcher/debug"
+
+describe("runDebugList", () => {
+  test("lists investigations sorted started_at desc", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    // Create two with different started_at via deriveInvestigationId
+    await runDebugStart({
+      symptom: "older",
+      stateRoot,
+      repoRoot,
+      now: () => new Date("2026-05-27T10:00:00.000Z"),
+      stderrWrite: () => {},
+      stdoutWrite: () => {},
+    })
+    await runDebugStart({
+      symptom: "newer",
+      stateRoot,
+      repoRoot,
+      now: () => new Date("2026-05-27T15:00:00.000Z"),
+      stderrWrite: () => {},
+      stdoutWrite: () => {},
+    })
+
+    const stdoutChunks: string[] = []
+    const result = await runDebugList({
+      stateRoot,
+      stdoutWrite: (c) => { stdoutChunks.push(c) },
+    })
+    expect(result.exitCode).toBe(0)
+    const stdout = stdoutChunks.join("")
+    expect(stdout.indexOf("newer")).toBeLessThan(stdout.indexOf("older"))
+    expect(stdout).toContain("in_progress")
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+
+  test("empty list → 'no investigations'", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    const stdoutChunks: string[] = []
+    const result = await runDebugList({
+      stateRoot,
+      stdoutWrite: (c) => { stdoutChunks.push(c) },
+    })
+    expect(result.exitCode).toBe(0)
+    expect(stdoutChunks.join("")).toContain("no investigations")
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+})

@@ -188,7 +188,72 @@ Body.
       stateRoot,
       symptom: "plan dispatcher timeout",
     })
-    expect(hits.length).toBeLessThanOrEqual(5)
+    expect(hits.length).toBe(5)
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+
+  test("drops corpus entries with empty/missing prevention field", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    const solutionsDir = join(stateRoot, "solutions", "other")
+    mkdirSync(solutionsDir, { recursive: true })
+
+    // Has prevention → should be included.
+    writeFileSync(
+      join(solutionsDir, "with-prevention.md"),
+      `---
+intent: plan dispatcher timeout under load
+category: other
+tags: [timeout, plan]
+signature: "plan dispatcher timeout"
+problem: hangs
+dedup_stamp: aaa
+prevention: "wrap planner in timeout"
+---
+
+Body.
+`,
+    )
+
+    // Missing prevention key entirely → should be dropped.
+    writeFileSync(
+      join(solutionsDir, "missing-prevention.md"),
+      `---
+intent: plan dispatcher timeout retry
+category: other
+tags: [timeout, plan]
+signature: "plan dispatcher timeout retry"
+problem: hangs
+dedup_stamp: bbb
+---
+
+Body.
+`,
+    )
+
+    // Present but empty-string prevention → should be dropped.
+    writeFileSync(
+      join(solutionsDir, "empty-prevention.md"),
+      `---
+intent: plan dispatcher timeout flake
+category: other
+tags: [timeout, plan]
+signature: "plan dispatcher timeout flake"
+problem: hangs
+dedup_stamp: ccc
+prevention: "   "
+---
+
+Body.
+`,
+    )
+
+    const hits = await defaultHeuristic().analyzeCorpus({
+      stateRoot,
+      symptom: "plan dispatcher timeout",
+    })
+
+    expect(hits).toHaveLength(1)
+    expect(hits[0].solution_ref).toBe("other/with-prevention.md")
     rmSync(repoRoot, { recursive: true, force: true })
   })
 })

@@ -14,6 +14,7 @@ import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 import { spawnSync } from "node:child_process"
 import { walkSolutionsCorpus, extractKeywords } from "./agents/researcher-history"
+import type { SolutionScan } from "./agents/researcher-history"
 import { parseFrontmatter } from "./state"
 
 export type DebugPhase =
@@ -243,7 +244,7 @@ async function analyzeCorpusImpl(opts: {
   const keywords = extractKeywords(opts.symptom)
   if (keywords.length === 0) return []
 
-  let scans: Awaited<ReturnType<typeof walkSolutionsCorpus>>
+  let scans: SolutionScan[]
   try {
     scans = await walkSolutionsCorpus(opts.stateRoot, keywords)
   } catch {

@@ -188,6 +188,27 @@ export async function runLand(opts: LandOptions = {}): Promise<LandResult> {
   stdoutWrite(`[1/2] watch-ci-failure ...\n`)
   const watchResult = await steps.watchCiFailure({ logger, stateRoot })
 
+  if (watchResult.status !== "success") {
+    const capturePath = watchResult.captured?.path
+    const detail = capturePath ? `inspect ${capturePath}; ` : ""
+    stderrWrite(
+      `land failed at watch-ci-failure: ${detail}fix CI; rerun sgc land\n`,
+    )
+    emitLandEvent(logger, "land.failed", "warn", {
+      package: derived.packageName,
+      version: derived.version,
+      failed_step: "watch-ci-failure",
+      capture_path: capturePath ?? null,
+    })
+    return {
+      exitCode: 1,
+      step: "watch-ci-failure",
+      package: derived.packageName,
+      version: derived.version,
+      watchResult,
+    }
+  }
+
   stdoutWrite(`[2/2] canary ${derived.packageName}@${derived.version} ...\n`)
   const canaryResult = await steps.canary({
     packageName: derived.packageName,

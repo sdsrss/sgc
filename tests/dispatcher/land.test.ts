@@ -143,4 +143,49 @@ describe("runLand", () => {
     expect(stdoutChunks.join("")).toContain("[1/2] watch-ci-failure")
     expect(stdoutChunks.join("")).toContain("[2/2] canary")
   })
+
+  test("T5a: watch capture → exit 1, canary NOT called, stderr guidance", async () => {
+    writePackageJson("@sdsrs/sgc", "1.14.0")
+    const { steps, watchSpy, canarySpy } = makeSteps({
+      status: "failure",
+      captured: {
+        action: "captured",
+        path: "/x/.sgc/ship-failures/2026-05-27-abc1234.md",
+      },
+    })
+    const stderrChunks: string[] = []
+    const result = await runLand({
+      repoRoot,
+      stateRoot,
+      steps,
+      stderrWrite: (c) => stderrChunks.push(c),
+      stdoutWrite: () => {},
+    })
+    expect(result.exitCode).toBe(1)
+    expect(result.step).toBe("watch-ci-failure")
+    expect(watchSpy).toHaveBeenCalledTimes(1)
+    expect(canarySpy).toHaveBeenCalledTimes(0)
+    const stderr = stderrChunks.join("")
+    expect(stderr).toContain("land failed at watch-ci-failure")
+    expect(stderr).toContain("/x/.sgc/ship-failures/2026-05-27-abc1234.md")
+    expect(stderr).toContain("fix CI; rerun sgc land")
+  })
+
+  test("T5b: watch timeout is NOT captured but is failure for chain", async () => {
+    writePackageJson("@sdsrs/sgc", "1.14.0")
+    const { steps, watchSpy, canarySpy } = makeSteps({ status: "timeout" })
+    const stderrChunks: string[] = []
+    const result = await runLand({
+      repoRoot,
+      stateRoot,
+      steps,
+      stderrWrite: (c) => stderrChunks.push(c),
+      stdoutWrite: () => {},
+    })
+    expect(result.exitCode).toBe(1)
+    expect(result.step).toBe("watch-ci-failure")
+    expect(watchSpy).toHaveBeenCalledTimes(1)
+    expect(canarySpy).toHaveBeenCalledTimes(0)
+    expect(stderrChunks.join("")).toContain("land failed at watch-ci-failure")
+  })
 })

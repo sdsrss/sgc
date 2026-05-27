@@ -837,3 +837,68 @@ describe("runDebugList", () => {
     rmSync(repoRoot, { recursive: true, force: true })
   })
 })
+
+describe("runDebugStart resilience", () => {
+  test("corrupt events.ndjson → heuristic absorbs, exit 0, valid events parsed alongside junk", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    // Mix valid + invalid lines
+    mkdirSync(join(stateRoot, "progress"), { recursive: true })
+    writeFileSync(
+      join(stateRoot, "progress", "events.ndjson"),
+      `{"schema_version":1,"ts":"2026-05-27T10:00Z","event_type":"x.y","agent":"z"}\n` +
+        `{not valid json at all\n` +
+        `{"schema_version":1,"ts":"2026-05-27T10:01Z","event_type":"x.z","agent":"z"}\n`,
+    )
+
+    const result = await runDebugStart({
+      symptom: "corrupt-tail-test",
+      stateRoot,
+      repoRoot,
+      now: () => new Date("2026-05-27T14:23:00.000Z"),
+      stdoutWrite: () => {},
+      stderrWrite: () => {},
+    })
+    expect(result.exitCode).toBe(0)
+
+    // Investigation file readable + 2 valid events parsed into investigate.recent_events
+    const content = readFileSync(
+      join(stateRoot, "investigations", "2026-05-27-1423-corrupt-tail-test.md"),
+      "utf8",
+    )
+    expect(content).toContain("x.y")
+    expect(content).toContain("x.z")
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+
+  test("opts.heuristic injection: stub throws → debug.heuristic_failed emitted + exit 0", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    const result = await runDebugStart({
+      symptom: "injection-test",
+      stateRoot,
+      repoRoot,
+      now: () => new Date("2026-05-27T14:23:00.000Z"),
+      heuristic: {
+        gatherInvestigateFacts: async () => ({
+          git_status_paths: [],
+          recent_events: [],
+          errors: [],
+        }),
+        analyzeCorpus: async () => {
+          throw new Error("stub explosion")
+        },
+        detectThreeStrike: async () => [],
+        scanHistoricalSignatures: async () => [],
+      },
+      stdoutWrite: () => {},
+      stderrWrite: () => {},
+    })
+    expect(result.exitCode).toBe(0)
+
+    const events = readFileSync(join(stateRoot, "progress", "events.ndjson"), "utf8")
+      .split("\n")
+      .filter((l) => l.length > 0)
+      .map((l) => JSON.parse(l))
+    expect(events.some((e: { event_type: string }) => e.event_type === "debug.heuristic_failed")).toBe(true)
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+})

@@ -1,6 +1,6 @@
 ---
-status: draft
-revision: 1
+status: implemented
+revision: 2
 task_id: gs-7-land
 feature_id: f10
 parent_intent: (none — GS-7 is the fourth ship of the GS-N absorb arc, sgc-native heuristic implementations of selected gstack-style capabilities per docs/POSITIONING.md. Sibling to CE-N; outside any compound parent intent. Sibling to GS-1 canary v1.11.0 + GS-1.1 promote v1.12.0 + GS-1.2 dedup robustness v1.12.1 + GS-2 handoff v1.13.0.)
@@ -311,6 +311,71 @@ GS-7 ships when ALL of:
    dogfood-of-dogfood evidence.
 
 ## Change log
+
+- 2026-05-27 r2 — **implemented + live ship green** (with DOG-3 dogfood-in-arc
+  bugfix). All 10 success criteria met. Module sizing: `src/dispatcher/land.ts`
+  370 LOC, `src/commands/land.ts` 37 LOC, `tests/dispatcher/land.test.ts`
+  310 LOC (impl total ~407; budget was ~190 — orchestrator grew larger than
+  estimated because `deriveLandInputs` package.json reader + `defaultStepRunners`
+  lazy-import shim + per-failure-mode stderr templates each added more than
+  initially projected; nothing speculative, all in scope per spec §Constraints +
+  §Success criteria). Dispatcher CI gate **815 → 833** pass (+18; spec target
+  was +12, beat by 50%). 0 fail across full dispatcher suite. Eval-tier 3 fails
+  are pre-existing LLM API-dependent flakes (`tests/eval/*-llm.test.ts`),
+  unrelated to GS-7.
+
+  **GS-7 commit chain (19 commits on main from session start)**: spec
+  `06e060a` → plan `bd8fb5d` → T1–T14 (`9c09311`..`c7ccce2`) → DOG-3 fix
+  `3534a97` → release `b2f937b` (v1.14.1) → known-red baseline annotation
+  `1e9cc93`. v1.14.0 release commit `c7ccce2` produced a git tag but **no npm
+  artifact** — publish.yml gated on dispatcher test green, and the T11 regex
+  fired red under CI. v1.14.1 (commit `b2f937b`) is the first npm-published
+  artifact of GS-7; consumers querying `@sdsrs/sgc@1.14.0` get 404 by design.
+
+  **DOG-3 dogfood-as-test win (5th in GS-N arc)**: pre-fix T11
+  `tests/dispatcher/sgc-cli.test.ts:264` regex `/land\s+.*watch-ci-failure.*canary/i`
+  passed locally (`SGC_FORCE_INLINE=1 bun test ...`) but failed under
+  `publish.yml` GitHub Actions because citty's help-surface rendering under
+  consola CI-mode wraps command names in literal backticks
+  (`` `land`    Post-publish ... ``) while local rendering emits the bare
+  word (`land    Post-publish ...`). The `\s+` anchor matched the bare-word
+  form but not the backtick. Reproduced locally pre-fix with
+  `SGC_FORCE_INLINE=1 CI=1 bun test tests/dispatcher/sgc-cli.test.ts` (regex
+  failed) and after fix (3-tier `toContain` passed: "Post-publish ship chain"
+  + "watch-ci-failure" + "canary"). Capture record at
+  `.sgc/ship-failures/2026-05-27-c7ccce2.md`. Lesson saved at
+  [[feedback_citty_help_consola_ci_mode.md]]. Paradigm validation chain:
+  **CE-3.1 (DOG-1+2 gh-cli tag trap) → GS-1.1 (DOG-1 PATH-shadow) → GS-1.2
+  (DOG-2 dedup malformed) → GS-2 (no bug, clean) → GS-7 DOG-3 (T11 regex)**.
+
+  **Live ship evidence** (v1.14.1, commit `b2f937b`):
+  - `bun src/sgc.ts canary --package @sdsrs/sgc --version 1.14.1` →
+    `canary green for @sdsrs/sgc@1.14.1; no capture.` exit 0 (npm propagation
+    + isolated smoke-install both green; PATH-shadow trap avoided via
+    `npm install --prefix <mkdtemp>` per [[feedback_npx_path_shadow]]).
+  - `bun src/sgc.ts watch-ci-failure` for `1e9cc93` →
+    `CI green for 1e9cc93; no capture.` exit 0 (publish.yml ran clean for
+    the v1.14.1 release commit + baseline-annotation chore commit).
+  - **`sgc land` itself was NOT self-dogfooded against its own v1.14.0/v1.14.1
+    publish** — per Open Question #8 the dogfood-of-dogfood is deferred to
+    the first natural post-v1.14.0 ship (manufacturing a no-op patch
+    purely to test the orchestrator would pollute ship discipline). Next
+    GS-N ship will be GS-7's own first dogfood evidence.
+
+  **POSITIONING.md drift fix bundled** per Success Criterion #9: GS-N arc
+  paragraph extended to mention GS-1.1 + GS-1.2 + GS-2 + GS-7 ships (was
+  GS-1.0 + GS-1.1 only); one new delegate-table row for `sgc land`. Other
+  delegate-table rows (review/qa/browse factual-nativeization) deferred to a
+  standalone doc-only ship per r1 scope.
+
+  Version bumped v1.13.0 → v1.14.0 → v1.14.1; `package.json` +
+  `plugins/sgc/.claude-plugin/plugin.json` lockstep per
+  [[project_sgc_ship_workflow]]. v1.14.0 git tag exists on GitHub but
+  **no npm artifact** (publish.yml gated red on T11; not retroactively
+  cleanable without `git tag --delete v1.14.0 && git push --delete origin
+  v1.14.0` which requires explicit operator authorization — left intact;
+  operators see latest=1.14.1 on npm and the v1.14.0 git tag tells the
+  full story).
 
 - 2026-05-27 r1 — initial draft. brainstorming session locked 5
   design axes: audience (sgc-self dogfood, main-direct + tag flow),

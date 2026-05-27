@@ -257,3 +257,48 @@ Body.
     rmSync(repoRoot, { recursive: true, force: true })
   })
 })
+
+describe("detectThreeStrike", () => {
+  test("flags signature with count >= 3", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    const sig = (cls: string, msg: string, ts: string) =>
+      JSON.stringify({
+        schema_version: 1,
+        ts,
+        event_type: "llm.response",
+        agent: "planner.eng",
+        payload: { error_class: cls, error_message: msg },
+      })
+    // All three messages are identical → same signature
+    const lines = [
+      sig("Error", "Timeout exceeded for foo", "2026-05-27T10:00:00Z"),
+      sig("Error", "Timeout exceeded for foo", "2026-05-27T10:00:01Z"),
+      sig("Error", "Timeout exceeded for foo", "2026-05-27T10:00:02Z"),
+      sig("TypeError", "unrelated", "2026-05-27T10:00:03Z"),
+    ]
+    writeFileSync(join(stateRoot, "progress", "events.ndjson"), lines.join("\n") + "\n")
+    const strikes = await defaultHeuristic().detectThreeStrike({ stateRoot })
+    expect(strikes).toHaveLength(1)
+    expect(strikes[0].signature).toBe("Error: Timeout exceeded for foo")
+    expect(strikes[0].count).toBe(3)
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+
+  test("returns empty when no signature reaches 3", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    writeFileSync(
+      join(stateRoot, "progress", "events.ndjson"),
+      `{"schema_version":1,"ts":"2026-05-27T10:00:00Z","event_type":"llm.response","payload":{"error_class":"X","error_message":"once"}}\n`,
+    )
+    const strikes = await defaultHeuristic().detectThreeStrike({ stateRoot })
+    expect(strikes).toEqual([])
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+
+  test("returns empty defensively when events.ndjson missing", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    const strikes = await defaultHeuristic().detectThreeStrike({ stateRoot })
+    expect(strikes).toEqual([])
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+})

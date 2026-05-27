@@ -273,12 +273,43 @@ async function analyzeCorpusImpl(opts: {
   return hits.slice(0, 5)
 }
 
+async function detectThreeStrikeImpl(opts: {
+  stateRoot: string
+}): Promise<ThreeStrikeHit[]> {
+  const tail = await readEventsTail(opts.stateRoot, 500)
+  if (tail.lines.length === 0) return []
+
+  const counts = new Map<string, { count: number; first_ts: string }>()
+  for (const line of tail.lines) {
+    let e: { ts?: string; payload?: { error_class?: string; error_message?: string } }
+    try {
+      e = JSON.parse(line)
+    } catch {
+      continue
+    }
+    const cls = e.payload?.error_class
+    const msg = e.payload?.error_message
+    if (!cls || !msg) continue
+    const sig = `${cls}: ${msg.slice(0, 80)}`
+    const cur = counts.get(sig)
+    if (cur) cur.count++
+    else counts.set(sig, { count: 1, first_ts: String(e.ts ?? "") })
+  }
+
+  const strikes: ThreeStrikeHit[] = []
+  for (const [signature, { count, first_ts }] of counts) {
+    if (count >= 3) strikes.push({ signature, count, example_ts: first_ts })
+  }
+  strikes.sort((a, b) => b.count - a.count)
+  return strikes
+}
+
 export function defaultHeuristic(): HeuristicReaders {
   return {
     gatherInvestigateFacts: gatherInvestigateFactsImpl,
     analyzeCorpus: analyzeCorpusImpl,
-    // detectThreeStrike / scanHistoricalSignatures implemented in Tasks 4-5.
-    detectThreeStrike: async () => [],
+    detectThreeStrike: detectThreeStrikeImpl,
+    // scanHistoricalSignatures implemented in Task 5.
     scanHistoricalSignatures: async () => [],
   }
 }

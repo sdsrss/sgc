@@ -108,7 +108,9 @@ describe("deriveLandInputs", () => {
 })
 
 describe("defaultStepRunners", () => {
-  test("placeholder — replaced in Task 3", () => {
-    expect(true).toBe(true)
+  test("T3a: returns object with watchCiFailure + canary as functions", () => {
+    const runners = defaultStepRunners()
+    expect(typeof runners.watchCiFailure).toBe("function")
+    expect(typeof runners.canary).toBe("function")
   })
 })

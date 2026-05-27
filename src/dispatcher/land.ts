@@ -9,8 +9,20 @@
 
 import { readFile } from "node:fs/promises"
 import { resolve } from "node:path"
-import type { CaptureResult, WatchedRun } from "./ship-failure"
-import type { CanaryPhase, CaptureCanaryResult } from "./canary"
+import {
+  captureShipFailure,
+  type CaptureResult,
+  type ShipFailure,
+  type WatchedRun,
+  watchPublishWorkflow,
+} from "./ship-failure"
+import {
+  captureCanaryFailure,
+  type CanaryFailure,
+  type CanaryPhase,
+  type CaptureCanaryResult,
+  runCanaryChecks,
+} from "./canary"
 import type { Logger } from "./logger"
 
 export type LandStepName = "watch-ci-failure" | "canary"
@@ -131,6 +143,71 @@ export async function runLand(_opts: LandOptions = {}): Promise<LandResult> {
   throw new Error("not implemented")
 }
 
+async function gitOutput(args: string[]): Promise<string | null> {
+  const proc = Bun.spawn(["git", ...args], { stdout: "pipe", stderr: "pipe" })
+  const [stdout, _stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ])
+  if (exitCode !== 0) return null
+  const trimmed = stdout.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
 export function defaultStepRunners(): LandStepRunners {
-  throw new Error("not implemented")
+  return {
+    async watchCiFailure(_opts): Promise<WatchStepResult> {
+      const headSha = await gitOutput(["rev-parse", "HEAD"])
+      const tag = await gitOutput(["describe", "--tags", "--abbrev=0"])
+      const workflowName = "publish-npm"
+      const result = await watchPublishWorkflow({
+        expectedSha: headSha ?? undefined,
+        workflowName,
+      })
+      if (result.status === "success" || result.status === "timeout") {
+        return { status: result.status, run: result.run }
+      }
+      if (!result.run) {
+        return { status: "failure", run: result.run }
+      }
+      const failure: ShipFailure = {
+        commitSha: result.run.headSha,
+        tag,
+        workflowName,
+        workflowRunId: result.run.id,
+        workflowRunUrl: result.run.url,
+        summaryExcerpt: result.summaryExcerpt ?? "",
+      }
+      const captured = await captureShipFailure(failure)
+      return { status: "failure", run: result.run, captured }
+    },
+
+    async canary(opts): Promise<CanaryStepResult> {
+      const commitSha = (await gitOutput(["rev-parse", "HEAD"])) ?? "(unknown)"
+      const tag =
+        (await gitOutput(["tag", "--points-at", "HEAD"]))?.split("\n")[0] ?? null
+      const result = await runCanaryChecks({
+        packageName: opts.packageName,
+        expectedVersion: opts.expectedVersion,
+      })
+      if (result.status === "success" || result.status === "timeout") {
+        return { status: result.status, failedPhase: result.failedPhase }
+      }
+      if (!result.failedPhase) {
+        return { status: "failure" }
+      }
+      const failure: CanaryFailure = {
+        commitSha,
+        tag,
+        packageName: opts.packageName,
+        expectedVersion: opts.expectedVersion,
+        failedPhase: result.failedPhase,
+        healthUrl: null,
+        phaseOutputs: result.phaseOutputs,
+      }
+      const captured = await captureCanaryFailure(failure)
+      return { status: "failure", failedPhase: result.failedPhase, captured }
+    },
+  }
 }

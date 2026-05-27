@@ -255,3 +255,19 @@ describe("sgc handoff CLI help (GS-2 T15)", () => {
     expect(stdout).toContain("--print")
   })
 })
+
+describe("sgc land CLI help (GS-7 T11)", () => {
+  test("sgc --help lists land subcommand", async () => {
+    const { stdout, exitCode } = await runSgc(["--help"])
+    expect(exitCode).toBe(0)
+    expect(stdout).toContain("land")
+    expect(stdout).toMatch(/land\s+.*watch-ci-failure.*canary/i)
+  })
+
+  test("sgc land --help shows --package and --version flags", async () => {
+    const { stdout, exitCode } = await runSgc(["land", "--help"])
+    expect(exitCode).toBe(0)
+    expect(stdout).toMatch(/--package/i)
+    expect(stdout).toMatch(/--version/i)
+  })
+})

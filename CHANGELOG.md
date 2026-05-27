@@ -1,5 +1,68 @@
 # Changelog
 
+## v1.15.0 — 2026-05-27 — GS-4 sgc debug systematic-debugging phase-walker
+
+**GS-4 (feature f11, sibling to CE-N + GS-1 + GS-2 + GS-7, no parent intent).**
+Fifth ship of the **GS-N absorb arc**: 4-phase debug orchestrator
+absorbed from sp:systematic-debugging + CLAUDE.md §6 Iron Law #3
+intent. Heuristic-only sgc-native walker over a single-file
+investigation state.
+
+### Added — `sgc debug`
+
+- **`sgc debug start "<symptom>"`** opens a new
+  `.sgc/investigations/<YYYY-MM-DD>-<HHMM>-<kebab>.md` and
+  auto-walks the three read-only phases (investigate / analyze /
+  hypothesize), pausing at implement. Heuristic readers reuse CE-1
+  `walkSolutionsCorpus` (prior preventions), events.ndjson tail
+  (three-strike signature recurrence), ship-failures/ + canaries/
+  scan (historical signature match).
+- **`sgc debug close --id <id> --root-cause "<text>" --fix-commit <sha>
+  --verify-command "<cmd>"`** is the Iron Law #3 hard-gate:
+  refuses unless all 3 flags non-empty + fix-commit matches
+  `/^[0-9a-f]{7,40}$/`. Already-closed and missing-file paths refuse
+  with named stderr.
+- **`sgc debug --runs`** lists investigations sorted started_at desc.
+- **`sgc debug --status <id>`** stdout-passthroughs the investigation file.
+
+### Events
+
+Four voluntary `debug.*` event types appended to `events.ndjson`
+(additive under existing `${string}.${string}` template literal,
+schema_version stays 1): `debug.start` / `debug.phase_complete` /
+`debug.heuristic_failed` / `debug.closed`.
+
+### Changed
+
+- **POSITIONING.md** refreshed: GS-N arc paragraph extended to mention
+  GS-4 ship; one new delegate-table row for `sgc debug`; `### sgc owns`
+  gains Root-cause debug bullet.
+
+### Tests
+
+- Dispatcher CI gate **833 → 872** pass (+39; spec target was +20,
+  beats by 95%). 39 new in `debug.test.ts` covering id-derivation +
+  4 heuristic readers + render + atomic write + runDebugStart (happy
+  + empty-corpus + collision + resilience) + runDebugClose (3-flag
+  gate + SHA shape + already-closed + missing-file refusals) +
+  runDebugList + runDebugStatus + 2 sgc-cli help-surface. 0 fail.
+  Eval-tier failures pre-existing LLM-API-dependent flakes,
+  unrelated.
+
+### Invariants
+
+- No impact. No schema bump. `debug.*` event_types additive under
+  existing `${string}.${string}` template literal. No Tier 1 paired
+  events owed (no agent spawn). No Tier 2 owed (no LLM call). §1 / §3
+  / §4 / §6 / §13 enforcement paths untouched.
+
+### No migration required
+
+Additive command + new `.sgc/investigations/` namespace; operators
+not invoking `sgc debug` are unaffected. CE-1 / CE-2 / CE-3 / CE-4 /
+CE-5 / CE-6 / GS-1 / GS-1.1 / GS-1.2 / GS-2 / GS-7 byte-for-byte
+unchanged.
+
 ## v1.14.1 — 2026-05-27 — GS-7 DOG-3 dogfood-found bugfix (T11 regex)
 
 **GS-7 follow-on bugfix** discovered via self-dogfood: v1.14.0 publish.yml

@@ -10,6 +10,8 @@
 // telemetry on events.ndjson.
 
 import type { Logger } from "./logger"
+import { createLogger } from "./logger"
+import { existsSync } from "node:fs"
 import { readFile, readdir, writeFile, rename, mkdir } from "node:fs/promises"
 import { join } from "node:path"
 import { spawnSync } from "node:child_process"
@@ -483,4 +485,192 @@ export async function writeInvestigation(opts: {
   await writeFile(tmp, content, "utf8")
   await rename(tmp, target)
   return target
+}
+
+async function resolveCollisionId(stateRoot: string, baseId: string): Promise<string> {
+  const dir = join(stateRoot, "investigations")
+  if (!existsSync(join(dir, `${baseId}.md`))) return baseId
+  for (let n = 2; n < 100; n++) {
+    const candidate = `${baseId}-${n}`
+    if (!existsSync(join(dir, `${candidate}.md`))) return candidate
+  }
+  throw new Error(`collision: too many same-minute investigations for ${baseId}`)
+}
+
+export async function runDebugStart(opts: DebugStartOptions): Promise<DebugResult> {
+  const stateRoot = opts.stateRoot ?? join(opts.repoRoot ?? process.cwd(), ".sgc")
+  const repoRoot = opts.repoRoot ?? process.cwd()
+  const heuristic = opts.heuristic ?? defaultHeuristic()
+  const now = (opts.now ?? (() => new Date()))()
+  const logger = opts.logger ?? createLogger({ stateRoot })
+  const stdoutWrite = opts.stdoutWrite ?? ((c: string) => { process.stdout.write(c) })
+  const stderrWrite = opts.stderrWrite ?? ((c: string) => { process.stderr.write(c) })
+
+  const baseId = deriveInvestigationId(opts.symptom, now)
+  let id: string
+  try {
+    id = await resolveCollisionId(stateRoot, baseId)
+  } catch (err) {
+    stderrWrite(`debug failed: ${(err as Error).message}\n`)
+    return { exitCode: 1 }
+  }
+
+  // Event 1: debug.start
+  logger.event({
+    task_id: id,
+    spawn_id: id,
+    agent: "sgc.debug",
+    event_type: "debug.start",
+    level: "info",
+    payload: { investigation_id: id, symptom: opts.symptom },
+  })
+
+  // Phase 1: investigate
+  let investigateFacts: InvestigateFacts
+  try {
+    investigateFacts = await heuristic.gatherInvestigateFacts({ stateRoot, repoRoot })
+  } catch (err) {
+    investigateFacts = {
+      git_status_paths: [],
+      recent_events: [],
+      errors: [`gatherInvestigateFacts threw: ${(err as Error).message.slice(0, 80)}`],
+    }
+    logger.event({
+      task_id: id,
+      spawn_id: id,
+      agent: "sgc.debug",
+      event_type: "debug.heuristic_failed",
+      level: "warn",
+      payload: {
+        investigation_id: id,
+        phase: "investigate",
+        error_class: (err as Error).constructor.name,
+        error_message: (err as Error).message,
+      },
+    })
+  }
+
+  // Event 2: debug.phase_complete investigate
+  logger.event({
+    task_id: id,
+    spawn_id: id,
+    agent: "sgc.debug",
+    event_type: "debug.phase_complete",
+    level: "info",
+    payload: { investigation_id: id, phase: "investigate" },
+  })
+
+  // Phase 2: analyze — 3 sub-readers in parallel, each with individual catch
+  const failedPayloadFor = (phase: string, err: unknown) => ({
+    investigation_id: id,
+    phase,
+    error_class: (err as Error).constructor.name,
+    error_message: (err as Error).message,
+  })
+
+  const [priorPreventions, threeStrike, historicalSignatures] = await Promise.all([
+    heuristic.analyzeCorpus({ stateRoot, symptom: opts.symptom }).catch((err) => {
+      logger.event({
+        task_id: id,
+        spawn_id: id,
+        agent: "sgc.debug",
+        event_type: "debug.heuristic_failed",
+        level: "warn",
+        payload: failedPayloadFor("analyze", err),
+      })
+      return [] as CorpusHit[]
+    }),
+    heuristic.detectThreeStrike({ stateRoot }).catch((err) => {
+      logger.event({
+        task_id: id,
+        spawn_id: id,
+        agent: "sgc.debug",
+        event_type: "debug.heuristic_failed",
+        level: "warn",
+        payload: failedPayloadFor("analyze", err),
+      })
+      return [] as ThreeStrikeHit[]
+    }),
+    heuristic.scanHistoricalSignatures({ stateRoot, symptom: opts.symptom }).catch((err) => {
+      logger.event({
+        task_id: id,
+        spawn_id: id,
+        agent: "sgc.debug",
+        event_type: "debug.heuristic_failed",
+        level: "warn",
+        payload: failedPayloadFor("analyze", err),
+      })
+      return [] as HistoricalSignatureHit[]
+    }),
+  ])
+
+  const analyze: AnalyzeOutput = {
+    prior_preventions: priorPreventions,
+    historical_signatures: historicalSignatures,
+    three_strike: threeStrike,
+    errors: [],
+  }
+
+  // Event 3: debug.phase_complete analyze
+  logger.event({
+    task_id: id,
+    spawn_id: id,
+    agent: "sgc.debug",
+    event_type: "debug.phase_complete",
+    level: "info",
+    payload: { investigation_id: id, phase: "analyze" },
+  })
+
+  // Phase 3: hypothesize — compose from analyze hits
+  const hypothesize: string[] = []
+  for (const h of priorPreventions) {
+    hypothesize.push(`${h.solution_ref} — ${h.prevention_excerpt}`)
+  }
+  for (const h of historicalSignatures) {
+    hypothesize.push(`${h.kind}/${h.slug} — ${h.excerpt}`)
+  }
+  for (const t of threeStrike) {
+    hypothesize.push(`three-strike: ${t.signature} (${t.count} occurrences)`)
+  }
+  if (hypothesize.length === 0) {
+    hypothesize.push("No prior matches. Operator-formulated hypothesis required.")
+  }
+
+  // Event 4: debug.phase_complete hypothesize
+  logger.event({
+    task_id: id,
+    spawn_id: id,
+    agent: "sgc.debug",
+    event_type: "debug.phase_complete",
+    level: "info",
+    payload: { investigation_id: id, phase: "hypothesize" },
+  })
+
+  // Render + write investigation file
+  const body = renderInvestigationBody({ investigate: investigateFacts, analyze, hypothesize })
+  const path = await writeInvestigation({
+    stateRoot,
+    id,
+    frontmatter: {
+      id,
+      status: "in_progress",
+      current_phase: "implement",
+      symptom: opts.symptom,
+      started_at: now.toISOString(),
+      closed_at: null,
+      root_cause: null,
+      fix_commit: null,
+      verify_command: null,
+    },
+    body,
+  })
+
+  // stdout = hypothesize section (operator-facing); stderr = path
+  stdoutWrite("## 3 — Hypothesize\n\n")
+  for (let i = 0; i < hypothesize.length; i++) {
+    stdoutWrite(`${i + 1}. ${hypothesize[i]}\n`)
+  }
+  stderrWrite(`started: ${path}\n`)
+
+  return { exitCode: 0 }
 }

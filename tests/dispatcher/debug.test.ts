@@ -366,7 +366,7 @@ regression_seed: "TODO: smoke install hit ECONNRESET against registry"
 })
 
 import { readFileSync } from "node:fs"
-import { renderInvestigationBody, writeInvestigation } from "../../src/dispatcher/debug"
+import { renderInvestigationBody, writeInvestigation, runDebugStart } from "../../src/dispatcher/debug"
 
 describe("renderInvestigationBody", () => {
   test("renders 4 body sections deterministically", () => {
@@ -445,6 +445,111 @@ describe("writeInvestigation atomic", () => {
     expect(content).toContain("status: in_progress")
     expect(content).toContain('symptom: "test symptom"')
     expect(content).toContain("## 1 — Investigate")
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+})
+
+describe("runDebugStart", () => {
+  test("happy path: creates investigation + emits 4 events + exit 0", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    const stdoutChunks: string[] = []
+    const stderrChunks: string[] = []
+    const now = new Date("2026-05-27T14:23:00.000Z")
+
+    const result = await runDebugStart({
+      symptom: "plan dispatcher hangs",
+      stateRoot,
+      repoRoot,
+      now: () => now,
+      stdoutWrite: (c) => {
+        stdoutChunks.push(c)
+      },
+      stderrWrite: (c) => {
+        stderrChunks.push(c)
+      },
+    })
+
+    expect(result.exitCode).toBe(0)
+    const stderr = stderrChunks.join("")
+    expect(stderr).toMatch(
+      /^started: .*\.sgc\/investigations\/2026-05-27-1423-plan-dispatcher-hangs\.md\n$/,
+    )
+
+    const stdout = stdoutChunks.join("")
+    expect(stdout).toContain("## 3 — Hypothesize")
+
+    const investigationPath = join(
+      stateRoot,
+      "investigations",
+      "2026-05-27-1423-plan-dispatcher-hangs.md",
+    )
+    const content = readFileSync(investigationPath, "utf8")
+    expect(content).toMatch(/^---\nid: 2026-05-27-1423-plan-dispatcher-hangs\n/)
+    expect(content).toContain("status: in_progress")
+    expect(content).toContain("current_phase: implement")
+
+    const eventsPath = join(stateRoot, "progress", "events.ndjson")
+    const eventLines = readFileSync(eventsPath, "utf8")
+      .split("\n")
+      .filter((l) => l.length > 0)
+      .map((l) => JSON.parse(l))
+    const types = eventLines.map((e: { event_type: string }) => e.event_type)
+    expect(types).toContain("debug.start")
+    expect(types.filter((t: string) => t === "debug.phase_complete")).toHaveLength(3)
+
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+
+  test("empty corpus → hypothesize fallback line", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    const stdoutChunks: string[] = []
+    const stderrChunks: string[] = []
+    const result = await runDebugStart({
+      symptom: "novel symptom",
+      stateRoot,
+      repoRoot,
+      now: () => new Date("2026-05-27T14:23:00.000Z"),
+      stdoutWrite: (c) => {
+        stdoutChunks.push(c)
+      },
+      stderrWrite: (c) => {
+        stderrChunks.push(c)
+      },
+    })
+    expect(result.exitCode).toBe(0)
+    expect(stdoutChunks.join("")).toContain(
+      "No prior matches. Operator-formulated hypothesis required.",
+    )
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+
+  test("same-minute collision: appends -2 suffix", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    const now = new Date("2026-05-27T14:23:00.000Z")
+    const stderrA: string[] = []
+    const stderrB: string[] = []
+    await runDebugStart({
+      symptom: "x",
+      stateRoot,
+      repoRoot,
+      now: () => now,
+      stderrWrite: (c) => {
+        stderrA.push(c)
+      },
+      stdoutWrite: () => {},
+    })
+    await runDebugStart({
+      symptom: "x",
+      stateRoot,
+      repoRoot,
+      now: () => now,
+      stderrWrite: (c) => {
+        stderrB.push(c)
+      },
+      stdoutWrite: () => {},
+    })
+    expect(stderrA.join("")).toMatch(/2026-05-27-1423-x\.md/)
+    expect(stderrB.join("")).toMatch(/2026-05-27-1423-x-2\.md/)
     rmSync(repoRoot, { recursive: true, force: true })
   })
 })

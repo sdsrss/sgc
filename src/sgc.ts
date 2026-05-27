@@ -718,6 +718,34 @@ const handoff = defineCommand({
   },
 })
 
+// ── land (GS-7 f10) ───────────────────────────────────────────────────────
+
+const land = defineCommand({
+  meta: {
+    name: "land",
+    description:
+      "Post-publish ship chain: watch-ci-failure + canary, fail-fast on either.",
+  },
+  args: {
+    package: {
+      type: "string",
+      description: "Package name (default: package.json#name).",
+    },
+    version: {
+      type: "string",
+      description: "Expected version (default: package.json#version).",
+    },
+  },
+  async run({ args }) {
+    const { runLandCli } = await import("./commands/land")
+    const result = await runLandCli({
+      package: args.package,
+      version: args.version,
+    })
+    process.exit(result.exitCode)
+  },
+})
+
 // ── loop (CE-5 f6) ────────────────────────────────────────────────────────
 
 const loop = defineCommand({
@@ -799,6 +827,7 @@ const main = defineCommand({
     loop: () => loop,
     "watch-ci-failure": () => watchCiFailure,
     canary: () => canary,
+    land: () => land,
     handoff: () => handoff,
     status: () => status,
     "agent-loop": () => agentLoop,

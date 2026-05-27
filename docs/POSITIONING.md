@@ -12,6 +12,7 @@ sgc coexists with the `superpowers` (sp) and `gstack` (gs) plugins. It does NOT 
 - **Knowledge compression** — dedup (Jaccard ≥0.85) + compound cluster + janitor decisions
 - **Solutions base** — append-only, signed, dedup-enforced
 - **Capture → promote loops** — `sgc watch-ci-failure` (CE-3 ship-failure capture) + `sgc canary` (GS-1 post-publish capture); `sgc compound --from-ship-failure` / `--from-canary` promote each capture into `solutions/` through the **same Invariant §3 write-gate** (real `compound.related` spawn → `DedupStamp` → `writeSolution`). Promoted preventions feed back into `planner.adversarial` via CE-1 on next L3 plan.
+- **Root-cause debug** — `sgc debug` walks investigate → analyze → hypothesize → implement, enforcing Iron Law #3 at close (root_cause + fix_commit + verify_command all required).
 
 ### sgc delegates (when sp/gs are available)
 
@@ -23,6 +24,7 @@ sgc coexists with the `superpowers` (sp) and `gstack` (gs) plugins. It does NOT 
 | Parallel subagents | `sp:dispatching-parallel-agents` |
 | Pre-ship comprehensive review | `gs:/review` |
 | Git / PR / deploy | `gs:/ship` + `gs:/land-and-deploy` |
+| Systematic-debug execution | `sgc debug` — 4-phase walker, absorb (GS-4 v1.15.0) |
 | Post-publish chain (sgc-self) | `sgc land` — chains `watch-ci-failure` + `canary`, zero gh-CLI dep |
 | Browser QA / dogfood | `gs:/browse` |
 | Design polish | `gs:/design-review` |
@@ -48,7 +50,8 @@ dispatcher dedup robustness against malformed corpus (v1.12.1) +
 **GS-2 `sgc handoff --auto`** (heuristic `.sgc/` scan → `tasks/<slug>-paused.md`
 for §11 SESSION post-compaction recovery, v1.13.0) + **GS-7 `sgc land`**
 (zero-dep post-publish chain orchestrator: `watch-ci-failure` + `canary`
-fail-fast, v1.14.0).
+fail-fast, v1.14.0) + **GS-4 `sgc debug`** (4-phase systematic-debugging
+walker, v1.15.0).
 
 ### Non-goals
 

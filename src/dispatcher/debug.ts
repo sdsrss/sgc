@@ -10,7 +10,7 @@
 // telemetry on events.ndjson.
 
 import type { Logger } from "./logger"
-import { readFile } from "node:fs/promises"
+import { readFile, readdir } from "node:fs/promises"
 import { join } from "node:path"
 import { spawnSync } from "node:child_process"
 import { walkSolutionsCorpus, extractKeywords } from "./agents/researcher-history"
@@ -304,12 +304,61 @@ async function detectThreeStrikeImpl(opts: {
   return strikes
 }
 
+async function scanDir(
+  stateRoot: string,
+  dir: "ship-failures" | "canaries",
+  needle: string,
+): Promise<HistoricalSignatureHit[]> {
+  const path = join(stateRoot, dir)
+  let entries: string[]
+  try {
+    entries = await readdir(path)
+  } catch {
+    return []
+  }
+  const hits: HistoricalSignatureHit[] = []
+  for (const name of entries) {
+    if (!name.endsWith(".md")) continue
+    let content: string
+    try {
+      content = await readFile(join(path, name), "utf8")
+    } catch {
+      continue
+    }
+    if (!content.toLowerCase().includes(needle.toLowerCase())) continue
+    const idx = content.toLowerCase().indexOf(needle.toLowerCase())
+    const excerptStart = Math.max(0, idx - 30)
+    const excerpt = content
+      .slice(excerptStart, excerptStart + 160)
+      .replace(/\s+/g, " ")
+      .trim()
+    hits.push({
+      kind: dir === "ship-failures" ? "ship-failure" : "canary",
+      slug: name.replace(/\.md$/, ""),
+      excerpt: excerpt.slice(0, 160),
+    })
+  }
+  return hits
+}
+
+async function scanHistoricalSignaturesImpl(opts: {
+  stateRoot: string
+  symptom: string
+}): Promise<HistoricalSignatureHit[]> {
+  const needle = opts.symptom.slice(0, 80).trim()
+  if (needle.length === 0) return []
+  const [shipHits, canaryHits] = await Promise.all([
+    scanDir(opts.stateRoot, "ship-failures", needle),
+    scanDir(opts.stateRoot, "canaries", needle),
+  ])
+  return [...shipHits, ...canaryHits]
+}
+
 export function defaultHeuristic(): HeuristicReaders {
   return {
     gatherInvestigateFacts: gatherInvestigateFactsImpl,
     analyzeCorpus: analyzeCorpusImpl,
     detectThreeStrike: detectThreeStrikeImpl,
-    // scanHistoricalSignatures implemented in Task 5.
-    scanHistoricalSignatures: async () => [],
+    scanHistoricalSignatures: scanHistoricalSignaturesImpl,
   }
 }

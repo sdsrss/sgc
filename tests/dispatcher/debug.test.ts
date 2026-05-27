@@ -302,3 +302,65 @@ describe("detectThreeStrike", () => {
     rmSync(repoRoot, { recursive: true, force: true })
   })
 })
+
+describe("scanHistoricalSignatures", () => {
+  test("matches ship-failures and canaries by symptom-prefix substring", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    mkdirSync(join(stateRoot, "ship-failures"), { recursive: true })
+    mkdirSync(join(stateRoot, "canaries"), { recursive: true })
+
+    writeFileSync(
+      join(stateRoot, "ship-failures", "2026-05-25-abc1234.md"),
+      `---
+kind: ship-failure
+commit_sha: abc1234
+conclusion: failure
+prevention_seed: "TODO: timeout in plan dispatcher recurs under high load"
+---
+
+# Body
+
+The publish workflow timed out because the plan dispatcher hung waiting on
+planner.eng to respond.
+`,
+    )
+
+    writeFileSync(
+      join(stateRoot, "canaries", "2026-05-26-foo.md"),
+      `---
+kind: canary
+commit_sha: def5678
+conclusion: failure
+regression_seed: "TODO: smoke install hit ECONNRESET against registry"
+---
+
+# Body
+`,
+    )
+
+    const hits = await defaultHeuristic().scanHistoricalSignatures({
+      stateRoot,
+      symptom: "timeout in plan dispatcher",
+    })
+
+    expect(hits.length).toBe(1)
+    expect(hits[0].kind).toBe("ship-failure")
+    expect(hits[0].slug).toBe("2026-05-25-abc1234")
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+
+  test("returns empty when no matches", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    mkdirSync(join(stateRoot, "ship-failures"), { recursive: true })
+    writeFileSync(
+      join(stateRoot, "ship-failures", "x.md"),
+      `---\nkind: ship-failure\n---\n\nUnrelated body about cache flushing.\n`,
+    )
+    const hits = await defaultHeuristic().scanHistoricalSignatures({
+      stateRoot,
+      symptom: "timeout",
+    })
+    expect(hits).toEqual([])
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+})

@@ -235,4 +235,49 @@ describe("runLand", () => {
     expect(result.step).toBe("canary")
     expect(stderrChunks.join("")).toContain("land failed at canary")
   })
+
+  test("T7a: watchCiFailure throws → exit 1, error_class + error_message in event", async () => {
+    writePackageJson("@sdsrs/sgc", "1.14.0")
+    const watchSpy = mock(async () => { throw new Error("gh: command not found") })
+    const canarySpy = mock(async () => ({ status: "success" as const }))
+    const steps = {
+      watchCiFailure: watchSpy as LandStepRunners["watchCiFailure"],
+      canary: canarySpy as LandStepRunners["canary"],
+    }
+    const stderrChunks: string[] = []
+    const result = await runLand({
+      repoRoot,
+      stateRoot,
+      steps,
+      stderrWrite: (c) => stderrChunks.push(c),
+      stdoutWrite: () => {},
+    })
+    expect(result.exitCode).toBe(1)
+    expect(result.step).toBe("watch-ci-failure")
+    expect(canarySpy).toHaveBeenCalledTimes(0)
+    expect(stderrChunks.join("")).toContain("land error in watch-ci-failure")
+    expect(stderrChunks.join("")).toContain("gh: command not found")
+  })
+
+  test("T7b: canary throws → exit 1, watch already completed", async () => {
+    writePackageJson("@sdsrs/sgc", "1.14.0")
+    const watchSpy = mock(async () => ({ status: "success" as const }))
+    const canarySpy = mock(async () => { throw new Error("npm registry unreachable") })
+    const steps = {
+      watchCiFailure: watchSpy as LandStepRunners["watchCiFailure"],
+      canary: canarySpy as LandStepRunners["canary"],
+    }
+    const stderrChunks: string[] = []
+    const result = await runLand({
+      repoRoot,
+      stateRoot,
+      steps,
+      stderrWrite: (c) => stderrChunks.push(c),
+      stdoutWrite: () => {},
+    })
+    expect(result.exitCode).toBe(1)
+    expect(result.step).toBe("canary")
+    expect(stderrChunks.join("")).toContain("land error in canary")
+    expect(stderrChunks.join("")).toContain("npm registry unreachable")
+  })
 })

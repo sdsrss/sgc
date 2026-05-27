@@ -186,7 +186,28 @@ export async function runLand(opts: LandOptions = {}): Promise<LandResult> {
   })
 
   stdoutWrite(`[1/2] watch-ci-failure ...\n`)
-  const watchResult = await steps.watchCiFailure({ logger, stateRoot })
+  let watchResult: WatchStepResult
+  try {
+    watchResult = await steps.watchCiFailure({ logger, stateRoot })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    const errorClass = e instanceof Error ? e.constructor.name : "Unknown"
+    stderrWrite(`land error in watch-ci-failure: ${message}\n`)
+    emitLandEvent(logger, "land.failed", "warn", {
+      package: derived.packageName,
+      version: derived.version,
+      failed_step: "watch-ci-failure",
+      error_class: errorClass,
+      error_message: message,
+    })
+    return {
+      exitCode: 1,
+      step: "watch-ci-failure",
+      package: derived.packageName,
+      version: derived.version,
+      errorMessage: message,
+    }
+  }
 
   if (watchResult.status !== "success") {
     const capturePath = watchResult.captured?.path
@@ -210,12 +231,34 @@ export async function runLand(opts: LandOptions = {}): Promise<LandResult> {
   }
 
   stdoutWrite(`[2/2] canary ${derived.packageName}@${derived.version} ...\n`)
-  const canaryResult = await steps.canary({
-    packageName: derived.packageName,
-    expectedVersion: derived.version,
-    logger,
-    stateRoot,
-  })
+  let canaryResult: CanaryStepResult
+  try {
+    canaryResult = await steps.canary({
+      packageName: derived.packageName,
+      expectedVersion: derived.version,
+      logger,
+      stateRoot,
+    })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    const errorClass = e instanceof Error ? e.constructor.name : "Unknown"
+    stderrWrite(`land error in canary: ${message}\n`)
+    emitLandEvent(logger, "land.failed", "warn", {
+      package: derived.packageName,
+      version: derived.version,
+      failed_step: "canary",
+      error_class: errorClass,
+      error_message: message,
+    })
+    return {
+      exitCode: 1,
+      step: "canary",
+      package: derived.packageName,
+      version: derived.version,
+      watchResult,
+      errorMessage: message,
+    }
+  }
 
   if (canaryResult.status !== "success") {
     const capturePath = canaryResult.captured?.path

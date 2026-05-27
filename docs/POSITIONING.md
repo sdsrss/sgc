@@ -23,6 +23,7 @@ sgc coexists with the `superpowers` (sp) and `gstack` (gs) plugins. It does NOT 
 | Parallel subagents | `sp:dispatching-parallel-agents` |
 | Pre-ship comprehensive review | `gs:/review` |
 | Git / PR / deploy | `gs:/ship` + `gs:/land-and-deploy` |
+| Post-publish chain (sgc-self) | `sgc land` — chains `watch-ci-failure` + `canary`, zero gh-CLI dep |
 | Browser QA / dogfood | `gs:/browse` |
 | Design polish | `gs:/design-review` |
 
@@ -41,8 +42,13 @@ sgc-native — **no gstack source copied, no gstack binary called, no gstack
 dependency introduced**. The gs delegate stays the recommended path when
 gs is installed (see delegate table); the sgc-native version is the
 zero-dep fallback. Shipped: **GS-1 `sgc canary`** (post-publish health
-check, v1.11.0) + **GS-1.1 `sgc compound --from-canary`** (canary →
-solutions promote, v1.12.0).
+check, v1.11.0 → v1.11.1 PATH-shadow fix) + **GS-1.1 `sgc compound
+--from-canary`** (canary → solutions promote, v1.12.0) + **GS-1.2**
+dispatcher dedup robustness against malformed corpus (v1.12.1) +
+**GS-2 `sgc handoff --auto`** (heuristic `.sgc/` scan → `tasks/<slug>-paused.md`
+for §11 SESSION post-compaction recovery, v1.13.0) + **GS-7 `sgc land`**
+(zero-dep post-publish chain orchestrator: `watch-ci-failure` + `canary`
+fail-fast, v1.14.0).
 
 ### Non-goals
 

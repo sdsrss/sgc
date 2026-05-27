@@ -10,7 +10,7 @@
 // telemetry on events.ndjson.
 
 import type { Logger } from "./logger"
-import { readFile, readdir } from "node:fs/promises"
+import { readFile, readdir, writeFile, rename, mkdir } from "node:fs/promises"
 import { join } from "node:path"
 import { spawnSync } from "node:child_process"
 import { walkSolutionsCorpus, extractKeywords } from "./agents/researcher-history"
@@ -363,4 +363,124 @@ export function defaultHeuristic(): HeuristicReaders {
     detectThreeStrike: detectThreeStrikeImpl,
     scanHistoricalSignatures: scanHistoricalSignaturesImpl,
   }
+}
+
+export function renderInvestigationBody(parts: {
+  investigate: InvestigateFacts
+  analyze: AnalyzeOutput
+  hypothesize: string[]
+}): string {
+  const lines: string[] = []
+
+  // Section 1 — Investigate
+  lines.push("## 1 — Investigate")
+  lines.push("")
+  if (parts.investigate.git_head) {
+    lines.push(`- git_head: ${parts.investigate.git_head}`)
+  }
+  if (parts.investigate.git_status_paths.length > 0) {
+    lines.push("- git_status (first 20):")
+    for (const p of parts.investigate.git_status_paths) lines.push(`  - ${p}`)
+  } else {
+    lines.push("- git_status: (clean)")
+  }
+  if (parts.investigate.recent_events.length > 0) {
+    lines.push("- recent_events (tail 50):")
+    for (const e of parts.investigate.recent_events.slice(-10)) {
+      lines.push(`  - ${e.ts} ${e.event_type} ${e.agent}`)
+    }
+  } else {
+    lines.push("- recent_events: (none)")
+  }
+  for (const err of parts.investigate.errors) {
+    lines.push(`- ⚠ ${err}`)
+  }
+
+  // Section 2 — Analyze
+  lines.push("")
+  lines.push("## 2 — Analyze")
+  lines.push("")
+  lines.push("Prior preventions:")
+  if (parts.analyze.prior_preventions.length === 0) {
+    lines.push("- (none)")
+  } else {
+    for (const h of parts.analyze.prior_preventions) {
+      lines.push(
+        `- ${h.solution_ref} (score ${h.overlap_score.toFixed(2)}): ${h.prevention_excerpt}`,
+      )
+    }
+  }
+  lines.push("")
+  lines.push("Historical signatures:")
+  if (parts.analyze.historical_signatures.length === 0) {
+    lines.push("- (none)")
+  } else {
+    for (const h of parts.analyze.historical_signatures) {
+      lines.push(`- ${h.kind}/${h.slug}: ${h.excerpt}`)
+    }
+  }
+  lines.push("")
+  lines.push("Three-strike:")
+  if (parts.analyze.three_strike.length === 0) {
+    lines.push("- (none)")
+  } else {
+    for (const t of parts.analyze.three_strike) {
+      lines.push(
+        `- ⚠ three-strike: ${t.signature} (${t.count} occurrences; consider rollback per §6)`,
+      )
+    }
+  }
+  for (const err of parts.analyze.errors) {
+    lines.push(`- ⚠ ${err}`)
+  }
+
+  // Section 3 — Hypothesize
+  lines.push("")
+  lines.push("## 3 — Hypothesize")
+  lines.push("")
+  for (let i = 0; i < parts.hypothesize.length; i++) {
+    lines.push(`${i + 1}. ${parts.hypothesize[i]}`)
+  }
+
+  // Section 4 — Implement (operator-fill)
+  lines.push("")
+  lines.push("## 4 — Implement")
+  lines.push("")
+  lines.push("(operator: fill root_cause + fix_commit + verify_command, then `sgc debug close`)")
+  lines.push("")
+
+  return lines.join("\n")
+}
+
+function renderFrontmatter(fm: InvestigationFrontmatter): string {
+  const lines = [
+    "---",
+    `id: ${fm.id}`,
+    `status: ${fm.status}`,
+    `current_phase: ${fm.current_phase}`,
+    `symptom: ${JSON.stringify(fm.symptom)}`,
+    `started_at: ${fm.started_at}`,
+    `closed_at: ${fm.closed_at ?? "null"}`,
+    `root_cause: ${fm.root_cause === null ? "null" : JSON.stringify(fm.root_cause)}`,
+    `fix_commit: ${fm.fix_commit ?? "null"}`,
+    `verify_command: ${fm.verify_command === null ? "null" : JSON.stringify(fm.verify_command)}`,
+    "---",
+  ]
+  return lines.join("\n") + "\n"
+}
+
+export async function writeInvestigation(opts: {
+  stateRoot: string
+  id: string
+  frontmatter: InvestigationFrontmatter
+  body: string
+}): Promise<string> {
+  const dir = join(opts.stateRoot, "investigations")
+  await mkdir(dir, { recursive: true })
+  const target = join(dir, `${opts.id}.md`)
+  const tmp = `${target}.tmp.${process.pid}.${Date.now()}`
+  const content = renderFrontmatter(opts.frontmatter) + opts.body
+  await writeFile(tmp, content, "utf8")
+  await rename(tmp, target)
+  return target
 }

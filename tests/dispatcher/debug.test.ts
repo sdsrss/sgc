@@ -364,3 +364,87 @@ regression_seed: "TODO: smoke install hit ECONNRESET against registry"
     rmSync(repoRoot, { recursive: true, force: true })
   })
 })
+
+import { readFileSync } from "node:fs"
+import { renderInvestigationBody, writeInvestigation } from "../../src/dispatcher/debug"
+
+describe("renderInvestigationBody", () => {
+  test("renders 4 body sections deterministically", () => {
+    const body = renderInvestigationBody({
+      investigate: {
+        git_head: "abc1234",
+        git_status_paths: ["M src/foo.ts"],
+        recent_events: [
+          {
+            ts: "2026-05-27T10:00Z",
+            event_type: "spawn.start",
+            agent: "planner.eng",
+          },
+        ],
+        errors: [],
+      },
+      analyze: {
+        prior_preventions: [],
+        historical_signatures: [],
+        three_strike: [
+          { signature: "Error: X", count: 3, example_ts: "2026-05-27T10:00Z" },
+        ],
+        errors: [],
+      },
+      hypothesize: ["No prior matches. Operator-formulated hypothesis required."],
+    })
+
+    expect(body).toContain("## 1 — Investigate")
+    expect(body).toContain("git_head: abc1234")
+    expect(body).toContain("## 2 — Analyze")
+    expect(body).toContain("⚠ three-strike: Error: X (3 occurrences; consider rollback per §6)")
+    expect(body).toContain("## 3 — Hypothesize")
+    expect(body).toContain("Operator-formulated hypothesis required")
+    expect(body).toContain("## 4 — Implement")
+  })
+
+  test("renders empty-corpus analyze sub-sections as (none)", () => {
+    const body = renderInvestigationBody({
+      investigate: { git_status_paths: [], recent_events: [], errors: [] },
+      analyze: {
+        prior_preventions: [],
+        historical_signatures: [],
+        three_strike: [],
+        errors: [],
+      },
+      hypothesize: ["No prior matches. Operator-formulated hypothesis required."],
+    })
+    expect(body).toMatch(/Prior preventions:\s*\n\s*- \(none\)/)
+    expect(body).toMatch(/Historical signatures:\s*\n\s*- \(none\)/)
+    expect(body).toMatch(/Three-strike:\s*\n\s*- \(none\)/)
+  })
+})
+
+describe("writeInvestigation atomic", () => {
+  test("writes frontmatter + body to .sgc/investigations/<id>.md", async () => {
+    const { repoRoot, stateRoot } = makeTmpState()
+    const path = await writeInvestigation({
+      stateRoot,
+      id: "2026-05-27-1423-test",
+      frontmatter: {
+        id: "2026-05-27-1423-test",
+        status: "in_progress",
+        current_phase: "implement",
+        symptom: "test symptom",
+        started_at: "2026-05-27T14:23:00.000Z",
+        closed_at: null,
+        root_cause: null,
+        fix_commit: null,
+        verify_command: null,
+      },
+      body: "## 1 — Investigate\n(stub)\n",
+    })
+    expect(path).toBe(join(stateRoot, "investigations", "2026-05-27-1423-test.md"))
+    const content = readFileSync(path, "utf8")
+    expect(content).toMatch(/^---\nid: 2026-05-27-1423-test\n/)
+    expect(content).toContain("status: in_progress")
+    expect(content).toContain('symptom: "test symptom"')
+    expect(content).toContain("## 1 — Investigate")
+    rmSync(repoRoot, { recursive: true, force: true })
+  })
+})

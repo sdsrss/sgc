@@ -187,7 +187,8 @@ async function gatherInvestigateFactsImpl(opts: {
       cwd: opts.repoRoot,
       encoding: "utf8",
     })
-    if (r.status === 0) facts.git_head = r.stdout.trim()
+    if (r.error) errors.push(`git_head: ${r.error.message.slice(0, 80)}`)
+    else if (r.status === 0) facts.git_head = r.stdout.trim()
     else errors.push(`git_head: ${(r.stderr || "non-zero exit").trim().slice(0, 80)}`)
   } catch (err) {
     errors.push(`git_head: ${(err as Error).message.slice(0, 80)}`)
@@ -199,7 +200,8 @@ async function gatherInvestigateFactsImpl(opts: {
       cwd: opts.repoRoot,
       encoding: "utf8",
     })
-    if (r.status === 0) {
+    if (r.error) errors.push(`git_status: ${r.error.message.slice(0, 80)}`)
+    else if (r.status === 0) {
       facts.git_status_paths = r.stdout
         .split(/\r?\n/)
         .filter((l) => l.length > 0)
@@ -223,8 +225,9 @@ async function gatherInvestigateFactsImpl(opts: {
         agent: String(e.agent ?? ""),
       })
     } catch {
-      // skip malformed line silently — debug.heuristic_failed will be emitted
-      // at orchestrator layer when errors[] non-empty
+      // skip malformed line silently — line-level parse errors do not
+      // propagate to errors[]; debug.heuristic_failed fires only on
+      // reader-level promise rejection at the T7 orchestrator boundary
     }
   }
 

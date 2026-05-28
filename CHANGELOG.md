@@ -1,5 +1,64 @@
 # Changelog
 
+## v1.17.3 — 2026-05-28 — fix(GS-5 DOG-7): cso dep-audit assumed npm JSON shape — bun emits a different schema
+
+**Bugfix restoring accurate cso dep-audit reporting.** Closes the second
+v1.17.1 follow-up ticket. Self-dogfood on the sgc repo reported "bun
+audit returned non-JSON or unparseable output; dep audit skipped" — a
+false claim. `bun audit --json` v1.3.5 emits clean valid JSON on stdout
+(stderr separation confirmed); the schema differs from npm:
+
+```json
+// bun shape (package-keyed advisory map)
+{ "@anthropic-ai/sdk": [{ "id": 1119428, "severity": "moderate", ... }] }
+
+// npm shape (counts under metadata)
+{ "metadata": { "vulnerabilities": { "moderate": 1, "total": 1, ... } } }
+```
+
+`parseNpmAudit` reads `j.metadata?.vulnerabilities` → undefined on bun
+shape → null → false "unparseable" warning. The npm fallback never ran
+because bun returned a non-null result.
+
+### Fixed
+
+- `src/commands/cso.ts`: added `parseBunAudit(stdout): AuditCounts | null`
+  that handles the package-keyed shape; rejects npm shape (so dispatch
+  is schema-driven, not name-driven); counts severities into
+  `{critical, high, moderate, low, total}`; ignores unknown severity
+  values (forward-compat) and rejects malformed input (Array.isArray
+  guard, advisory object guard).
+- Added `parseAuditByTool(tool, stdout)` dispatcher that tries the
+  tool-specific parser first and falls back to the other parser if
+  it returns null — robust to future bun/npm schema drift.
+- `auditDependencies` now calls the dispatcher instead of
+  `parseNpmAudit` directly. `parseNpmAudit` is also now exported for
+  test-only access.
+
+### Tests
+
+- 8 new unit tests in `tests/dispatcher/cso.test.ts`:
+  - parseBunAudit: empty `{}` → all zeros
+  - parseBunAudit: single moderate advisory → moderate=1, total=1
+  - parseBunAudit: multi-package multi-severity → correct counts
+  - parseBunAudit: non-JSON → null
+  - parseBunAudit: npm-shaped JSON → null (schema-driven dispatch)
+  - parseBunAudit: unknown severities ignored, not crashed
+  - parseNpmAudit: npm shape → AuditCounts (regression baseline)
+  - parseNpmAudit: bun-shaped JSON → null (schema-driven dispatch)
+- 22 → 30 cso tests (+8), 0 fail. Post-fix `sgc cso` reports the actual
+  @anthropic-ai/sdk@>=0.79.0 <0.91.1 GHSA-p7fg-763f-g4gf moderate
+  advisory (sgc's `^0.89.0` is in range — separate ticket to bump the
+  dep itself, not part of this parser fix).
+
+### 7th dogfood-found-and-fixed
+
+DOG-1 npx PATH shadow / DOG-2 dedup tokenize / DOG-3 citty CI backtick /
+DOG-4 clarifier apostrophe / DOG-5 cso test-fixture false positive /
+DOG-6 SIGINT Invariant §13 / **DOG-7 cso bun-shape parser**. All of
+DOG-5/6/7 surfaced from a single `sgc cso` invocation on the sgc repo —
+the same self-dogfood produced three orthogonal real bugs.
+
 ## v1.17.2 — 2026-05-28 — fix(GS-5 follow-up): SIGINT/SIGTERM mid-spawn breaks Invariant §13 Tier-1 pairing
 
 **Bugfix restoring Invariant §13 promise.** Surfaced as the

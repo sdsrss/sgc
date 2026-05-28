@@ -1,5 +1,40 @@
 # Changelog
 
+## v1.16.1 — 2026-05-28 — GS-6 DOG-4 dogfood-found bugfix (apostrophe in suggested_next)
+
+**GS-6 follow-on bugfix** discovered via self-dogfood: first `sgc discover
+--template anti-pattern` invocation against an active-task state crashed
+with OpenRouter YAML parse failure. Pre-existing latent bug in
+`prompts/clarifier-discover.md` + heuristic-mode wording: the suggested_next
+suffix `(there's an active task: <summary>)` contained a raw `'`
+apostrophe, which in LLM mode terminates the single-quoted YAML scalar
+mid-string and crashes `openrouter-agent.ts:182` `yamlLoad`. Heuristic
+mode bypasses YAML round-trip so unit tests passed all along; only LLM
+mode with non-empty `current_task_summary` triggers it.
+
+Surfaced as **DOG-4** in the GS-N dogfood-as-test arc (DOG-1 npx PATH
+shadow / DOG-2 dedup tokenize / DOG-3 citty backtick CI wrap / DOG-4
+this).
+
+### Fixed
+
+- `src/dispatcher/agents/clarifier-discover.ts`: `(there's an active
+  task: ...)` → `(active task: ...)`. Same meaning, no apostrophe.
+- `prompts/clarifier-discover.md`: instruction updated with explicit
+  warning that suggested_next is YAML-scalar-wrapped and MUST NOT
+  contain raw `'`.
+- Regression test: `tests/dispatcher/clarifier-discover.test.ts` asserts
+  no `'` in suggested_next wrapper text when current_task_summary is set.
+
+### Tests
+
+- Dispatcher CI gate **884 → 885** pass (+1 regression test), 0 fail.
+
+### No migration required
+
+Output text changes from "(there's an active task: X)" to "(active
+task: X)" — purely cosmetic, no contract change.
+
 ## v1.16.0 — 2026-05-28 — GS-6 sgc discover --template framing selector
 
 **GS-6 (feature f12, sibling to CE-N + GS-1 + GS-2 + GS-4 + GS-7).**

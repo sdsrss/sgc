@@ -1,5 +1,56 @@
 # Changelog
 
+## v1.17.1 — 2026-05-28 — GS-5 DOG-5 dogfood-found bugfix (test-fixture false positives)
+
+**GS-5 follow-on bugfix** discovered via self-dogfood: first `sgc cso`
+invocation against the sgc repo flagged 3 secret-scan findings, all of
+which were intentional test fixtures (cso's own AKIA + private-key
+regression fixtures in `tests/dispatcher/cso.test.ts` + an old
+`plugins/sgc/browse/test/cookie-import-browser.test.ts` password mock).
+With this default behavior, the cso command would produce false-positive
+noise on every invocation of any repo that has security tests — the
+command's signal-to-noise ratio at default settings was unusable.
+
+Surfaced as **DOG-5** in the GS-N dogfood-as-test arc (DOG-1 npx PATH
+shadow / DOG-2 dedup tokenize / DOG-3 citty backtick CI wrap / DOG-4
+clarifier suggested_next apostrophe / DOG-5 this).
+
+### Fixed
+
+- `src/commands/cso.ts`: secret-scan now excludes test/fixture/mocks
+  paths by default. Added `SCAN_EXCLUDE_PATTERNS` regex array:
+  `/(^|\/)tests?\//`, `/\.test\.[jt]sx?$/`, `/\.spec\.[jt]sx?$/`,
+  `/(^|\/)__fixtures__\//`, `/(^|\/)__mocks__\//`. Refactored
+  `listScanFiles` filter from prefix-only `SCAN_EXCLUDE_PATHS` to combined
+  `isExcludedPath(rel)` helper covering both prefixes and patterns.
+- Convention follows gitleaks / trufflehog defaults; real-code detection
+  preserved (AKIA in `src/foo.ts` still fires).
+
+### Tests
+
+- 3 new regression tests in `tests/dispatcher/cso.test.ts`:
+  - DOG-5: AKIA in `tests/foo.test.ts` is excluded by default → pass
+  - DOG-5: AKIA in `src/foo.ts` STILL fires → fail (real-code detection)
+  - DOG-5: `*.spec.ts` + `__fixtures__/` + `__mocks__/` all excluded
+- Dispatcher CI gate **906 → 909** pass (+3), 0 fail.
+
+### Follow-ups filed (not blocking v1.17.1 ship)
+
+- `tasks/2026-05-28-cso-events-anomaly-spawn-end-missing.md` — 9 real
+  unpaired `spawn.start` entries in `events.ndjson` (clarifier.discover
+  x8, planner.adversarial x1, dates 2026-05-21 to 2026-05-26). Real
+  Invariant §13 violations; needs spawn-wrapper investigation.
+- `tasks/2026-05-28-cso-dep-audit-bun-fallback.md` — `bun audit
+  --json` returned non-JSON on sgc repo; tryAudit falls through to
+  warn correctly but bun-vs-npm output drift deserves investigation.
+
+### No migration required
+
+Scanner behavior change: test-path findings that previously fired are
+now suppressed. Real-code findings unchanged. If a project intentionally
+wants test-path scanning, that opt-in flag is deferred to a future
+release.
+
 ## v1.17.0 — 2026-05-28 — GS-5 sgc cso pre-ship security review
 
 **GS-5 (feature f13, sibling to CE-N + GS-1 + GS-2 + GS-4 + GS-6 + GS-7).**

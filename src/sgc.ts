@@ -815,6 +815,21 @@ const loop = defineCommand({
   },
 })
 
+// ── cso (GS-5) ──────────────────────────────────────────────────────────────
+
+const cso = defineCommand({
+  meta: {
+    name: "cso",
+    description:
+      "GS-5: pre-ship security review — secret scan + dep audit + events.ndjson anomaly detection. Writes append-only report under .sgc/cso/. Exit 1 on fail, 0 on pass/warn.",
+  },
+  async run() {
+    const { runCso } = await import("./commands/cso")
+    const { report } = await runCso()
+    if (report.verdict === "fail") process.exit(1)
+  },
+})
+
 // ── main ────────────────────────────────────────────────────────────────────
 
 const main = defineCommand({
@@ -836,6 +851,7 @@ const main = defineCommand({
     loop: () => loop,
     "watch-ci-failure": () => watchCiFailure,
     canary: () => canary,
+    cso: () => cso,
     debug: () => debugCommand,
     land: () => land,
     handoff: () => handoff,

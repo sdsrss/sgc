@@ -1,5 +1,76 @@
 # Changelog
 
+## v1.17.0 — 2026-05-28 — GS-5 sgc cso pre-ship security review
+
+**GS-5 (feature f13, sibling to CE-N + GS-1 + GS-2 + GS-4 + GS-6 + GS-7).**
+Seventh ship of the **GS-N absorb arc**: a heuristic chief-security-officer
+command that runs three closed-enum checks (secret scan + dep audit +
+events.ndjson Tier-1 anomaly per Invariant §13) and writes an
+append-only timestamped report under `.sgc/cso/`. Output schema
+forward-compatible with future `reviewer.correctness` L3 integration
+(reads `.sgc/cso/last-report.json`).
+
+### Added — `sgc cso`
+
+- **`sgc cso`** runs three checks in sequence:
+  1. **secret-scan** — regex set over `git ls-files --cached
+     --modified --others --exclude-standard` (AWS access key, private
+     key block, GitHub PAT, OpenAI/Slack token, generic
+     api-key/password assignment). Excludes `.sgc/cso/`, `node_modules/`,
+     `.git/`, `dist/`, `build/`, `coverage/`, `tmp/` to prevent
+     self-reference false positives. 200KB per-file size cap.
+  2. **dependency-audit** — shells `bun audit --json` first, falls
+     back to `npm audit --json`; counts critical / high → `findings`
+     (verdict fail), moderate / low → `warnings` (verdict warn). Tool
+     missing or non-JSON output → graceful skip with warning, NOT
+     blocking fail.
+  3. **events-anomaly** — reads `.sgc/progress/events.ndjson` (last
+     ~2MB tail), tracks `spawn.start` / `spawn.end` pairs by
+     `spawn_id`, reports unpaired `spawn.start` as Invariant §13
+     Tier-1 violations. Empty / missing events.ndjson → warn (not
+     fail); malformed JSON lines → counted in warnings, scan continues.
+- **Verdict aggregation**: worst-of across the three checks (fail >
+  warn > pass). Exit 1 only on fail; warn and pass both exit 0
+  (advisory tier — operator decides whether to ship).
+- **Output**: append-only `.sgc/cso/<YYYY-MM-DD>-<HHMM>-<rand>.md`
+  per Invariant §6 (never overwritten) + rewritten
+  `.sgc/cso/last-report.json` snapshot (machine-readable). Second `sgc
+  cso` invocation writes a NEW timestamped file; first run preserved.
+- **Default**: opt-in via direct invocation; no auto-run from `/ship`
+  this round (deferred — out of scope for v1.17.0).
+
+### Tests
+
+- Dispatcher CI gate **885 → 906** pass (+21: 19 new in
+  `cso.test.ts` covering aggregateVerdict ordering / ensureCsoDir /
+  scanSecrets clean+AKIA+private-key+self-reference-exclusion+non-git
+  graceful / auditDependencies tolerance / detectAnomalies
+  missing+empty+paired+unpaired+malformed-resilience / runCso end-to-end
+  report write + append-only second-run; +2 in `sgc-cli.test.ts`
+  covering `sgc --help` lists cso + `sgc cso --help` semantics under
+  CI=1 toContain). 0 fail.
+
+### Changed
+
+- `src/sgc.ts` registers `cso` defineCommand between `canary` and
+  `debug` (alphabetical ordering); main dispatch table grows from 18
+  to 19 subcommands.
+
+### Invariants
+
+- Invariant §6 (append-only) explicitly upheld: every cso run writes a
+  fresh timestamped file under `.sgc/cso/`; only `last-report.json` is
+  rewritten (pointer/snapshot, not audit record). Invariant §13
+  enforcement aids detection (unpaired spawn.start surfaces as
+  finding) — no new event types emitted by cso itself this round.
+
+### No migration required
+
+Additive opt-in command + new `.sgc/cso/` namespace; operators not
+invoking `sgc cso` are unaffected. CE-1 / CE-2 / CE-3 / CE-4 / CE-5 /
+CE-6 / GS-1 / GS-1.1 / GS-1.2 / GS-2 / GS-4 / GS-6 / GS-7 byte-for-byte
+unchanged.
+
 ## v1.16.1 — 2026-05-28 — GS-6 DOG-4 dogfood-found bugfix (apostrophe in suggested_next)
 
 **GS-6 follow-on bugfix** discovered via self-dogfood: first `sgc discover

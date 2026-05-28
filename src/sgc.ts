@@ -30,10 +30,18 @@ const discover = defineCommand({
   meta: { name: "discover", description: "Clarify requirements before planning" },
   args: {
     topic: { type: "positional", required: true, description: "What to clarify" },
+    template: {
+      type: "string",
+      required: false,
+      description: "Framing overlay: product | scope | anti-pattern (GS-6)",
+    },
   },
   async run({ args }) {
     const { runDiscover } = await import("./commands/discover")
-    await runDiscover({ topic: args.topic as string })
+    await runDiscover({
+      topic: args.topic as string,
+      ...(args.template ? { template: args.template as string } : {}),
+    })
   },
 })
 

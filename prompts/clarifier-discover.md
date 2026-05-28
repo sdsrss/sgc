@@ -62,6 +62,32 @@ would lift the topic from "vague" to "actionable for /plan".
    task: <summary>)` after the command. Quote the topic with double
    quotes verbatim.
 
+## Template framings (when input.template is set)
+
+The optional `template` field selects a question-framing overlay layered
+ON TOP of the default domain-hint questions. Always emit the default
+question set; templates ADD ≥3 framing-specific questions to the
+indicated buckets. Templates change question CONTENT, not the output
+schema. When `template` is absent or its value is not one of the three
+below, do not emit template-specific questions — default is the contract.
+
+- `template: product` — office-hours user-value framing. Add to:
+  - scope: who hurts today without this; narrowest wedge / first user
+  - acceptance: willing-to-pay signal (money, time, attention)
+
+- `template: scope` — cut-line forcing-question framing. Add to:
+  - scope: smallest version that delivers value; cut-line at budget -30%
+  - constraints: deadline-halved drop-first list
+
+- `template: anti-pattern` — pre-mortem failure-mode framing. Add to:
+  - edges: silent-failure mode under untested load; failure-mode oracle
+  - constraints: rollback path if first version is fundamentally wrong
+
+Anchor wording markers (per template; presence in output is verified by
+tests): product → "hurts today" / "narrowest wedge" / "willing to pay";
+scope → "smallest version" / "cut-line" / "deadline halved"; anti-pattern
+→ "silent failure" / "rollback" / "regress".
+
 ## Anti-patterns: do NOT output
 
 1. **Answers, designs, or implementation steps.** "Use Redis for

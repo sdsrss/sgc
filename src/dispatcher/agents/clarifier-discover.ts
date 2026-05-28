@@ -18,9 +18,20 @@
 // re-authored. One goal question, then up to 5 each of constraints /
 // scope / edge-cases / acceptance.
 
+// GS-6 (v1.16.0): closed enum of question-framing templates. Layered on top
+// of the existing domain-hint pattern — when present, a template adds
+// framing-specific questions (product = office-hours wedge, scope =
+// cut-line forcing, anti-pattern = pre-mortem failure-mode). Templates
+// change question CONTENT, not the output schema. Source-of-truth lives
+// here; --template flag in commands/discover.ts validates against it.
+export const DISCOVER_TEMPLATES = ["product", "scope", "anti-pattern"] as const
+export type DiscoverTemplate = (typeof DISCOVER_TEMPLATES)[number]
+
 export interface ClarifierDiscoverInput {
   topic: string
   current_task_summary: string
+  /** GS-6: optional framing template. When undefined, default heuristic. */
+  template?: DiscoverTemplate
 }
 
 export interface ClarifierDiscoverOutput {
@@ -105,6 +116,37 @@ export function clarifierDiscoverHeuristic(
   if (UI_RE.test(topic) || API_RE.test(topic)) {
     acceptance.push(
       "Is there a screenshot, curl invocation, or integration test that would serve as evidence?",
+    )
+  }
+
+  // GS-6: template-aware framing layered on top of domain hints.
+  // Each template adds ≥3 questions across relevant buckets; wording
+  // markers ("hurts today" / "narrowest wedge" / "smallest version" /
+  // "cut-line" / "silent failure" / "rollback") serve as test anchors
+  // proving the template fired (clarifier-discover.test.ts).
+  if (input.template === "product") {
+    scope.push(
+      "Who hurts today without this — and what do they do instead?",
+      "What's the narrowest wedge — the single first user who would adopt this and refuse to give it up?",
+    )
+    acceptance.push(
+      "Are early users willing to pay (in money, time, or attention) — and what's the lightest signal that proves it?",
+    )
+  } else if (input.template === "scope") {
+    scope.push(
+      "What's the smallest version that delivers any user-visible value — and what gets cut to reach it?",
+      "Where is the cut-line — what changes from in-scope to out-of-scope if 30% of the budget were removed?",
+    )
+    constraints.push(
+      "If the deadline halved, which features drop first (and which stay)?",
+    )
+  } else if (input.template === "anti-pattern") {
+    edges.push(
+      "How will this regress under load you haven't tested — and what's the silent-failure mode that bypasses your test?",
+      "If this regresses silently in production, how would you find out — and what's the failure-mode oracle?",
+    )
+    constraints.push(
+      "What's the rollback path if the first version is fundamentally wrong — code revert, data revert, or user-comms?",
     )
   }
 

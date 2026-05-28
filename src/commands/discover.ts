@@ -10,7 +10,9 @@
 import { spawn } from "../dispatcher/spawn"
 import {
   clarifierDiscover,
+  DISCOVER_TEMPLATES,
   type ClarifierDiscoverOutput,
+  type DiscoverTemplate,
 } from "../dispatcher/agents/clarifier-discover"
 import { readCurrentTask } from "../dispatcher/state"
 import { createLogger, type Logger } from "../dispatcher/logger"
@@ -18,6 +20,8 @@ import { createLogger, type Logger } from "../dispatcher/logger"
 export interface DiscoverOptions {
   stateRoot?: string
   topic: string
+  /** GS-6 (v1.16.0): optional framing template. */
+  template?: string
   log?: (msg: string) => void
   logger?: Logger
 }
@@ -71,15 +75,29 @@ export async function runDiscover(
     )
   }
 
+  // GS-6 (v1.16.0): validate --template against closed enum. Unknown
+  // value → stderr + exit 1 via thrown Error (no silent fallback).
+  let template: DiscoverTemplate | undefined
+  if (opts.template !== undefined) {
+    if (!(DISCOVER_TEMPLATES as readonly string[]).includes(opts.template)) {
+      throw new Error(
+        `unknown template: '${opts.template}'. valid: ${DISCOVER_TEMPLATES.join(", ")}`,
+      )
+    }
+    template = opts.template as DiscoverTemplate
+  }
+
   const current_task_summary = summarizeActiveTask(stateRoot)
 
   const r = await spawn<unknown, ClarifierDiscoverOutput>(
     "clarifier.discover",
-    { topic, current_task_summary },
+    { topic, current_task_summary, ...(template ? { template } : {}) },
     {
       stateRoot,
       inlineStub: (i) =>
-        clarifierDiscover(i as { topic: string; current_task_summary: string }),
+        clarifierDiscover(
+          i as { topic: string; current_task_summary: string; template?: DiscoverTemplate },
+        ),
       logger,
       taskId: undefined,
     },

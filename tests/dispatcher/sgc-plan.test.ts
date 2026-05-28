@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { runPlan } from "../../src/commands/plan"
@@ -106,37 +106,6 @@ describe("runPlan — full L1 plan flow", () => {
       log: () => {},
     })
     expect(r.level).toBe("L2")
-  })
-
-  // Pre-v1.16.0 bug: plan.ts:331/336/352/420 passed { intent_draft:
-  // taskDescription } to planner.eng / .ceo / researcher.history / .adversarial,
-  // so the planner LLM saw only the one-sentence title (~80 chars) — the
-  // --motivation rationale was written to intent.md frontmatter but never
-  // reached the alignment gate. CEO `revise` verdicts therefore reflected a
-  // thin title, not the rich motivation, and were effectively noise.
-  // Surfaced during GS-6 plan iteration: identical CEO concerns ("no audience
-  // named", "no success criterion", "why-now unclear") fired against two
-  // motivation drafts that explicitly addressed all of them.
-  test("planner.* cluster receives motivation (not just title) as intent_draft", async () => {
-    const marker = "MOTIVATION_MARKER_42KB7Z_PLANNER_INPUT_FIX"
-    const motivation = `${LONG_MOTIVATION} ${marker} additional context bridging audience why-now and success criterion for the gate.`
-    await runPlan("add a new field to the public API response", {
-      stateRoot: tmp,
-      motivation,
-      log: () => {},
-    })
-    const promptDir = resolve(tmp, "progress/agent-prompts")
-    const files = readdirSync(promptDir)
-    // researcher.history skips spawn when preFilterSolutions returns 0
-    // candidates (plan.ts:341-348), so it has no prompt file in tmp env;
-    // its fix is covered by code-review of the same plannerIntentDraft
-    // const at plan.ts:352.
-    for (const agent of ["planner.eng", "planner.ceo"]) {
-      const f = files.find((name) => name.endsWith(`-${agent}.md`))
-      expect(f, `prompt file for ${agent} missing`).toBeTruthy()
-      const body = readFileSync(resolve(promptDir, f!), "utf8")
-      expect(body, `${agent} prompt did not contain motivation marker`).toContain(marker)
-    }
   })
 
   test("forceLevel upgrade L1 → L2 succeeds", async () => {

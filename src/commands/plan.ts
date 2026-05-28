@@ -317,17 +317,6 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
   // the preventions that were fed to planner.adversarial. The IIFE assigns
   // capturedPriorPreventions after extractPreventions resolves.
   let capturedPriorPreventions: PriorPrevention[] = []
-  // planner.eng / .ceo / .adversarial read the full intent (title +
-  // motivation). Pre-v1.16.0 only taskDescription was passed, so planner
-  // LLMs flagged "no audience / no success criterion / why-now unclear"
-  // against thin titles even when the motivation explicitly addressed
-  // them. researcher.history INTENTIONALLY excluded: its keyword-overlap
-  // heuristic (researcher-history.ts:217) scores hits/keywords with a
-  // 0.3 floor — concatenating a verbose motivation dilutes the denominator
-  // and tanks recall of seeded prior art (Phase H T6 W2).
-  const plannerIntentDraft = opts.motivation
-    ? `${taskDescription}\n\n${opts.motivation}`
-    : taskDescription
   if (LEVEL_RANK[level] >= 2) {
     // P1.6: surface delegation hints once per plan invocation before the
     // parallel planner cluster fires. Nudge only — sgc continues with its
@@ -339,12 +328,12 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
     const tasks: Promise<unknown>[] = [
       spawn<unknown, PlannerEngOutput>(
         "planner.eng",
-        { intent_draft: plannerIntentDraft },
+        { intent_draft: taskDescription },
         { stateRoot, inlineStub: (i) => plannerEng(i as { intent_draft: string }), logger, taskId },
       ),
       spawn<unknown, PlannerCeoOutput>(
         "planner.ceo",
-        { intent_draft: plannerIntentDraft },
+        { intent_draft: taskDescription },
         { stateRoot, inlineStub: (i) => plannerCeo(i as { intent_draft: string }), logger, taskId },
       ),
       (async (): Promise<{ output: ResearcherHistoryOutput }> => {
@@ -428,7 +417,7 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
             }
           }
           const adversarialInput: PlannerAdversarialInput = {
-            intent_draft: plannerIntentDraft,
+            intent_draft: taskDescription,
             ...(priorPreventions.length > 0
               ? { prior_preventions: priorPreventions }
               : {}),
@@ -532,7 +521,7 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
     // L1: eng only
     const planRes = await spawn<unknown, PlannerEngOutput>(
       "planner.eng",
-      { intent_draft: plannerIntentDraft },
+      { intent_draft: taskDescription },
       { stateRoot, inlineStub: (i) => plannerEng(i as { intent_draft: string }), logger, taskId },
     )
     plannerEngOut = planRes.output

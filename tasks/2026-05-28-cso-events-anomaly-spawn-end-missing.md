@@ -1,10 +1,50 @@
 ---
 slug: 2026-05-28-cso-events-anomaly-spawn-end-missing
-status: open
+status: closed
+closed_in: v1.17.2 (2026-05-28)
 surfaced_by: GS-5 v1.17.0 self-dogfood (`sgc cso` 2026-05-28T04:45Z)
 priority: medium
 level: L2
 ---
+
+## Resolution (v1.17.2)
+
+**Root cause (all 9 entries)**: process-level SIGINT/SIGTERM termination
+bypasses Bun's await-stack unwinding, so spawn.ts's `try { ... } finally
+{ emit spawn.end }` is skipped when the user Ctrl+Cs during an in-flight
+LLM call. Per-entry timeline proves it:
+
+```
+spawn.start  T+0ms
+llm.request  T+1ms      ← runOpenRouterAgent reached fetch()
+(no llm.response, no spawn.end — process died mid-fetch)
+```
+
+9/9 unpaired entries match: all openrouter mode, all clarifier.discover or
+planner.adversarial (long LLM calls), all show llm.request fired but no
+llm.response. The 277 paired spawn.ends include 7 with `outcome=error`
+(LLM throws DO emit spawn.end — finally runs on exceptions), proving the
+try/finally is structurally correct. The only failure mode is hard process
+termination.
+
+**Forward fix**: `src/dispatcher/spawn.ts` now maintains a module-level
+`Map<spawnId, OpenSpawnEntry>` registry. spawn() registers on spawn.start
+emit, deregisters in finally. A lazily-installed SIGINT + SIGTERM handler
+drains the registry on signal — synthesizing a paired `spawn.end` with
+`outcome="interrupted"`, `signal="SIGINT"|"SIGTERM"`, `elapsed_ms`, level=warn
+— before re-raising via `process.exit(128+N)`. 5 new unit tests in
+`tests/dispatcher/spawn-interrupt.test.ts`.
+
+**Retroactive cleanup**: appended 9 synthetic spawn.end events to
+`.sgc/progress/events.ndjson` with `outcome="interrupted"`, `signal="unknown"`,
+`note="retroactive synthesis: pre-v1.18 SIGINT handler did not exist"`.
+
+**Verify command (Iron Law #2)**:
+```
+$ bun src/sgc.ts cso
+events-anomaly: pass (0 finding(s), 0 warning(s))
+```
+Pre-fix: 9 findings. Post-fix: 0.
 
 # Follow-up: events.ndjson has 9 historical unpaired spawn.start entries
 

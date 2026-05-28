@@ -86,6 +86,100 @@ export class SpawnTimeout extends Error {
   }
 }
 
+// ── Invariant §13 Tier 1 — SIGINT/SIGTERM drain registry ───────────────────
+//
+// spawn.ts's try/finally guarantees spawn.end fires on thrown exceptions, but
+// process-level termination signals (SIGINT from Ctrl+C, SIGTERM from kill)
+// bypass await-stack unwinding in Bun and Node — the finally never runs.
+// Surfaced by GS-5 v1.17.0 self-dogfood: 9 historical unpaired spawn.start
+// entries, all openrouter-mode (long HTTP fetch) with llm.request fired but
+// no llm.response and no spawn.end. Each "operator hit Ctrl+C waiting for
+// the LLM" → one unpaired entry → one Invariant §13 violation.
+//
+// Fix: track every open spawn in a module-level registry; install a SIGINT/
+// SIGTERM handler that drains the registry (emits synthetic spawn.end with
+// outcome="interrupted") before re-raising the signal. Registry register/
+// deregister is tightly bracketed around the existing try/finally so the
+// happy path (and thrown-exception path) cost only a Map insert + delete.
+
+interface OpenSpawnEntry {
+  agent: string
+  taskId: string | null
+  startTs: number
+  logger: Logger
+}
+
+const openSpawns = new Map<string, OpenSpawnEntry>()
+let signalHandlersInstalled = false
+
+function installSignalHandlersOnce(): void {
+  if (signalHandlersInstalled) return
+  signalHandlersInstalled = true
+  const onSignal = (sig: NodeJS.Signals): void => {
+    drainOpenSpawnsForSignal(sig)
+    // Re-raise with default behavior so the process actually exits. Without
+    // this, removing our handler would leave the process running until the
+    // next signal. process.exit(128+N) is the conventional shell exit code
+    // for signal termination (SIGINT=2 → 130, SIGTERM=15 → 143).
+    const code = sig === "SIGINT" ? 130 : sig === "SIGTERM" ? 143 : 1
+    process.exit(code)
+  }
+  process.once("SIGINT", onSignal)
+  process.once("SIGTERM", onSignal)
+}
+
+function registerOpenSpawn(
+  spawnId: string,
+  agent: string,
+  taskId: string | null,
+  startTs: number,
+  logger: Logger,
+): void {
+  installSignalHandlersOnce()
+  openSpawns.set(spawnId, { agent, taskId, startTs, logger })
+}
+
+function deregisterOpenSpawn(spawnId: string): void {
+  openSpawns.delete(spawnId)
+}
+
+function drainOpenSpawnsForSignal(signal: string): void {
+  for (const [spawnId, e] of openSpawns) {
+    try {
+      e.logger.event({
+        task_id: e.taskId,
+        spawn_id: spawnId,
+        agent: e.agent,
+        event_type: "spawn.end",
+        level: "warn",
+        payload: {
+          outcome: "interrupted",
+          elapsed_ms: Date.now() - e.startTs,
+          signal,
+        },
+      })
+    } catch {
+      // best-effort during shutdown; don't block exit
+    }
+  }
+  openSpawns.clear()
+}
+
+/** Test-only: directly invoke the drain logic without raising a signal. */
+export function __drainOpenSpawnsForSignal(signal: string): void {
+  drainOpenSpawnsForSignal(signal)
+}
+
+/** Test-only: read the current open-spawn count. */
+export function __getOpenSpawnCount(): number {
+  return openSpawns.size
+}
+
+/** Test-only: clear registry between tests (handlers persist; idempotent). */
+export function __resetOpenSpawnsForTests(): void {
+  openSpawns.clear()
+}
+
 /**
  * Misconfiguration of a subagent manifest — e.g. declared `prompt_path`
  * points to a missing file, or the template is missing required markers.
@@ -536,6 +630,9 @@ export async function spawn<I = unknown, O = unknown>(
     level: "info",
     payload: { mode, manifest_version: manifest.version ?? "unknown" },
   })
+  // Register for SIGINT/SIGTERM drain; deregistered in finally below. Signal
+  // handlers are installed lazily on first registration (idempotent).
+  registerOpenSpawn(spawnId, agentName, opts.taskId ?? null, startTs, logger)
 
   let outcome: "success" | "timeout" | "error" = "error"
   try {
@@ -648,5 +745,6 @@ export async function spawn<I = unknown, O = unknown>(
       level: outcome === "success" ? "info" : "warn",
       payload: { outcome, elapsed_ms: Date.now() - startTs },
     })
+    deregisterOpenSpawn(spawnId)
   }
 }

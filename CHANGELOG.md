@@ -1,5 +1,40 @@
 # Changelog
 
+## v1.17.4 — 2026-05-28 — fix(deps): bump @anthropic-ai/sdk ^0.89.0 → ^0.91.1 (clears GHSA-p7fg-763f-g4gf)
+
+Closes the moderate-severity advisory surfaced by GS-5 DOG-7's now-
+accurate dep-audit output (cso v1.17.3):
+
+  GHSA-p7fg-763f-g4gf — Claude SDK for TypeScript has Insecure Default
+  File Permissions in Local Filesystem Memory Tool
+  vulnerable: >=0.79.0 <0.91.1
+  fixed: >=0.91.1
+
+sgc's usage is limited to `import Anthropic from "@anthropic-ai/sdk"`
+and `client.messages.create(...)` (single call site in
+`src/dispatcher/anthropic-sdk-agent.ts`) — the SDK's stable core API,
+unchanged across 0.89 → 0.91. No code changes required beyond the
+version bump.
+
+### Bumped
+
+- `package.json`: `@anthropic-ai/sdk: ^0.89.0` → `^0.91.1`
+- `package-lock.json`: refreshed; npm audit reports 0 vulnerabilities
+  post-bump.
+
+### Verify (Iron Law #2)
+
+```
+$ bun src/sgc.ts cso
+cso verdict: pass
+  secret-scan: pass (0 finding(s), 0 warning(s))
+  dependency-audit: pass (0 finding(s), 0 warning(s))
+  events-anomaly: pass (0 finding(s), 0 warning(s))
+```
+
+All three cso checks now pass — first fully-green cso since GS-5
+shipped. Pre-bump: dep-audit warned with 1 moderate. Post-bump: 0.
+
 ## v1.17.3 — 2026-05-28 — fix(GS-5 DOG-7): cso dep-audit assumed npm JSON shape — bun emits a different schema
 
 **Bugfix restoring accurate cso dep-audit reporting.** Closes the second

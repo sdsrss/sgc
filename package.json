@@ -1,6 +1,6 @@
 {
   "name": "@sdsrs/sgc",
-  "version": "1.17.3",
+  "version": "1.17.4",
   "description": "SGC — L0-L3 task classifier + 13 runtime invariants + dedup-enforced .sgc/ knowledge engine. A 规范层 + 知识引擎 that coexists with Superpowers, gstack, and Compound Engineering rather than replacing them.",
   "type": "module",
   "bin": {
@@ -51,7 +51,7 @@
     "@types/js-yaml": "^4.0.9"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.89.0",
+    "@anthropic-ai/sdk": "^0.91.1",
     "citty": "^0.1.6",
     "js-yaml": "^4.1.1",
     "playwright": "^1.52.0"

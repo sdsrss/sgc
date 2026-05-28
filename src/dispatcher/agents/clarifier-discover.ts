@@ -150,9 +150,13 @@ export function clarifierDiscoverHeuristic(
     )
   }
 
+  // DOG-4 (v1.16.1): no apostrophes in suggested_next — LLM mode emits
+  // this as a single-quoted YAML scalar and unescaped ' terminates it
+  // mid-string, crashing OpenRouter response parser (openrouter-agent.ts:182).
+  // "(active task: ...)" carries the same meaning without the YAML hazard.
   const contextNote =
     input.current_task_summary.trim().length > 0
-      ? ` (there's an active task: ${input.current_task_summary.trim()})`
+      ? ` (active task: ${input.current_task_summary.trim()})`
       : ""
 
   return {

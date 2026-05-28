@@ -85,6 +85,22 @@ describe("clarifier.discover stub", () => {
       current_task_summary: "01HXK9 (L2)",
     })
     expect(r.suggested_next).toContain("01HXK9 (L2)")
+    expect(r.suggested_next).toContain("active task:")
+  })
+
+  // DOG-4 (v1.16.1): suggested_next is single-quoted YAML scalar in LLM
+  // mode; raw apostrophes in the wrapper text ("there's an active task")
+  // terminate the scalar mid-string and crash OpenRouter response parser.
+  // Heuristic mode bypasses YAML round-trip but stays aligned in wording.
+  test("suggested_next has no raw apostrophe in wrapper text (YAML-safe)", () => {
+    const r = clarifierDiscover({
+      topic: "add anything",
+      current_task_summary: "01HXK9 (L2)",
+    })
+    // The topic itself MAY contain apostrophes if the user supplied them;
+    // strip the topic before asserting on the wrapper.
+    const wrapper = r.suggested_next.replace(/"add anything"/, "")
+    expect(wrapper).not.toContain("'")
   })
 
   test("topic is trimmed", () => {

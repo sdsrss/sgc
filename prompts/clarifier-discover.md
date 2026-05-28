@@ -58,9 +58,12 @@ would lift the topic from "vague" to "actionable for /plan".
    sgc plan "<topic>" --motivation "<your consolidated answers as one paragraph, ≥20 words>"
    ```
 
-   If `current_task_summary` is non-empty, append ` (there's an active
-   task: <summary>)` after the command. Quote the topic with double
-   quotes verbatim.
+   If `current_task_summary` is non-empty, append ` (active task:
+   <summary>)` after the command. Quote the topic with double quotes
+   verbatim. CRITICAL: suggested_next is rendered as a single-quoted
+   YAML scalar by your reply format — it MUST NOT contain raw `'`
+   apostrophes. Use plain words ("active task" not "there's an active
+   task") to avoid premature scalar termination (DOG-4 fix v1.16.1).
 
 ## Template framings (when input.template is set)
 

@@ -16,6 +16,8 @@ import {
   auditDependencies,
   detectAnomalies,
   ensureCsoDir,
+  parseBunAudit,
+  parseNpmAudit,
   runCso,
   scanSecrets,
   type CsoCheckResult,
@@ -191,6 +193,114 @@ describe("cso — auditDependencies", () => {
     // Either warn (tool missing or unparseable) or pass (tool ran clean).
     // We don't strictly assert which since CI may have either bun or npm.
     expect(["warn", "pass"]).toContain(r.verdict)
+  })
+})
+
+// DOG-7 (v1.17.3): cso assumed npm-shaped JSON for `bun audit --json` too,
+// but bun emits a different schema — package-keyed map of advisory arrays:
+//   { "<package>": [{ id, severity, title, ... }, ...] }
+// Whereas npm emits:
+//   { metadata: { vulnerabilities: { critical, high, moderate, low, total } } }
+// Pre-fix on sgc repo: bun audit JSON parsed cleanly but parseNpmAudit
+// returned null → "bun audit returned non-JSON or unparseable output" (lie —
+// it was JSON, just different schema). Fix: parseBunAudit + dispatch by tool.
+describe("cso — parseBunAudit (bun package-keyed JSON shape)", () => {
+  test("empty bun audit object → counts all zero", () => {
+    const counts = parseBunAudit("{}")
+    expect(counts).toEqual({
+      critical: 0,
+      high: 0,
+      moderate: 0,
+      low: 0,
+      total: 0,
+    })
+  })
+
+  test("single moderate advisory under one package", () => {
+    const stdout = JSON.stringify({
+      "@anthropic-ai/sdk": [
+        {
+          id: 1119428,
+          severity: "moderate",
+          title: "Insecure Default File Permissions",
+        },
+      ],
+    })
+    const counts = parseBunAudit(stdout)
+    expect(counts).toEqual({
+      critical: 0,
+      high: 0,
+      moderate: 1,
+      low: 0,
+      total: 1,
+    })
+  })
+
+  test("multiple packages, multiple severities", () => {
+    const stdout = JSON.stringify({
+      pkgA: [{ severity: "critical" }, { severity: "high" }],
+      pkgB: [{ severity: "moderate" }, { severity: "low" }],
+      pkgC: [{ severity: "high" }],
+    })
+    const counts = parseBunAudit(stdout)
+    expect(counts).toEqual({
+      critical: 1,
+      high: 2,
+      moderate: 1,
+      low: 1,
+      total: 5,
+    })
+  })
+
+  test("non-JSON input → null", () => {
+    expect(parseBunAudit("not json")).toBe(null)
+  })
+
+  test("npm-shaped JSON (wrong schema) → null", () => {
+    const npmShape = JSON.stringify({
+      metadata: { vulnerabilities: { critical: 1, high: 0, moderate: 0, low: 0, total: 1 } },
+    })
+    expect(parseBunAudit(npmShape)).toBe(null)
+  })
+
+  test("unknown severity values ignored, not crashed", () => {
+    const stdout = JSON.stringify({
+      pkg: [
+        { severity: "moderate" },
+        { severity: "unknown-severity-from-future-bun" },
+        { severity: "moderate" },
+      ],
+    })
+    const counts = parseBunAudit(stdout)
+    expect(counts).toEqual({
+      critical: 0,
+      high: 0,
+      moderate: 2,
+      low: 0,
+      total: 2,
+    })
+  })
+})
+
+describe("cso — parseNpmAudit (npm metadata shape) unchanged", () => {
+  test("npm shape with counts → AuditCounts", () => {
+    const npmShape = JSON.stringify({
+      metadata: {
+        vulnerabilities: { critical: 0, high: 1, moderate: 2, low: 3, total: 6 },
+      },
+    })
+    expect(parseNpmAudit(npmShape)).toEqual({
+      critical: 0,
+      high: 1,
+      moderate: 2,
+      low: 3,
+      total: 6,
+    })
+  })
+
+  test("bun-shaped JSON (wrong schema) → null", () => {
+    const bunShape = JSON.stringify({ pkg: [{ severity: "high" }] })
+    expect(parseNpmAudit(bunShape)).toBe(null)
   })
 })
 

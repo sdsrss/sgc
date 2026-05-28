@@ -243,7 +243,7 @@ interface AuditCounts {
   total: number
 }
 
-function parseNpmAudit(stdout: string): AuditCounts | null {
+export function parseNpmAudit(stdout: string): AuditCounts | null {
   try {
     const j = JSON.parse(stdout) as {
       metadata?: { vulnerabilities?: Partial<AuditCounts> & { info?: number } }
@@ -262,6 +262,52 @@ function parseNpmAudit(stdout: string): AuditCounts | null {
   }
 }
 
+// DOG-7: `bun audit --json` emits a package-keyed advisory map:
+//   { "<pkg>": [{ id, severity: "low"|"moderate"|"high"|"critical", ... }, ...] }
+// Distinct from npm's `{metadata:{vulnerabilities:{critical,high,...}}}`.
+// Schema confirmed via `bun audit --json 2>/dev/null` on bun v1.3.x; if a
+// future bun release ships a different shape, return null and the dispatch
+// in auditDependencies will fall through to the next tool.
+export function parseBunAudit(stdout: string): AuditCounts | null {
+  let j: unknown
+  try {
+    j = JSON.parse(stdout)
+  } catch {
+    return null
+  }
+  if (typeof j !== "object" || j === null || Array.isArray(j)) return null
+  // Reject npm shape so the dispatch can be schema-driven, not name-driven:
+  // a bun version that ever emits npm-shape will then route to parseNpmAudit.
+  if ("metadata" in j) return null
+  const counts: AuditCounts = { critical: 0, high: 0, moderate: 0, low: 0, total: 0 }
+  let sawAdvisoryArray = false
+  for (const advisories of Object.values(j as Record<string, unknown>)) {
+    if (!Array.isArray(advisories)) return null
+    sawAdvisoryArray = true
+    for (const a of advisories) {
+      if (typeof a !== "object" || a === null) continue
+      const sev = (a as Record<string, unknown>)["severity"]
+      if (sev === "critical") counts.critical++
+      else if (sev === "high") counts.high++
+      else if (sev === "moderate") counts.moderate++
+      else if (sev === "low") counts.low++
+      // unknown severity values ignored (forward-compat)
+      counts.total = counts.critical + counts.high + counts.moderate + counts.low
+    }
+  }
+  // Empty object {} is a legitimate "no vulnerabilities" bun output.
+  if (!sawAdvisoryArray && Object.keys(j as object).length > 0) return null
+  return counts
+}
+
+function parseAuditByTool(tool: string, stdout: string): AuditCounts | null {
+  // Schema-aware dispatch: try the tool-specific parser first; if it returns
+  // null (schema drift), fall back to the other parser. This makes us robust
+  // to a future bun release adopting npm shape OR vice versa.
+  if (tool === "bun") return parseBunAudit(stdout) ?? parseNpmAudit(stdout)
+  return parseNpmAudit(stdout) ?? parseBunAudit(stdout)
+}
+
 export function auditDependencies(repoRoot: string): CsoCheckResult {
   const findings: string[] = []
   const warnings: string[] = []
@@ -275,7 +321,7 @@ export function auditDependencies(repoRoot: string): CsoCheckResult {
     warnings.push(`no audit tool available (tried: ${attempts.join(", ")}); dep audit skipped`)
     return { name: "dependency-audit", verdict: "warn", findings, warnings }
   }
-  const counts = parseNpmAudit(result.stdout)
+  const counts = parseAuditByTool(result.tool, result.stdout)
   if (!counts) {
     warnings.push(`${result.tool} audit returned non-JSON or unparseable output; dep audit skipped`)
     return { name: "dependency-audit", verdict: "warn", findings, warnings }

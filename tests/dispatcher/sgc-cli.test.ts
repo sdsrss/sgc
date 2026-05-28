@@ -132,6 +132,21 @@ describe("sgc CLI smoke", () => {
     expect(stdout).toContain("hurts today")
   })
 
+  // GS-5 (v1.17.0): sgc cso pre-ship security review.
+  test("sgc --help lists cso subcommand (GS-5)", async () => {
+    const { stdout, exitCode } = await runSgc(["--help"])
+    expect(exitCode).toBe(0)
+    expect(stdout).toContain("cso")
+  })
+
+  test("cso --help describes security review semantics (GS-5)", async () => {
+    const { stdout, exitCode } = await runSgc(["cso", "--help"])
+    expect(exitCode).toBe(0)
+    // toContain not regex per DOG-3 backtick CI wrap
+    expect(stdout).toContain("cso")
+    expect(stdout).toContain("security")
+  })
+
   test("discover --template <unknown> exits non-zero with available-list (GS-6)", async () => {
     const { stderr, exitCode } = await runSgc([
       "discover",

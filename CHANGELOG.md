@@ -1,5 +1,62 @@
 # Changelog
 
+## v1.16.0 — 2026-05-28 — GS-6 sgc discover --template framing selector
+
+**GS-6 (feature f12, sibling to CE-N + GS-1 + GS-2 + GS-4 + GS-7).**
+Sixth ship of the **GS-N absorb arc**: a closed-enum `--template <name>`
+overlay for `sgc discover`, layering office-hours / cut-line /
+pre-mortem framings on top of the existing domain-hint pattern.
+Templates change question CONTENT only; the
+`ClarifierDiscoverOutput` schema is unchanged across all values.
+
+### Added — `sgc discover --template <name>`
+
+- **Three closed-enum values for v1.16.0**: `product` (office-hours
+  user-value framing: who hurts today / narrowest wedge / willing to
+  pay), `scope` (cut-line forcing: smallest version / cut-line /
+  deadline-halved drop list), `anti-pattern` (pre-mortem failure-mode:
+  silent-failure / failure-mode oracle / rollback path). Source-of-truth
+  = exported `DISCOVER_TEMPLATES` const in
+  `src/dispatcher/agents/clarifier-discover.ts`.
+- **Default behavior unchanged** when `--template` is omitted —
+  regression test pins the no-flag path byte-identical.
+- **Unknown `--template`** exits non-zero with stderr `unknown template:
+  '<value>'. valid: product, scope, anti-pattern`; no silent fallback.
+- **Templates layer additively** with existing domain hints: `--template
+  product` on an auth topic still emits the threat-model question.
+- **LLM-mode aligned** via `prompts/clarifier-discover.md` template
+  section documenting the same anchor markers; heuristic and LLM modes
+  emit the same wording markers tests assert on.
+
+### Tests
+
+- Dispatcher CI gate **872 → 884** pass (+12: 9 new in
+  `clarifier-discover.test.ts` covering 3 per-template wording-marker
+  tests + default byte-identical regression + additive layering with
+  domain hints + closed-enum guard + runDiscover unknown-template
+  throw + runDiscover happy-path passthrough + prompt-template
+  marker sync; +3 in `sgc-cli.test.ts` covering `--help` flag
+  visibility under CI=1 (DOG-3 toContain dodge), end-to-end
+  `--template product` wording, unknown-template stderr+exit-non-zero).
+  0 fail.
+
+### Changed
+
+- `ClarifierDiscoverInput` gains an optional `template?:
+  DiscoverTemplate` field. Existing call sites unaffected (additive).
+
+### Invariants
+
+- No impact. No schema bump. No new event types. No new agent spawn.
+  `--template` is CLI-surface-only; clarifier.discover manifest
+  unchanged.
+
+### No migration required
+
+Additive flag; operators not passing `--template` are unaffected. CE-1
+/ CE-2 / CE-3 / CE-4 / CE-5 / CE-6 / GS-1 / GS-1.1 / GS-1.2 / GS-2 /
+GS-4 / GS-7 byte-for-byte unchanged.
+
 ## v1.15.0 — 2026-05-27 — GS-4 sgc debug systematic-debugging phase-walker
 
 **GS-4 (feature f11, sibling to CE-N + GS-1 + GS-2 + GS-7, no parent intent).**

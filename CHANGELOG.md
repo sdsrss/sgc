@@ -1,5 +1,53 @@
 # Changelog
 
+## v1.17.2 — 2026-05-28 — fix(GS-5 follow-up): SIGINT/SIGTERM mid-spawn breaks Invariant §13 Tier-1 pairing
+
+**Bugfix restoring Invariant §13 promise.** Surfaced as the
+events-anomaly follow-up filed in v1.17.1: 9 historical unpaired
+`spawn.start` entries in `.sgc/progress/events.ndjson`, all from openrouter-
+mode long LLM calls (8× `clarifier.discover` via `sgc discover`,
+1× `planner.adversarial` in an L3 plan). Per-entry timeline proved each
+had `spawn.start` + `llm.request` (fetch reached) but no `llm.response`
+and no `spawn.end` — process died mid-fetch.
+
+**Root cause**: Bun's default SIGINT/SIGTERM termination does NOT unwind
+the await stack, so spawn.ts's `try { ... } finally { emit spawn.end }`
+is skipped when the operator Ctrl+Cs during an in-flight LLM call. The
+existing try/finally is structurally correct (7 historical `outcome=error`
+spawn.ends prove LLM throws DO run finally) — only hard process termination
+bypasses it. No SIGINT handler existed in src/.
+
+### Fixed
+
+- `src/dispatcher/spawn.ts`: added module-level `openSpawns` registry +
+  lazily-installed SIGINT/SIGTERM handlers. spawn() registers on
+  `spawn.start` emit, deregisters in finally. On signal: drain emits
+  synthetic `spawn.end` with `outcome="interrupted"`, `signal=<name>`,
+  `elapsed_ms`, level=warn for each open spawn, then re-raises via
+  `process.exit(130)` for SIGINT or `process.exit(143)` for SIGTERM.
+- 9 historical unpaired entries in `.sgc/progress/events.ndjson` paired
+  retroactively (synthetic spawn.end with `signal="unknown"` + `note:
+  "retroactive synthesis: pre-v1.18 SIGINT handler did not exist"`).
+
+### Tests
+
+- 5 new unit tests in `tests/dispatcher/spawn-interrupt.test.ts`:
+  - drain emits synthetic spawn.end(outcome=interrupted, signal=SIGINT)
+    for a registered open spawn
+  - successful spawn deregisters → drain after success finds no open
+  - failed spawn (forceError) deregisters → no orphan after drain
+  - two concurrent open spawns → drain emits 2 synthetic spawn.ends
+  - drain with no open spawns is a no-op
+- Test surface 1014 → 1019 (+5), 0 fail, 3164 expects, 516s wall.
+- DOG-5 follow-up `events-anomaly` check: pre-fix 9 findings → post-fix 0.
+
+### Out of scope
+
+- `bun audit` non-JSON fallback (separate ticket
+  `tasks/2026-05-28-cso-dep-audit-bun-fallback.md`).
+- Multi-reviewer decision fusion (GS-3, v2.0.0 — high-risk Invariant §1
+  back-channel + §6 work, needs spec first).
+
 ## v1.17.1 — 2026-05-28 — GS-5 DOG-5 dogfood-found bugfix (test-fixture false positives)
 
 **GS-5 follow-on bugfix** discovered via self-dogfood: first `sgc cso`

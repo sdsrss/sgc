@@ -110,6 +110,43 @@ describe("sgc CLI smoke", () => {
     expect(stderr).toMatch(/topic/i)
   })
 
+  // GS-6 (v1.16.0): --template selector. toContain (not regex) per DOG-3
+  // ([[feedback_citty_help_consola_ci_mode]]) — backtick wrap under CI=1.
+  test("discover --help lists --template flag with valid values (GS-6)", async () => {
+    const { stdout, exitCode } = await runSgc(["discover", "--help"])
+    expect(exitCode).toBe(0)
+    expect(stdout).toContain("--template")
+    expect(stdout).toContain("product")
+    expect(stdout).toContain("scope")
+    expect(stdout).toContain("anti-pattern")
+  })
+
+  test("discover --template product end-to-end emits product wording marker (GS-6)", async () => {
+    const { stdout, exitCode } = await runSgc([
+      "discover",
+      "side project dog walking app",
+      "--template",
+      "product",
+    ])
+    expect(exitCode).toBe(0)
+    expect(stdout).toContain("hurts today")
+  })
+
+  test("discover --template <unknown> exits non-zero with available-list (GS-6)", async () => {
+    const { stderr, exitCode } = await runSgc([
+      "discover",
+      "any topic",
+      "--template",
+      "user-value",
+    ])
+    expect(exitCode).not.toBe(0)
+    expect(stderr).toContain("unknown template")
+    expect(stderr).toContain("user-value")
+    expect(stderr).toContain("product")
+    expect(stderr).toContain("scope")
+    expect(stderr).toContain("anti-pattern")
+  })
+
   test("plan --help shows positional task arg", async () => {
     const { stdout, exitCode } = await runSgc(["plan", "--help"])
     expect(exitCode).toBe(0)

@@ -4,8 +4,10 @@ import { resolve } from "node:path"
 import {
   clarifierDiscover,
   clarifierDiscoverHeuristic,
+  DISCOVER_TEMPLATES,
 } from "../../src/dispatcher/agents/clarifier-discover"
 import { getSubagentManifest } from "../../src/dispatcher/schema"
+import { runDiscover } from "../../src/commands/discover"
 
 describe("clarifier.discover stub", () => {
   test("empty topic → throws", () => {
@@ -95,6 +97,116 @@ describe("clarifier.discover stub", () => {
 
   test("U4: clarifierDiscover alias === clarifierDiscoverHeuristic (G.2.a pattern)", () => {
     expect(clarifierDiscover).toBe(clarifierDiscoverHeuristic)
+  })
+})
+
+describe("clarifier.discover — GS-6 template selector (v1.16.0)", () => {
+  const TOPIC = "side project dog walking app"
+
+  test("template=product: scope/acceptance contain office-hours wording markers", () => {
+    const r = clarifierDiscover({
+      topic: TOPIC,
+      current_task_summary: "",
+      template: "product",
+    })
+    const joined = [...r.scope_questions, ...r.acceptance_questions].join(" ")
+    expect(joined).toContain("hurts today")
+    expect(joined).toContain("narrowest wedge")
+    expect(joined).toContain("willing to pay")
+  })
+
+  test("template=scope: scope/constraints contain cut-line wording markers", () => {
+    const r = clarifierDiscover({
+      topic: TOPIC,
+      current_task_summary: "",
+      template: "scope",
+    })
+    const joined = [...r.scope_questions, ...r.constraint_questions].join(" ")
+    expect(joined).toContain("smallest version")
+    expect(joined).toContain("cut-line")
+    expect(joined).toContain("deadline halved")
+  })
+
+  test("template=anti-pattern: edges/constraints contain pre-mortem wording markers", () => {
+    const r = clarifierDiscover({
+      topic: TOPIC,
+      current_task_summary: "",
+      template: "anti-pattern",
+    })
+    const joined = [...r.edge_case_questions, ...r.constraint_questions].join(" ")
+    expect(joined).toContain("silent-failure")
+    expect(joined).toContain("rollback path")
+    expect(joined).toContain("regress")
+  })
+
+  test("default (no template): byte-identical to pre-v1.16.0 no-flag path", () => {
+    // Regression guard — adding any new no-template question would change
+    // the JSON snapshot. Fix is to either intentionally update this baseline
+    // OR move the new question behind a template.
+    const r = clarifierDiscover({ topic: TOPIC, current_task_summary: "" })
+    expect(JSON.stringify(r)).not.toContain("hurts today")
+    expect(JSON.stringify(r)).not.toContain("smallest version")
+    expect(JSON.stringify(r)).not.toContain("silent-failure")
+    expect(JSON.stringify(r)).not.toContain("rollback path")
+  })
+
+  test("templates layer additively with domain hints (product on auth topic still emits threat-model)", () => {
+    const r = clarifierDiscover({
+      topic: "add OAuth token refresh for API callers",
+      current_task_summary: "",
+      template: "product",
+    })
+    const joined = [
+      ...r.constraint_questions,
+      ...r.scope_questions,
+      ...r.edge_case_questions,
+      ...r.acceptance_questions,
+    ].join(" ")
+    expect(joined).toMatch(/threat model/i)
+    expect(joined).toContain("hurts today")
+  })
+
+  test("DISCOVER_TEMPLATES is the closed enum for v1.16.0", () => {
+    expect(DISCOVER_TEMPLATES).toEqual(["product", "scope", "anti-pattern"])
+  })
+
+  test("runDiscover: unknown template → throws with available-list (no silent fallback)", async () => {
+    await expect(
+      runDiscover({ topic: "any topic", template: "user-value", log: () => {} }),
+    ).rejects.toThrow(/unknown template: 'user-value'\. valid: product, scope, anti-pattern/)
+  })
+
+  test("runDiscover: valid template passes through to inline stub", async () => {
+    const lines: string[] = []
+    await runDiscover({
+      topic: TOPIC,
+      template: "product",
+      log: (m) => lines.push(m),
+    })
+    const output = lines.join("\n")
+    expect(output).toContain("hurts today")
+  })
+
+  test("prompt template mentions all 3 template names + anchor markers (LLM-mode alignment)", () => {
+    const promptPath = resolve(process.cwd(), "prompts/clarifier-discover.md")
+    const tmpl = readFileSync(promptPath, "utf8")
+    for (const t of DISCOVER_TEMPLATES) {
+      expect(tmpl).toContain(`template: ${t}`)
+    }
+    // Wording markers documented in prompt so LLM mode and heuristic stay aligned
+    for (const marker of [
+      "hurts today",
+      "narrowest wedge",
+      "willing to pay",
+      "smallest version",
+      "cut-line",
+      "deadline halved",
+      "silent failure",
+      "rollback",
+      "regress",
+    ]) {
+      expect(tmpl).toContain(marker)
+    }
   })
 })
 

@@ -114,6 +114,65 @@ describe("cso — scanSecrets", () => {
     expect(r.findings.some((f) => f.includes("private key block"))).toBe(true)
   })
 
+  // DOG-5 (v1.17.1): test fixture paths are excluded by default to avoid
+  // false positives at every cso run. Self-dogfood on sgc repo surfaced
+  // cso.test.ts's own AKIA + private-key fixtures as findings.
+  test("DOG-5: AKIA in tests/foo.test.ts is excluded by default", () => {
+    mkdirSync(resolve(repoRoot, "tests"), { recursive: true })
+    writeFileSync(
+      resolve(repoRoot, "tests/secret-detection.test.ts"),
+      'const FAKE = "AKIAIOSFODNN7EXAMPLE"\n',
+    )
+    writeFileSync(resolve(repoRoot, "README.md"), "# clean\n")
+    execSync("git add . && git commit -q -m fixture", {
+      cwd: repoRoot,
+      stdio: "ignore",
+    })
+    const r = scanSecrets(repoRoot)
+    expect(r.verdict).toBe("pass")
+    expect(r.findings).toEqual([])
+  })
+
+  test("DOG-5: AKIA in src/foo.ts is STILL a finding (real-code detection preserved)", () => {
+    mkdirSync(resolve(repoRoot, "src"), { recursive: true })
+    writeFileSync(
+      resolve(repoRoot, "src/config.ts"),
+      'export const KEY = "AKIAIOSFODNN7EXAMPLE"\n',
+    )
+    execSync("git add . && git commit -q -m leak", {
+      cwd: repoRoot,
+      stdio: "ignore",
+    })
+    const r = scanSecrets(repoRoot)
+    expect(r.verdict).toBe("fail")
+    expect(r.findings.length).toBeGreaterThan(0)
+    expect(r.findings[0]).toContain("src/config.ts")
+  })
+
+  test("DOG-5: *.spec.ts + __fixtures__/ + __mocks__/ excluded", () => {
+    mkdirSync(resolve(repoRoot, "src/__fixtures__"), { recursive: true })
+    mkdirSync(resolve(repoRoot, "src/__mocks__"), { recursive: true })
+    writeFileSync(
+      resolve(repoRoot, "src/foo.spec.ts"),
+      'const k = "AKIAIOSFODNN7EXAMPLE"\n',
+    )
+    writeFileSync(
+      resolve(repoRoot, "src/__fixtures__/keys.json"),
+      '{"k":"AKIAIOSFODNN7EXAMPLE"}\n',
+    )
+    writeFileSync(
+      resolve(repoRoot, "src/__mocks__/api.ts"),
+      'const k = "AKIAIOSFODNN7EXAMPLE"\n',
+    )
+    execSync("git add . && git commit -q -m fixtures", {
+      cwd: repoRoot,
+      stdio: "ignore",
+    })
+    const r = scanSecrets(repoRoot)
+    expect(r.verdict).toBe("pass")
+    expect(r.findings).toEqual([])
+  })
+
   test("non-git directory → warn (graceful, no crash)", () => {
     const noGit = mkdtempSync(join(tmpdir(), "sgc-cso-nogit-"))
     try {

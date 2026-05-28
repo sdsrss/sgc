@@ -114,7 +114,7 @@ const SECRET_PATTERNS: { name: string; re: RegExp }[] = [
   },
 ]
 
-const SCAN_EXCLUDE_PATHS = [
+const SCAN_EXCLUDE_PREFIXES = [
   ".sgc/cso/",
   "node_modules/",
   ".git/",
@@ -123,6 +123,25 @@ const SCAN_EXCLUDE_PATHS = [
   "coverage/",
   "tmp/",
 ]
+
+// DOG-5 (v1.17.1): exclude test fixture paths from secret-scan. Tests
+// SHOULD contain fake-secret fixtures (cso's own tests assert AKIA + RSA
+// PRIVATE KEY detection), and scanning them produces false positives at
+// every invocation — making cso unusable on any repo with security tests.
+// Convention follows gitleaks / trufflehog defaults.
+const SCAN_EXCLUDE_PATTERNS: RegExp[] = [
+  /(^|\/)tests?\//, // /test/ or /tests/ anywhere in path
+  /\.test\.[jt]sx?$/, // *.test.{ts,tsx,js,jsx}
+  /\.spec\.[jt]sx?$/, // *.spec.{ts,tsx,js,jsx}
+  /(^|\/)__fixtures__\//, // common fixtures directory
+  /(^|\/)__mocks__\//, // jest-style mocks directory
+]
+
+function isExcludedPath(rel: string): boolean {
+  if (SCAN_EXCLUDE_PREFIXES.some((ex) => rel.startsWith(ex))) return true
+  if (SCAN_EXCLUDE_PATTERNS.some((re) => re.test(rel))) return true
+  return false
+}
 
 function listScanFiles(repoRoot: string): { files: string[]; warnings: string[] } {
   const warnings: string[] = []
@@ -142,7 +161,7 @@ function listScanFiles(repoRoot: string): { files: string[]; warnings: string[] 
     .split(/\r?\n/)
     .map((s) => s.trim())
     .filter((s) => s.length > 0)
-    .filter((p) => !SCAN_EXCLUDE_PATHS.some((ex) => p.startsWith(ex)))
+    .filter((p) => !isExcludedPath(p))
   return { files, warnings }
 }
 

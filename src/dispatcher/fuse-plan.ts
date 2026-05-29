@@ -64,7 +64,11 @@ export function fusePlan(input: FusePlanInput): FusedDecision {
   if (hasHighHighFailure(input.adversarial) && base === "approve") {
     base = "revise"
     basis = "high/high pre-mortem risk floors approve → revise"
-    conflicts.push("adversarial high/high risk overrode unanimous approve")
+    conflicts.push(
+      ceoV
+        ? "adversarial high/high risk overrode unanimous approve"
+        : "adversarial high/high risk overrode eng=approve",
+    )
   } else if (ceoV && ceoV !== engV) {
     basis = `${base} dominates (ceo=${ceoV}, eng=${engV})`
   } else {

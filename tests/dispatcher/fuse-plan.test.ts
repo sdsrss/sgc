@@ -2,8 +2,7 @@
 // Spec: tasks/specs/gs-3-plan-fusion.md (r1).
 
 import { describe, expect, test } from "bun:test"
-import { worstPlanVerdict } from "../../src/dispatcher/fuse-plan"
-import { fusePlan } from "../../src/dispatcher/fuse-plan"
+import { worstPlanVerdict, fusePlan } from "../../src/dispatcher/fuse-plan"
 import type { PlannerCeoOutput } from "../../src/dispatcher/agents/planner-ceo"
 import type { PlannerEngOutput } from "../../src/dispatcher/agents/planner-eng"
 import type { PlannerAdversarialOutput, FailureMode } from "../../src/dispatcher/agents/planner-adversarial"
@@ -63,5 +62,10 @@ describe("fusePlan verdict", () => {
   test("adversarial override of unanimous approve is a conflict", () => {
     const d = fusePlan({ ceo: ceo("approve"), eng: eng("approve"), adversarial: adv([fm("high", "high")]) })
     expect(d.conflicts.some((c) => c.includes("overrode unanimous approve"))).toBe(true)
+  })
+  test("absent ceo + high/high floor: verdict revise, non-unanimous conflict msg", () => {
+    const d = fusePlan({ eng: eng("approve"), adversarial: adv([fm("high", "high")]) })
+    expect(d.fused_verdict).toBe("revise")
+    expect(d.conflicts.some((c) => c.includes("overrode eng=approve"))).toBe(true)
   })
 })

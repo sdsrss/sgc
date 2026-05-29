@@ -1,5 +1,30 @@
 # Changelog
 
+## v1.18.0 — 2026-05-29 — feat(GS-3): plan decision fusion (fused_verdict at L2/L3)
+
+`sgc plan` now emits a **Fused decision** synthesizing the planner cluster (ceo / eng /
+adversarial) at L2 and L3: a single `fused_verdict` (`approve | revise | reject`), a
+deduped + severity-ranked concern list, and explicit conflict callouts when agents
+disagree. The verdict is advisory — the L3 human signature and stdin confirmation gates
+(Invariant §4) are unchanged.
+
+### What changed
+
+- New optional frontmatter field `fused_verdict` on `decisions/{id}/intent.md`.
+- `sgc plan` output at L2/L3 prepends a `## Fused decision` section at the TOP of
+  `intent.md` (before the per-agent verdict sections), listing the fused verdict,
+  severity-ranked concerns, and any inter-agent conflicts.
+- L1/L0 plans are unchanged — fusion is only triggered at L2 and above.
+
+### Compatibility
+
+Additive, backward-compatible. Existing `intent.md` files without `fused_verdict` still
+validate. No new `read:solutions` access — Invariant §1 (Generator-Evaluator Separation)
+is untouched. The fusion step is deterministic (no LLM call).
+
+To opt out, pin `@sdsrs/sgc@1.17.4` (or read the per-agent verdict sections as before —
+fusion only adds output).
+
 ## v1.17.4 — 2026-05-28 — fix(deps): bump @anthropic-ai/sdk ^0.89.0 → ^0.91.1 (clears GHSA-p7fg-763f-g4gf)
 
 Closes the moderate-severity advisory surfaced by GS-5 DOG-7's now-

@@ -60,7 +60,8 @@ import {
 } from "../dispatcher/state"
 import { computeCommandTokens } from "../dispatcher/capabilities"
 import { delegationHintsFor, formatHint } from "../dispatcher/delegation"
-import type { Handoff, IntentDoc, Level } from "../dispatcher/types"
+import type { Handoff, IntentDoc, Level, PlanVerdict } from "../dispatcher/types"
+import { fusePlan, renderFusedSection } from "../dispatcher/fuse-plan"
 import { createLogger, type Logger } from "../dispatcher/logger"
 import {
   completePlanJob,
@@ -559,6 +560,10 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
       log(`  research:   ${researcherOut.prior_art.length} prior art entries`)
     if (adversarialOut)
       log(`  pre-mortem: ${adversarialOut.failure_modes.length} failure mode(s)`)
+    if (plannerCeoOut && plannerEngOut) {
+      const fusedPreview = fusePlan({ ceo: plannerCeoOut, eng: plannerEngOut, adversarial: adversarialOut })
+      log(`  fused:      ${fusedPreview.fused_verdict} — ${fusedPreview.decision_basis} (advisory; human signature still required)`)
+    }
     log(`  signer:     ${opts.userSignature!.signer_id}`)
     log("")
     log("Type 'yes' to commit intent.md (or Ctrl+C to abort):")
@@ -585,6 +590,19 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
           `--motivation "<longer rationale describing why this matters and what changes>".`,
       )
     }
+    // GS-3: deterministic fusion of the planner cluster (L2/L3 only — L1 is
+    // eng-only, nothing to fuse). Reads frozen outputs; Invariant §1 untouched.
+    let fusedSection = ""
+    let fusedVerdict: PlanVerdict | undefined
+    if (plannerCeoOut && plannerEngOut) {
+      const fused = fusePlan({
+        ceo: plannerCeoOut,
+        eng: plannerEngOut,
+        adversarial: adversarialOut,
+      })
+      fusedVerdict = fused.fused_verdict
+      fusedSection = renderFusedSection(fused) + "\n\n"
+    }
     const intent: IntentDoc = {
       task_id: taskId,
       level,
@@ -594,7 +612,9 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
       affected_readers: classRes.output.affected_readers_candidates,
       scope_tokens: computeCommandTokens("/plan"),
       user_signature: opts.userSignature,
+      fused_verdict: fusedVerdict,
       body:
+        fusedSection +
         `## Classifier rationale\n\n${classRes.output.rationale}\n\n` +
         (plannerEngOut
           ? `## Planner.eng verdict\n\n${plannerEngOut.verdict}\n\n` +

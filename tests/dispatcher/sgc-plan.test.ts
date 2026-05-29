@@ -167,4 +167,34 @@ describe("runPlan — full L1 plan flow", () => {
     expect(existsSync(resolve(tmp, "decisions", r1.taskId, "intent.md"))).toBe(true)
     expect(existsSync(resolve(tmp, "decisions", r2.taskId, "intent.md"))).toBe(true)
   })
+
+  // GS-3: fused decision integration tests
+  test("GS-3 Test A — L2 produces ## Fused decision before ## Planner.eng verdict", async () => {
+    const r = await runPlan("add a new field to the public API response", {
+      stateRoot: tmp,
+      motivation: LONG_MOTIVATION,
+      log: () => {},
+    })
+    expect(r.level).toBe("L2")
+    const intent = readIntent(r.taskId, tmp)
+    expect(intent.fused_verdict).toBeDefined()
+    expect(["approve", "revise", "reject"]).toContain(intent.fused_verdict)
+    expect(intent.body).toContain("## Fused decision")
+    const fusedIdx = intent.body.indexOf("## Fused decision")
+    const engIdx = intent.body.indexOf("## Planner.eng verdict")
+    expect(fusedIdx).toBeGreaterThanOrEqual(0)
+    expect(engIdx).toBeGreaterThan(fusedIdx)
+  })
+
+  test("GS-3 Test B — L1 has NO fused decision (regression lock)", async () => {
+    const r = await runPlan("add a markdown table to the README", {
+      stateRoot: tmp,
+      motivation: LONG_MOTIVATION,
+      log: () => {},
+    })
+    expect(r.level).toBe("L1")
+    const intent = readIntent(r.taskId, tmp)
+    expect(intent.fused_verdict).toBeUndefined()
+    expect(intent.body).not.toContain("## Fused decision")
+  })
 })

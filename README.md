@@ -116,7 +116,7 @@ One more CLI from the same repo:
 
 | Command | Purpose |
 |---------|---------|
-| `browse` | Headless browser CLI for QA testing (compiled binary, `bun run build:browse`) |
+| `browse` | Headless browser CLI for QA testing (compiled binary, `bun run build:browse`). **Vendored** gstack-derived source under `plugins/sgc/browse/`, backing `sgc qa`'s browser checks. Its `test/` dir is upstream gstack's suite and is **not** part of sgc's CI gate (`bunfig.toml` scopes `bun test` to `tests/`); see [docs/POSITIONING.md](docs/POSITIONING.md) "Vendored components". |
 
 ## State layout
 

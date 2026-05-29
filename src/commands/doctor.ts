@@ -20,9 +20,10 @@
 // do not affect exit code — they signal "you may have stale template
 // files" without blocking ship.
 
-import { existsSync, readdirSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { load as yamlLoad } from "js-yaml"
 import { getCapabilities } from "../dispatcher/schema"
 
 const moduleDir = dirname(fileURLToPath(import.meta.url))
@@ -114,6 +115,177 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
         severity: "fail",
         msg: `  ✗ ${name} (slot-only but declares prompt_path: ${m.prompt_path})`,
       })
+    }
+  }
+
+  // ── (D) bunfig.toml [test] root="tests" — guards R0 regression ─────────
+  // A bare `bun test` must stay scoped to sgc's gate; otherwise the vendored
+  // plugins/sgc/browse/ upstream suite gets swept and reports false failures.
+  log("")
+  log("=== bunfig.toml [test] root ===")
+  const bunfigPath = resolve(root, "bunfig.toml")
+  if (!existsSync(bunfigPath)) {
+    emit({
+      severity: "warn",
+      msg: '  ⚠ bunfig.toml not found — bare `bun test` may sweep vendored suites (R0)',
+    })
+  } else if (/root\s*=\s*["']tests["']/.test(readFileSync(bunfigPath, "utf8"))) {
+    emit({ severity: "ok", msg: '  ✓ bunfig.toml [test] root="tests"' })
+  } else {
+    emit({
+      severity: "fail",
+      msg: '  ✗ bunfig.toml present but [test] root!="tests" — bare `bun test` may sweep plugins/sgc/browse (R0 regression)',
+    })
+  }
+
+  // ── (E) package.json "files" excludes vendored plugins/ ────────────────
+  log("")
+  log("=== package.json files ↔ no vendored plugins/ ===")
+  const pkgPath = resolve(root, "package.json")
+  if (!existsSync(pkgPath)) {
+    emit({ severity: "warn", msg: "  ⚠ package.json not found" })
+  } else {
+    let files: string[] = []
+    try {
+      const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { files?: unknown }
+      files = Array.isArray(pkg.files) ? (pkg.files as string[]) : []
+    } catch (e) {
+      emit({
+        severity: "fail",
+        msg: `  ✗ package.json parse error: ${(e as Error).message.slice(0, 80)}`,
+      })
+      files = []
+    }
+    const leaks = files.filter((f) => f.replace(/^\.?\//, "").startsWith("plugins"))
+    if (files.length === 0) {
+      emit({
+        severity: "warn",
+        msg: '  ⚠ package.json has no "files" allowlist — npm would publish vendored browse',
+      })
+    } else if (leaks.length) {
+      emit({
+        severity: "fail",
+        msg: `  ✗ package.json files includes vendored path(s): ${leaks.join(", ")}`,
+      })
+    } else {
+      emit({
+        severity: "ok",
+        msg: "  ✓ package.json files excludes plugins/ (vendored browse not npm-published)",
+      })
+    }
+  }
+
+  // ── (F) vendored-components.yaml provenance ────────────────────────────
+  log("")
+  log("=== vendored-components.yaml provenance ===")
+  const vcPath = resolve(root, "contracts/vendored-components.yaml")
+  if (!existsSync(vcPath)) {
+    emit({
+      severity: "warn",
+      msg: "  ⚠ contracts/vendored-components.yaml not found — vendored source unregistered (R0/Rec4)",
+    })
+  } else {
+    let comps: Record<string, unknown>[] | null = []
+    try {
+      const doc = yamlLoad(readFileSync(vcPath, "utf8")) as { components?: unknown }
+      comps = Array.isArray(doc?.components)
+        ? (doc.components as Record<string, unknown>[])
+        : []
+    } catch (e) {
+      emit({
+        severity: "fail",
+        msg: `  ✗ vendored-components.yaml parse error: ${(e as Error).message.slice(0, 80)}`,
+      })
+      comps = null
+    }
+    if (comps && comps.length === 0) {
+      emit({ severity: "warn", msg: "  ⚠ vendored-components.yaml lists no components" })
+    } else if (comps) {
+      const required = ["path", "upstream", "upstream_ref", "vendored_at"]
+      for (const c of comps) {
+        const missing = required.filter(
+          (k) => c[k] == null || String(c[k]).trim() === "",
+        )
+        const cpath = (c["path"] as string) ?? "<no path>"
+        if (missing.length) {
+          emit({
+            severity: "fail",
+            msg: `  ✗ vendored ${cpath}: missing field(s) ${missing.join(", ")}`,
+          })
+        } else if (!existsSync(resolve(root, cpath))) {
+          emit({
+            severity: "fail",
+            msg: `  ✗ vendored ${cpath}: registered path missing on disk`,
+          })
+        } else {
+          emit({
+            severity: "ok",
+            msg: `  ✓ vendored ${cpath} (upstream_ref: ${String(c["upstream_ref"])})`,
+          })
+        }
+      }
+    }
+  }
+
+  // ── (G) invariant-enforcement.yaml coverage ────────────────────────────
+  log("")
+  log("=== invariant-enforcement.yaml coverage ===")
+  const iePath = resolve(root, "contracts/invariant-enforcement.yaml")
+  if (!existsSync(iePath)) {
+    emit({
+      severity: "warn",
+      msg: "  ⚠ contracts/invariant-enforcement.yaml not found — invariant→test map unverified",
+    })
+  } else {
+    let inv: Record<string, Record<string, unknown>> | null = {}
+    try {
+      const doc = yamlLoad(readFileSync(iePath, "utf8")) as { invariants?: unknown }
+      inv =
+        doc?.invariants && typeof doc.invariants === "object"
+          ? (doc.invariants as Record<string, Record<string, unknown>>)
+          : {}
+    } catch (e) {
+      emit({
+        severity: "fail",
+        msg: `  ✗ invariant-enforcement.yaml parse error: ${(e as Error).message.slice(0, 80)}`,
+      })
+      inv = null
+    }
+    if (inv) {
+      const missingSections: string[] = []
+      for (let n = 1; n <= 13; n++) if (inv[String(n)] == null) missingSections.push(`§${n}`)
+      if (missingSections.length) {
+        emit({
+          severity: "fail",
+          msg: `  ✗ invariant map missing: ${missingSections.join(", ")}`,
+        })
+      }
+      let machineCount = 0
+      for (let n = 1; n <= 13; n++) {
+        const e = inv[String(n)]
+        if (e == null) continue
+        const title = typeof e["title"] === "string" ? (e["title"] as string).slice(0, 32) : ""
+        if (e["machine_enforced"] === true) {
+          machineCount++
+          const tests = Array.isArray(e["tests"]) ? (e["tests"] as string[]) : []
+          if (tests.length === 0) {
+            emit({ severity: "fail", msg: `  ✗ §${n} machine_enforced but lists no tests` })
+          } else {
+            const missingTests = tests.filter((t) => !existsSync(resolve(root, t)))
+            if (missingTests.length) {
+              emit({
+                severity: "fail",
+                msg: `  ✗ §${n} cites missing test file(s): ${missingTests.join(", ")}`,
+              })
+            } else {
+              emit({ severity: "ok", msg: `  ✓ §${n} ${title} (${tests.length} test file(s))` })
+            }
+          }
+        } else {
+          emit({ severity: "ok", msg: `  ✓ §${n} ${title} (procedural)` })
+        }
+      }
+      emit({ severity: "ok", msg: `  · machine-enforced invariants: ${machineCount}/13` })
     }
   }
 

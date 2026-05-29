@@ -40,7 +40,9 @@
   ],
   "scripts": {
     "build:browse": "bun build ./plugins/sgc/browse/src/cli.ts --compile --outfile ./plugins/sgc/browse/dist/browse",
-    "test": "SGC_FORCE_INLINE=1 bun test"
+    "test": "SGC_FORCE_INLINE=1 bun test tests/dispatcher",
+    "test:eval": "bun test tests/eval",
+    "test:all": "SGC_FORCE_INLINE=1 bun test tests/"
   },
   "author": {
     "name": "SDS"

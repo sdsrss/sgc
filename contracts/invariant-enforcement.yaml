@@ -1,0 +1,105 @@
+# SGC Invariant Enforcement Map
+# Version: 0.1
+#
+# Maps each invariant (§1–§13 in sgc-invariants.md) to HOW it is enforced, at
+# WHICH time-point, whether the enforcement is machine-checked or procedural,
+# and the regression test(s) that cover it. This operationalizes the
+# "规范化" (standardization) metric in docs/CAPABILITY-ABSORPTION-AUDIT.md §5.1:
+#
+#   machine_enforced_count / 13   →  currently 12/13 (§12 is procedural only).
+#
+# Enforcement is DISTRIBUTED across time-points (spawn / write / parser /
+# append / runtime) — there is no single "dispatch-time gate" for all 13;
+# the earlier audit phrasing that implied one was inaccurate.
+#
+# `sgc doctor` check (G) validates: every key §1..§13 is present, and for each
+# `machine_enforced: true` invariant the `tests` list is non-empty and every
+# cited file exists. `tests` is a best-effort coverage map (file-existence is
+# what doctor verifies; not a per-assertion audit).
+
+schema_version: "0.1"
+
+invariants:
+  "1":
+    title: "Generator-Evaluator Separation"
+    mechanism: "capabilities.yaml scope-token forbidden_for + permission matrix (reviewer/qa cannot read:solutions)"
+    enforced_at: "spawn"
+    machine_enforced: true
+    tests: ["tests/dispatcher/capabilities.test.ts", "tests/dispatcher/reviewer-specialists.test.ts"]
+  "2":
+    title: "Decisions Are Immutable"
+    mechanism: "schema editable_after_creation:false on decisions.intent / decisions.ship"
+    enforced_at: "write"
+    machine_enforced: true
+    tests: ["tests/dispatcher/state.test.ts", "tests/dispatcher/schema.test.ts"]
+  "3":
+    title: "Solutions Writes Must Pass Dedup"
+    mechanism: "schema dedup block + dispatcher writeSolution() DedupStamp gate (threshold 0.85)"
+    enforced_at: "write"
+    machine_enforced: true
+    tests: ["tests/dispatcher/compound.test.ts", "tests/dispatcher/schema.test.ts"]
+  "4":
+    title: "L3 Forbids --auto"
+    mechanism: "command-parser check (src/commands/plan.ts: level===L3 && autoConfirm → throw)"
+    enforced_at: "parser"
+    machine_enforced: true
+    tests: ["tests/dispatcher/sgc-plan.test.ts"]
+  "5":
+    title: "Reviewer Overrides Require Human Signature"
+    mechanism: "schema conditional override field on reviews.report"
+    enforced_at: "write"
+    machine_enforced: true
+    tests: ["tests/dispatcher/sgc-review.test.ts", "tests/dispatcher/schema.test.ts"]
+  "6":
+    title: "Audit-Trail Writes Are Durable (janitor logged + review/qa/cso append-only)"
+    mechanism: "janitor.compound required output + state.ts:appendReview write-once guard (StateError AppendOnly)"
+    enforced_at: "append"
+    machine_enforced: true
+    tests: ["tests/dispatcher/sgc-review.test.ts", "tests/dispatcher/janitor-compound.test.ts"]
+  "7":
+    title: "Schema Validation Precedes Every Write"
+    mechanism: "dispatcher validateValueAgainstDecl before each state write"
+    enforced_at: "write"
+    machine_enforced: true
+    # Covered by concept tests (schema/state), not §-cited by number.
+    tests: ["tests/dispatcher/schema.test.ts", "tests/dispatcher/solutions-state.test.ts"]
+  "8":
+    title: "Scope Tokens Are Computed At Spawn, Not Requested At Runtime"
+    mechanism: "spawn-time scope computation from capabilities.yaml manifest"
+    enforced_at: "spawn"
+    machine_enforced: true
+    tests: ["tests/dispatcher/capabilities.test.ts", "tests/dispatcher/spawn.test.ts"]
+  "9":
+    title: "No Subagent Writes Outside Its Declared Outputs"
+    mechanism: "dispatcher output-path allowlist per subagent manifest"
+    enforced_at: "write"
+    machine_enforced: true
+    tests: ["tests/dispatcher/capabilities.test.ts"]
+  "10":
+    title: "Failure of Any Compound Substep Aborts the Whole Compound"
+    mechanism: "compound.* subagents run as a transaction; no partial commits"
+    enforced_at: "runtime"
+    machine_enforced: true
+    tests: ["tests/dispatcher/compound.test.ts", "tests/dispatcher/janitor-compound.test.ts"]
+  "11":
+    title: "Classifier Must Justify"
+    mechanism: "required rationale field on classifier.level output"
+    enforced_at: "write"
+    machine_enforced: true
+    tests: ["tests/dispatcher/sgc-plan.test.ts", "tests/dispatcher/schema.test.ts"]
+  "12":
+    title: "The Evaluation Framework Is Authoritative"
+    mechanism: "procedural — enforced by code-review discipline (no runtime check)"
+    enforced_at: "review"
+    machine_enforced: false
+    tests: []
+  "13":
+    title: "Spawn + LLM Event Audit Completeness (two-tier)"
+    mechanism: "try/finally in spawn.ts (Tier 1) + each LLM-mode agent (Tier 2)"
+    enforced_at: "runtime"
+    machine_enforced: true
+    tests:
+      - "tests/dispatcher/spawn-events.test.ts"
+      - "tests/dispatcher/llm-agent-events.test.ts"
+      - "tests/dispatcher/commands-event-emission.test.ts"
+      - "tests/eval/invariants.test.ts"

@@ -132,4 +132,94 @@ describe("sgc doctor", () => {
       ),
     ).toBe(true)
   })
+
+  // ── Repo-hygiene checks (D/E/F/G) — guard R0-class regressions ─────────
+  // seedHygiene writes valid versions of all four artifacts under tmp; each
+  // test overrides one to its broken form and asserts the check fails.
+  function seedHygiene(o: {
+    bunfig?: string
+    files?: string[]
+    vendored?: string
+    invariants?: string
+  } = {}): void {
+    writeFileSync(join(tmp, "bunfig.toml"), o.bunfig ?? '[test]\nroot = "tests"\n', "utf8")
+    writeFileSync(
+      join(tmp, "package.json"),
+      JSON.stringify({ name: "x", files: o.files ?? ["src/", "contracts/"] }),
+      "utf8",
+    )
+    // valid vendored component → a real dir under tmp
+    mkdirSync(join(tmp, "vendored-x"), { recursive: true })
+    const validVendored =
+      'schema_version: "0.1"\ncomponents:\n' +
+      "  - path: vendored-x\n    upstream: up\n    upstream_ref: unknown\n    vendored_at: abc123\n"
+    writeFileSync(join(tmp, "contracts", "vendored-components.yaml"), o.vendored ?? validVendored, "utf8")
+    // valid invariant map: cite a test file that exists under tmp
+    mkdirSync(join(tmp, "tests", "dispatcher"), { recursive: true })
+    writeFileSync(join(tmp, "tests", "dispatcher", "inv.test.ts"), "// stub\n", "utf8")
+    let map = 'schema_version: "0.1"\ninvariants:\n'
+    for (let n = 1; n <= 13; n++) {
+      if (n === 12) {
+        map += `  "12":\n    title: procedural one\n    machine_enforced: false\n    tests: []\n`
+      } else {
+        map += `  "${n}":\n    title: inv ${n}\n    machine_enforced: true\n    tests: ["tests/dispatcher/inv.test.ts"]\n`
+      }
+    }
+    writeFileSync(join(tmp, "contracts", "invariant-enforcement.yaml"), o.invariants ?? map, "utf8")
+  }
+
+  const baseManifest =
+    `  alpha.test:\n` +
+    `    purpose: smoke\n` +
+    `    prompt_path: prompts/alpha.md\n` +
+    `    inputs:\n      x: string\n` +
+    `    outputs:\n      y: string\n` +
+    `    scope_tokens: []\n`
+
+  test("H1: all hygiene artifacts valid → hygiene rows ok, no hygiene fail", async () => {
+    seed(baseManifest, ["alpha.md"])
+    seedHygiene()
+    const r = await runDoctor({ log: () => {}, repoRoot: tmp })
+    expect(r.fail).toBe(0)
+    expect(r.rows.some((row) => row.severity === "ok" && row.msg.includes('root="tests"'))).toBe(true)
+    expect(r.rows.some((row) => row.severity === "ok" && row.msg.includes("machine-enforced invariants: 12/13"))).toBe(true)
+    expect(r.rows.some((row) => row.severity === "ok" && row.msg.includes("vendored vendored-x"))).toBe(true)
+  })
+
+  test("D-fail: bunfig root!=tests → fail (R0 regression guard)", async () => {
+    seed(baseManifest, ["alpha.md"])
+    seedHygiene({ bunfig: '[test]\nroot = "."\n' })
+    const r = await runDoctor({ log: () => {}, repoRoot: tmp })
+    expect(r.fail).toBeGreaterThanOrEqual(1)
+    expect(r.rows.some((row) => row.severity === "fail" && row.msg.includes("bunfig.toml"))).toBe(true)
+  })
+
+  test("E-fail: package.json files includes plugins/ → fail", async () => {
+    seed(baseManifest, ["alpha.md"])
+    seedHygiene({ files: ["src/", "plugins/"] })
+    const r = await runDoctor({ log: () => {}, repoRoot: tmp })
+    expect(r.fail).toBeGreaterThanOrEqual(1)
+    expect(r.rows.some((row) => row.severity === "fail" && row.msg.includes("vendored path"))).toBe(true)
+  })
+
+  test("F-fail: vendored component missing required field → fail", async () => {
+    seed(baseManifest, ["alpha.md"])
+    seedHygiene({
+      vendored:
+        'schema_version: "0.1"\ncomponents:\n  - path: vendored-x\n    upstream: up\n',
+    })
+    const r = await runDoctor({ log: () => {}, repoRoot: tmp })
+    expect(r.fail).toBeGreaterThanOrEqual(1)
+    expect(r.rows.some((row) => row.severity === "fail" && row.msg.includes("missing field"))).toBe(true)
+  })
+
+  test("G-fail: invariant map missing a section → fail", async () => {
+    seed(baseManifest, ["alpha.md"])
+    seedHygiene({
+      invariants: 'schema_version: "0.1"\ninvariants:\n  "1":\n    title: only one\n    machine_enforced: false\n    tests: []\n',
+    })
+    const r = await runDoctor({ log: () => {}, repoRoot: tmp })
+    expect(r.fail).toBeGreaterThanOrEqual(1)
+    expect(r.rows.some((row) => row.severity === "fail" && row.msg.includes("invariant map missing"))).toBe(true)
+  })
 })

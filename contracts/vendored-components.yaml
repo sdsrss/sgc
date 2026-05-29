@@ -1,0 +1,36 @@
+# SGC Vendored Components Registry
+# Version: 0.1
+#
+# Third-party source copied IN-TREE (not an npm dependency, not an sgc-native
+# absorption). Every such component MUST be listed here with provenance so the
+# "no gstack source copied" absorb-arc claim (docs/POSITIONING.md) stays
+# auditable and so vendored code can't drift in unrecorded.
+#
+# `sgc doctor` check (F) validates: each `path` exists on disk and the required
+# provenance fields (path / upstream / upstream_ref / vendored_at) are present
+# and non-empty. See docs/CAPABILITY-ABSORPTION-AUDIT.md R0 / Rec 4.
+
+schema_version: "0.1"
+
+components:
+  - path: plugins/sgc/browse
+    upstream: "gstack — browse headless-browser CLI (QA/dogfood tool)"
+    # NOT recorded at vendoring time. Known debt — backfill the exact gstack
+    # commit/tag when it can be recovered. Tracked as Rec 4 follow-up.
+    upstream_ref: "unknown"
+    # First in-tree appearance: sgc genesis rename commit (unified-agent → sgc),
+    # 2026-04-15. Predates any sgc release; never re-synced with upstream since.
+    vendored_at: "b0b7265"
+    build: "bun run build:browse"   # compiles src/cli.ts → dist/browse
+    state_dir: ".gstack/"           # tell: still uses gstack's state namespace
+    npm_published: false            # absent from package.json "files" (src/contracts/prompts only)
+    cso_dependency_audit: false     # no package.json in subtree → invisible to bun/npm audit (security debt)
+    test_suite: "upstream"          # plugins/sgc/browse/test/ is gstack's own suite; NOT an sgc CI gate
+    notes: >
+      Backs `sgc qa`'s browser checks (qa.browser). sgc invokes the COMPILED
+      binary, not the raw source. The upstream test suite is excluded from the
+      default `bun test` via bunfig.toml [test] root="tests" (see R0). Security
+      caveat: because the subtree has no package.json, `sgc cso`'s
+      dependency-audit (bun/npm audit) cannot see browse's transitive deps —
+      only cso's git-ls-files secret-scan covers these files. Evaluate replacing
+      the in-tree fork with a build-time fetch or a real pinned dependency.

@@ -43,8 +43,11 @@ Selected gstack-style capabilities are re-implemented in sgc as small,
 heuristic, dependency-free dispatcher commands when (a) the capability is a
 natural fit for sgc's capture → promote → CE-1 loop, and (b) the gstack
 implementation isn't a forced dependency for sgc users. Absorptions are
-sgc-native — **no gstack source copied, no gstack binary called, no gstack
-dependency introduced**. The gs delegate stays the recommended path when
+sgc-native — **for the GS-N dispatcher commands listed below, no gstack
+source is copied, no gstack binary is called, and no gstack dependency is
+introduced** (this scope is the *absorb arc*; it does NOT cover the
+separately-vendored `browse` tool — see "Vendored components" below). The
+gs delegate stays the recommended path when
 gs is installed (see delegate table); the sgc-native version is the
 zero-dep fallback. Shipped: **GS-1 `sgc canary`** (post-publish health
 check, v1.11.0 → v1.11.1 PATH-shadow fix) + **GS-1.1 `sgc compound
@@ -62,6 +65,24 @@ multi-perspective fusion of `planner.{ceo,eng,adversarial}` → single
 `fused_verdict` + ranked concerns at L2/L3, v1.18.0 — model-A: no LLM, no
 cross-evaluator back-channel, Invariant §1 untouched; advisory at the L3
 human gate). **GS-N absorb arc complete (7/7).**
+
+### Vendored components (distinct from the absorb arc)
+
+`plugins/sgc/browse/` is a **vendored** gstack-derived headless-browser CLI —
+the compiled binary (`bun run build:browse`) that backs `sgc qa`'s browser
+checks (`qa.browser`). Unlike the GS-N absorb arc above (sgc-native heuristic
+re-implementations), this is upstream gstack browser source carried in-tree as
+a build input, not a heuristic absorption and not a runtime gs dependency.
+
+- Its `test/` directory is **upstream gstack's own suite**. sgc vendored the
+  tool but not every fixture that suite expects, so a subset of those tests
+  cannot pass here. They are **not part of sgc's CI gate** — both
+  `.github/workflows/{test,publish}.yml` run only
+  `bun test tests/dispatcher [tests/eval]`, and `bunfig.toml` scopes a bare
+  `bun test` to `tests/` so the vendored suite is not swept by default.
+- The `gs:/browse` delegate (see delegate table) remains the richer path when
+  gstack is installed; the vendored binary is the zero-dep fallback for
+  `sgc qa`.
 
 ### Non-goals
 

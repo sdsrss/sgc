@@ -150,7 +150,7 @@ describe("runLoop — fresh start", () => {
     expect(captured).not.toBeNull()
     expect(r.run.level).toBe("L3")
     // The opts payload passed to plan runner carries the originals.
-    expect((captured as { opts: { forceLevel?: string } }).opts.forceLevel).toBe("L3")
+    expect((captured as unknown as { opts: { forceLevel?: string } }).opts.forceLevel).toBe("L3")
   })
 })
 

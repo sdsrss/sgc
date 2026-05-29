@@ -74,8 +74,8 @@ describe("gatherInvestigateFacts", () => {
     })
 
     expect(facts.recent_events).toHaveLength(2)
-    expect(facts.recent_events[0].event_type).toBe("spawn.start")
-    expect(facts.recent_events[1].agent).toBe("planner.eng")
+    expect(facts.recent_events[0]!.event_type).toBe("spawn.start")
+    expect(facts.recent_events[1]!.agent).toBe("planner.eng")
     expect(facts.errors).toEqual([])
     rmSync(repoRoot, { recursive: true, force: true })
   })
@@ -147,9 +147,9 @@ Body.
     })
 
     expect(hits.length).toBeGreaterThanOrEqual(1)
-    expect(hits[0].solution_ref).toContain("timeout-plan-handler")
-    expect(hits[0].prevention_excerpt).toContain("wrap planner.eng spawn")
-    expect(hits[0].overlap_score).toBeGreaterThan(0)
+    expect(hits[0]!.solution_ref).toContain("timeout-plan-handler")
+    expect(hits[0]!.prevention_excerpt).toContain("wrap planner.eng spawn")
+    expect(hits[0]!.overlap_score).toBeGreaterThan(0)
     rmSync(repoRoot, { recursive: true, force: true })
   })
 
@@ -253,7 +253,7 @@ Body.
     })
 
     expect(hits).toHaveLength(1)
-    expect(hits[0].solution_ref).toBe("other/with-prevention.md")
+    expect(hits[0]!.solution_ref).toBe("other/with-prevention.md")
     rmSync(repoRoot, { recursive: true, force: true })
   })
 })
@@ -279,8 +279,8 @@ describe("detectThreeStrike", () => {
     writeFileSync(join(stateRoot, "progress", "events.ndjson"), lines.join("\n") + "\n")
     const strikes = await defaultHeuristic().detectThreeStrike({ stateRoot })
     expect(strikes).toHaveLength(1)
-    expect(strikes[0].signature).toBe("Error: Timeout exceeded for foo")
-    expect(strikes[0].count).toBe(3)
+    expect(strikes[0]!.signature).toBe("Error: Timeout exceeded for foo")
+    expect(strikes[0]!.count).toBe(3)
     rmSync(repoRoot, { recursive: true, force: true })
   })
 
@@ -344,8 +344,8 @@ regression_seed: "TODO: smoke install hit ECONNRESET against registry"
     })
 
     expect(hits.length).toBe(1)
-    expect(hits[0].kind).toBe("ship-failure")
-    expect(hits[0].slug).toBe("2026-05-25-abc1234")
+    expect(hits[0]!.kind).toBe("ship-failure")
+    expect(hits[0]!.slug).toBe("2026-05-25-abc1234")
     rmSync(repoRoot, { recursive: true, force: true })
   })
 

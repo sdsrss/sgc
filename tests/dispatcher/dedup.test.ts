@@ -108,6 +108,7 @@ describe("findBestMatch — defensive across mixed-quality corpus (GS-1.2 DOG-2 
         path: "/dev/null/wellformed.md",
         category: "other",
         slug: "wellformed",
+        body: "",
         entry: {
           id: "01HWELL00000000000000000000",
           signature: "wellsig",
@@ -128,6 +129,7 @@ describe("findBestMatch — defensive across mixed-quality corpus (GS-1.2 DOG-2 
         path: "/dev/null/legacy-1.md",
         category: "runtime",
         slug: "legacy-1",
+        body: "",
         // Legacy entry: TS thinks all fields are present, but at
         // runtime parseFrontmatter on a minimal-frontmatter file
         // yields object with only `intent` + `category` populated.
@@ -140,6 +142,7 @@ describe("findBestMatch — defensive across mixed-quality corpus (GS-1.2 DOG-2 
         path: "/dev/null/legacy-2.md",
         category: "runtime",
         slug: "legacy-2",
+        body: "",
         entry: {
           category: "runtime",
         } as unknown as SolutionFile["entry"],

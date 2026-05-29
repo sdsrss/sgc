@@ -40,6 +40,7 @@
   ],
   "scripts": {
     "build:browse": "bun build ./plugins/sgc/browse/src/cli.ts --compile --outfile ./plugins/sgc/browse/dist/browse",
+    "typecheck": "tsc --noEmit",
     "test": "SGC_FORCE_INLINE=1 bun test tests/dispatcher",
     "test:eval": "bun test tests/eval",
     "test:all": "SGC_FORCE_INLINE=1 bun test tests/"
@@ -50,7 +51,8 @@
   "license": "MIT",
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/js-yaml": "^4.0.9"
+    "@types/js-yaml": "^4.0.9",
+    "typescript": "^6.0.3"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",

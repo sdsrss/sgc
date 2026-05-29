@@ -189,8 +189,8 @@ describe("Invariant §13 Tier 1 — signal-interrupted spawns", () => {
     const taskIds = new Set(ends.map((e) => e.task_id))
     expect(taskIds.has("T-A")).toBe(true)
     expect(taskIds.has("T-B")).toBe(true)
-    resolveA?.({ level: "L0", rationale: "x", affected_readers_candidates: [] })
-    resolveB?.({ level: "L0", rationale: "x", affected_readers_candidates: [] })
+    ;(resolveA as ((v: unknown) => void) | null)?.({ level: "L0", rationale: "x", affected_readers_candidates: [] })
+    ;(resolveB as ((v: unknown) => void) | null)?.({ level: "L0", rationale: "x", affected_readers_candidates: [] })
     await Promise.all([pA, pB])
   })
 

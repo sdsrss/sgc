@@ -34,6 +34,12 @@ jobs:
         # Bun still reads package-lock.json fine at runtime.
         run: npm ci
 
+      - name: Typecheck (tsc --noEmit)
+        # Strict-mode gate: bun strips types at runtime so type errors never
+        # surface in `bun test`. Run tsc explicitly to keep the strict baseline
+        # green (typescript pinned in devDependencies). Fail-fast before tests.
+        run: npm run typecheck
+
       - name: Run dispatcher + eval tests
         id: run_tests
         run: |

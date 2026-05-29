@@ -146,3 +146,29 @@ export function fusePlan(input: FusePlanInput): FusedDecision {
 
   return { fused_verdict: base, decision_basis: basis, ranked_concerns: ranked, conflicts }
 }
+
+/** Render a FusedDecision as the `## Fused decision` intent.md section.
+ *  Plain synthesis text — carries no solution_ref / sentinel content, so it
+ *  is not a back-channel surface (spec §Design). */
+export function renderFusedSection(d: FusedDecision): string {
+  const lines: string[] = ["## Fused decision", ""]
+  lines.push(`**Verdict:** ${d.fused_verdict}`)
+  lines.push(`**Basis:** ${d.decision_basis}`)
+  lines.push("")
+  if (d.conflicts.length > 0) {
+    lines.push("### Conflicts", "")
+    for (const c of d.conflicts) lines.push(`- ${c}`)
+    lines.push("")
+  }
+  if (d.ranked_concerns.length > 0) {
+    lines.push("### Ranked concerns", "")
+    for (const c of d.ranked_concerns) {
+      const also = c.also_flagged_by?.length
+        ? ` (also flagged by ${c.also_flagged_by.join(", ")})`
+        : ""
+      lines.push(`- [${c.severity}] (${c.source}) ${c.text}${also}`)
+    }
+    lines.push("")
+  }
+  return lines.join("\n")
+}

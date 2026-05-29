@@ -2,7 +2,7 @@
 // Spec: tasks/specs/gs-3-plan-fusion.md (r1).
 
 import { describe, expect, test } from "bun:test"
-import { worstPlanVerdict, fusePlan } from "../../src/dispatcher/fuse-plan"
+import { worstPlanVerdict, fusePlan, renderFusedSection } from "../../src/dispatcher/fuse-plan"
 import type { PlannerCeoOutput } from "../../src/dispatcher/agents/planner-ceo"
 import type { PlannerEngOutput } from "../../src/dispatcher/agents/planner-eng"
 import type { PlannerAdversarialOutput, FailureMode } from "../../src/dispatcher/agents/planner-adversarial"
@@ -124,5 +124,36 @@ describe("fusePlan concerns", () => {
   test("empty cluster yields empty concern list", () => {
     const d = fusePlan({ ceo: ceo("approve"), eng: eng("approve") })
     expect(d.ranked_concerns).toEqual([])
+  })
+})
+
+describe("renderFusedSection", () => {
+  test("renders heading, verdict, basis, conflicts, concerns", () => {
+    const d = fusePlan({
+      ceo: { verdict: "approve", concerns: [], rewrite_hints: [] },
+      eng: { verdict: "approve", concerns: [], structural_risks: [{ area: "api", risk: "breaking change", mitigation: "version it" }] },
+      adversarial: adv([fm("high", "high")]),
+    })
+    const md = renderFusedSection(d)
+    expect(md).toContain("## Fused decision")
+    expect(md).toContain("**Verdict:** revise")
+    expect(md).toContain("floors approve")
+    expect(md).toContain("### Ranked concerns")
+    expect(md).toContain("breaking change")
+    expect(md).toContain("### Conflicts")
+  })
+  test("omits empty sections", () => {
+    const md = renderFusedSection(fusePlan({ ceo: ceo("approve"), eng: eng("approve") }))
+    expect(md).toContain("## Fused decision")
+    expect(md).not.toContain("### Ranked concerns")
+    expect(md).not.toContain("### Conflicts")
+  })
+  test("shows also_flagged_by annotation", () => {
+    const shared = "migration may corrupt production data on apply now"
+    const d = fusePlan({
+      ceo: { verdict: "revise", concerns: [shared], rewrite_hints: [] },
+      eng: { verdict: "revise", concerns: [], structural_risks: [{ area: "data", risk: shared, mitigation: "dry run" }] },
+    })
+    expect(renderFusedSection(d)).toContain("also flagged by")
   })
 })

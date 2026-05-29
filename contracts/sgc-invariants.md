@@ -41,11 +41,13 @@ When any reviewer returns `verdict == fail` and the ship gate proceeds anyway, t
 
 No subagent may populate the override field. Overrides are exclusively human.
 
-## §6. Every Janitor Decision Is Logged
+## §6. Audit-Trail Writes Are Durable (janitor decisions logged · review reports append-only)
 
-`janitor.compound` MUST write a decision report for every task it evaluates, including tasks it decides to skip. This is non-negotiable. The evaluation framework's regression diagnosis depends on being able to answer "why did this task not generate a solution entry?" — and the only correct answer is "because the janitor logged reason X on date Y".
+Two faces of one principle: an audit-trail write must survive — never silently skipped, never silently overwritten. Both halves protect the same thing: the ability to later answer "what was decided, by whom, and when?"
 
-Silent skips are forbidden. A janitor that cannot write its decision must abort the task and surface an error, not default to skip.
+**(a) Every janitor decision is logged.** `janitor.compound` MUST write a decision report for every task it evaluates, including tasks it decides to skip. This is non-negotiable. The evaluation framework's regression diagnosis depends on being able to answer "why did this task not generate a solution entry?" — and the only correct answer is "because the janitor logged reason X on date Y". Silent skips are forbidden: a janitor that cannot write its decision must abort the task and surface an error, not default to skip.
+
+**(b) Review / QA / CSO reports are append-only.** Each `reviews/{task_id}/{stage}/{reviewer}.md` (and the analogous `cso/` report) is write-once per `(task, stage, reviewer)` triple — a second write for the same triple is rejected (`StateError("AppendOnly", …)` in `state.ts:appendReview`), never overwritten. A follow-up pass writes a new `<reviewer>.<suffix>.md` via the `--append-as` channel rather than mutating the prior report. Overwriting a verdict would destroy the audit surface the same way a silent janitor skip would.
 
 ## §7. Schema Validation Precedes Every Write
 
@@ -110,7 +112,7 @@ Other event types (`dedup.scored`, `review.verdict_emitted`, etc.) are voluntary
 - Invariant §3 is enforced by the `dedup` block in `solutions` section of `sgc-state.schema.yaml`, plus a dispatcher check.
 - Invariant §4 is a dispatcher-level rule with no schema representation. It must be added to the command parser as the first-priority check.
 - Invariant §5 is enforced by the conditional `override` field in `reviews.report`.
-- Invariant §6 is enforced by the `janitor_decision` file being a required output of `janitor.compound` in the subagent manifest.
+- Invariant §6 is enforced on two paths: (a) the `janitor_decision` file being a required output of `janitor.compound` in the subagent manifest, and (b) the write-once guard in `state.ts:appendReview` that rejects a second write to the same `(task, stage, reviewer)` triple with `StateError("AppendOnly", …)`.
 - Invariants §7, §8, §9 are dispatcher-level and have no schema representation.
 - Invariant §10 is enforced by `compound.*` subagents running as a transaction; no partial commits.
 - Invariant §11 is enforced by the required `rationale` field on `classifier.level` outputs.

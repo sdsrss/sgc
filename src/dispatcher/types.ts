@@ -7,6 +7,10 @@ export type Level = "L0" | "L1" | "L2" | "L3"
 export type ScopeToken = string  // e.g. "read:decisions", "spawn:reviewer.*"
 
 export type Verdict = "pass" | "concern" | "fail"
+/** Plan-cluster verdict vocabulary (planner.ceo / planner.eng / fused).
+ *  DISTINCT from the review-cluster `Verdict` (pass|concern|fail). Do not
+ *  conflate — see tasks/specs/gs-3-plan-fusion.md Constraint 5. */
+export type PlanVerdict = "approve" | "revise" | "reject"
 export type Severity = "none" | "low" | "medium" | "high" | "critical"
 export type Outcome = "success" | "partial" | "reverted"
 export type Stage = "plan" | "code" | "qa" | "ship"

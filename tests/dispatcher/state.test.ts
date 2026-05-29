@@ -200,6 +200,26 @@ describe("progress files (mutable)", () => {
   })
 })
 
+describe("intent fused_verdict field", () => {
+  test("accepts a valid fused_verdict and round-trips it", () => {
+    ensureSgcStructure(tmp)
+    const intent = makeIntent({ fused_verdict: "revise" })
+    writeIntent(intent, tmp)
+    expect(readIntent(TASK_ID, tmp).fused_verdict).toBe("revise")
+  })
+  test("rejects an out-of-enum fused_verdict", () => {
+    ensureSgcStructure(tmp)
+    const intent = makeIntent({ fused_verdict: "maybe" as unknown as IntentDoc["fused_verdict"] })
+    expect(() => writeIntent(intent, tmp)).toThrow(/fused_verdict/)
+  })
+  test("pre-GS-3 intent without fused_verdict still validates", () => {
+    ensureSgcStructure(tmp)
+    const intent = makeIntent()
+    expect(intent.fused_verdict).toBeUndefined()
+    expect(() => writeIntent(intent, tmp)).not.toThrow()
+  })
+})
+
 describe("reviews — append-only per (task, stage, reviewer)", () => {
   test("append succeeds + read", () => {
     ensureSgcStructure(tmp)

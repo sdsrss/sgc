@@ -182,6 +182,13 @@ function validateIntent(intent: IntentDoc): void {
       "L3 intent requires user_signature (Invariant §4)",
     )
   }
+  if (intent.fused_verdict !== undefined &&
+      !["approve", "revise", "reject"].includes(intent.fused_verdict)) {
+    throw new StateError(
+      "SchemaViolation",
+      `fused_verdict must be one of approve|revise|reject (got '${intent.fused_verdict}')`,
+    )
+  }
 }
 
 export function intentPath(taskId: TaskId, stateRoot?: string): string {

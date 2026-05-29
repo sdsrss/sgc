@@ -63,6 +63,10 @@ decisions:
           type: object
           required_when: "level == L3"
           fields: [signed_at, signer_id]
+        fused_verdict:
+          type: enum
+          values: [approve, revise, reject]
+          note: "GS-3 — deterministic planner-cluster fusion verdict; additive/optional"
       notes:
         - |
           affected_readers is the field you previously lost on L1 bugfix

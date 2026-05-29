@@ -33,6 +33,9 @@ export interface IntentDoc {
   rejected_alternatives?: { option: string; reason: string }[]
   parent_decision?: TaskId
   user_signature?: { signed_at: string; signer_id: string }  // required L3
+  /** GS-3: deterministic fused plan verdict (planner cluster synthesis).
+   *  Optional + additive — pre-GS-3 intents omit it. */
+  fused_verdict?: PlanVerdict
   body?: string
 }
 

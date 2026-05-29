@@ -61,7 +61,7 @@ import {
 import { computeCommandTokens } from "../dispatcher/capabilities"
 import { delegationHintsFor, formatHint } from "../dispatcher/delegation"
 import type { Handoff, IntentDoc, Level, PlanVerdict } from "../dispatcher/types"
-import { fusePlan, renderFusedSection } from "../dispatcher/fuse-plan"
+import { fusePlan, renderFusedSection, type FusedDecision } from "../dispatcher/fuse-plan"
 import { createLogger, type Logger } from "../dispatcher/logger"
 import {
   completePlanJob,
@@ -546,6 +546,16 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
       `L3 plan refuses --auto (Invariant §4). Human confirmation at stdin is required.`,
     )
   }
+  // GS-3: deterministic fusion of the planner cluster (L2/L3 only — L1 is
+  // eng-only, nothing to fuse). Computed once; reused by the L3 summary and
+  // the intent body. Reads frozen outputs; Invariant §1 untouched.
+  let fused: FusedDecision | undefined
+  if (plannerCeoOut && plannerEngOut) {
+    fused = fusePlan({ ceo: plannerCeoOut, eng: plannerEngOut, adversarial: adversarialOut })
+  }
+  const fusedSection = fused ? renderFusedSection(fused) + "\n\n" : ""
+  const fusedVerdict: PlanVerdict | undefined = fused?.fused_verdict
+
   if (level === "L3") {
     log("")
     log("=== L3 PLAN SUMMARY — confirm before intent.md is written (immutable) ===")
@@ -560,9 +570,8 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
       log(`  research:   ${researcherOut.prior_art.length} prior art entries`)
     if (adversarialOut)
       log(`  pre-mortem: ${adversarialOut.failure_modes.length} failure mode(s)`)
-    if (plannerCeoOut && plannerEngOut) {
-      const fusedPreview = fusePlan({ ceo: plannerCeoOut, eng: plannerEngOut, adversarial: adversarialOut })
-      log(`  fused:      ${fusedPreview.fused_verdict} — ${fusedPreview.decision_basis} (advisory; human signature still required)`)
+    if (fused) {
+      log(`  fused:      ${fused.fused_verdict} — ${fused.decision_basis} (advisory; human signature still required)`)
     }
     log(`  signer:     ${opts.userSignature!.signer_id}`)
     log("")
@@ -589,19 +598,6 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
           `got ${motivationWords} word(s). Re-run with ` +
           `--motivation "<longer rationale describing why this matters and what changes>".`,
       )
-    }
-    // GS-3: deterministic fusion of the planner cluster (L2/L3 only — L1 is
-    // eng-only, nothing to fuse). Reads frozen outputs; Invariant §1 untouched.
-    let fusedSection = ""
-    let fusedVerdict: PlanVerdict | undefined
-    if (plannerCeoOut && plannerEngOut) {
-      const fused = fusePlan({
-        ceo: plannerCeoOut,
-        eng: plannerEngOut,
-        adversarial: adversarialOut,
-      })
-      fusedVerdict = fused.fused_verdict
-      fusedSection = renderFusedSection(fused) + "\n\n"
     }
     const intent: IntentDoc = {
       task_id: taskId,

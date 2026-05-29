@@ -10,7 +10,8 @@ export type Verdict = "pass" | "concern" | "fail"
 /** Plan-cluster verdict vocabulary (planner.ceo / planner.eng / fused).
  *  DISTINCT from the review-cluster `Verdict` (pass|concern|fail). Do not
  *  conflate — see tasks/specs/gs-3-plan-fusion.md Constraint 5. */
-export type PlanVerdict = "approve" | "revise" | "reject"
+export const PLAN_VERDICTS = ["approve", "revise", "reject"] as const
+export type PlanVerdict = (typeof PLAN_VERDICTS)[number]
 export type Severity = "none" | "low" | "medium" | "high" | "critical"
 export type Outcome = "success" | "partial" | "reverted"
 export type Stage = "plan" | "code" | "qa" | "ship"

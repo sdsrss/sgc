@@ -31,6 +31,7 @@ import {
 } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { dump as yamlDump, load as yamlLoad } from "js-yaml"
+import { PLAN_VERDICTS } from "./types"
 import type {
   CurrentTask,
   DedupStamp,
@@ -183,7 +184,7 @@ function validateIntent(intent: IntentDoc): void {
     )
   }
   if (intent.fused_verdict !== undefined &&
-      !["approve", "revise", "reject"].includes(intent.fused_verdict)) {
+      !(PLAN_VERDICTS as readonly string[]).includes(intent.fused_verdict)) {
     throw new StateError(
       "SchemaViolation",
       `fused_verdict must be one of approve|revise|reject (got '${intent.fused_verdict}')`,

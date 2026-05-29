@@ -69,3 +69,49 @@ describe("fusePlan verdict", () => {
     expect(d.conflicts.some((c) => c.includes("overrode eng=approve"))).toBe(true)
   })
 })
+
+describe("fusePlan concerns", () => {
+  test("collects from all four sources with severity", () => {
+    const d = fusePlan({
+      ceo: { verdict: "revise", concerns: ["ceo worry alpha"], rewrite_hints: [] },
+      eng: {
+        verdict: "revise",
+        concerns: ["eng worry beta"],
+        structural_risks: [{ area: "db", risk: "lock contention", mitigation: "index" }],
+      },
+      adversarial: adv([fm("medium", "high")]),
+    })
+    const sources = d.ranked_concerns.map((c) => c.source)
+    expect(sources).toContain("ceo")
+    expect(sources).toContain("eng")
+    expect(sources).toContain("eng.structural_risk")
+    expect(sources).toContain("adversarial")
+  })
+  test("structural_risk ranks high above medium ceo/eng concerns", () => {
+    const d = fusePlan({
+      ceo: { verdict: "revise", concerns: ["ceo medium worry"], rewrite_hints: [] },
+      eng: { verdict: "revise", concerns: [], structural_risks: [{ area: "api", risk: "breaking change", mitigation: "version" }] },
+    })
+    expect(d.ranked_concerns[0]!.severity).toBe("high")
+    expect(d.ranked_concerns[0]!.source).toBe("eng.structural_risk")
+  })
+  test("near-duplicate concerns merge, higher severity kept, source recorded", () => {
+    const shared = "migration script may corrupt production data on apply"
+    const d = fusePlan({
+      ceo: { verdict: "revise", concerns: [shared], rewrite_hints: [] },
+      eng: {
+        verdict: "revise",
+        concerns: [],
+        structural_risks: [{ area: "data", risk: shared, mitigation: "dry run" }],
+      },
+    })
+    const matches = d.ranked_concerns.filter((c) => c.text.includes("corrupt production data"))
+    expect(matches.length).toBe(1)
+    expect(matches[0]!.severity).toBe("high")
+    expect(matches[0]!.also_flagged_by?.length).toBe(1)
+  })
+  test("empty cluster yields empty concern list", () => {
+    const d = fusePlan({ ceo: ceo("approve"), eng: eng("approve") })
+    expect(d.ranked_concerns).toEqual([])
+  })
+})

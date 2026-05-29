@@ -110,6 +110,17 @@ describe("fusePlan concerns", () => {
     expect(matches[0]!.severity).toBe("high")
     expect(matches[0]!.also_flagged_by?.length).toBe(1)
   })
+  test("near-duplicate (not identical) merges; distinct concern stays separate", () => {
+    const d = fusePlan({
+      ceo: { verdict: "revise", concerns: ["the migration may corrupt production data on apply"], rewrite_hints: [] },
+      eng: { verdict: "revise", concerns: ["the migration may corrupt production data on apply now"], structural_risks: [] },
+      adversarial: adv([fm("low", "low")]),  // scenario "s" — unrelated to migration text
+    })
+    const migrationConcerns = d.ranked_concerns.filter((c) => c.text.includes("corrupt production data"))
+    expect(migrationConcerns.length).toBe(1)            // the two near-dups merged
+    expect(migrationConcerns[0]!.also_flagged_by?.length).toBe(1)
+    expect(d.ranked_concerns.some((c) => c.text.includes("early signal"))).toBe(true)  // adversarial concern NOT merged away
+  })
   test("empty cluster yields empty concern list", () => {
     const d = fusePlan({ ceo: ceo("approve"), eng: eng("approve") })
     expect(d.ranked_concerns).toEqual([])

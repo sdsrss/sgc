@@ -10,7 +10,7 @@ import type { PlanVerdict } from "./types"
 import type { PlannerCeoOutput } from "./agents/planner-ceo"
 import type { PlannerEngOutput } from "./agents/planner-eng"
 import type { PlannerAdversarialOutput } from "./agents/planner-adversarial"
-import { tokenize, jaccard } from "./dedup"
+import { tokenize, jaccard, DEDUP_THRESHOLD } from "./dedup"
 
 const PLAN_VERDICT_RANK: Record<PlanVerdict, number> = {
   approve: 0,
@@ -40,9 +40,6 @@ export interface FusePlanInput {
   eng: PlannerEngOutput
   adversarial?: PlannerAdversarialOutput | null
 }
-
-// Invariant §3 corpus similarity threshold, reused for concern dedup.
-const DEDUP_THRESHOLD = 0.85
 
 const SEVERITY_RANK: Record<ConcernSeverity, number> = { high: 2, medium: 1, low: 0 }
 const SOURCE_ORDER: Record<ConcernSource, number> = {
@@ -81,6 +78,7 @@ function collectConcerns(input: FusePlanInput): RawConcern[] {
   if (input.adversarial) {
     for (const m of input.adversarial.failure_modes) {
       const text = `[${m.probability}/${m.impact}] ${m.scenario} — early signal: ${m.early_signal}`
+      // Impact and ConcernSeverity are structurally identical unions; intentional reuse.
       out.push({ source: "adversarial", text, severity: m.impact, _key: m.scenario })
     }
   }

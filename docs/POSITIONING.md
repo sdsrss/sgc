@@ -26,6 +26,9 @@ sgc coexists with the `superpowers` (sp) and `gstack` (gs) plugins. It does NOT 
 | Git / PR / deploy | `gs:/ship` + `gs:/land-and-deploy` |
 | Systematic-debug execution | `sgc debug` — 4-phase walker, absorb (GS-4 v1.15.0) |
 | Post-publish chain (sgc-self) | `sgc land` — chains `watch-ci-failure` + `canary`, zero gh-CLI dep |
+| Pre-ship security review | `sgc cso` — infra-first audit, daily/comprehensive modes, absorb (GS-5 v1.17.0) |
+| Intent framing / brainstorm | `sgc discover --template` — framing selector, absorb (GS-6 v1.16.0) |
+| Multi-perspective plan decision | `sgc plan` fused decision — deterministic planner-cluster fusion, absorb (GS-3 v1.18.0) |
 | Browser QA / dogfood | `gs:/browse` |
 | Design polish | `gs:/design-review` |
 
@@ -51,7 +54,14 @@ dispatcher dedup robustness against malformed corpus (v1.12.1) +
 for §11 SESSION post-compaction recovery, v1.13.0) + **GS-7 `sgc land`**
 (zero-dep post-publish chain orchestrator: `watch-ci-failure` + `canary`
 fail-fast, v1.14.0) + **GS-4 `sgc debug`** (4-phase systematic-debugging
-walker, v1.15.0).
+walker, v1.15.0) + **GS-6 `sgc discover --template`** (framing-selector for
+intent drafting — `clarifier.discover` extension, v1.16.0) + **GS-5 `sgc
+cso`** (infrastructure-first pre-ship security review, daily/comprehensive
+modes, v1.17.0) + **GS-3 `sgc plan` fused decision** (deterministic
+multi-perspective fusion of `planner.{ceo,eng,adversarial}` → single
+`fused_verdict` + ranked concerns at L2/L3, v1.18.0 — model-A: no LLM, no
+cross-evaluator back-channel, Invariant §1 untouched; advisory at the L3
+human gate). **GS-N absorb arc complete (7/7).**
 
 ### Non-goals
 

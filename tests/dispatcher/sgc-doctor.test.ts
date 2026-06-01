@@ -222,4 +222,64 @@ describe("sgc doctor", () => {
     expect(r.fail).toBeGreaterThanOrEqual(1)
     expect(r.rows.some((row) => row.severity === "fail" && row.msg.includes("invariant map missing"))).toBe(true)
   })
+
+  // ── (H) slash-command ↔ CLI-subcommand parity ─────────────────────────
+  // seedParity writes a fixture src/sgc.ts (subCommands block) + the
+  // plugins/sgc/commands/*.md slash files, so we can exercise the parity
+  // logic without depending on the live repo layout.
+  function seedParity(cliNames: string[], slashFiles: string[]): void {
+    const srcDir = join(tmp, "src")
+    mkdirSync(srcDir, { recursive: true })
+    const block = cliNames.map((n) => `    "${n}": () => ${n.replace(/-/g, "_")},`).join("\n")
+    writeFileSync(
+      join(srcDir, "sgc.ts"),
+      `const main = defineCommand({\n  subCommands: {\n${block}\n  },\n})\n`,
+      "utf8",
+    )
+    const cdir = join(tmp, "plugins", "sgc", "commands")
+    mkdirSync(cdir, { recursive: true })
+    for (const f of slashFiles) writeFileSync(join(cdir, `${f}.md`), "# stub\n", "utf8")
+  }
+
+  test("H-parity1: every non-exempt CLI subcommand has a slash .md → ok", async () => {
+    seed(baseManifest, ["alpha.md"])
+    seedParity(["plan", "work"], ["plan", "work"])
+    const r = await runDoctor({ log: () => {}, repoRoot: tmp })
+    expect(r.fail).toBe(0)
+    expect(
+      r.rows.some((row) => row.severity === "ok" && row.msg.includes("plan") && row.msg.includes("slash")),
+    ).toBe(true)
+  })
+
+  test("H-parity2: non-exempt CLI subcommand missing its slash .md → fail", async () => {
+    seed(baseManifest, ["alpha.md"])
+    seedParity(["plan", "reflect"], ["plan"]) // reflect has no .md
+    const r = await runDoctor({ log: () => {}, repoRoot: tmp })
+    expect(r.fail).toBeGreaterThanOrEqual(1)
+    expect(
+      r.rows.some(
+        (row) => row.severity === "fail" && row.msg.includes("reflect") && row.msg.includes("slash"),
+      ),
+    ).toBe(true)
+  })
+
+  test("H-parity3: exempt CLI-only subcommand (canary) needs no slash .md → ok", async () => {
+    seed(baseManifest, ["alpha.md"])
+    seedParity(["plan", "canary", "watch-ci-failure", "land"], ["plan"])
+    const r = await runDoctor({ log: () => {}, repoRoot: tmp })
+    expect(r.fail).toBe(0)
+    expect(
+      r.rows.some((row) => row.severity === "ok" && row.msg.includes("canary") && row.msg.includes("CLI-only")),
+    ).toBe(true)
+  })
+
+  test("H-parity4: orphan slash .md with no CLI subcommand → warn", async () => {
+    seed(baseManifest, ["alpha.md"])
+    seedParity(["plan"], ["plan", "ghost"]) // ghost.md has no CLI subcommand
+    const r = await runDoctor({ log: () => {}, repoRoot: tmp })
+    expect(r.fail).toBe(0)
+    expect(
+      r.rows.some((row) => row.severity === "warn" && row.msg.includes("ghost")),
+    ).toBe(true)
+  })
 })

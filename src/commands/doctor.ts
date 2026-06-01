@@ -29,6 +29,25 @@ import { getCapabilities } from "../dispatcher/schema"
 const moduleDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(moduleDir, "..", "..")
 
+/**
+ * Extract subcommand names from the `subCommands: { ... }` block in src/sgc.ts.
+ * Textual (not import-based) so `sgc doctor` never triggers the CLI's runMain
+ * side effect. Source of truth stays sgc.ts.
+ */
+export function extractCliSubcommands(src: string): string[] {
+  const marker = "subCommands: {"
+  const start = src.indexOf(marker)
+  if (start === -1) return []
+  const rest = src.slice(start + marker.length)
+  const end = rest.indexOf("\n  }") // 2-space closing brace of the block
+  const block = end === -1 ? rest : rest.slice(0, end)
+  const names: string[] = []
+  const re = /["']?([a-z][a-z0-9-]*)["']?\s*:\s*\(\)\s*=>/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(block)) !== null) names.push(m[1] as string)
+  return names
+}
+
 type Severity = "ok" | "warn" | "fail"
 
 interface CheckRow {
@@ -286,6 +305,55 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
         }
       }
       emit({ severity: "ok", msg: `  · machine-enforced invariants: ${machineCount}/13` })
+    }
+  }
+
+  // ── (H) slash commands ↔ CLI subcommands parity ───────────────────────
+  // The CLI (src/sgc.ts subCommands) and the plugin slash layer
+  // (plugins/sgc/commands/*.md) must agree. CLI-only automation tools that
+  // are intentionally NOT exposed as interactive slash commands are exempt
+  // (post-publish / CI tooling; audit 2026-06-01, user-confirmed scope A).
+  // In an npm-install layout the plugins/ tree is absent → warn-skip.
+  const SLASH_EXEMPT = new Set(["canary", "watch-ci-failure", "land"])
+  log("")
+  log("=== slash commands ↔ CLI subcommands ===")
+  const sgcSrcPath = resolve(root, "src/sgc.ts")
+  const commandsDir = resolve(root, "plugins/sgc/commands")
+  if (!existsSync(sgcSrcPath) || !existsSync(commandsDir)) {
+    emit({
+      severity: "warn",
+      msg: "  ⚠ src/sgc.ts or plugins/sgc/commands/ not found — slash parity unchecked (npm-install layout?)",
+    })
+  } else {
+    const cliNames = extractCliSubcommands(readFileSync(sgcSrcPath, "utf8"))
+    const slashNames = new Set(
+      readdirSync(commandsDir)
+        .filter((f) => f.endsWith(".md"))
+        .map((f) => f.slice(0, -3)),
+    )
+    if (cliNames.length === 0) {
+      emit({ severity: "warn", msg: "  ⚠ could not parse subCommands block in src/sgc.ts" })
+    }
+    for (const name of cliNames) {
+      if (slashNames.has(name)) {
+        emit({ severity: "ok", msg: `  ✓ ${name} (CLI + slash command)` })
+      } else if (SLASH_EXEMPT.has(name)) {
+        emit({ severity: "ok", msg: `  ✓ ${name} (CLI-only, slash-exempt)` })
+      } else {
+        emit({
+          severity: "fail",
+          msg: `  ✗ ${name} (CLI subcommand has no slash command — add plugins/sgc/commands/${name}.md or add to SLASH_EXEMPT)`,
+        })
+      }
+    }
+    const cliSet = new Set(cliNames)
+    for (const slash of [...slashNames].sort()) {
+      if (!cliSet.has(slash)) {
+        emit({
+          severity: "warn",
+          msg: `  ⚠ ${slash}.md (orphan slash command — no matching CLI subcommand)`,
+        })
+      }
     }
   }
 

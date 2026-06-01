@@ -14,7 +14,7 @@ User mental model: sgc decides the level, enforces the protocol, records the kno
 
 ## Implementation Status (v1.20.0, GS-N arc complete 7/7 + Tier-1 sp absorb)
 
-The full L0→L3 pipeline is executable end-to-end via `bun src/sgc.ts <cmd>`. All 13 invariants enforced at runtime. The **CE compound-engineering loop is closed end-to-end** (CE-1 prevention injection → CE-2 reflect audit → CE-3 ship-failure capture/promote → CE-4 async plan → CE-5 loop orchestrator → CE-6 `applied_in` L3 + `surfaced_in` L2 score feedback) plus the **GS-N absorb arc complete (7/7)**: canary (GS-1) · handoff (GS-2) · plan fused decision (GS-3) · debug (GS-4) · cso (GS-5) · discover --template (GS-6) · land (GS-7), and the **Tier-1 Superpowers absorb** — `sgc work --done` verification close-gate. See [README.md](../../README.md) for the authoritative 18-command table; this section lists the original D-phase set.
+The full L0→L3 pipeline is executable end-to-end via `bun src/sgc.ts <cmd>`. All 13 invariants enforced at runtime. The **CE compound-engineering loop is closed end-to-end** (CE-1 prevention injection → CE-2 reflect audit → CE-3 ship-failure capture/promote → CE-4 async plan → CE-5 loop orchestrator → CE-6 `applied_in` L3 + `surfaced_in` L2 score feedback) plus the **GS-N absorb arc complete (7/7)**: canary (GS-1) · handoff (GS-2) · plan fused decision (GS-3) · debug (GS-4) · cso (GS-5) · discover --template (GS-6) · land (GS-7), and the **Tier-1 Superpowers absorb** — `sgc work --done` verification close-gate. See [README.md](../../README.md) for the authoritative 19-command CLI table (16 `/sgc:*` slash commands + 3 CLI-only: `canary` · `watch-ci-failure` · `land`); `sgc doctor` enforces slash↔CLI parity.
 
 | Command | Status | CLI |
 |---------|--------|-----|
@@ -30,9 +30,13 @@ The full L0→L3 pipeline is executable end-to-end via `bun src/sgc.ts <cmd>`. A
 | `/tail` | ✅ read `.sgc/progress/events.ndjson` (Invariant §13 stream) | `sgc tail [--task\|--agent\|--event-type\|--since\|--follow\|--limit]` |
 | `/reflect` | ✅ CE-2 decisions↔solutions audit; CE-6 surfaces `applied: N` + `surfaced: N` | `sgc reflect [--task\|--since\|--save\|--json]` |
 | `/loop` | ✅ CE-5 end-to-end orchestrator (plan→work→review→qa→ship→compound) | `sgc loop <task> [--resume\|--runs\|--status]` |
-| `/watch-ci-failure` | ✅ CE-3 publish-CI poller → templated `.sgc/ship-failures/<sha>.md` | `sgc watch-ci-failure [--run-id\|--workflow]` |
-| `/canary` | ✅ GS-1 post-publish health check (npm_propagation → smoke_install → health_url) | `sgc canary [--package\|--version\|--phases\|--health-url\|--health-regex\|--interval\|--timeout\|--bin]` |
-| `/doctor` | ✅ contracts/prompts/manifest consistency check | `sgc doctor` |
+| `watch-ci-failure` (CLI-only) | ✅ CE-3 publish-CI poller → templated `.sgc/ship-failures/<sha>.md` | `sgc watch-ci-failure [--run-id\|--workflow]` |
+| `canary` (CLI-only) | ✅ GS-1 post-publish health check (npm_propagation → smoke_install → health_url) | `sgc canary [--package\|--version\|--phases\|--health-url\|--health-regex\|--interval\|--timeout\|--bin]` |
+| `land` (CLI-only) | ✅ GS-7 post-publish ship chain (watch-ci-failure + canary, fail-fast) | `sgc land [--package\|--version]` |
+| `/debug` | ✅ GS-4 4-phase systematic-debugging walker; `close` is an Iron Law #3 hard-gate | `sgc debug <start\|close> [--id\|--root-cause\|--fix-commit\|--verify-command\|--runs\|--status]` |
+| `/handoff` | ✅ GS-2 session-state checkpoint → `tasks/<slug>-paused.md` | `sgc handoff [--auto\|--print <slug>]` |
+| `/cso` | ✅ GS-5 pre-ship security review (secret scan + dep audit + event anomalies) | `sgc cso` |
+| `/doctor` | ✅ contracts/prompts/manifest consistency + slash↔CLI parity check | `sgc doctor` |
 
 Agent modes (auto-detected per priority):
   `ANTHROPIC_API_KEY` set → anthropic-sdk (SDK + prompt caching)
@@ -56,9 +60,13 @@ Agent modes (auto-detected per priority):
 | `/tail` | Stream `.sgc/progress/events.ndjson` (Invariant §13 two-tier audit) |
 | `/reflect` | CE-2 audit: which solutions/ preventions surfaced in intent.md discussions (CE-6 `applied: N` + `surfaced: N`) |
 | `/loop` | CE-5 orchestrator: plan→work→review→qa→ship→compound with manual gates |
-| `/watch-ci-failure` | CE-3: poll publish CI for current branch HEAD; on failure write templated `.sgc/ship-failures/<sha>.md` |
-| `/canary` | GS-1: post-publish health check (npm propagation → npx smoke → optional health URL) |
-| `/doctor` | Consistency check across contracts/sgc-capabilities.yaml ↔ prompts/ ↔ slot annotations |
+| `/debug` | GS-4: 4-phase systematic-debugging walker (investigate → analyze → hypothesize → implement); `close` is an Iron Law #3 hard-gate |
+| `/cso` | GS-5: pre-ship security review — secret scan + dependency audit + event-stream anomaly detection |
+| `/handoff` | GS-2: session-state checkpoint → `tasks/<slug>-paused.md` for post-compaction recovery |
+| `/doctor` | Consistency check across contracts/sgc-capabilities.yaml ↔ prompts/ ↔ slot annotations ↔ slash↔CLI parity |
+| `watch-ci-failure` (CLI-only) | CE-3: poll publish CI for current branch HEAD; on failure write templated `.sgc/ship-failures/<sha>.md` |
+| `canary` (CLI-only) | GS-1: post-publish health check (npm propagation → npx smoke → optional health URL) |
+| `land` (CLI-only) | GS-7: post-publish ship chain (watch-ci-failure + canary, fail-fast) |
 
 ## State Layer (.sgc/)
 

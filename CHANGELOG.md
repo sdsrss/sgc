@@ -1,5 +1,51 @@
 # Changelog
 
+## v1.21.0 — 2026-06-01 — feat: command-surface parity (16 slash commands) + invariant-source unification
+
+An audit of the plugin surfaced a 3-way command-surface drift and a stale
+invariant count. This release closes both and adds machine guards (`sgc doctor`)
+so neither can silently recur.
+
+### What changed
+
+**Command surface (slash ↔ CLI parity)**
+
+- 5 new slash commands — `/sgc:reflect`, `/sgc:loop`, `/sgc:debug`, `/sgc:cso`,
+  `/sgc:handoff` — bringing the plugin to **16 slash commands**. The 3 CLI-only
+  post-publish/CI tools (`canary`, `watch-ci-failure`, `land`) stay CLI-only by
+  design.
+- `sgc doctor` **(H)**: new slash↔CLI parity check — every CLI subcommand must
+  have a `plugins/sgc/commands/<name>.md` or be in the `SLASH_EXEMPT` set; orphan
+  slash files warn. Previously unguarded (doctor only checked
+  contracts↔prompts↔manifest).
+- Trimmed the 18-line CLI-detection boilerplate to 4 lines across 11 command
+  files.
+
+**Invariant-source unification**
+
+- Unified the invariant count to **13** everywhere: `README.md` (was "12"),
+  `plugins/sgc/CLAUDE.md` (listed only §1–§7 → now §1–§13, §6 title corrected to
+  "Audit-Trail Writes Are Durable"), `docs/e-phase-demo.md` (was "12").
+- `sgc doctor` **(I)**: new invariant-source parity check — `sgc-invariants.md`
+  `## §N.` headings must match `invariant-enforcement.yaml` entries, else fail.
+
+**Docs**
+
+- `README.md` + `plugins/sgc/CLAUDE.md` command tables synced to 19 CLI commands
+  (16 slash + 3 CLI-only); corrected stale "18 CLI" / "9 subcommands" / "11
+  slash" counts.
+
+### Compatibility
+
+Additive only. New slash commands; no removed/renamed CLI subcommands; no schema
+or behavior changes to existing commands. `sgc doctor` adds two checks that fail
+closed on drift — run it after editing the command set or the invariant list.
+
+### Verification
+
+dispatcher 964 → 969 tests pass / 0 fail; `tsc --noEmit` clean; `sgc doctor`
+0 fail (`§1–§13`, 19/19 command parity).
+
 ## v1.20.0 — 2026-06-01 — feat(CE-6): `surfaced_in` tracks L2 prevention reuse + `applied_in` slug-fallback
 
 CE-6 score feedback was **L3-only**: `applied_in` increments only when

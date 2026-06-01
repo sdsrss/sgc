@@ -10,7 +10,7 @@ import type { PlanVerdict } from "./types"
 import type { PlannerCeoOutput } from "./agents/planner-ceo"
 import type { PlannerEngOutput } from "./agents/planner-eng"
 import type { PlannerAdversarialOutput } from "./agents/planner-adversarial"
-import { tokenize, jaccard, DEDUP_THRESHOLD } from "./dedup"
+import { tokenize, featureOverlap, DEDUP_THRESHOLD } from "./dedup"
 
 const PLAN_VERDICT_RANK: Record<PlanVerdict, number> = {
   approve: 0,
@@ -91,7 +91,10 @@ function dedupeConcerns(concerns: RawConcern[]): FusedConcern[] {
     const cTokens = tokenize(c._key)
     let merged = false
     for (const k of kept) {
-      if (jaccard(cTokens, tokenize(k._key)) >= DEDUP_THRESHOLD) {
+      // featureOverlap (not jaccard): two empty token sets carry no signal —
+      // J(∅,∅)=1 would otherwise merge unrelated information-free concern keys
+      // (ALG-1 audit fix).
+      if (featureOverlap(cTokens, tokenize(k._key)) >= DEDUP_THRESHOLD) {
         if (SEVERITY_RANK[c.severity] > SEVERITY_RANK[k.severity]) k.severity = c.severity
         k.also_flagged_by = [...(k.also_flagged_by ?? []), c.source]
         merged = true

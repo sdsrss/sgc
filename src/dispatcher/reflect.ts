@@ -311,6 +311,14 @@ export function formatReport(report: ReflectReport): string {
     return lines.join("\n")
   }
   lines.push(`Matched preventions: ${report.candidates.length}`)
+  // CE-4: the three counters are NOT interchangeable reuse signals.
+  //   overlap  = keyword-overlap of this decision vs the prevention (recall match)
+  //   applied  = L3 adversarial-validated applications (strongest reuse signal)
+  //   surfaced = L2+ plans where this solution was meaningfully surfaced (≥0.5)
+  //   [discussed]/[silent] = whether THIS decision's pre-mortem engaged it
+  lines.push(
+    "Legend: overlap=recall match · applied=L3-validated reuse · surfaced=L2 meaningful surfacing · [discussed]=engaged in this pre-mortem",
+  )
   for (const c of report.candidates) {
     const tag = c.discussed ? "[discussed]" : "[silent]    "
     lines.push(

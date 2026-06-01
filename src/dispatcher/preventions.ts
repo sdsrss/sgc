@@ -80,6 +80,35 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n))
 }
 
+// CE-2 (audit fix): structural prompt-injection break-out vectors. The
+// prevention text is LLM-authored corpus content (compound.prevention), and
+// compound.* output is intentionally NOT leak-scanned (it is allowed to read
+// solutions). extractPreventions is therefore the trust boundary where corpus
+// content crosses back INTO the planner.adversarial prompt. Neutralize the
+// delimiters that could let the data break out of its framing — chat-role
+// tags, model special tokens, llama [INST] markers, NUL. Content-level prose
+// is deliberately preserved: legitimate preventions document injection lessons
+// themselves, so redacting phrases like "ignore previous instructions" would
+// corrupt real knowledge. The prompt template frames this as data; this strips
+// the structural escapes a payload would use to leave that frame.
+const INJECTION_PATTERNS: readonly RegExp[] = [
+  /<\|[^|]*\|>/g, // <|im_start|>, <|endoftext|>, etc.
+  /<\/?\s*(?:system|assistant|user|tool|instructions?)\s*>/gi, // chat-role XML tags
+  /\[\/?\s*INST\s*\]/gi, // llama [INST] / [/INST]
+  /\u0000/g, // NUL byte
+]
+
+/**
+ * Neutralize structural prompt-injection break-out tokens in corpus text
+ * before it is re-injected into a prompt (CE-2). Returns the cleaned text with
+ * whitespace re-folded. Pure — no IO, no logging.
+ */
+export function sanitizePreventionText(text: string): string {
+  let out = text
+  for (const re of INJECTION_PATTERNS) out = out.replace(re, " ")
+  return out.replace(/\s+/g, " ").trim()
+}
+
 type SkipReason =
   | "frontmatter_parse_failed"
   | "prevention_field_missing"
@@ -144,7 +173,24 @@ export async function extractPreventions(
       emitSkip(opts.logger, opts.taskId, solutionRef, "prevention_field_empty")
       continue
     }
-    scored.push({ scan, text: truncateOnWordBoundary(folded, maxChars) })
+    // CE-2: neutralize structural prompt-injection vectors before this
+    // corpus text re-enters the planner.adversarial prompt.
+    const sanitized = sanitizePreventionText(folded)
+    if (sanitized !== folded) {
+      opts.logger?.event({
+        task_id: opts.taskId ?? null,
+        spawn_id: null,
+        agent: "plan.preventions",
+        event_type: "prevention.sanitized",
+        level: "warn",
+        payload: { solution_ref: solutionRef, removed_chars: folded.length - sanitized.length },
+      })
+    }
+    if (sanitized.length === 0) {
+      emitSkip(opts.logger, opts.taskId, solutionRef, "prevention_field_empty")
+      continue
+    }
+    scored.push({ scan, text: truncateOnWordBoundary(sanitized, maxChars) })
   }
 
   scored.sort((a, b) => b.scan.hits - a.scan.hits)

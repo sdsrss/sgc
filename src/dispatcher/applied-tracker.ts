@@ -62,6 +62,36 @@ export interface RecordAppliedOptions {
   logger?: Logger
 }
 
+/**
+ * CE-4 (audit fix): the relevance floor at which a recalled prior solution
+ * counts as *surfaced* (a reuse signal), stricter than researcher.history's
+ * 0.3 recall floor. researcher.history pulls every solution ≥0.3 keyword
+ * overlap into the plan's prior-art context; recording all of them into
+ * `surfaced_in` conflated "keyword-collided with a plan" with "meaningfully
+ * surfaced", inflating the metric monotonically. 0.5 = at least half the task
+ * keywords overlap (heuristic mode) or LLM-judged moderately+ relevant. Weak
+ * 0.3–0.5 matches still inform the plan; they are not counted as reuse.
+ */
+export const SURFACED_RELEVANCE_FLOOR = 0.5
+
+/**
+ * Dedup + relevance-gate recalled prior-art down to the solution_refs that
+ * count as surfaced (relevance_score ≥ SURFACED_RELEVANCE_FLOOR). Structural
+ * input shape so this module need not import the researcher.history type.
+ */
+export function selectSurfacedRefs(
+  prior_art: readonly { solution_ref: string; relevance_score: number }[],
+  floor: number = SURFACED_RELEVANCE_FLOOR,
+): string[] {
+  return Array.from(
+    new Set(
+      prior_art
+        .filter((p) => p.relevance_score >= floor)
+        .map((p) => p.solution_ref),
+    ),
+  )
+}
+
 export function extractAppliedSolutionRefs(
   failure_modes: readonly FailureMode[],
   prior_preventions: readonly PriorPrevention[],

@@ -27,6 +27,7 @@ import {
   serializeFrontmatter,
 } from "./state"
 import { createLogger, type Logger } from "./logger"
+import { acquireFileLock, LockHeldError } from "./file-lock"
 
 export interface PlanJob {
   job_id: string
@@ -142,6 +143,12 @@ function jobsDir(stateRoot: string | undefined): string {
 function jobPath(stateRoot: string | undefined, jobId: string): string {
   return resolve(jobsDir(stateRoot), `${jobId}.md`)
 }
+// STAB-1: serializes the [scan → fork → writeJob] critical section so two
+// concurrent `sgc plan --async` invocations cannot both pass the running-job
+// scan and both fork a detached planner.
+function forkLockPath(stateRoot: string | undefined): string {
+  return resolve(jobsDir(stateRoot), ".fork.lock")
+}
 function logPathFor(stateRoot: string | undefined, jobId: string): string {
   return resolve(jobsDir(stateRoot), `${jobId}.log`)
 }
@@ -216,6 +223,44 @@ export async function forkAsyncPlanJob(
 
   await mkdir(jobsDir(stateRoot), { recursive: true })
 
+  // STAB-1: acquire the fork lock BEFORE the scan so the entire
+  // check-and-claim is atomic against a concurrent invocation. Released in
+  // the finally below once the job file records the running state (which the
+  // next invocation's scan will then observe and reject on).
+  let releaseLock: () => void
+  try {
+    releaseLock = acquireFileLock(forkLockPath(stateRoot), { isAlive })
+  } catch (err) {
+    if (err instanceof LockHeldError) {
+      throw new PlanJobError(
+        "ConcurrentJobActive",
+        `another plan fork is in progress (holder pid=${err.holderPid}). Retry once it completes.`,
+        { active_pid: err.holderPid },
+      )
+    }
+    throw err
+  }
+
+  try {
+    return await claimAndFork(task, stateRoot, { now, ulid, isAlive, spawnImpl, extraEnv: opts.extraEnv })
+  } finally {
+    releaseLock()
+  }
+}
+
+interface ClaimAndForkArgs {
+  now: () => number
+  ulid: () => string
+  isAlive: (pid: number) => boolean
+  spawnImpl: NonNullable<ForkOptions["spawnImpl"]>
+  extraEnv: ForkOptions["extraEnv"]
+}
+
+async function claimAndFork(
+  task: string,
+  stateRoot: string | undefined,
+  { now, ulid, isAlive, spawnImpl, extraEnv }: ClaimAndForkArgs,
+): Promise<ForkResult> {
   // Concurrency guard: scan prior jobs; refuse if any running+alive.
   // Mark stale and continue otherwise (clears the lock).
   for (const prior of listJobsRaw(stateRoot)) {
@@ -257,8 +302,8 @@ export async function forkAsyncPlanJob(
   // Caller-supplied extras (e.g. parent-frozen PlanOptions JSON) win
   // over the auto-derived env so a test can override SGC_STATE_ROOT
   // if it ever needs to.
-  if (opts.extraEnv) {
-    for (const [k, v] of Object.entries(opts.extraEnv)) env[k] = v
+  if (extraEnv) {
+    for (const [k, v] of Object.entries(extraEnv)) env[k] = v
   }
 
   const argv = [process.execPath, getSgcEntry(), "plan", task]

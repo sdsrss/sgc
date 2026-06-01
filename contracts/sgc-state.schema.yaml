@@ -209,6 +209,8 @@ solutions:
         tags:                { type: array[string], min_items: 1 }
         first_seen:          { type: string, format: iso8601 }
         last_updated:        { type: string, format: iso8601 }
+        # CE-1: counts dedup write-merges of the same problem, NOT reuse.
+        # Reuse is tracked by surfaced_in / applied_in (see applied-tracker.ts).
         times_referenced:    { type: integer, default: 0 }
         source_task_ids:     { type: array[string], min_items: 1 }
       optional_fields:

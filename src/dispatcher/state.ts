@@ -532,6 +532,15 @@ function validateDedupStamp(stamp: DedupStamp | undefined): asserts stamp is Ded
  *                   • merge new what_didnt_work entries (dedup by `approach`)
  *                   • DO NOT overwrite existing solution / prevention fields
  *                   • bump times_referenced by 1
+ *
+ * `times_referenced` semantics (CE-1 audit clarification): this counts
+ * dedup WRITE-MERGES only — i.e. how many times the SAME problem was
+ * re-compounded and merged into this entry. It is NOT a reuse/recall metric
+ * and does not increment when a solution is surfaced as prior-art or applied
+ * in a later plan. Reuse is tracked separately by `surfaced_in` (L2+
+ * researcher.history surfacing) and `applied_in` (L3 adversarial-validated
+ * application) — see applied-tracker.ts. Do not read `times_referenced` as
+ * "how often this knowledge paid off".
  * Returns the canonical path and the final (merged) entry written.
  */
 export function writeSolution(
@@ -563,6 +572,7 @@ export function writeSolution(
       source_task_ids: mergedTasks,
       what_didnt_work: mergedWdw,
       last_updated: entry.last_updated,
+      // Dedup write-merge counter — NOT a reuse metric (see docblock above).
       times_referenced: (existing.data.times_referenced ?? 0) + 1,
       // Preserve existing solution + prevention (do NOT overwrite)
     }

@@ -10,7 +10,35 @@ import {
   extractAppliedSolutionRefs,
   recordApplied,
   recordSurfaced,
+  selectSurfacedRefs,
+  SURFACED_RELEVANCE_FLOOR,
 } from "../../src/dispatcher/applied-tracker"
+
+describe("selectSurfacedRefs — CE-4 surfaced relevance gate", () => {
+  test("the surfacing floor is stricter than the 0.3 recall floor", () => {
+    expect(SURFACED_RELEVANCE_FLOOR).toBeGreaterThan(0.3)
+  })
+  test("weak (≥0.3 recall, <floor) prior-art is NOT counted as surfaced", () => {
+    const refs = selectSurfacedRefs([
+      { solution_ref: "runtime/strong", relevance_score: 0.9 },
+      { solution_ref: "runtime/weak", relevance_score: 0.3 },
+    ])
+    expect(refs).toEqual(["runtime/strong"])
+  })
+  test("dedups refs at/above the floor", () => {
+    const refs = selectSurfacedRefs([
+      { solution_ref: "runtime/a", relevance_score: 0.6 },
+      { solution_ref: "runtime/a", relevance_score: 0.8 },
+    ])
+    expect(refs).toEqual(["runtime/a"])
+  })
+  test("a value exactly at the floor surfaces (inclusive)", () => {
+    const refs = selectSurfacedRefs([
+      { solution_ref: "runtime/edge", relevance_score: SURFACED_RELEVANCE_FLOOR },
+    ])
+    expect(refs).toEqual(["runtime/edge"])
+  })
+})
 import type { PriorPrevention } from "../../src/dispatcher/preventions"
 import { parseFrontmatter } from "../../src/dispatcher/state"
 import type { SolutionEntry } from "../../src/dispatcher/types"

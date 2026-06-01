@@ -83,6 +83,19 @@ export function jaccard(a: Set<string>, b: Set<string>): number {
   return intersect / union
 }
 
+/**
+ * Similarity of two feature sets that returns 0 — not 1 — for the empty/empty
+ * case (ALG-1). `jaccard` keeps the mathematical identity convention J(∅,∅)=1,
+ * but when a feature carries NO tokens on either side it provides no evidence
+ * of similarity; treating that as a perfect match falsely merges
+ * information-free entries (dedup write-gate) and unrelated concern keys
+ * (fuse-plan). Non-empty inputs delegate to `jaccard` unchanged.
+ */
+export function featureOverlap(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 && b.size === 0) return 0
+  return jaccard(a, b)
+}
+
 export interface SimilarityCandidate {
   signature: string
   tags: string[]
@@ -106,9 +119,22 @@ export function similarity(
   // the same shape for tags here.
   const candTags = Array.isArray(candidate.tags) ? candidate.tags : []
   const exTags = Array.isArray(existing.tags) ? existing.tags : []
-  const tagScore = jaccard(new Set(candTags), new Set(exTags))
-  const probScore = jaccard(tokenize(candidate.problem), tokenize(existing.problem))
-  return (tagScore + probScore) / 2
+  const candTagSet = new Set(candTags)
+  const exTagSet = new Set(exTags)
+  const candProb = tokenize(candidate.problem)
+  const exProb = tokenize(existing.problem)
+
+  // ALG-1 (audit fix): average only the feature components that carry a signal
+  // (at least one side non-empty). A component empty on BOTH sides is no
+  // evidence — including it as jaccard(∅,∅)=1 inflated the score and falsely
+  // deduped information-free entries; excluding it (rather than scoring it 0)
+  // avoids the inverse error of dragging a real tagless-but-identical-problem
+  // duplicate below threshold. All-empty candidate → no components → 0.
+  const components: number[] = []
+  if (candTagSet.size > 0 || exTagSet.size > 0) components.push(jaccard(candTagSet, exTagSet))
+  if (candProb.size > 0 || exProb.size > 0) components.push(jaccard(candProb, exProb))
+  if (components.length === 0) return 0
+  return components.reduce((sum, c) => sum + c, 0) / components.length
 }
 
 export interface BestMatch {

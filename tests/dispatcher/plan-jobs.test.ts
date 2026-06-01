@@ -175,6 +175,24 @@ describe("forkAsyncPlanJob — concurrency guard", () => {
     const priorAfter = parseFrontmatter<PlanJob>(readFileSync(prior.path, "utf8"))
     expect(priorAfter.data.status).toBe("stale")
   })
+
+  it("STAB-1: refuses to fork while the fork lock is held by a live holder", async () => {
+    // Simulate a concurrent invocation mid-critical-section: a live-holder
+    // lock file exists. The new fork must reject and never spawn — this is
+    // the TOCTOU window the lock closes.
+    mkdirSync(join(stateRoot, "plan-jobs"), { recursive: true })
+    writeFileSync(join(stateRoot, "plan-jobs", ".fork.lock"), `${process.pid}\n${Date.now()}\n`)
+    const fake = fakeSpawn()
+    await expect(
+      forkAsyncPlanJob("racing task", {
+        stateRoot,
+        spawnImpl: fake.spawn,
+        isAlive: () => true, // lock holder is alive
+        ulid: () => "01HSHOULDNOTRUN00000000000",
+      }),
+    ).rejects.toMatchObject({ code: "ConcurrentJobActive" })
+    expect(fake.calls.length).toBe(0) // never reached spawn
+  })
 })
 
 describe("completePlanJob / failPlanJob — terminal transitions", () => {

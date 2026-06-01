@@ -16,6 +16,7 @@ import {
   resolveStateRoot,
   serializeFrontmatter,
 } from "./state"
+import { acquireFileLock, LockHeldError } from "./file-lock"
 
 export type LoopStepName =
   | "plan"
@@ -135,6 +136,12 @@ function loopRunsDir(stateRoot: string | undefined): string {
 }
 function runPath(stateRoot: string | undefined, runId: string): string {
   return resolve(loopRunsDir(stateRoot), `${runId}.md`)
+}
+// STAB-1: serializes the fresh-run [scan → writeRun] claim so two concurrent
+// `sgc loop <task>` invocations cannot both pass the same-task active-run scan
+// and both create a run.
+function loopClaimLockPath(stateRoot: string | undefined): string {
+  return resolve(loopRunsDir(stateRoot), ".claim.lock")
 }
 
 function readRun(path: string): LoopRun {
@@ -256,34 +263,53 @@ export async function runLoop(
         "task arg required for fresh runLoop (or pass opts.resume)",
       )
     }
-    // Concurrency guard: same-task non-terminal run blocks fresh start.
-    for (const prior of listRunsRaw(stateRoot)) {
-      if (
-        prior.task === task &&
-        (prior.status === "running" ||
-          prior.status === "paused" ||
-          prior.status === "failed")
-      ) {
+    // STAB-1: lock the entire check-and-claim so a concurrent invocation
+    // cannot pass the scan before this one writes its run file.
+    let releaseClaimLock: () => void
+    try {
+      releaseClaimLock = acquireFileLock(loopClaimLockPath(stateRoot))
+    } catch (err) {
+      if (err instanceof LockHeldError) {
         throw new LoopError(
           "ConcurrentRunActive",
-          `another loop run for task "${task}" is ${prior.status} (run_id=${prior.run_id}). Continue with: sgc loop --resume ${prior.run_id} (or delete the run file to start over).`,
-          { active_run_id: prior.run_id, active_status: prior.status },
+          `another loop start is in progress (holder pid=${err.holderPid}). Retry once it completes.`,
+          { active_pid: err.holderPid },
         )
       }
+      throw err
     }
-    const run_id = ulid()
-    const startedIso = new Date(now()).toISOString()
-    run = {
-      run_id,
-      task,
-      started_at: startedIso,
-      last_updated_at: startedIso,
-      current_step: "plan",
-      status: "running",
-      steps: freshSteps(),
+    try {
+      // Concurrency guard: same-task non-terminal run blocks fresh start.
+      for (const prior of listRunsRaw(stateRoot)) {
+        if (
+          prior.task === task &&
+          (prior.status === "running" ||
+            prior.status === "paused" ||
+            prior.status === "failed")
+        ) {
+          throw new LoopError(
+            "ConcurrentRunActive",
+            `another loop run for task "${task}" is ${prior.status} (run_id=${prior.run_id}). Continue with: sgc loop --resume ${prior.run_id} (or delete the run file to start over).`,
+            { active_run_id: prior.run_id, active_status: prior.status },
+          )
+        }
+      }
+      const run_id = ulid()
+      const startedIso = new Date(now()).toISOString()
+      run = {
+        run_id,
+        task,
+        started_at: startedIso,
+        last_updated_at: startedIso,
+        current_step: "plan",
+        status: "running",
+        steps: freshSteps(),
+      }
+      runFilePath = runPath(stateRoot, run_id)
+      writeRun(runFilePath, run)
+    } finally {
+      releaseClaimLock()
     }
-    runFilePath = runPath(stateRoot, run_id)
-    writeRun(runFilePath, run)
   }
 
   // Resolve step runners — opts overrides win; defaults fill the rest.

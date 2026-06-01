@@ -1,5 +1,67 @@
 # Changelog
 
+## v1.22.0 — 2026-06-01 — fix: production-readiness audit P0 (dedup, reuse-metric honesty, prompt-injection, fork race)
+
+A full production-readiness audit (`docs/PRODUCTION-READINESS-AUDIT.md`)
+surfaced 5 HIGH issues sitting in test blind-spots — none visible on a green
+suite. This release closes all six P0 items. **Behavior corrections only; no
+API removed, no config or state-file format changed — no migration action
+required.** Dispatcher suite 969 → 991 (+22 tests).
+
+### What changed
+
+**ALG-1 — dedup empty-set false-merge** (`dedup.ts`, `fuse-plan.ts`)
+
+- The Jaccard identity convention `J(∅,∅)=1` was used as a *component* of an
+  averaged similarity, so two information-free entries (empty tags + empty
+  problem) scored 1.0 and falsely deduped at the 0.85 gate; the same convention
+  merged unrelated empty-token concern keys in plan fusion. New `featureOverlap`
+  returns 0 for the no-signal pair; `similarity` now averages only the feature
+  components that carry a signal (so a tagless-but-identical-problem pair still
+  merges). `jaccard` keeps its mathematical identity semantics, unchanged.
+
+**CE-1 — `times_referenced` relabeled (not removed)** (`state.ts`, `docs/SOLUTIONS.md`, `contracts/sgc-state.schema.yaml`)
+
+- `times_referenced` counts dedup **write-merges** of the same problem, never
+  recall/surfacing — it was advertised as a usage/reuse metric. Relabeled in
+  doc, code comment, and schema comment to say so (reuse is tracked by
+  `surfaced_in` / `applied_in`). The field is **kept** — removing it would be a
+  breaking schema change to a released artifact for zero benefit.
+
+**CE-4 — `surfaced_in` over-counting** (`applied-tracker.ts`, `plan.ts`, `reflect.ts`)
+
+- `surfaced_in` recorded every prior-art match at the bare 0.3 recall floor,
+  conflating "keyword-collided with a plan" with "reused". New
+  `SURFACED_RELEVANCE_FLOOR = 0.5` + `selectSurfacedRefs`: weak 0.3–0.5 matches
+  still inform the plan but no longer inflate the metric. `sgc reflect` gains a
+  legend disambiguating overlap / applied / surfaced / discussed.
+
+**CE-2 — prompt-injection on the corpus→prompt feedback channel** (`preventions.ts`)
+
+- `compound.*` output is intentionally not leak-scanned (it may read solutions),
+  so `extractPreventions` is the trust boundary where LLM-authored corpus text
+  re-enters the `planner.adversarial` prompt. New `sanitizePreventionText`
+  neutralizes structural break-out vectors (chat-role tags, model special
+  tokens, `[INST]` markers, NUL) before the feed; content prose is preserved
+  (legitimate preventions document injection lessons). A `prevention.sanitized`
+  audit event fires when text is altered.
+
+**STAB-1 — TOCTOU fork race / orphan planner** (new `file-lock.ts`, `plan-jobs.ts`, `loop.ts`)
+
+- The "single-active" guards in `sgc plan --async` and `sgc loop` were
+  read-then-write: two concurrent invocations both passed the scan and both
+  forked — and because the async planner is `detached:true`, the race produced
+  real orphan processes. New O_EXCL `acquireFileLock` (pid-liveness stale
+  reclaim) wraps each `[scan → claim]` critical section via a git-ignored
+  `.fork.lock` / `.claim.lock` in the state dirs.
+
+**CE-3 — end-to-end loop contract test** (new `tests/dispatcher/ce-loop-e2e.test.ts`)
+
+- Each CE link was unit-tested in isolation; the contract *between* links
+  (the `solution_ref` written = recalled = applied = the on-disk file mutated)
+  was not. New test drives write → recall → reuse → measure against one corpus
+  and asserts the refs line up at every hop.
+
 ## v1.21.0 — 2026-06-01 — feat: command-surface parity (16 slash commands) + invariant-source unification
 
 An audit of the plugin surfaced a 3-way command-surface drift and a stale

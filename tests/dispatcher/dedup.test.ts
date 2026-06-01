@@ -12,11 +12,53 @@
 import { describe, expect, it } from "bun:test"
 import {
   findBestMatch,
+  isDuplicate,
   similarity,
   tokenize,
   type SimilarityCandidate,
 } from "../../src/dispatcher/dedup"
 import type { SolutionFile } from "../../src/dispatcher/state"
+
+describe("similarity — empty-feature collision (ALG-1 audit fix)", () => {
+  const empty: SimilarityCandidate = { signature: "", tags: [], problem: "" }
+
+  it("two all-empty candidates carry no similarity signal (NOT identical)", () => {
+    // Pre-fix: jaccard(∅,∅)=1 for both the tag and problem component →
+    // (1+1)/2 = 1.0 → an information-free candidate falsely deduped at 0.85.
+    // The J(∅,∅)=1 identity convention is wrong as a *component* of an
+    // averaged similarity over independent feature vectors.
+    expect(similarity(empty, empty)).toBe(0)
+  })
+
+  it("all-empty candidate is not a duplicate of an all-empty existing entry", () => {
+    const corpus: SolutionFile[] = [
+      {
+        path: "/dev/null/empty.md",
+        category: "runtime",
+        slug: "empty",
+        body: "",
+        entry: { category: "runtime" } as unknown as SolutionFile["entry"],
+      },
+    ]
+    const best = findBestMatch(empty, corpus)
+    expect(best).not.toBeNull()
+    expect(isDuplicate(best)).toBe(false)
+  })
+
+  it("empty tags on both sides do not drag down an identical-problem match", () => {
+    // Regression guard against the naive (0+probScore)/2 fix: a tagless pair
+    // with identical problems must still merge on the problem signal alone.
+    const a: SimilarityCandidate = { signature: "", tags: [], problem: "null pointer crash in auth handler" }
+    const b: SimilarityCandidate = { signature: "", tags: [], problem: "null pointer crash in auth handler" }
+    expect(similarity(a, b)).toBe(1)
+  })
+
+  it("empty problem on both sides scores on the tag signal alone", () => {
+    const a: SimilarityCandidate = { signature: "", tags: ["auth", "npe"], problem: "" }
+    const b: SimilarityCandidate = { signature: "", tags: ["auth", "npe"], problem: "" }
+    expect(similarity(a, b)).toBe(1)
+  })
+})
 
 describe("tokenize — defensive guards (GS-1.2 DOG-2 regression)", () => {
   it("returns empty Set when input is undefined (no .normalize() crash)", () => {

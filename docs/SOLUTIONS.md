@@ -2,7 +2,10 @@
 
 The live knowledge base lives in `.sgc/solutions/` and is **git-ignored** by
 design — it carries machine-local, sgc-mutated state (`times_referenced`,
-`last_updated`) that would churn the repo. This file is the curated,
+`last_updated`) that would churn the repo. (`times_referenced` counts dedup
+write-merges of the same problem — it is **not** a reuse metric; reuse is
+tracked by `surfaced_in` / `applied_in` and surfaced via `sgc reflect`.) This
+file is the curated,
 version-controlled complement: solution/prevention pairs worth carrying with
 the repo so other clones, CI, and collaborators can read them. Entries here are
 hand-curated for accuracy (the `.sgc/solutions/` originals are LLM-generated and

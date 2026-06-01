@@ -48,6 +48,7 @@ import {
   extractAppliedSolutionRefs,
   recordApplied,
   recordSurfaced,
+  selectSurfacedRefs,
 } from "../dispatcher/applied-tracker"
 import { validateClassifierRationale } from "../dispatcher/rationale"
 import {
@@ -501,11 +502,14 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
     // consuming task_id into each surfaced solution's surfaced_in — a weaker,
     // L2-observable signal than applied_in (L3 adversarial-validated). Same
     // Iron Law as the applied_in block: writeback failure NEVER fails plan.
-    if (researcherOut.prior_art.length > 0) {
+    //
+    // CE-4 (audit fix): gate on SURFACED_RELEVANCE_FLOOR (≥0.5), not the bare
+    // 0.3 recall floor. Weak keyword-overlap matches still inform the plan but
+    // are no longer counted as a reuse signal — surfaced_in measures
+    // meaningful surfacing, not "keyword-collided with a plan".
+    const surfacedRefs = selectSurfacedRefs(researcherOut.prior_art)
+    if (surfacedRefs.length > 0) {
       try {
-        const surfacedRefs = Array.from(
-          new Set(researcherOut.prior_art.map((p) => p.solution_ref)),
-        )
         const surfacedResult = recordSurfaced(stateRoot, surfacedRefs, taskId, { logger })
         logger.event({
           task_id: taskId,

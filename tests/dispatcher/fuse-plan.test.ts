@@ -125,6 +125,17 @@ describe("fusePlan concerns", () => {
     const d = fusePlan({ ceo: ceo("approve"), eng: eng("approve") })
     expect(d.ranked_concerns).toEqual([])
   })
+  test("empty-token concern keys do not falsely merge (ALG-1 audit fix)", () => {
+    // Both _keys tokenize to ∅ (all stopwords / sub-floor words). Pre-fix
+    // jaccard(∅,∅)=1 ≥ DEDUP_THRESHOLD merged these unrelated,
+    // information-free concerns into one. featureOverlap returns 0 for the
+    // no-signal pair so they stay distinct.
+    const d = fusePlan({
+      ceo: { verdict: "revise", concerns: ["the is of"], rewrite_hints: [] },
+      eng: { verdict: "revise", concerns: ["a an to"], structural_risks: [] },
+    })
+    expect(d.ranked_concerns.length).toBe(2)
+  })
 })
 
 describe("renderFusedSection", () => {

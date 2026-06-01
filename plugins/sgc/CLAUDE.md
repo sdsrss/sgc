@@ -12,9 +12,9 @@ sgc is a **规范层 + 知识引擎** that coexists with `superpowers` (sp) and 
 
 User mental model: sgc decides the level, enforces the protocol, records the knowledge. sp does the thinking. gs ships.
 
-## Implementation Status (v1.12.1, GS-1 arc closed)
+## Implementation Status (v1.20.0, GS-N arc complete 7/7 + Tier-1 sp absorb)
 
-The full L0→L3 pipeline is executable end-to-end via `bun src/sgc.ts <cmd>`. All 13 invariants enforced at runtime. The **CE compound-engineering loop is closed end-to-end** (CE-1 prevention injection → CE-2 reflect audit → CE-3 ship-failure capture/promote → CE-4 async plan → CE-5 loop orchestrator → CE-6 applied_in score feedback) plus **GS-1 post-publish canary + GS-1.1 promote helper**. See [README.md](../../README.md) for the authoritative 15-command table; this section lists the original D-phase set.
+The full L0→L3 pipeline is executable end-to-end via `bun src/sgc.ts <cmd>`. All 13 invariants enforced at runtime. The **CE compound-engineering loop is closed end-to-end** (CE-1 prevention injection → CE-2 reflect audit → CE-3 ship-failure capture/promote → CE-4 async plan → CE-5 loop orchestrator → CE-6 `applied_in` L3 + `surfaced_in` L2 score feedback) plus the **GS-N absorb arc complete (7/7)**: canary (GS-1) · handoff (GS-2) · plan fused decision (GS-3) · debug (GS-4) · cso (GS-5) · discover --template (GS-6) · land (GS-7), and the **Tier-1 Superpowers absorb** — `sgc work --done` verification close-gate. See [README.md](../../README.md) for the authoritative 18-command table; this section lists the original D-phase set.
 
 | Command | Status | CLI |
 |---------|--------|-----|
@@ -28,7 +28,7 @@ The full L0→L3 pipeline is executable end-to-end via `bun src/sgc.ts <cmd>`. A
 | `/agent-loop` | ✅ file-poll submission helper (non-SDK path) | `sgc agent-loop [--list\|--show\|--submit]` |
 | `/discover` | ✅ clarifier.discover forcing-questions stub | `sgc discover <topic>` |
 | `/tail` | ✅ read `.sgc/progress/events.ndjson` (Invariant §13 stream) | `sgc tail [--task\|--agent\|--event-type\|--since\|--follow\|--limit]` |
-| `/reflect` | ✅ CE-2 decisions↔solutions audit; CE-6 surfaces `applied: N` | `sgc reflect [--task\|--since\|--save\|--json]` |
+| `/reflect` | ✅ CE-2 decisions↔solutions audit; CE-6 surfaces `applied: N` + `surfaced: N` | `sgc reflect [--task\|--since\|--save\|--json]` |
 | `/loop` | ✅ CE-5 end-to-end orchestrator (plan→work→review→qa→ship→compound) | `sgc loop <task> [--resume\|--runs\|--status]` |
 | `/watch-ci-failure` | ✅ CE-3 publish-CI poller → templated `.sgc/ship-failures/<sha>.md` | `sgc watch-ci-failure [--run-id\|--workflow]` |
 | `/canary` | ✅ GS-1 post-publish health check (npm_propagation → smoke_install → health_url) | `sgc canary [--package\|--version\|--phases\|--health-url\|--health-regex\|--interval\|--timeout\|--bin]` |
@@ -54,7 +54,7 @@ Agent modes (auto-detected per priority):
 | `/status` | Show current task state, decisions history, knowledge stats |
 | `/agent-loop` | File-poll fulfillment helper for external Claude session (`--list / --show / --submit`) |
 | `/tail` | Stream `.sgc/progress/events.ndjson` (Invariant §13 two-tier audit) |
-| `/reflect` | CE-2 audit: which solutions/ preventions surfaced in intent.md discussions (CE-6 `applied: N`) |
+| `/reflect` | CE-2 audit: which solutions/ preventions surfaced in intent.md discussions (CE-6 `applied: N` + `surfaced: N`) |
 | `/loop` | CE-5 orchestrator: plan→work→review→qa→ship→compound with manual gates |
 | `/watch-ci-failure` | CE-3: poll publish CI for current branch HEAD; on failure write templated `.sgc/ship-failures/<sha>.md` |
 | `/canary` | GS-1: post-publish health check (npm propagation → npx smoke → optional health URL) |

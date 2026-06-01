@@ -49,9 +49,20 @@ const SOURCE_ORDER: Record<ConcernSource, number> = {
   ceo: 3,
 }
 
+// ALG-4: defensive normalization. Types say PlanVerdict, but LLM-mode output
+// can drift to an unrecognized string; `PLAN_VERDICT_RANK[bad]` is undefined
+// and `undefined >= n` is false, so worstPlanVerdict silently returned the
+// other verdict — a malformed verdict could mask a real reject/revise. Coerce
+// any unknown verdict to the worst rank (reject) so fusion fails safe.
+function normVerdict(v: PlanVerdict): PlanVerdict {
+  return Object.prototype.hasOwnProperty.call(PLAN_VERDICT_RANK, v) ? v : "reject"
+}
+
 /** Worse of two plan verdicts by precedence reject > revise > approve. */
 export function worstPlanVerdict(a: PlanVerdict, b: PlanVerdict): PlanVerdict {
-  return PLAN_VERDICT_RANK[a] >= PLAN_VERDICT_RANK[b] ? a : b
+  const na = normVerdict(a)
+  const nb = normVerdict(b)
+  return PLAN_VERDICT_RANK[na] >= PLAN_VERDICT_RANK[nb] ? na : nb
 }
 
 // Internal shape: carries a separate dedup key so structural_risk's formatted

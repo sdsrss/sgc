@@ -118,6 +118,11 @@ export async function runAnthropicSdkAgent(
     })
   }
 
+  // STAB-2: the SDK manages its own HTTP timeout, but a signal drain needs an
+  // explicit abort handle to cancel the in-flight request on Ctrl+C / SIGTERM.
+  const controller = new AbortController()
+  ctx?.registerAbort?.(() => controller.abort())
+
   const startTs = Date.now()
   let response: Anthropic.Message
   let outcome: LlmResponsePayload["outcome"] = "error"
@@ -178,7 +183,7 @@ export async function runAnthropicSdkAgent(
     }
     response = await (client.messages.create as typeof Anthropic.prototype.messages.create)(
       createArgs,
-      { timeout: timeoutMs },
+      { timeout: timeoutMs, signal: controller.signal },
     )
     outcome = "success"
     const u = response.usage as {

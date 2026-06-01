@@ -30,9 +30,16 @@ export function validateValueAgainstDecl(
 ): string | null {
   if (typeof decl !== "string") return null  // complex declaration — defer
 
-  const enumMatch = /^enum\[(.+)\]$/.exec(decl)
+  // ALG-2: match `enum[...]` including the empty `enum[]` form. A declaration
+  // with no (non-empty) members can never be satisfied — pre-fix `/.+/` failed
+  // to match `enum[]`, so it fell through to "unknown declaration → accept
+  // anything", silently letting an empty-enum field accept any value.
+  const enumMatch = /^enum\[(.*)\]$/.exec(decl)
   if (enumMatch) {
-    const values = enumMatch[1]!.split(",").map((v) => v.trim())
+    const values = enumMatch[1]!.split(",").map((v) => v.trim()).filter((v) => v.length > 0)
+    if (values.length === 0) {
+      return `field ${fieldName}: malformed declaration ${JSON.stringify(decl)} (enum declares no values)`
+    }
     if (typeof value !== "string" || !values.includes(value)) {
       return `field ${fieldName}: expected one of [${values.join(", ")}], got ${JSON.stringify(value)}`
     }
@@ -77,9 +84,21 @@ export function validateValueAgainstDecl(
     return null
   }
 
-  if (decl === "integer" || decl === "number") {
-    if (typeof value !== "number") {
-      return `field ${fieldName}: expected number, got ${typeof value}`
+  if (decl === "integer") {
+    // ALG-2: pre-fix only checked `typeof === "number"`, so 3.7, NaN, and
+    // Infinity all passed as "integer". Number.isInteger rejects all three
+    // (and non-numbers) in one check.
+    if (!Number.isInteger(value)) {
+      return `field ${fieldName}: expected integer, got ${JSON.stringify(value)}`
+    }
+    return null
+  }
+
+  if (decl === "number") {
+    // ALG-2: accept any finite number (floats OK) but reject NaN / Infinity,
+    // matching the finite-number-range FieldSpec path's rigor.
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return `field ${fieldName}: expected finite number, got ${JSON.stringify(value)}`
     }
     return null
   }

@@ -32,6 +32,12 @@ describe("worstPlanVerdict", () => {
     expect(worstPlanVerdict("reject", "approve")).toBe("reject")
     expect(worstPlanVerdict("revise", "approve")).toBe("revise")
   })
+  test("ALG-4: a malformed verdict fails safe to reject, not silent approve", () => {
+    // Pre-fix: PLAN_VERDICT_RANK[bogus]=undefined, undefined>=0 is false →
+    // worstPlanVerdict silently returned the OTHER verdict (approve).
+    expect(worstPlanVerdict("garbage" as never, "approve")).toBe("reject")
+    expect(worstPlanVerdict("approve", "garbage" as never)).toBe("reject")
+  })
 })
 
 describe("fusePlan verdict", () => {

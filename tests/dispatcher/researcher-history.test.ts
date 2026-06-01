@@ -8,6 +8,7 @@ import {
   preFilterSolutions,
   coerceLlmOutput,
   handleCoerceFailure,
+  walkSolutionsCorpus,
   type PriorArtCandidate,
 } from "../../src/dispatcher/agents/researcher-history"
 import { OutputShapeMismatch } from "../../src/dispatcher/validation"
@@ -270,6 +271,40 @@ describe("runPlan — researcher.history wiring (D-2.2)", () => {
     expect(r.level).toBe("L3")
     const intent = readIntent(r.taskId, tmp)
     expect(intent.body ?? "").toContain("Prior art (researcher.history)")
+  })
+})
+
+describe("walkSolutionsCorpus — CE-6 oversize warning (no silent drop)", () => {
+  let tmp: string
+  let errs: string[]
+  let origErr: typeof console.error
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), "sgc-corpus-"))
+    errs = []
+    origErr = console.error
+    console.error = (...a: unknown[]) => {
+      errs.push(a.map(String).join(" "))
+    }
+  })
+  afterEach(() => {
+    console.error = origErr
+    rmSync(tmp, { recursive: true, force: true })
+  })
+
+  test("warns and skips a solution that exceeds the 256KB cap (was silent)", async () => {
+    seedSolution(tmp, "runtime", "small", "---\nx: 1\n---\nfoobar keyword in body")
+    // >256KB file containing the keyword — must be skipped AND warned, not
+    // silently dropped (CE-6: unbounded surfaced_in/applied_in growth vanishes
+    // from recall with zero signal).
+    const big = "foobar keyword " + "z".repeat(300 * 1024)
+    seedSolution(tmp, "runtime", "huge", `---\nx: 1\n---\n${big}`)
+    const scans = await walkSolutionsCorpus(tmp, ["foobar"])
+    const slugs = scans.map((s) => s.slug)
+    expect(slugs).toContain("small")
+    expect(slugs).not.toContain("huge")
+    expect(
+      errs.some((e) => /huge/.test(e) && /256|cap|bytes/i.test(e)),
+    ).toBe(true)
   })
 })
 

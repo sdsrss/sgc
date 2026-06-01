@@ -194,6 +194,70 @@ describe("Invariant §13 Tier 1 — signal-interrupted spawns", () => {
     await Promise.all([pA, pB])
   })
 
+  test("STAB-2: drain SIGTERMs an in-flight claude-cli child via registered kill", async () => {
+    const events: EventRecord[] = []
+    const logger: Logger = {
+      say: () => {},
+      event: (partial) =>
+        events.push({
+          schema_version: 1,
+          ts: new Date().toISOString(),
+          ...partial,
+        }),
+    }
+    let killed = false
+    let resolveRunner: ((v: unknown) => void) | null = null
+    // Runner registers a kill callback via the onSpawn hook (3rd arg) and never
+    // resolves on its own — mirrors a child still running when the signal lands.
+    const runner = (
+      _argv: string[],
+      _timeoutMs: number,
+      onSpawn?: (kill: () => void) => void,
+    ): Promise<{
+      stdout: string
+      stderr: string
+      exitCode: number
+      timedOut: boolean
+    }> => {
+      onSpawn?.(() => {
+        killed = true
+      })
+      return new Promise((r) => {
+        resolveRunner = r as (v: unknown) => void
+      })
+    }
+    const p = spawn(
+      "classifier.level",
+      { user_request: "x" },
+      {
+        stateRoot: tmp,
+        mode: "claude-cli",
+        claudeCliRunner: runner,
+        logger,
+        llmMaxRetries: 0, // isolate the kill-wiring from STAB-6 retry
+        sleep: async () => {},
+      },
+    )
+    await new Promise<void>((r) => setTimeout(r, 10))
+    expect(__getOpenSpawnCount()).toBe(1)
+    expect(killed).toBe(false)
+    __drainOpenSpawnsForSignal("SIGTERM")
+    // Drain must invoke the registered kill → child receives SIGTERM, not orphaned.
+    expect(killed).toBe(true)
+    expect(__getOpenSpawnCount()).toBe(0)
+    // Resolve the runner (timed-out shape) so the spawn promise settles and the
+    // test runner doesn't leak a pending promise.
+    // Cast: TS narrows resolveRunner to its init type (null) because the only
+    // assignment is inside the runner closure — mirrors the resolveA/B pattern.
+    ;(resolveRunner as ((v: unknown) => void) | null)?.({
+      stdout: "",
+      stderr: "killed",
+      exitCode: -1,
+      timedOut: true,
+    })
+    await expect(p).rejects.toThrow()
+  })
+
   test("drain with no open spawns is a no-op", () => {
     const events: EventRecord[] = []
     const logger: Logger = {

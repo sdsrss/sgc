@@ -24,7 +24,19 @@ export interface JanitorCompoundInput {
   outcome: Outcome
   reviewer_flags: { severity: Severity; novel?: boolean }[]
   force: boolean
+  /**
+   * CE-5: total changed-line count for this task (additions+deletions). Used by
+   * the "carries reusable knowledge" gate — a tiny L2/L3 success with nothing
+   * reviewer-flagged is mechanical, not worth indexing. Undefined or 0 means
+   * "indeterminate" and is treated fail-safe (compound), preserving prior
+   * always-compound behavior for callers that don't compute it.
+   */
+  diff_lines?: number
 }
+
+/** CE-5: below this changed-line count, an L2/L3 success with no reviewer
+ * novelty is considered mechanical (no reusable knowledge to capture). */
+export const MIN_REUSABLE_DIFF_LINES = 20
 
 export type JanitorDecisionKind = "compound" | "skip" | "update_existing"
 
@@ -68,6 +80,23 @@ export function janitorCompound(input: JanitorCompoundInput): JanitorCompoundOut
     }
   }
   if ((input.level === "L2" || input.level === "L3") && input.outcome === "success") {
+    // CE-5: "carries reusable knowledge" gate. We already know !hasSevere here
+    // (that rule returned above), so the only remaining interesting signal is a
+    // reviewer novelty flag. A tiny diff with no novelty is mechanical work —
+    // skip it rather than pollute solutions/. diff_lines === 0 / undefined is
+    // indeterminate → fail-safe to compound (preserves prior behavior).
+    const novel = input.reviewer_flags.some((f) => f.novel)
+    const tinyDiff =
+      typeof input.diff_lines === "number" &&
+      input.diff_lines > 0 &&
+      input.diff_lines < MIN_REUSABLE_DIFF_LINES
+    if (tinyDiff && !novel) {
+      return {
+        decision: "skip",
+        reason_code: "L2_plus_success_low_signal",
+        reason_human: `${input.level} shipped but the diff is small (${input.diff_lines} lines) with no reviewer-flagged novelty — no reusable knowledge to index`,
+      }
+    }
     return {
       decision: "compound",
       reason_code: "L2_plus_success",

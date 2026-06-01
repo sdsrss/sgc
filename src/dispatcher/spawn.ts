@@ -29,6 +29,7 @@ import {
   ensureSgcStructure,
   parseFrontmatter,
   serializeFrontmatter,
+  writeAtomic,
 } from "./state"
 import { promptPath as getPromptPath, resultPath as getResultPath } from "./spawn-protocol"
 import { validateOutputShape } from "./validation"
@@ -43,15 +44,12 @@ import {
   type OpenRouterFetch,
 } from "./openrouter-agent"
 import type { ScopeToken, SubagentManifest } from "./types"
-import type { Logger } from "./logger"
+import type { Logger, LlmAgentContext } from "./logger"
 import { createLogger } from "./logger"
 
 // Re-export for callers that referenced OutputShapeMismatch from spawn.ts
 export { OutputShapeMismatch } from "./validation"
 
-// node:fs writeFileSync via state.ts internal helper would be cleaner;
-// for now duplicate atomic write for spawn-specific paths.
-import { mkdirSync, renameSync, writeFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -60,13 +58,6 @@ import { fileURLToPath } from "node:url"
 // broke when sgc was invoked from a non-repo-root directory (silent flake).
 const moduleDir = dirname(fileURLToPath(import.meta.url))
 const sgcRepoRoot = resolve(moduleDir, "..", "..")
-
-function writeAtomic(path: string, content: string): void {
-  mkdirSync(dirname(path), { recursive: true })
-  const tmp = `${path}.tmp.${process.pid}.${Date.now()}`
-  writeFileSync(tmp, content, "utf8")
-  renameSync(tmp, path)
-}
 
 /** Minimum timeout for any spawn (prevents instant-timeout from misconfigured manifests). */
 export const MIN_TIMEOUT_MS = 30_000 // 30 seconds
@@ -84,6 +75,73 @@ export class SpawnTimeout extends Error {
     super(`spawn ${spawnId} timed out waiting for result after ${timeoutMs}ms`)
     this.name = "SpawnTimeout"
   }
+}
+
+// ── STAB-6: bounded exponential-backoff retry for transient failures ─────────
+//
+// Both file-poll (SpawnTimeout) and the three LLM modes (claude-cli /
+// anthropic-sdk / openrouter) can hit transient failures — a poll that times
+// out under load, a 429 rate-limit, a 503/529 overload, an aborted long fetch.
+// Previously only file-poll retried (inline loop); the LLM branches threw on
+// the first transient error. This shared helper unifies the backoff so a
+// transient LLM error is retried with the same 2^attempt-seconds ±20%-jitter
+// schedule the file-poll path already used.
+
+const defaultSleep = (ms: number): Promise<void> =>
+  new Promise((r) => setTimeout(r, ms))
+
+export interface RetryOptions {
+  /** Number of retries AFTER the initial attempt (so total tries = maxRetries + 1). */
+  maxRetries: number
+  /** Predicate: is this error worth retrying? Non-retryable errors rethrow immediately. */
+  isRetryable: (e: unknown) => boolean
+  sleep?: (ms: number) => Promise<void>
+  rng?: () => number
+  /** Base backoff in ms (delay for attempt N = 2^N * baseDelayMs ± 20% jitter, floored at 100ms). */
+  baseDelayMs?: number
+}
+
+export async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  opts: RetryOptions,
+): Promise<T> {
+  const sleep = opts.sleep ?? defaultSleep
+  const rng = opts.rng ?? Math.random
+  const base = opts.baseDelayMs ?? 1000
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn()
+    } catch (e) {
+      if (attempt < opts.maxRetries && opts.isRetryable(e)) {
+        const baseMs = Math.pow(2, attempt) * base
+        const jitter = baseMs * 0.2 * (2 * rng() - 1)
+        await sleep(Math.max(100, baseMs + jitter))
+        continue
+      }
+      throw e
+    }
+  }
+}
+
+/**
+ * STAB-6: classify an LLM-mode error as transient (worth retrying) vs fatal.
+ * Transient: HTTP 408/409/429/5xx (OpenRouterError / AnthropicSdkError carry
+ * `.status`), or an abort/timeout (claude-cli "exceeded Nms", openrouter
+ * "timed out", a raw AbortError). Everything else (400/404, parse errors,
+ * shape mismatches, auth failures) is fatal — retrying would only waste tokens.
+ */
+export function isTransientLlmError(e: unknown): boolean {
+  const status = (e as { status?: unknown } | null | undefined)?.status
+  if (typeof status === "number") {
+    if (status === 408 || status === 409 || status === 429 || status >= 500) {
+      return true
+    }
+    return false
+  }
+  const name = (e as { name?: unknown } | null | undefined)?.name
+  if (name === "AbortError") return true
+  const msg = e instanceof Error ? e.message : ""
+  return /\b(timed out|exceeded \d+\s*ms|aborted)\b/i.test(msg)
 }
 
 // ── Invariant §13 Tier 1 — SIGINT/SIGTERM drain registry ───────────────────
@@ -107,6 +165,8 @@ interface OpenSpawnEntry {
   taskId: string | null
   startTs: number
   logger: Logger
+  /** STAB-2: child-kill / fetch-abort handle, set lazily once the LLM agent starts. */
+  abort?: () => void
 }
 
 const openSpawns = new Map<string, OpenSpawnEntry>()
@@ -145,6 +205,15 @@ function deregisterOpenSpawn(spawnId: string): void {
 
 function drainOpenSpawnsForSignal(signal: string): void {
   for (const [spawnId, e] of openSpawns) {
+    // STAB-2: reap the in-flight child / cancel the fetch BEFORE synthesizing
+    // the close event, so the process doesn't orphan a claude-cli subprocess
+    // (SIGTERM to the parent pid does not propagate to children) or leave a
+    // socket dangling. Best-effort — must never block the shutdown drain.
+    try {
+      e.abort?.()
+    } catch {
+      // abort handle threw (child already gone, etc.) — keep draining.
+    }
     try {
       e.logger.event({
         task_id: e.taskId,
@@ -279,6 +348,16 @@ export interface SpawnOptions {
   hasClaudeCli?: () => boolean  // test hook for resolveMode auto-detect
   /** Max retry attempts for file-poll mode on SpawnTimeout. Default 0 (no retry). */
   maxRetries?: number
+  /**
+   * STAB-6: max retry attempts for LLM modes (claude-cli / anthropic-sdk /
+   * openrouter) on transient errors (429 / 408 / 409 / 5xx / abort-timeout).
+   * Default 2. Set 0 to disable.
+   */
+  llmMaxRetries?: number
+  /** Test hook: injectable backoff sleep (default real setTimeout). */
+  sleep?: (ms: number) => Promise<void>
+  /** Test hook: injectable RNG for jitter (default Math.random). */
+  rng?: () => number
   /**
    * Test-only fault injection — if set, throw this error after writing
    * the prompt file but before producing the result. Used by Invariant §10
@@ -645,6 +724,26 @@ export async function spawn<I = unknown, O = unknown>(
     }
 
     let output: unknown
+    // STAB-6: LLM modes retry transient failures (429 / 5xx / abort-timeout)
+    // with bounded exponential backoff. Default 2 retries; opt out with 0.
+    const llmRetry = {
+      maxRetries: opts.llmMaxRetries ?? 2,
+      isRetryable: isTransientLlmError,
+      sleep: opts.sleep,
+      rng: opts.rng,
+    }
+    // STAB-2: shared LLM context — registerAbort stores the child-kill / fetch-
+    // abort handle in this spawn's registry entry so a signal drain can reap it.
+    const llmCtx: LlmAgentContext = {
+      spawnId,
+      taskId: opts.taskId ?? null,
+      agentName,
+      logger,
+      registerAbort: (abort) => {
+        const e = openSpawns.get(spawnId)
+        if (e) e.abort = abort
+      },
+    }
     if (mode === "inline" && opts.inlineStub) {
       output = await opts.inlineStub(input)
       writeAtomic(
@@ -652,59 +751,47 @@ export async function spawn<I = unknown, O = unknown>(
         serializeFrontmatter(output as Record<string, unknown>, ""),
       )
     } else if (mode === "claude-cli") {
-      output = await runClaudeCliAgent(
-        promptPath,
-        manifest,
-        opts.claudeCliRunner,
-        { spawnId, taskId: opts.taskId ?? null, agentName, logger },
+      output = await retryWithBackoff(
+        () => runClaudeCliAgent(promptPath, manifest, opts.claudeCliRunner, llmCtx),
+        llmRetry,
       )
       writeAtomic(
         resultPath,
         serializeFrontmatter(output as Record<string, unknown>, ""),
       )
     } else if (mode === "anthropic-sdk") {
-      output = await runAnthropicSdkAgent(
-        promptPath,
-        manifest,
-        opts.anthropicClientFactory,
-        { spawnId, taskId: opts.taskId ?? null, agentName, logger },
+      output = await retryWithBackoff(
+        () =>
+          runAnthropicSdkAgent(promptPath, manifest, opts.anthropicClientFactory, llmCtx),
+        llmRetry,
       )
       writeAtomic(
         resultPath,
         serializeFrontmatter(output as Record<string, unknown>, ""),
       )
     } else if (mode === "openrouter") {
-      output = await runOpenRouterAgent(
-        promptPath,
-        manifest,
-        opts.openRouterFetch,
-        { spawnId, taskId: opts.taskId ?? null, agentName, logger },
+      output = await retryWithBackoff(
+        () => runOpenRouterAgent(promptPath, manifest, opts.openRouterFetch, llmCtx),
+        llmRetry,
       )
       writeAtomic(
         resultPath,
         serializeFrontmatter(output as Record<string, unknown>, ""),
       )
     } else {
-      // file-poll with timeout clamp + optional retry
+      // file-poll with timeout clamp + optional retry (shared backoff helper).
       const rawTimeoutMs = opts.timeoutMs ?? (manifest.timeout_s ?? 60) * 1000
       const timeoutMs = clampTimeout(rawTimeoutMs)
-      const maxRetries = opts.maxRetries ?? 0
-
-      for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        try {
-          output = await pollForResult(resultPath, timeoutMs, opts.pollIntervalMs ?? 1000)
-          break
-        } catch (e) {
-          if (e instanceof SpawnTimeout && attempt < maxRetries) {
-            // Exponential backoff: 2^attempt seconds with ±20% jitter
-            const baseMs = Math.pow(2, attempt) * 1000
-            const jitter = baseMs * 0.2 * (2 * Math.random() - 1)
-            await new Promise((r) => setTimeout(r, Math.max(100, baseMs + jitter)))
-            continue
-          }
-          throw e
-        }
-      }
+      output = await retryWithBackoff(
+        () =>
+          pollForResult(resultPath, timeoutMs, opts.pollIntervalMs ?? 1000),
+        {
+          maxRetries: opts.maxRetries ?? 0,
+          isRetryable: (e) => e instanceof SpawnTimeout,
+          sleep: opts.sleep,
+          rng: opts.rng,
+        },
+      )
     }
 
     validateOutputShape(manifest, output)

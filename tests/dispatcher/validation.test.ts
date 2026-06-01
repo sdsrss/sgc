@@ -2,8 +2,58 @@ import { describe, expect, test } from "bun:test"
 import {
   OutputShapeMismatch,
   composeArrayObjectValidator,
+  validateValueAgainstDecl,
+  validateOutputShape,
   type ArrayObjectShape,
 } from "../../src/dispatcher/validation"
+import type { SubagentManifest } from "../../src/dispatcher/types"
+
+describe("validateValueAgainstDecl — ALG-2 numeric + enum rigor", () => {
+  test("integer rejects a float (3.7)", () => {
+    expect(validateValueAgainstDecl(3.7, "integer", "n")).not.toBeNull()
+  })
+  test("integer rejects NaN and Infinity", () => {
+    expect(validateValueAgainstDecl(Number.NaN, "integer", "n")).not.toBeNull()
+    expect(validateValueAgainstDecl(Number.POSITIVE_INFINITY, "integer", "n")).not.toBeNull()
+  })
+  test("integer accepts a whole number", () => {
+    expect(validateValueAgainstDecl(5, "integer", "n")).toBeNull()
+  })
+  test("number rejects NaN / Infinity but accepts a float", () => {
+    expect(validateValueAgainstDecl(Number.NaN, "number", "n")).not.toBeNull()
+    expect(validateValueAgainstDecl(Number.NEGATIVE_INFINITY, "number", "n")).not.toBeNull()
+    expect(validateValueAgainstDecl(3.7, "number", "n")).toBeNull()
+  })
+  test("enum[] (no values) rejects any value instead of accepting everything", () => {
+    expect(validateValueAgainstDecl("anything", "enum[]", "e")).not.toBeNull()
+  })
+  test("enum[a, b] enforces membership", () => {
+    expect(validateValueAgainstDecl("a", "enum[a, b]", "e")).toBeNull()
+    expect(validateValueAgainstDecl("c", "enum[a, b]", "e")).not.toBeNull()
+  })
+})
+
+describe("validateOutputShape — ALG-2 §9 enforcer coverage", () => {
+  const mf = (outputs: Record<string, unknown>): SubagentManifest =>
+    ({ name: "test.agent", version: "1", scope_tokens: [], outputs }) as SubagentManifest
+
+  test("rejects a missing declared field", () => {
+    expect(() => validateOutputShape(mf({ a: "string" }), {})).toThrow(OutputShapeMismatch)
+  })
+  test("rejects an undeclared extra field", () => {
+    expect(() => validateOutputShape(mf({ a: "string" }), { a: "x", b: 1 })).toThrow(
+      OutputShapeMismatch,
+    )
+  })
+  test("rejects a float for an integer-declared field", () => {
+    expect(() => validateOutputShape(mf({ n: "integer" }), { n: 3.7 })).toThrow(
+      OutputShapeMismatch,
+    )
+  })
+  test("accepts a well-formed result", () => {
+    expect(() => validateOutputShape(mf({ a: "string", n: "integer" }), { a: "x", n: 2 })).not.toThrow()
+  })
+})
 
 // Test fixture builder — minimal shape with one of each FieldSpec kind so
 // each test can override one field without rebuilding the whole shape.

@@ -138,7 +138,16 @@ export async function walkSolutionsCorpus(
         // CE-1.1 L1.e: stat first, skip oversize files before allocating
         // a multi-MB string for keyword scan / NFC normalize.
         const st = await stat(filePath)
-        if (st.size > MAX_SOLUTION_FILE_BYTES) continue
+        if (st.size > MAX_SOLUTION_FILE_BYTES) {
+          // CE-6: don't silently drop. An oversize solution (unbounded
+          // surfaced_in/applied_in array growth) disappears from the corpus
+          // walk with zero signal — recall silently degrades. Warn so the
+          // operator can rotate/trim it.
+          console.error(
+            `[sgc] solution ${cat}/${file} is ${st.size} bytes (> ${MAX_SOLUTION_FILE_BYTES} cap) — skipped from corpus walk; rotate or trim it to restore reuse.`,
+          )
+          continue
+        }
         raw = await readFile(filePath, "utf8")
       } catch {
         continue

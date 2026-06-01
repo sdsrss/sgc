@@ -54,6 +54,13 @@ export interface LlmAgentContext {
   taskId: string | null
   agentName: string
   logger: Logger
+  /**
+   * STAB-2: register an abort/kill handle for the in-flight work (a child
+   * process kill for claude-cli, an AbortController.abort() for the fetch-based
+   * modes). spawn.ts stores it in the open-spawn registry so a SIGINT/SIGTERM
+   * drain can reap the child instead of orphaning it. No-op if unset.
+   */
+  registerAbort?: (abort: () => void) => void
 }
 
 function defaultNdjsonSink(stateRoot: string): (e: EventRecord) => void {

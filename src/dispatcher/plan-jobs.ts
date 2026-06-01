@@ -25,6 +25,7 @@ import {
   parseFrontmatter,
   resolveStateRoot,
   serializeFrontmatter,
+  writeAtomic,
 } from "./state"
 import { createLogger, type Logger } from "./logger"
 import { acquireFileLock, LockHeldError } from "./file-lock"
@@ -173,7 +174,9 @@ function writeJob(path: string, job: PlanJob): void {
     job as unknown as Record<string, unknown>,
     "",
   )
-  writeFileSync(path, content, "utf8")
+  // STAB-5: atomic write — a concurrent stale-probe / reader must never observe
+  // a torn job file (partial frontmatter → MalformedJob parse error).
+  writeAtomic(path, content)
 }
 
 /** Raw listing — no stale probe. Used internally to avoid recursion

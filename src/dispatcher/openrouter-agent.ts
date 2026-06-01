@@ -93,6 +93,9 @@ export async function runOpenRouterAgent(
   const doFetch = fetchFn ?? globalThis.fetch
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
+  // STAB-2: let a signal drain cancel this in-flight fetch instead of leaving
+  // the socket dangling until process teardown.
+  ctx?.registerAbort?.(() => controller.abort())
 
   const startTs = Date.now()
   let outcome: LlmResponsePayload["outcome"] = "error"

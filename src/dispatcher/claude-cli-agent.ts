@@ -38,7 +38,14 @@ export class ClaudeCliError extends Error {
 }
 
 export interface SubprocessRunner {
-  (argv: string[], timeoutMs: number): Promise<{
+  (
+    argv: string[],
+    timeoutMs: number,
+    // STAB-2: invoked once the child is live with a kill callback; the caller
+    // registers it so a SIGINT/SIGTERM drain can reap the child. Optional —
+    // 2-arg runners (most test fakes) remain valid.
+    onSpawn?: (kill: () => void) => void,
+  ): Promise<{
     stdout: string
     stderr: string
     exitCode: number
@@ -47,7 +54,7 @@ export interface SubprocessRunner {
 }
 
 /** Default runner: Bun.spawn. Split out so tests can inject a fake. */
-export const defaultRunner: SubprocessRunner = async (argv, timeoutMs) => {
+export const defaultRunner: SubprocessRunner = async (argv, timeoutMs, onSpawn) => {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   let timedOut = false
@@ -56,6 +63,15 @@ export const defaultRunner: SubprocessRunner = async (argv, timeoutMs) => {
       stdout: "pipe",
       stderr: "pipe",
       signal: controller.signal,
+    })
+    // STAB-2: expose a kill handle so a signal drain can SIGTERM this child
+    // rather than orphaning it. Bun's proc.kill() defaults to SIGTERM.
+    onSpawn?.(() => {
+      try {
+        proc.kill()
+      } catch {
+        // already exited / not killable — nothing to reap.
+      }
     })
     const [stdout, stderr, exitCode] = await Promise.all([
       new Response(proc.stdout).text(),
@@ -163,7 +179,12 @@ export async function runClaudeCliAgent(
     })
   }
 
-  const { stdout, stderr, exitCode, timedOut } = await runner(argv, timeoutMs)
+  const { stdout, stderr, exitCode, timedOut } = await runner(
+    argv,
+    timeoutMs,
+    // STAB-2: register the child kill so a signal drain can reap it.
+    (kill) => ctx?.registerAbort?.(kill),
+  )
 
   if (timedOut) {
     outcome = "timeout"

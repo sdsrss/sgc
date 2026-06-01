@@ -27,8 +27,10 @@ import {
   readFileSync,
   readdirSync,
   renameSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs"
+import { randomBytes } from "node:crypto"
 import { dirname, resolve } from "node:path"
 import { dump as yamlDump, load as yamlLoad } from "js-yaml"
 import { PLAN_VERDICTS } from "./types"
@@ -119,11 +121,29 @@ export function serializeFrontmatter(
   return `---\n${yaml}\n---\n\n${trimmedBody}`
 }
 
+// Monotonic per-process counter — guarantees distinct tmp names even for two
+// writeAtomic calls landing in the same millisecond on the same pid.
+let atomicWriteSeq = 0
+
 export function writeAtomic(path: string, content: string): void {
   mkdirSync(dirname(path), { recursive: true })
-  const tmp = `${path}.tmp.${process.pid}.${Date.now()}`
+  // STAB-4: pid+Date.now() alone collides on same-ms writes and (across pid
+  // recycling) on stale tmp names. Append a monotonic counter + random suffix
+  // so every tmp path is unique.
+  const tmp = `${path}.tmp.${process.pid}.${Date.now()}.${atomicWriteSeq++}.${randomBytes(4).toString("hex")}`
   writeFileSync(tmp, content, "utf8")
-  renameSync(tmp, path)
+  try {
+    renameSync(tmp, path)
+  } catch (err) {
+    // STAB-4: renameSync failed (EISDIR / EXDEV / EPERM …) — the tmp file would
+    // otherwise leak as residue. Best-effort unlink, then rethrow the original.
+    try {
+      unlinkSync(tmp)
+    } catch {
+      // tmp already gone or unremovable — nothing more to do.
+    }
+    throw err
+  }
 }
 
 // Decisions: intent.md ───────────────────────────────────────────────────────

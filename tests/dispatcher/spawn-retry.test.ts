@@ -8,6 +8,8 @@ import {
   MAX_TIMEOUT_MS,
   SpawnTimeout,
   spawn,
+  retryWithBackoff,
+  isTransientLlmError,
 } from "../../src/dispatcher/spawn"
 
 let tmp: string
@@ -94,4 +96,146 @@ describe("spawn retry on file-poll timeout", () => {
       expect(e).toBeInstanceOf(SpawnTimeout)
     }
   }, 40_000)
+})
+
+describe("retryWithBackoff (STAB-6)", () => {
+  const noSleep = async () => {}
+
+  test("retries retryable errors until success", async () => {
+    let n = 0
+    const result = await retryWithBackoff(
+      async () => {
+        n++
+        if (n < 3) throw new Error("transient")
+        return "ok"
+      },
+      { maxRetries: 3, isRetryable: () => true, sleep: noSleep },
+    )
+    expect(result).toBe("ok")
+    expect(n).toBe(3) // 2 failures + 1 success
+  })
+
+  test("does not retry a non-retryable error (single attempt)", async () => {
+    let n = 0
+    await expect(
+      retryWithBackoff(
+        async () => {
+          n++
+          throw new Error("fatal")
+        },
+        { maxRetries: 3, isRetryable: () => false, sleep: noSleep },
+      ),
+    ).rejects.toThrow("fatal")
+    expect(n).toBe(1)
+  })
+
+  test("exhausts maxRetries then rethrows last error", async () => {
+    let n = 0
+    await expect(
+      retryWithBackoff(
+        async () => {
+          n++
+          throw new Error("always")
+        },
+        { maxRetries: 2, isRetryable: () => true, sleep: noSleep },
+      ),
+    ).rejects.toThrow("always")
+    expect(n).toBe(3) // 1 initial + 2 retries
+  })
+
+  test("backoff schedule is exponential (rng=0.5 → zero jitter)", async () => {
+    const delays: number[] = []
+    await expect(
+      retryWithBackoff(
+        async () => {
+          throw new Error("x")
+        },
+        {
+          maxRetries: 3,
+          isRetryable: () => true,
+          sleep: async (ms) => {
+            delays.push(ms)
+          },
+          rng: () => 0.5, // jitter = base*0.2*(2*0.5-1) = 0
+        },
+      ),
+    ).rejects.toThrow("x")
+    expect(delays).toEqual([1000, 2000, 4000]) // 2^0, 2^1, 2^2 seconds
+  })
+})
+
+describe("isTransientLlmError (STAB-6)", () => {
+  test("HTTP 408 / 409 / 429 / 5xx are transient", () => {
+    for (const status of [408, 409, 429, 500, 502, 503, 504, 529]) {
+      expect(isTransientLlmError({ status })).toBe(true)
+    }
+  })
+
+  test("HTTP 4xx other than 408/409/429 are fatal", () => {
+    for (const status of [400, 401, 403, 404, 422]) {
+      expect(isTransientLlmError({ status })).toBe(false)
+    }
+  })
+
+  test("AbortError (by name) is transient", () => {
+    const e = new Error("The operation was aborted")
+    e.name = "AbortError"
+    expect(isTransientLlmError(e)).toBe(true)
+  })
+
+  test("timeout/abort messages are transient (no status)", () => {
+    expect(
+      isTransientLlmError(new Error("OpenRouter request timed out after 30000ms")),
+    ).toBe(true)
+    expect(
+      isTransientLlmError(new Error("claude CLI exceeded 30000ms for x")),
+    ).toBe(true)
+    expect(isTransientLlmError(new Error("request was aborted"))).toBe(true)
+  })
+
+  test("ordinary errors and non-errors are fatal", () => {
+    expect(isTransientLlmError(new Error("bad request shape"))).toBe(false)
+    expect(isTransientLlmError(null)).toBe(false)
+    expect(isTransientLlmError(undefined)).toBe(false)
+    expect(isTransientLlmError("a string")).toBe(false)
+  })
+})
+
+describe("spawn LLM-mode retry wiring (STAB-6)", () => {
+  test("claude-cli transient timeout retries llmMaxRetries times then throws", async () => {
+    let calls = 0
+    const runner = async () => {
+      calls++
+      // timedOut:true → runClaudeCliAgent throws ClaudeCliError "exceeded Nms"
+      return { stdout: "", stderr: "timeout", exitCode: -1, timedOut: true }
+    }
+    await expect(
+      spawn("classifier.level", { user_request: "x" }, {
+        stateRoot: tmp,
+        mode: "claude-cli",
+        claudeCliRunner: runner,
+        llmMaxRetries: 2,
+        sleep: async () => {},
+      }),
+    ).rejects.toThrow(/exceeded \d+\s*ms/)
+    expect(calls).toBe(3) // 1 initial + 2 retries
+  })
+
+  test("claude-cli fatal error (non-zero exit) does NOT retry", async () => {
+    let calls = 0
+    const runner = async () => {
+      calls++
+      return { stdout: "", stderr: "boom", exitCode: 1, timedOut: false }
+    }
+    await expect(
+      spawn("classifier.level", { user_request: "x" }, {
+        stateRoot: tmp,
+        mode: "claude-cli",
+        claudeCliRunner: runner,
+        llmMaxRetries: 2,
+        sleep: async () => {},
+      }),
+    ).rejects.toThrow(/exit 1/)
+    expect(calls).toBe(1) // no retry on fatal
+  })
 })

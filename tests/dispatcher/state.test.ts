@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { mkdtempSync, rmSync } from "node:fs"
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
@@ -12,6 +18,7 @@ import {
   readIntent,
   readReview,
   serializeFrontmatter,
+  writeAtomic,
   writeCurrentTask,
   writeFeatureList,
   writeIntent,
@@ -273,5 +280,41 @@ describe("reviews — append-only per (task, stage, reviewer)", () => {
         tmp,
       ),
     ).not.toThrow()
+  })
+})
+
+describe("writeAtomic (STAB-4: tmp cleanup + collision-safe naming)", () => {
+  let tmp: string
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), "sgc-atomic-"))
+  })
+  afterEach(() => {
+    rmSync(tmp, { recursive: true, force: true })
+  })
+
+  test("writes content atomically and leaves no tmp residue", () => {
+    const target = join(tmp, "ok.txt")
+    writeAtomic(target, "hello")
+    expect(readFileSync(target, "utf8")).toBe("hello")
+    expect(readdirSync(tmp).filter((f) => f.includes(".tmp."))).toEqual([])
+  })
+
+  test("cleans up tmp file when rename fails (target is a directory)", () => {
+    // renameSync(file, existingDir) throws EISDIR; tmp must not leak.
+    const target = join(tmp, "collide")
+    mkdirSync(target)
+    expect(() => writeAtomic(target, "content")).toThrow()
+    const residue = readdirSync(tmp).filter((f) => f.includes(".tmp."))
+    expect(residue).toEqual([])
+  })
+
+  test("two successive writes to same path do not collide on tmp name", () => {
+    // Pre-fix tmp name was `${path}.tmp.${pid}.${Date.now()}` — two writes in
+    // the same millisecond produced the same tmp path. Successive writes must
+    // each land cleanly with the latest content and no residue.
+    const target = join(tmp, "rapid.txt")
+    for (let i = 0; i < 50; i++) writeAtomic(target, `v${i}`)
+    expect(readFileSync(target, "utf8")).toBe("v49")
+    expect(readdirSync(tmp).filter((f) => f.includes(".tmp."))).toEqual([])
   })
 })

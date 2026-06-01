@@ -114,6 +114,26 @@ describe("compound agent stubs", () => {
     expect(r.what_didnt_work.length).toBe(1)
     expect(r.what_didnt_work[0]?.approach).toContain("unhandled null")
   })
+  test("CE-5: heuristic solution does NOT emit the banned 'see the diff' shape", () => {
+    // prompts/compound-solution.md anti-pattern #1 explicitly bans
+    // "the change shipped; see the diff and reviewers". The inline/no-key
+    // heuristic must align — emit no diff-pointer / review-pointer boilerplate.
+    const r = compoundSolutionHeuristic({
+      context: {
+        category: "runtime",
+        tags: [],
+        problem_summary: "race in writeAtomic tmp naming",
+        symptoms: ["torn job file", "MalformedJob on concurrent read"],
+      },
+      reviews: [],
+    })
+    expect(r.solution).not.toMatch(/see the diff/i)
+    expect(r.solution).not.toMatch(/review reports/i)
+    expect(r.solution).not.toMatch(/resolved by the committed change/i)
+    // Still carries the honest structured signal it does have.
+    expect(r.solution).toContain("race in writeAtomic tmp naming")
+    expect(r.solution).toContain("torn job file")
+  })
   test("compoundRelated: emits dedup_stamp even when empty", () => {
     const r = compoundRelated({
       context: { category: "runtime", tags: ["a"], problem_summary: "x", symptoms: [] },

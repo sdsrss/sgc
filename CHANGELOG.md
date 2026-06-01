@@ -1,5 +1,86 @@
 # Changelog
 
+## v1.23.0 — 2026-06-01 — fix: production-readiness audit P1 (stability, correctness, knowledge-loop quality)
+
+The P1 follow-up to v1.22.0's P0 batch (`docs/PRODUCTION-READINESS-AUDIT.md` §8).
+Closes the remaining stability/correctness/knowledge-honesty gaps — all sitting
+in test blind-spots, none visible on a green suite. **Mostly behavior
+corrections + hardening; two intentional behavior changes are called out below
+(STAB-6 LLM retry, CE-5 janitor gate). No API removed, no config or state-file
+format changed — no migration required.** Dispatcher suite 1009 → 1034 (+25 tests).
+
+### What changed
+
+**STAB-4 — `writeAtomic` tmp-name collision + failure leak** (`state.ts`, `spawn.ts`, `agent-loop.ts`)
+
+- Tmp name was `${path}.tmp.${pid}.${Date.now()}` — two writes in the same
+  millisecond collided, and a failed `renameSync` leaked the tmp file as
+  residue. Now appends a monotonic counter + `crypto.randomBytes` suffix and
+  unlinks the tmp in a `try/finally` on rename failure. The **3 duplicate
+  copies** (state/spawn/agent-loop) are unified onto the one canonical helper.
+
+**STAB-5 — non-atomic state writes** (`plan-jobs.ts`, `loop.ts`)
+
+- `plan-jobs` `writeJob` and `loop` `writeRun` used bare `writeFileSync`; a
+  concurrent stale-probe / `--resume` read could observe a torn file
+  (`MalformedJob` / `MalformedRunFile`). Both now route through `writeAtomic`.
+
+**STAB-6 — LLM modes never retried transient failures** *(behavior change)* (`spawn.ts`)
+
+- The claude-cli / anthropic-sdk / openrouter branches threw on the first
+  429 / 5xx / abort-timeout. New shared `retryWithBackoff` (the file-poll path
+  is refactored onto it too) + `isTransientLlmError` (408/409/429/5xx + abort
+  retryable; 4xx/parse/auth fatal) give bounded exponential backoff. Default 2
+  retries; set `llmMaxRetries: 0` to opt out.
+
+**STAB-2 — signal drain orphaned child processes** (`spawn.ts`, `logger.ts`, `claude-cli-agent.ts`, `openrouter-agent.ts`, `anthropic-sdk-agent.ts`)
+
+- The SIGINT/SIGTERM drain emitted the synthetic `spawn.end` but never reaped
+  the in-flight work — a claude-cli child could orphan (a bare SIGTERM to the
+  parent pid doesn't propagate). The registry entry now carries an `abort`
+  handle (new `LlmAgentContext.registerAbort`): claude-cli registers a child
+  kill via a new optional `SubprocessRunner.onSpawn` hook; openrouter/anthropic
+  register `AbortController.abort()`. Drain invokes it before the close event.
+- **STAB-3** (exit truncates in-flight writes) was verified a non-issue: all
+  state I/O is synchronous, so a signal handler (which runs between ticks, never
+  mid-syscall) has no async write window to truncate. No change.
+
+**ALG-2 — output-shape validation gaps** (`validation.ts`)
+
+- `integer` accepted floats/NaN/Inf; `number` accepted NaN/Inf; an empty
+  `enum[]` declaration silently passed. Now `Number.isInteger` / `Number.isFinite`
+  and a fail-loud empty-enum. Closes the audit's single largest coverage gap.
+
+**ALG-4 — `worstPlanVerdict` silently passed malformed verdicts** (`fuse-plan.ts`)
+
+- An unknown verdict string returned the other side instead of failing safe.
+  New `normVerdict` coerces unknown → `reject` (fail-safe).
+
+**ALG-5 — classifier over-/under-classification** (`classifier-level.ts`)
+
+- Added a `STRONG_L0` short-circuit (unambiguous trivial edits beat incidental
+  L2/L3 keywords) and tightened L0 keywords (`formatting`/`reformat` not bare
+  `format`). Also fixes the inverse: "add a helper function to format dates" no
+  longer misreads as L0. First test coverage for this module.
+
+**CE-5 — janitor over-captures + heuristic emitted banned boilerplate** *(behavior change)* (`agents/janitor-compound.ts`, `agents/compound.ts`, `ship.ts`)
+
+- The no-LLM `compoundSolutionHeuristic` emitted exactly the `"…see the diff and
+  review reports…"` shape that `prompts/compound-solution.md` bans — now
+  captures problem + observed symptoms and flags itself un-enriched.
+- The janitor compounded **every** L2/L3 success. New "reusable knowledge" gate
+  (`diff_lines` + `MIN_REUSABLE_DIFF_LINES=20`): a small L2/L3 diff with no
+  reviewer-flagged novelty now skips — finally aligning the code with the
+  long-documented "diff < 20 lines AND no novel → skip" rule. Fail-safe: an
+  unknown/0 line count compounds (preserves prior behavior; `ship.ts` computes
+  it best-effort from `git diff --numstat HEAD`).
+
+**CE-6 — oversize solutions silently dropped from recall** (`agents/researcher-history.ts`)
+
+- A solution exceeding the 256 KB read cap was `continue`d silently, vanishing
+  from the corpus walk with zero signal. Now warns to stderr so the operator
+  can rotate/trim it.
+
 ## v1.22.0 — 2026-06-01 — fix: production-readiness audit P0 (dedup, reuse-metric honesty, prompt-injection, fork race)
 
 A full production-readiness audit (`docs/PRODUCTION-READINESS-AUDIT.md`)

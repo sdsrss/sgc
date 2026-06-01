@@ -34,6 +34,7 @@ import {
   listReviewsForStage,
 } from "../dispatcher/state"
 import { createHash } from "node:crypto"
+import { execSync } from "node:child_process"
 import { existsSync } from "node:fs"
 import {
   defaultGhRunner,
@@ -79,6 +80,12 @@ export interface ShipOptions {
   runJanitor?: boolean
   /** Pass --force to janitor (bypass decision_rules into always-compound). */
   forceCompound?: boolean
+  /**
+   * CE-5: test hook for the janitor "reusable knowledge" gate's changed-line
+   * signal. Prod computes it from `git diff --numstat HEAD` (best-effort,
+   * undefined on any failure → fail-safe to compound).
+   */
+  diffLineCount?: () => number | undefined
   log?: (msg: string) => void
   logger?: Logger
 }
@@ -93,6 +100,31 @@ export interface ShipResult {
 
 function nowIso(): string {
   return new Date().toISOString()
+}
+
+/**
+ * CE-5: best-effort changed-line count (additions+deletions) for the janitor
+ * "reusable knowledge" gate. Uses uncommitted working-tree changes vs HEAD —
+ * for sgc's main-direct flow the task's edits are typically still unstaged at
+ * `sgc ship` time. Any failure (not a git repo, git absent, committed work →
+ * empty) returns undefined, which the gate treats fail-safe as "compound".
+ */
+function gitDiffLineCount(cwd?: string): number | undefined {
+  try {
+    const out = execSync("git diff --numstat HEAD", {
+      encoding: "utf8",
+      cwd,
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+    let total = 0
+    for (const line of out.split("\n")) {
+      const m = line.match(/^(\d+)\t(\d+)\t/)
+      if (m) total += Number(m[1]) + Number(m[2])
+    }
+    return total
+  } catch {
+    return undefined
+  }
 }
 
 async function readLineFromStdin(): Promise<string> {
@@ -313,6 +345,8 @@ export async function runShip(opts: ShipOptions = {}): Promise<ShipResult> {
         novel: undefined,
       })),
       force: opts.forceCompound ?? false,
+      // CE-5: feed the changed-line signal to the reusable-knowledge gate.
+      diff_lines: (opts.diffLineCount ?? gitDiffLineCount)(),
     }
     const jRes = await spawn<unknown, JanitorCompoundOutput>(
       "janitor.compound",

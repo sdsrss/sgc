@@ -99,9 +99,18 @@ export function compoundSolutionHeuristic(
       }
     }
   }
+  // CE-5: the LLM prompt (prompts/compound-solution.md anti-pattern #1) bans
+  // the "see the diff and reviewers" pointer shape — it teaches nothing. The
+  // no-LLM heuristic can't synthesize a teaching solution, so it captures only
+  // the honest structured signal it actually has (problem + observed symptoms)
+  // and flags itself as un-enriched, rather than emitting the banned boilerplate.
+  const symptomsPart =
+    input.context.symptoms.length > 0
+      ? ` Observed symptoms: ${input.context.symptoms.join("; ")}.`
+      : ""
   const solution =
-    `${input.context.problem_summary} — resolved by the committed change; ` +
-    `see the diff and review reports for the implementation details.`
+    `${input.context.problem_summary}${symptomsPart}` +
+    ` (Heuristic capture — no LLM synthesis available; enrich for a teaching-quality solution.)`
   return { solution, what_didnt_work: wdw }
 }
 

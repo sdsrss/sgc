@@ -13,8 +13,7 @@
 // atomically after validating against the manifest's outputs schema
 // (Invariant §9).
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
-import { dirname } from "node:path"
+import { existsSync, readFileSync } from "node:fs"
 import { load as yamlLoad } from "js-yaml"
 import { getSubagentManifest } from "../dispatcher/schema"
 import {
@@ -24,7 +23,7 @@ import {
   promptPath as promptPathOf,
   resultPath as resultPathOf,
 } from "../dispatcher/spawn-protocol"
-import { serializeFrontmatter } from "../dispatcher/state"
+import { serializeFrontmatter, writeAtomic } from "../dispatcher/state"
 import { validateOutputShape } from "../dispatcher/validation"
 import { createLogger, type Logger } from "../dispatcher/logger"
 
@@ -44,12 +43,6 @@ function stateRoot(custom?: string): string {
   return custom ?? process.env["SGC_STATE_ROOT"] ?? ".sgc"
 }
 
-function writeAtomic(path: string, content: string): void {
-  mkdirSync(dirname(path), { recursive: true })
-  const tmp = `${path}.tmp.${process.pid}.${Date.now()}`
-  writeFileSync(tmp, content, "utf8")
-  renameSync(tmp, path)
-}
 
 async function readAllStdin(): Promise<string> {
   const chunks: string[] = []

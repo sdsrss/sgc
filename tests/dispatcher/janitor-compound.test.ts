@@ -81,6 +81,62 @@ describe("janitorCompound — decision rules", () => {
     expect(r.decision).toBe("skip")
     expect(r.reason_code).toBe("default_conservative")
   })
+
+  // CE-5: "carries reusable knowledge" gate on the L2_plus_success rule.
+  test("L2 success + tiny diff + no novelty → skip (low signal)", () => {
+    const r = janitorCompound({
+      task_id: "x", level: "L2", outcome: "success",
+      reviewer_flags: [{ severity: "none" }], force: false,
+      diff_lines: 8,
+    })
+    expect(r.decision).toBe("skip")
+    expect(r.reason_code).toBe("L2_plus_success_low_signal")
+  })
+  test("L3 success + tiny diff → skip (low signal)", () => {
+    const r = janitorCompound({
+      task_id: "x", level: "L3", outcome: "success",
+      reviewer_flags: [{ severity: "none" }], force: false,
+      diff_lines: 3,
+    })
+    expect(r.decision).toBe("skip")
+    expect(r.reason_code).toBe("L2_plus_success_low_signal")
+  })
+  test("L2 success + large diff → compound", () => {
+    const r = janitorCompound({
+      task_id: "x", level: "L2", outcome: "success",
+      reviewer_flags: [{ severity: "none" }], force: false,
+      diff_lines: 200,
+    })
+    expect(r.decision).toBe("compound")
+    expect(r.reason_code).toBe("L2_plus_success")
+  })
+  test("L2 success + tiny diff BUT reviewer flagged novel → compound (novelty overrides size)", () => {
+    const r = janitorCompound({
+      task_id: "x", level: "L2", outcome: "success",
+      reviewer_flags: [{ severity: "low", novel: true }], force: false,
+      diff_lines: 4,
+    })
+    expect(r.decision).toBe("compound")
+    expect(r.reason_code).toBe("L2_plus_success")
+  })
+  test("L2 success + diff_lines=0 → compound (indeterminate diff is fail-safe)", () => {
+    const r = janitorCompound({
+      task_id: "x", level: "L2", outcome: "success",
+      reviewer_flags: [{ severity: "none" }], force: false,
+      diff_lines: 0,
+    })
+    expect(r.decision).toBe("compound")
+    expect(r.reason_code).toBe("L2_plus_success")
+  })
+  test("L2 success + diff_lines undefined → compound (backward compatible)", () => {
+    const r = janitorCompound({
+      task_id: "x", level: "L2", outcome: "success",
+      reviewer_flags: [{ severity: "none" }], force: false,
+      // diff_lines omitted
+    })
+    expect(r.decision).toBe("compound")
+    expect(r.reason_code).toBe("L2_plus_success")
+  })
 })
 
 describe("ship → janitor → compound integration (Invariant §6)", () => {
@@ -135,6 +191,33 @@ describe("ship → janitor → compound integration (Invariant §6)", () => {
     expect(r.compoundAction).toBe("compound")
     const logged = readJanitorDecision(r.taskId, tmp)
     expect(logged?.decision).toBe("compound")
+    expect(listSolutions(tmp).length).toBe(1)
+  })
+
+  test("CE-5: L2 ship with a tiny injected diff → janitor skips (low signal), no solution", async () => {
+    await l2Ready()
+    const r = await runShip({
+      stateRoot: tmp,
+      diffLineCount: () => 6, // below MIN_REUSABLE_DIFF_LINES, no novelty
+      log: () => {},
+    })
+    expect(r.janitorDecision?.decision).toBe("skip")
+    expect(r.janitorDecision?.reason_code).toBe("L2_plus_success_low_signal")
+    expect(r.compoundAction).toBeUndefined()
+    expect(listSolutions(tmp).length).toBe(0)
+    // §6: the skip is still logged.
+    expect(readJanitorDecision(r.taskId, tmp)?.decision).toBe("skip")
+  })
+
+  test("CE-5: L2 ship with a large injected diff → janitor compounds", async () => {
+    await l2Ready()
+    const r = await runShip({
+      stateRoot: tmp,
+      diffLineCount: () => 150,
+      log: () => {},
+    })
+    expect(r.janitorDecision?.decision).toBe("compound")
+    expect(r.janitorDecision?.reason_code).toBe("L2_plus_success")
     expect(listSolutions(tmp).length).toBe(1)
   })
 

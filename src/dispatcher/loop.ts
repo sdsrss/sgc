@@ -8,13 +8,14 @@
 //
 // `reflect` is NOT in the chain (post-hoc audit, not per-task).
 
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { mkdir } from "node:fs/promises"
 import { resolve } from "node:path"
 import {
   parseFrontmatter,
   resolveStateRoot,
   serializeFrontmatter,
+  writeAtomic,
 } from "./state"
 import { acquireFileLock, LockHeldError } from "./file-lock"
 
@@ -162,7 +163,9 @@ function writeRun(path: string, run: LoopRun): void {
     run as unknown as Record<string, unknown>,
     "",
   )
-  writeFileSync(path, content, "utf8")
+  // STAB-5: atomic write — `--resume` re-reads this checkpoint; a torn write
+  // (interrupted mid-serialize) would surface as MalformedRunFile.
+  writeAtomic(path, content)
 }
 
 function freshSteps(): LoopStepEntry[] {

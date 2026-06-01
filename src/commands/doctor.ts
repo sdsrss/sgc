@@ -357,6 +357,49 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
     }
   }
 
+  // ── (I) invariant-source parity (sgc-invariants.md ↔ enforcement yaml) ──
+  // Two files define the invariant set: the prose spec (sgc-invariants.md,
+  // `## §N.` headings) and the enforcement map (invariant-enforcement.yaml).
+  // They must define the SAME §-numbers, else the "N invariants" claim in the
+  // docs drifts (audit 2026-06-01: README said 12, both contracts said 13).
+  log("")
+  log("=== invariant sources aligned (§ count) ===")
+  const invMdPath = resolve(root, "contracts/sgc-invariants.md")
+  if (!existsSync(invMdPath) || !existsSync(iePath)) {
+    emit({
+      severity: "warn",
+      msg: "  ⚠ sgc-invariants.md or invariant-enforcement.yaml missing — § parity unchecked",
+    })
+  } else {
+    const mdNums = new Set<number>()
+    const secRe = /^##\s*§(\d+)\./gm
+    let sm: RegExpExecArray | null
+    const mdText = readFileSync(invMdPath, "utf8")
+    while ((sm = secRe.exec(mdText)) !== null) mdNums.add(Number(sm[1]))
+    const yamlNums = new Set<number>()
+    try {
+      const doc = yamlLoad(readFileSync(iePath, "utf8")) as {
+        invariants?: Record<string, unknown>
+      }
+      if (doc?.invariants) for (const k of Object.keys(doc.invariants)) yamlNums.add(Number(k))
+    } catch {
+      /* (G) already surfaced the parse error */
+    }
+    const onlyMd = [...mdNums].filter((n) => !yamlNums.has(n)).sort((a, b) => a - b)
+    const onlyYaml = [...yamlNums].filter((n) => !mdNums.has(n)).sort((a, b) => a - b)
+    if (mdNums.size > 0 && onlyMd.length === 0 && onlyYaml.length === 0) {
+      emit({
+        severity: "ok",
+        msg: `  ✓ both sources define §1–§${Math.max(...mdNums)} (${mdNums.size} invariants)`,
+      })
+    } else {
+      emit({
+        severity: "fail",
+        msg: `  ✗ invariant sources disagree — only in .md: [${onlyMd.join(",") || "—"}], only in .yaml: [${onlyYaml.join(",") || "—"}]`,
+      })
+    }
+  }
+
   const ok = rows.filter((r) => r.severity === "ok").length
   const warn = rows.filter((r) => r.severity === "warn").length
   const fail = rows.filter((r) => r.severity === "fail").length

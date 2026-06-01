@@ -123,8 +123,14 @@ These rules cannot be overridden by any instruction:
 3. **Solutions Require Dedup**: No write to solutions/ without compound.related running first. Similarity threshold 0.85, not tunable.
 4. **L3 Forbids --auto**: Any L3 command with --auto is refused. Human signature required.
 5. **Reviewer Override Requires Human**: When a reviewer returns fail and ship proceeds, override must include human signature + reason (≥40 chars).
-6. **Every Janitor Decision Is Logged**: Even skip decisions must be written to reviews/{task_id}/janitor/. Silent skips are forbidden.
+6. **Audit-Trail Writes Are Durable**: Janitor decisions are logged (even skips → reviews/{task_id}/janitor/) AND review/qa/cso reports are append-only. Silent skips forbidden.
 7. **Schema Validation on Every Write**: All writes to .sgc/ are validated against schema before commit. No lenient mode.
+8. **Scope Tokens Computed At Spawn**: A subagent's capabilities are pinned at spawn from the permission matrix; no runtime elevation. Out-of-scope file/git/spawn access terminates it.
+9. **No Writes Outside Declared Outputs**: The dispatcher discards any subagent output that doesn't match its manifest `outputs` shape.
+10. **Compound Is All-Or-Nothing**: If any compound substep fails or times out, the whole compound rolls back — no partial solutions/ write.
+11. **Classifier Must Justify**: classifier.level must emit a rationale referencing a concrete task feature; empty/generic rationales are refused.
+12. **Evaluation Framework Is Authoritative**: When spec and the eval framework disagree, the framework wins; a new invariant ships with its regression test in the same commit.
+13. **Spawn + LLM Event Audit (two-tier)**: Every spawn emits paired spawn.start/end (all modes); LLM-backed modes also emit llm.request/response. Guaranteed via try/finally. Infra-level sink-write failure is exempt.
 
 ## Flow Rules
 

@@ -141,6 +141,7 @@ describe("sgc doctor", () => {
     files?: string[]
     vendored?: string
     invariants?: string
+    invariantsMd?: string
   } = {}): void {
     writeFileSync(join(tmp, "bunfig.toml"), o.bunfig ?? '[test]\nroot = "tests"\n', "utf8")
     writeFileSync(
@@ -166,6 +167,9 @@ describe("sgc doctor", () => {
       }
     }
     writeFileSync(join(tmp, "contracts", "invariant-enforcement.yaml"), o.invariants ?? map, "utf8")
+    let invMd = "# SGC System Invariants\n"
+    for (let n = 1; n <= 13; n++) invMd += `## §${n}. inv ${n}\n\nbody\n\n`
+    writeFileSync(join(tmp, "contracts", "sgc-invariants.md"), o.invariantsMd ?? invMd, "utf8")
   }
 
   const baseManifest =
@@ -184,6 +188,7 @@ describe("sgc doctor", () => {
     expect(r.rows.some((row) => row.severity === "ok" && row.msg.includes('root="tests"'))).toBe(true)
     expect(r.rows.some((row) => row.severity === "ok" && row.msg.includes("machine-enforced invariants: 12/13"))).toBe(true)
     expect(r.rows.some((row) => row.severity === "ok" && row.msg.includes("vendored vendored-x"))).toBe(true)
+    expect(r.rows.some((row) => row.severity === "ok" && row.msg.includes("both sources define"))).toBe(true)
   })
 
   test("D-fail: bunfig root!=tests → fail (R0 regression guard)", async () => {
@@ -280,6 +285,18 @@ describe("sgc doctor", () => {
     expect(r.fail).toBe(0)
     expect(
       r.rows.some((row) => row.severity === "warn" && row.msg.includes("ghost")),
+    ).toBe(true)
+  })
+
+  test("I-fail: sgc-invariants.md missing a § that the yaml map has → fail", async () => {
+    seed(baseManifest, ["alpha.md"])
+    let md12 = "# SGC System Invariants\n"
+    for (let n = 1; n <= 12; n++) md12 += `## §${n}. inv ${n}\n\nbody\n\n`
+    seedHygiene({ invariantsMd: md12 }) // yaml map still defines §1–13
+    const r = await runDoctor({ log: () => {}, repoRoot: tmp })
+    expect(r.fail).toBeGreaterThanOrEqual(1)
+    expect(
+      r.rows.some((row) => row.severity === "fail" && row.msg.includes("invariant sources disagree")),
     ).toBe(true)
   })
 })

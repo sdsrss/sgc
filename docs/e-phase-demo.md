@@ -267,6 +267,6 @@ The dispatcher API is identical across modes — the same `runPlan`,
 `runReview`, etc. Only the agent output changes.
 
 See [`contracts/sgc-invariants.md`](../contracts/sgc-invariants.md) for
-the 12 rules enforced at every spawn, [`contracts/sgc-capabilities.yaml`](../contracts/sgc-capabilities.yaml)
+the 13 rules enforced at every spawn, [`contracts/sgc-capabilities.yaml`](../contracts/sgc-capabilities.yaml)
 for per-agent scope, and [`plugins/sgc/CLAUDE.md`](../plugins/sgc/CLAUDE.md)
 for the full command + permission matrix.

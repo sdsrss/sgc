@@ -152,7 +152,7 @@ If you want continuity across machines or with a teammate, the manual workaround
 contracts/                 ← spec source-of-truth (YAML + markdown, human-readable DSL)
 ├── sgc-capabilities.yaml  ← scope tokens, command permissions, subagent manifests
 ├── sgc-state.schema.yaml  ← shape + mutability rules per state-layer file
-└── sgc-invariants.md      ← 12 non-negotiable rules
+└── sgc-invariants.md      ← 13 non-negotiable rules
 
 src/
 ├── sgc.ts                 ← citty CLI (19 subcommands; `sgc doctor` enforces slash↔CLI parity)

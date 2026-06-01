@@ -9,6 +9,7 @@ import type { FailureMode } from "../../src/dispatcher/agents/planner-adversaria
 import {
   extractAppliedSolutionRefs,
   recordApplied,
+  recordSurfaced,
 } from "../../src/dispatcher/applied-tracker"
 import type { PriorPrevention } from "../../src/dispatcher/preventions"
 import { parseFrontmatter } from "../../src/dispatcher/state"
@@ -79,6 +80,26 @@ describe("extractAppliedSolutionRefs", () => {
     )
     expect(refs).toEqual([])
   })
+
+  test("E8: LLM drops the category/ prefix — slug-only mention still matches", () => {
+    // The adversarial prompt asks for the full solution_ref, but LLMs commonly
+    // emit just the distinctive slug. Fall back to slug match so applied_in
+    // is not silently missed.
+    const refs = extractAppliedSolutionRefs(
+      [FM("p99 write latency regressed; cf. prevention foo-2026-01-01 for the prior fix")],
+      [PP("runtime/foo-2026-01-01")],
+    )
+    expect(refs).toEqual(["runtime/foo-2026-01-01"])
+  })
+
+  test("E9: short slug is NOT matched coincidentally (length guard)", () => {
+    // slug "abc" (< 8 chars) must not match the common word in the signal.
+    const refs = extractAppliedSolutionRefs(
+      [FM("the abc module flaked under load")],
+      [PP("runtime/abc")],
+    )
+    expect(refs).toEqual([])
+  })
 })
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -87,6 +108,7 @@ describe("extractAppliedSolutionRefs", () => {
 
 interface FixtureOpts {
   applied_in?: string[]
+  surfaced_in?: string[]
   prevention?: string
 }
 
@@ -115,6 +137,7 @@ function seedSolution(
     source_task_ids: ["TASK-FIXTURE"],
   }
   if (opts.applied_in) fm.applied_in = opts.applied_in
+  if (opts.surfaced_in) fm.surfaced_in = opts.surfaced_in
   const yaml = Object.entries(fm)
     .map(([k, v]) => {
       if (Array.isArray(v)) {
@@ -129,6 +152,45 @@ function seedSolution(
   writeFileSync(path, `---\n${yaml}\n---\n\nfixture body\n`, "utf8")
   return path
 }
+
+describe("recordSurfaced — CE-6 L2 surfacing tracker", () => {
+  test("appends task_id to surfaced_in (separate from applied_in)", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-surf1-"))
+    seedSolution(root, "other", "tier1-2026", { applied_in: ["TASK-L3-VALIDATED"] })
+
+    const result = recordSurfaced(root, ["other/tier1-2026"], "TASK-L2-SURFACER")
+
+    expect(result.updated).toEqual(["other/tier1-2026"])
+    const path = resolve(root, "solutions", "other", "tier1-2026.md")
+    const { data } = parseFrontmatter<SolutionEntry>(readFileSync(path, "utf8"))
+    expect(data.surfaced_in).toEqual(["TASK-L2-SURFACER"])
+    // Orthogonality: surfaced writeback must NOT touch the L3-strong applied_in.
+    expect(data.applied_in).toEqual(["TASK-L3-VALIDATED"])
+  })
+
+  test("idempotent: re-surfacing the same task is a no-op", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-surf2-"))
+    seedSolution(root, "runtime", "alpha-2026", { surfaced_in: ["TASK-PRIOR"] })
+
+    const result = recordSurfaced(root, ["runtime/alpha-2026"], "TASK-PRIOR")
+
+    expect(result.skipped_already_applied).toEqual(["runtime/alpha-2026"])
+    const path = resolve(root, "solutions", "runtime", "alpha-2026.md")
+    const { data } = parseFrontmatter<SolutionEntry>(readFileSync(path, "utf8"))
+    expect(data.surfaced_in).toEqual(["TASK-PRIOR"])
+  })
+
+  test("appends to existing surfaced_in without dropping prior entries", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-surf3-"))
+    seedSolution(root, "runtime", "alpha-2026", { surfaced_in: ["TASK-A"] })
+
+    recordSurfaced(root, ["runtime/alpha-2026"], "TASK-B")
+
+    const path = resolve(root, "solutions", "runtime", "alpha-2026.md")
+    const { data } = parseFrontmatter<SolutionEntry>(readFileSync(path, "utf8"))
+    expect(data.surfaced_in).toEqual(["TASK-A", "TASK-B"])
+  })
+})
 
 describe("recordApplied — happy path", () => {
   test("H1: two new refs both updated", () => {

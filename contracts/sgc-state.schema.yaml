@@ -217,6 +217,12 @@ solutions:
           type: enum
           values: [provisional, confirmed, canonical]
           default: provisional
+        # CE-6 score-feedback fields. Mutated by applied-tracker outside
+        # writeSolution() (metadata-only §3 carve-out), so they never affect
+        # the dedup signature. applied_in = L3 adversarial-validated reuse;
+        # surfaced_in = L2+ researcher.history surfacing (weaker signal).
+        applied_in:          { type: array[string], optional: true }
+        surfaced_in:         { type: array[string], optional: true }
 
   dedup:
     enforced_by: compound.related

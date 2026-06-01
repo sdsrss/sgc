@@ -30,6 +30,9 @@ export interface ReflectCandidate {
   // CE-6 (f7): count of task_ids in the solution's applied_in array
   // (always present; defaults to 0 when frontmatter has no applied_in).
   applied_count: number
+  // CE-6 L2 extension: count of task_ids in the solution's surfaced_in array
+  // (L2+ researcher.history surfacings; weaker than applied_count). Defaults 0.
+  surfaced_count: number
 }
 
 export interface ReflectReport {
@@ -56,6 +59,8 @@ interface SolutionFrontmatter {
   intent?: string
   // CE-6 (f7): read by reflect to compute applied_count per candidate.
   applied_in?: string[]
+  // CE-6 L2 extension: read by reflect to compute surfaced_count per candidate.
+  surfaced_in?: string[]
 }
 
 const MIN_SIGNAL_OVERLAP = 3
@@ -210,6 +215,9 @@ export async function auditDecision(
       applied_count: Array.isArray(solutionFrontmatter.applied_in)
         ? solutionFrontmatter.applied_in.length
         : 0,
+      surfaced_count: Array.isArray(solutionFrontmatter.surfaced_in)
+        ? solutionFrontmatter.surfaced_in.length
+        : 0,
     })
   }
 
@@ -306,7 +314,7 @@ export function formatReport(report: ReflectReport): string {
   for (const c of report.candidates) {
     const tag = c.discussed ? "[discussed]" : "[silent]    "
     lines.push(
-      `  - ${tag} ${c.solution_ref} (overlap: ${c.keyword_overlap}, applied: ${c.applied_count})`,
+      `  - ${tag} ${c.solution_ref} (overlap: ${c.keyword_overlap}, applied: ${c.applied_count}, surfaced: ${c.surfaced_count})`,
     )
     if (c.discussed && c.discussed_evidence) {
       lines.push(`    evidence: ${c.discussed_evidence}`)

@@ -280,6 +280,7 @@ describe("formatReport + writeReflectionFile (CE-2 T5)", () => {
           discussed: false,
           discussed_evidence: null,
           applied_count: 0,
+          surfaced_count: 0,
         },
         {
           solution_ref: "perf/c",
@@ -289,6 +290,7 @@ describe("formatReport + writeReflectionFile (CE-2 T5)", () => {
           discussed: true,
           discussed_evidence: "solution_ref direct match: perf/c",
           applied_count: 0,
+          surfaced_count: 0,
         },
       ],
     })
@@ -322,6 +324,7 @@ describe("formatReport + writeReflectionFile (CE-2 T5)", () => {
           discussed: false,
           discussed_evidence: null,
           applied_count: 0,
+          surfaced_count: 0,
         },
       ],
     }
@@ -392,5 +395,39 @@ describe("reflect — CE-6 applied_count surfacing", () => {
     const report = await auditDecision("TASK-DEC-002", root)
     const c = report.candidates.find((c) => c.solution_ref === "runtime/beta-2026")
     expect(c?.applied_count).toBe(0)
+  })
+
+  test("CE6-S1: surfaced_count populated from surfaced_in; stdout shows it independent of applied", async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs")
+    const { tmpdir } = await import("node:os")
+    const { resolve } = await import("node:path")
+    const { auditDecision, formatReport } = await import("../../src/dispatcher/reflect")
+
+    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-reflect-s1-"))
+    const solDir = resolve(root, "solutions/runtime")
+    mkdirSync(solDir, { recursive: true })
+    // applied_in empty (never L3-validated) but surfaced_in has two L2 surfacings.
+    writeFileSync(
+      resolve(solDir, "gamma-2026.md"),
+      `---\nid: runtime-gamma-2026\nsignature: x\ncategory: runtime\nproblem: p\nsymptoms: [s]\nwhat_didnt_work: []\nsolution: s\nprevention: connection pool exhaustion retry backoff\ntags: [pool]\nfirst_seen: 2026-01-01T00:00:00.000Z\nlast_updated: 2026-01-01T00:00:00.000Z\ntimes_referenced: 0\nsource_task_ids: [T-FX]\nsurfaced_in:\n  - T-L2-A\n  - T-L2-B\n---\n\nbody\n`,
+      "utf8",
+    )
+    const decDir = resolve(root, "decisions", "TASK-DEC-003")
+    mkdirSync(decDir, { recursive: true })
+    writeFileSync(
+      resolve(decDir, "intent.md"),
+      `---\ntask_id: TASK-DEC-003\nlevel: L2\ncreated_at: '2026-05-25T00:00:00.000Z'\ntitle: pool work\nmotivation: connection pool exhaustion retry backoff tuning\n---\n\nbody\n`,
+      "utf8",
+    )
+
+    const report = await auditDecision("TASK-DEC-003", root)
+    const c = report.candidates.find((c) => c.solution_ref === "runtime/gamma-2026")
+    expect(c).toBeDefined()
+    expect(c!.surfaced_count).toBe(2)
+    expect(c!.applied_count).toBe(0)
+
+    const out = formatReport(report)
+    expect(out).toContain("applied: 0")
+    expect(out).toContain("surfaced: 2")
   })
 })

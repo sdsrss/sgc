@@ -152,3 +152,85 @@ describe("plan.ts — CE-6 applied_in wire-up (L3)", () => {
     expect(solEntries.length).toBe(0)
   })
 })
+
+// ──────────────────────────────────────────────────────────────────────────
+// CE-6 L2 extension: plan.ts wires recordSurfaced after researcher.history
+// surfaces prior_art at L2 (no planner.adversarial). surfaced_in is the
+// weaker, L2-observable sibling of applied_in.
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("plan.ts — CE-6 surfaced_in wire-up (L2)", () => {
+  let stateRoot: string
+  let priorForceInline: string | undefined
+
+  beforeEach(() => {
+    stateRoot = mkdtempSync(join(tmpdir(), "sgc-ce6-surf-plan-"))
+    // Save+restore (NOT blind delete) — sibling files inherit SGC_FORCE_INLINE
+    // from the parent `bun test` run (lesson: 63-fail regression on delete).
+    priorForceInline = process.env["SGC_FORCE_INLINE"]
+    process.env["SGC_FORCE_INLINE"] = "1"
+  })
+
+  afterEach(() => {
+    rmSync(stateRoot, { recursive: true, force: true })
+    if (priorForceInline === undefined) {
+      delete process.env["SGC_FORCE_INLINE"]
+    } else {
+      process.env["SGC_FORCE_INLINE"] = priorForceInline
+    }
+  })
+
+  test("CE6-S2: L2 plan surfacing a prior solution records surfaced_in (NOT applied_in)", async () => {
+    const solDir = resolve(stateRoot, "solutions", "runtime")
+    mkdirSync(solDir, { recursive: true })
+    const slug = "rate-limit-bypass-2026"
+    writeFileSync(
+      resolve(solDir, `${slug}.md`),
+      [
+        `---`,
+        `id: runtime-${slug}`,
+        `signature: sha256-fixture`,
+        `category: runtime`,
+        `problem: rate limit bypass via stale cache`,
+        `symptoms:`,
+        `  - 429s drop at refill boundary`,
+        `what_didnt_work:`,
+        `  - approach: client-only token bucket`,
+        `    reason_failed: still hit origin on stale window edge`,
+        `solution: sliding window counter with Redis TTL aligned to refill period`,
+        `prevention: When migrating rate-limit middleware, verify cache TTL aligns with bucket refill.`,
+        `tags:`,
+        `  - rate-limit`,
+        `  - middleware`,
+        `first_seen: 2026-01-01T00:00:00.000Z`,
+        `last_updated: 2026-01-01T00:00:00.000Z`,
+        `times_referenced: 0`,
+        `source_task_ids:`,
+        `  - TASK-FIXTURE`,
+        `---`,
+        ``,
+        `Body: rate limit middleware bypass via stale cache at refill window edge.`,
+        ``,
+      ].join("\n"),
+      "utf8",
+    )
+
+    const r = await runPlan("refactor rate limit middleware sliding window", {
+      stateRoot,
+      forceLevel: "L2",
+      motivation: LONG_MOTIVATION,
+      log: () => {},
+    })
+    expect(r.level).toBe("L2")
+
+    const { data } = parseFrontmatter<SolutionEntry>(
+      readFileSync(resolve(solDir, `${slug}.md`), "utf8"),
+    )
+    // surfaced_in landed with the consuming task_id...
+    expect(Array.isArray(data.surfaced_in)).toBe(true)
+    expect(data.surfaced_in!.length).toBe(1)
+    expect(data.surfaced_in![0]).toBe(r.taskId)
+    // ...and applied_in (L3 adversarial-only) was NOT written at L2.
+    expect(data.applied_in).toBeUndefined()
+  })
+})

@@ -65,3 +65,59 @@ duplicate the small predicate rather than share code.
   completion-gate helper above. If that refactor lands, add a contract test
   comparing work / loop / debug-close evidence requirements through the shared
   predicate so they cannot diverge.
+
+---
+
+## CE-6 surfaced_in: observe prevention reuse at L2 (not just L3)
+
+**Source task:** CE-6 L2 extension · category `other`
+
+### Problem
+
+`sgc reflect` showed relevant preventions as `applied: 0` even when an operator
+had followed them. Initial diagnosis (in a retrospective) blamed intent.md
+immutability — **that was wrong**. Actual root cause (verified in
+`src/commands/plan.ts`): CE-6 `applied_in` is written **only at L3**, inside
+`if (level === "L3")`, driven by `planner.adversarial` echoing a prevention's
+`solution_ref` in a `failure_mode.early_signal`. L2 tasks run
+`researcher.history` (which surfaces prior solutions) but never
+`planner.adversarial`, and `capturedPriorPreventions` stays `[]` at L2 — so
+`recordApplied` is never called. `applied: 0` on an L2 task is **working as
+designed**, but it left L2 prevention reuse completely unobservable.
+
+### Solution (as shipped)
+
+Added a **separate** `surfaced_in: TaskId[]` field rather than overloading
+`applied_in` (which would conflate "surfaced into a plan" with the stronger
+"L3 adversarially validated"). New `recordSurfaced` in `applied-tracker.ts`
+(a thin sibling of `recordApplied` via a shared parameterized `recordOne` —
+same metadata-only §3 carve-out). `plan.ts` wires it for **L2+**: after the
+planner cluster, every `researcher.history.prior_art[].solution_ref` is
+recorded into that solution's `surfaced_in`. `sgc reflect` now prints
+`(overlap, applied, surfaced)`. `applied_in` semantics are unchanged, so
+historical L3 scores stay comparable.
+
+### Prevention
+
+- When a "score is always 0" symptom appears, verify whether the writeback path
+  even runs for that code path BEFORE calling it a bug — here the path was
+  L3-gated by design. A retrospective that asserts a root cause is an
+  assumption until checked against the code (§8.V1).
+- Keep distinct signals in distinct fields. Overloading `applied_in` with L2
+  surfacings would have silently changed the meaning of every historical score.
+- The two CE-6 fields are mutated outside `writeSolution()` (metadata-only) so
+  they never enter the dedup signature — preserve that carve-out for any future
+  score field.
+
+### Related robustness fix: L3 applied_in slug-fallback
+
+`applied_in` depends on `planner.adversarial` echoing a prevention's full
+`category/slug` solution_ref into a `failure_mode.early_signal` (the prompt
+asks for it — `prompts/planner-adversarial.md`), which `extractAppliedSolutionRefs`
+detects by substring. This is a **designed contract, not a bug**, but it is
+fragile to LLM non-compliance — the agent commonly emits just the distinctive
+slug and drops the `category/` prefix, silently missing the match. Hardened the
+matcher to also match the slug alone, gated by `MIN_SLUG_MATCH_LEN = 8` so short,
+common-word slugs cannot match coincidentally. Stronger-but-heavier alternative
+(not done, L3 — touches LLM-visible prompt + eval): require a delimited
+`[prevention: <ref>]` token in early_signal and parse it exactly.

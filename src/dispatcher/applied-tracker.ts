@@ -67,23 +67,37 @@ export function extractAppliedSolutionRefs(
   prior_preventions: readonly PriorPrevention[],
 ): string[] {
   if (failure_modes.length === 0 || prior_preventions.length === 0) return []
+  // Minimum slug length for the prefix-dropped fallback. The adversarial
+  // prompt asks the LLM to embed the full `category/slug` solution_ref in
+  // early_signal, but LLMs commonly drop the `category/` prefix. Matching the
+  // distinctive slug recovers those — gated by length so short, common-word
+  // slugs (e.g. "abc") cannot match coincidentally.
+  const MIN_SLUG_MATCH_LEN = 8
   const refs = new Set<string>()
   for (const fm of failure_modes) {
     // Defensive: type says string, but LLM JSON drift could omit; keep ?? "" as runtime guard.
     const signal = fm.early_signal ?? ""
     if (signal.length === 0) continue
     for (const pp of prior_preventions) {
-      if (signal.includes(pp.solution_ref)) refs.add(pp.solution_ref)
+      const slug = pp.solution_ref.split("/")[1] ?? ""
+      const slugMatch = slug.length >= MIN_SLUG_MATCH_LEN && signal.includes(slug)
+      if (signal.includes(pp.solution_ref) || slugMatch) refs.add(pp.solution_ref)
     }
   }
   return Array.from(refs)
 }
 
-export function recordApplied(
+/** Frontmatter array field this tracker appends to. */
+type AppliedField = "applied_in" | "surfaced_in"
+type EventAgent = "plan.applied" | "plan.surfaced"
+
+function recordInto(
+  field: AppliedField,
+  eventAgent: EventAgent,
   stateRoot: string | undefined,
   solution_refs: readonly string[],
   task_id: TaskId,
-  opts: RecordAppliedOptions = {},
+  opts: RecordAppliedOptions,
 ): RecordAppliedResult {
   const result: RecordAppliedResult = {
     updated: [],
@@ -94,9 +108,34 @@ export function recordApplied(
     write_failed: [],
   }
   for (const ref of solution_refs) {
-    recordOne(ref, task_id, stateRoot, opts, result)
+    recordOne(ref, task_id, stateRoot, opts, result, field, eventAgent)
   }
   return result
+}
+
+/** CE-6 (f7): record an L3 adversarial-validated application into `applied_in`. */
+export function recordApplied(
+  stateRoot: string | undefined,
+  solution_refs: readonly string[],
+  task_id: TaskId,
+  opts: RecordAppliedOptions = {},
+): RecordAppliedResult {
+  return recordInto("applied_in", "plan.applied", stateRoot, solution_refs, task_id, opts)
+}
+
+/**
+ * CE-6 L2 extension: record an L2+ researcher.history surfacing into
+ * `surfaced_in`. Same metadata-only §3 carve-out as recordApplied; a weaker
+ * signal (surfaced into a plan, not adversarially validated). Orthogonal to
+ * `applied_in` — never touches it.
+ */
+export function recordSurfaced(
+  stateRoot: string | undefined,
+  solution_refs: readonly string[],
+  task_id: TaskId,
+  opts: RecordAppliedOptions = {},
+): RecordAppliedResult {
+  return recordInto("surfaced_in", "plan.surfaced", stateRoot, solution_refs, task_id, opts)
 }
 
 function recordOne(
@@ -105,10 +144,12 @@ function recordOne(
   stateRoot: string | undefined,
   opts: RecordAppliedOptions,
   result: RecordAppliedResult,
+  field: AppliedField,
+  eventAgent: EventAgent,
 ): void {
   if (!SOLUTION_REF_RE.test(ref)) {
     result.skipped_malformed.push(ref)
-    emitFailed(opts, task_id, ref, "malformed_ref", "ref shape rejected by SOLUTION_REF_RE")
+    emitFailed(opts, task_id, ref, "malformed_ref", "ref shape rejected by SOLUTION_REF_RE", eventAgent)
     return
   }
   const [category, slug] = ref.split("/") as [SolutionCategory, string]
@@ -127,25 +168,25 @@ function recordOne(
       result.skipped_malformed.push(ref)
       emitFailed(
         opts, task_id, ref, "parse_failed",
-        err instanceof Error ? err.message : String(err),
+        err instanceof Error ? err.message : String(err), eventAgent,
       )
       return
     }
-    const existing = parsed.data.applied_in ?? []
+    const existing = parsed.data[field] ?? []
     if (existing.includes(task_id)) {
       result.skipped_already_applied.push(ref)
       return
     }
     const nextEntry: SolutionEntry = {
       ...parsed.data,
-      applied_in: [...existing, task_id],
+      [field]: [...existing, task_id],
     }
     // Re-check mtime; if it changed under us, the read is stale.
     const mtimeReread = statSync(filePath).mtimeMs
     if (mtimeReread !== mtimeBefore) {
       if (attempt === MAX_MTIME_RETRIES) {
         result.stale_skipped.push(ref)
-        emitFailed(opts, task_id, ref, "stale_mtime_after_retry", "mtime drift after retry")
+        emitFailed(opts, task_id, ref, "stale_mtime_after_retry", "mtime drift after retry", eventAgent)
         return
       }
       continue
@@ -160,7 +201,7 @@ function recordOne(
     } catch (err) {
       emitFailed(
         opts, task_id, ref, "io_error",
-        err instanceof Error ? err.message : String(err),
+        err instanceof Error ? err.message : String(err), eventAgent,
       )
       result.write_failed.push(ref)
       return
@@ -174,12 +215,13 @@ function emitFailed(
   solution_ref: string,
   reason: "malformed_ref" | "parse_failed" | "stale_mtime_after_retry" | "io_error",
   error_message: string,
+  eventAgent: EventAgent,
 ): void {
   opts.logger?.event({
     task_id,
     spawn_id: null,
-    agent: "plan.applied",
-    event_type: "plan.applied_failed",
+    agent: eventAgent,
+    event_type: `${eventAgent}_failed`,
     level: "warn",
     payload: { solution_ref, reason, error_message },
   })

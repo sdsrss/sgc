@@ -108,8 +108,13 @@ export interface SolutionEntry {
   // CE-6 (f7): task_ids that consumed this prevention via planner.adversarial
   // recurrence flag (CE-1 step 5). Mutated by applied-tracker.recordApplied,
   // which bypasses writeSolution() — see tasks/specs/ce-6-applied-in-tracker.md
-  // "Invariant §3 carve-out (metadata-only mutation)".
+  // "Invariant §3 carve-out (metadata-only mutation)". L3-only (adversarial).
   applied_in?: TaskId[]
+  // CE-6 L2 extension: task_ids whose L2+ plan surfaced this solution via
+  // researcher.history.prior_art (informed planning, but NOT adversarially
+  // validated like applied_in). Mutated by applied-tracker.recordSurfaced
+  // under the same §3 metadata-only carve-out. Weaker signal than applied_in.
+  surfaced_in?: TaskId[]
 }
 
 export interface Finding {

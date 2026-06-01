@@ -47,6 +47,7 @@ import {
 import {
   extractAppliedSolutionRefs,
   recordApplied,
+  recordSurfaced,
 } from "../dispatcher/applied-tracker"
 import { validateClassifierRationale } from "../dispatcher/rationale"
 import {
@@ -493,6 +494,51 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
             payload: { error_class: errName, error_message: errMsg, reason: "wire_up_throw" },
           })
         }
+      }
+    }
+    // CE-6 L2 extension: surfaced-into-plan writeback. researcher.history
+    // (runs at L2+) surfaces prior solutions into prior_art; record the
+    // consuming task_id into each surfaced solution's surfaced_in — a weaker,
+    // L2-observable signal than applied_in (L3 adversarial-validated). Same
+    // Iron Law as the applied_in block: writeback failure NEVER fails plan.
+    if (researcherOut.prior_art.length > 0) {
+      try {
+        const surfacedRefs = Array.from(
+          new Set(researcherOut.prior_art.map((p) => p.solution_ref)),
+        )
+        const surfacedResult = recordSurfaced(stateRoot, surfacedRefs, taskId, { logger })
+        logger.event({
+          task_id: taskId,
+          spawn_id: null,
+          agent: "plan.surfaced",
+          event_type: "plan.surfaced_recorded",
+          level: "info",
+          payload: {
+            solution_refs_input: surfacedRefs,
+            updated: surfacedResult.updated,
+            skipped_already_applied: surfacedResult.skipped_already_applied,
+            skipped_missing: surfacedResult.skipped_missing,
+            skipped_malformed: surfacedResult.skipped_malformed,
+            stale_skipped: surfacedResult.stale_skipped,
+            write_failed: surfacedResult.write_failed,
+          },
+        })
+        if (surfacedResult.updated.length > 0) {
+          log(
+            `surfaced_in updated: ${surfacedResult.updated.length} solution(s) tracked task ${taskId}`,
+          )
+        }
+      } catch (err) {
+        const errName = err instanceof Error ? err.name : "unknown"
+        const errMsg = err instanceof Error ? err.message : String(err)
+        logger.event({
+          task_id: taskId,
+          spawn_id: null,
+          agent: "plan.surfaced",
+          event_type: "plan.surfaced_wire_failed",
+          level: "warn",
+          payload: { error_class: errName, error_message: errMsg, reason: "wire_up_throw" },
+        })
       }
     }
     log(`planner.eng verdict: ${plannerEngOut.verdict}`)

@@ -1,5 +1,38 @@
 # Changelog
 
+## v1.20.0 — 2026-06-01 — feat(CE-6): `surfaced_in` tracks L2 prevention reuse + `applied_in` slug-fallback
+
+CE-6 score feedback was **L3-only**: `applied_in` increments only when
+`planner.adversarial` (which runs solely at L3) echoes a prevention's
+`solution_ref` into a `failure_mode.early_signal`. L2 tasks surface prior
+solutions via `researcher.history` but never recorded it — `sgc reflect` showed
+`applied: 0` for genuinely-reused preventions. This adds an L2-observable signal
+and hardens the L3 match.
+
+### What changed
+
+- New optional solution frontmatter field **`surfaced_in: TaskId[]`**, kept
+  **separate** from `applied_in` so the L3-strong "adversarially validated"
+  semantics stay intact (`surfaced` = "informed an L2+ plan"). Written by the new
+  `recordSurfaced` (shares the parameterized `recordOne` with `recordApplied`;
+  same metadata-only Invariant §3 carve-out — never enters the dedup signature).
+- `sgc plan` records every `researcher.history.prior_art` `solution_ref` into
+  `surfaced_in` for L2+ tasks (Iron Law: writeback failure never fails plan).
+- `sgc reflect` output now shows `(overlap, applied, surfaced)`.
+- Robustness: `extractAppliedSolutionRefs` gains a slug-fallback (min length 8)
+  so `applied_in` still matches when the adversarial LLM drops the `category/`
+  prefix from the `solution_ref` it echoes — a designed prompt contract that was
+  fragile to LLM non-compliance.
+- `contracts/sgc-state.schema.yaml` documents both `applied_in` (previously
+  undeclared) and `surfaced_in` as optional CE-6 fields.
+
+### Compatibility
+
+Additive minor. Existing solutions without `surfaced_in` read as 0; `applied_in`
+semantics and historical L3 scores are unchanged. No new agent, no LLM, no
+Invariant §1/§3/§4 change. New repo-tracked `docs/SOLUTIONS.md` curates the
+close-gate (v1.19.0) and CE-6 knowledge with hand-corrected, accurate detail.
+
 ## v1.19.0 — 2026-06-01 — feat: verification close-gate on `sgc work --done` (sp:verification-before-completion absorb, Tier 1)
 
 `sgc work --done <feature_id>` now **requires** a `--verify-command` to mark a feature

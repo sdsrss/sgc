@@ -22,12 +22,31 @@ function contractsDir(): string {
   return process.env["SGC_CONTRACTS_DIR"] ?? defaultContractsDir
 }
 
+// UX-3: a missing/unreadable contract is almost always a packaging or
+// install-layout problem (e.g. the CLI run from an npm-global dir where
+// contracts/ didn't ship). Surface the resolved path + the SGC_CONTRACTS_DIR
+// escape hatch instead of a bare ENOENT stack.
+function readContract(filename: string): string {
+  const path = resolve(contractsDir(), filename)
+  try {
+    return readFileSync(path, "utf8")
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException
+    if (e.code === "ENOENT") {
+      throw new Error(
+        `sgc contract not found at ${path} — set SGC_CONTRACTS_DIR if contracts/ lives elsewhere.`,
+      )
+    }
+    throw new Error(`sgc contract unreadable at ${path}: ${e.message}`)
+  }
+}
+
 let _capabilities: CapabilitiesSpec | null = null
 let _stateSchema: StateSchemaSpec | null = null
 
 export function getCapabilities(): CapabilitiesSpec {
   if (_capabilities === null) {
-    const text = readFileSync(resolve(contractsDir(), "sgc-capabilities.yaml"), "utf8")
+    const text = readContract("sgc-capabilities.yaml")
     const raw = loadSpec<CapabilitiesSpec>(text)
     // Inject subagent.name (manifest keys are short-form like
     // "reviewer.correctness"; copy key into manifest for convenience).
@@ -41,7 +60,7 @@ export function getCapabilities(): CapabilitiesSpec {
 
 export function getStateSchema(): StateSchemaSpec {
   if (_stateSchema === null) {
-    const text = readFileSync(resolve(contractsDir(), "sgc-state.schema.yaml"), "utf8")
+    const text = readContract("sgc-state.schema.yaml")
     _stateSchema = loadSpec<StateSchemaSpec>(text)
   }
   return _stateSchema

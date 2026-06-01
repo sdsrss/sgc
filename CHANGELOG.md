@@ -1,5 +1,42 @@
 # Changelog
 
+## v1.23.1 — 2026-06-01 — chore: production-readiness audit P2 (dead code, doc drift, domain errors, dedup-floor note)
+
+Low-priority P2 follow-ups (`docs/PRODUCTION-READINESS-AUDIT.md` §P2, selected).
+Cleanup + UX only — no API, no behavior, no state-file change. Dispatcher
+suite 1034 → 1035 (+1 test).
+
+### What changed
+
+**ARCH-1 — dead code + stale file header** (`sgc.ts`)
+
+- Removed the never-instantiated `NotImplementedYet` class (a C-phase MVP relic,
+  0 references) and rewrote the header from "8 subcommands … MVP implements only
+  status" to the real 19-command surface (pointing at README + `sgc doctor`
+  parity as the authoritative sources).
+
+**ARCH-2 — README version drift** (`README.md`)
+
+- The hardcoded `**Status**: v1.x` line drifted on every release. Replaced the
+  pinned version with a pointer to npm / CHANGELOG so it can't go stale again.
+
+**UX-3 — bare errors wrapped as domain errors** (`plan-jobs.ts`, `schema.ts`)
+
+- `readJob` now wraps fs/parse failures as `PlanJobError("MalformedJobFile", …)`
+  carrying the path, so callers see a domain error instead of a bare
+  `StateError` / ENOENT.
+- A missing/unreadable contract now reports `sgc contract not found at <path> —
+  set SGC_CONTRACTS_DIR if contracts/ lives elsewhere` instead of a bare ENOENT
+  stack (helps npm-global install-layout debugging).
+
+**ALG-3 — CJK dedup token floor documented** (`dedup.ts`)
+
+- Re-evaluated the `minLen=2` CJK floor and documented it as a deliberate
+  accepted trade-off: lowering to 1 would readmit high-frequency particles
+  (的/了/在/是) that dilute the Jaccard signal feeding the non-tunable 0.85 §3
+  write gate, far outweighing the rare single-char content word it would
+  recover. No behavior change.
+
 ## v1.23.0 — 2026-06-01 — fix: production-readiness audit P1 (stability, correctness, knowledge-loop quality)
 
 The P1 follow-up to v1.22.0's P0 batch (`docs/PRODUCTION-READINESS-AUDIT.md` §8).

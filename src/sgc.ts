@@ -1,10 +1,11 @@
 #!/usr/bin/env bun
 //
-// sgc — unified engineering agent CLI.
+// sgc — unified engineering agent CLI (citty).
 //
-// 8 subcommands per docs/c-phase-dispatcher.md. C-phase MVP implements
-// only `status` (read-only). Other commands print a NotImplementedYet
-// message; full implementation lands in subsequent C-phase commits.
+// 19 subcommands spanning the L0→L3 pipeline + GS-N + the CE knowledge loop
+// (16 mirrored as /sgc:* slash commands + 3 CLI-only: canary, watch-ci-failure,
+// land). README.md is the authoritative command table; `sgc doctor` enforces
+// slash↔CLI parity so this count stays honest.
 //
 // State layer is rooted at `.sgc/` in the project (override via
 // SGC_STATE_ROOT). Contracts (capabilities, state schema) live at
@@ -14,17 +15,6 @@ import { defineCommand, runMain } from "citty"
 import { existsSync } from "node:fs"
 import packageJson from "../package.json"
 import { debugCommand } from "./commands/debug"
-
-class NotImplementedYet extends Error {
-  constructor(cmd: string) {
-    super(
-      `'sgc ${cmd}' is not yet implemented in the C-phase MVP.\n` +
-        `Implemented: status.\n` +
-        `Roadmap: see docs/c-phase-dispatcher.md.`,
-    )
-    this.name = "NotImplementedYet"
-  }
-}
 
 const discover = defineCommand({
   meta: { name: "discover", description: "Clarify requirements before planning" },

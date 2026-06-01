@@ -164,9 +164,29 @@ function failedSentinel(
 }
 
 function readJob(path: string): PlanJob {
-  const text = readFileSync(path, "utf8")
-  const { data } = parseFrontmatter<PlanJob>(text)
-  return data
+  // UX-3: wrap raw fs/parse failures in a domain error so callers
+  // (completePlanJob/failPlanJob/showJob) surface MalformedJobFile with the
+  // path, not a bare ENOENT / YAML stack. listJobsRaw's catch still skips it.
+  let text: string
+  try {
+    text = readFileSync(path, "utf8")
+  } catch (err) {
+    throw new PlanJobError(
+      "MalformedJobFile",
+      `plan-job file unreadable at ${path}: ${(err as Error).message}`,
+      { path },
+    )
+  }
+  try {
+    const { data } = parseFrontmatter<PlanJob>(text)
+    return data
+  } catch (err) {
+    throw new PlanJobError(
+      "MalformedJobFile",
+      `plan-job file unparseable at ${path}: ${(err as Error).message}`,
+      { path },
+    )
+  }
 }
 
 function writeJob(path: string, job: PlanJob): void {

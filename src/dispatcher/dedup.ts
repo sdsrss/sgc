@@ -65,6 +65,11 @@ export function tokenize(text: string): Set<string> {
     // CJK / other scripts need 2+ chars (Chinese content words are naturally
     // 2-char: 修复, 指针, 认证; single-char segments like 的, 时 are mostly
     // grammatical particles, drop as noise).
+    // ALG-3 (P2 audit) re-evaluated this floor: minLen=2 also drops single-char
+    // *content* words (锁, 树). That is the accepted trade-off — lowering to 1
+    // would readmit high-frequency particles (的/了/在/是) that dilute the
+    // Jaccard signal far more than a rare single-char content word helps, and
+    // similarity() feeds the non-tunable 0.85 §3 write gate. Accepted range.
     const isAsciiOnly = /^[\x00-\x7F]+$/.test(w)
     const minLen = isAsciiOnly ? 3 : 2
     if (w.length < minLen) continue

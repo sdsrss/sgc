@@ -275,6 +275,22 @@ describe("completePlanJob / failPlanJob — terminal transitions", () => {
     expect(failed!.payload["job_id"]).toBe(fork.job.job_id)
     expect(failed!.payload["error"]).toContain("429")
   })
+
+  it("UX-3: readJob wraps a malformed job file as PlanJobError(MalformedJobFile)", async () => {
+    // File exists (passes completePlanJob's existsSync guard) but has no YAML
+    // frontmatter → parseFrontmatter throws; readJob must rethrow as a domain
+    // PlanJobError carrying the path, not a bare StateError.
+    mkdirSync(join(stateRoot, "plan-jobs"), { recursive: true })
+    const id = "01HMALFORMED00000000000000"
+    writeFileSync(
+      join(stateRoot, "plan-jobs", `${id}.md`),
+      "not a job file\n",
+      "utf8",
+    )
+    await expect(
+      completePlanJob(id, { taskId: "01HTASKID00000000000000000" }, { stateRoot }),
+    ).rejects.toMatchObject({ name: "PlanJobError", code: "MalformedJobFile" })
+  })
 })
 
 describe("listJobs", () => {

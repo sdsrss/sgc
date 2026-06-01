@@ -26,14 +26,17 @@ fi
 
 $SGC work                          # list features, highlight active
 $SGC work --add "<feature title>"  # append a new feature
-$SGC work --done <feature_id>      # mark done, advance active pointer
+# --done REQUIRES --verify-command (close-gate). Operator responsibility —
+# sgc records the string, it does NOT execute it.
+$SGC work --done <feature_id> --verify-command "<how verified>" [--evidence "<observed>"]
 ```
 
 ## What you should do
 
 1. Read the user's intent: list / add / done.
 2. Run the CLI verbatim; surface output.
-3. If the user is implementing code, remind once that no production code lands without a failing test first (skill: `sp:test-driven-development` if available).
+3. To mark a feature done you MUST pass `--verify-command` — a bare `--done` is refused (parity with `sgc debug close`). Supply the command/check proving the feature works, and optionally `--evidence` naming what you observed.
+4. If the user is implementing code, remind once that no production code lands without a failing test first (skill: `sp:test-driven-development` if available).
 
 ## Notes
 

@@ -22,6 +22,16 @@ export interface WorkOptions {
   stateRoot?: string
   add?: string
   done?: string
+  /**
+   * Verification close-gate (sp:verification-before-completion absorb, Tier 1).
+   * Required to transition a feature to `done` — arbitrary non-empty string
+   * naming how it was verified. OPERATOR RESPONSIBILITY: sgc records it but
+   * does NOT execute it (parity with `sgc debug close`). Not required when
+   * `--done` targets an already-done feature (grandfathered no-op).
+   */
+  verifyCommand?: string
+  /** Optional free-text evidence naming what was observed (Iron Law #2). */
+  evidence?: string
   log?: (msg: string) => void
   logger?: Logger
 }
@@ -91,9 +101,26 @@ export async function runWork(opts: WorkOptions = {}): Promise<WorkResult> {
       throw new Error(`feature ${opts.done} not found in feature-list`)
     }
     if (list.features[idx]!.status === "done") {
+      // Grandfather: already-done features are a no-op and need no gate.
       log(`feature ${opts.done} was already done; no change`)
     } else {
-      list.features[idx] = { ...list.features[idx]!, status: "done" }
+      // Verification close-gate (Tier 1, parity with `sgc debug close` Iron
+      // Law #3): a new done-transition MUST carry a verify_command. sgc records
+      // it but does not execute it — operator responsibility.
+      const verifyCommand = opts.verifyCommand?.trim()
+      if (!verifyCommand) {
+        throw new Error(
+          `done refused: --verify-command required to mark ${opts.done} done ` +
+            `(operator responsibility; sgc does not execute it)`,
+        )
+      }
+      const evidence = opts.evidence?.trim()
+      list.features[idx] = {
+        ...list.features[idx]!,
+        status: "done",
+        verify_command: verifyCommand,
+        ...(evidence ? { evidence } : {}),
+      }
       writeFeatureList(list, "", stateRoot)
       log(`marked ${opts.done} done`)
     }

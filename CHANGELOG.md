@@ -1,5 +1,33 @@
 # Changelog
 
+## v1.19.0 — 2026-06-01 — feat: verification close-gate on `sgc work --done` (sp:verification-before-completion absorb, Tier 1)
+
+`sgc work --done <feature_id>` now **requires** a `--verify-command` to mark a feature
+done — generalizing the `sgc debug close` Iron Law #3 hard-gate from the debug path to the
+general work path. This absorbs `superpowers:verification-before-completion` as an
+sgc-native structural gate and closes an internal contract asymmetry (debug closes were
+hard-gated on evidence; `work --done` previously flipped status with none).
+
+### What changed
+
+- New flags on `sgc work`: `--verify-command <str>` (required to close a feature) and
+  `--evidence <str>` (optional free-text naming what was observed).
+- `verify_command` is OPERATOR RESPONSIBILITY — sgc records it but does **not** execute it
+  (parity with `sgc debug close`; keeps the gate deterministic, no arbitrary exec).
+- New optional `Feature` fields `verify_command` + `evidence`, persisted into
+  `progress/feature-list.md` on the done-transition (`contracts/sgc-state.schema.yaml`).
+- `sgc loop` inherits the gate transitively via its `paused_work` → operator → `work --done`
+  handoff; no separate loop gate.
+
+### Compatibility
+
+Additive minor. Features already marked `done` are **grandfathered** — their records lack
+the new fields and re-render unchanged; a repeated `--done` on an already-done feature is a
+no-op needing no flag. Only new `pending`/`in_progress` → `done` transitions require
+`--verify-command`. Invariant §1/§4 untouched (no LLM, no human-signature change).
+
+Out of scope: not a TDD coach (Tier 2 ledger is future work), no per-subtask granularity.
+
 ## v1.18.0 — 2026-05-29 — feat(GS-3): plan decision fusion (fused_verdict at L2/L3)
 
 `sgc plan` now emits a **Fused decision** synthesizing the planner cluster (ceo / eng /

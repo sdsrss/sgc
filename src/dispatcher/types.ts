@@ -56,6 +56,17 @@ export interface Feature {
   status: FeatureStatus
   depends_on?: string[]
   blocked_by?: string
+  /**
+   * Verification close-gate (sp:verification-before-completion absorb, Tier 1).
+   * Set when the feature transitions to `done` via `sgc work --done`. Arbitrary
+   * non-empty string naming how the feature was verified — OPERATOR
+   * RESPONSIBILITY, sgc does NOT execute it (parity with `sgc debug close`'s
+   * Iron Law #3 verify_command). Absent on features marked done before the
+   * gate existed (grandfathered).
+   */
+  verify_command?: string
+  /** Optional free-text evidence naming what was observed (Iron Law #2). */
+  evidence?: string
 }
 
 export interface FeatureList {

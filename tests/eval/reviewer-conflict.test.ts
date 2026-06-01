@@ -96,7 +96,7 @@ describe("reviewer aggregation via runReview pipeline", () => {
     )
     expect(plan.level).toBe("L3")
 
-    await runWork({ stateRoot: tmp, done: "f1", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
 
     // Diff with migration keyword to trigger specialist cluster
     const review = await runReview({
@@ -133,7 +133,7 @@ describe("reviewer aggregation via runReview pipeline", () => {
     )
     expect(plan.level).toBe("L1")
 
-    await runWork({ stateRoot: tmp, done: "f1", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
 
     const review = await runReview({
       stateRoot: tmp,

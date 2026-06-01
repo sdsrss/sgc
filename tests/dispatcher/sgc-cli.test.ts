@@ -46,6 +46,17 @@ describe("sgc CLI smoke", () => {
     }
   })
 
+  test("work --help shows verification close-gate flags (Tier 1, sp absorb)", async () => {
+    const { stdout, exitCode } = await runSgc(["work", "--help"])
+    expect(exitCode).toBe(0)
+    // toContain (not regex) per DOG-3 — citty wraps names in backticks under CI.
+    for (const flag of ["--done", "--verify-command", "--evidence"]) {
+      expect(stdout).toContain(flag)
+    }
+    // Gate semantics surfaced so operators learn --done now requires verification.
+    expect(stdout).toContain("verify")
+  })
+
   test("watch-ci-failure --help shows all 5 flags (CE-3)", async () => {
     const { stdout, exitCode } = await runSgc(["watch-ci-failure", "--help"])
     expect(exitCode).toBe(0)

@@ -128,7 +128,7 @@ describe("L3 migration scenario (eval §12)", () => {
     const intent = readIntent(plan.taskId, tmp)
     expect(intent.user_signature?.signer_id).toBe("alice")
 
-    await runWork({ stateRoot: tmp, done: "f1", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
     await runReview({ stateRoot: tmp, diffOverride: "+ok\n", log: () => {} })
     await runQa({ stateRoot: tmp, target: "http://x", flows: ["migrate"], log: () => {} })
 

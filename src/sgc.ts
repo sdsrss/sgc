@@ -177,7 +177,18 @@ const work = defineCommand({
     done: {
       type: "string",
       required: false,
-      description: "Mark feature with this id as done",
+      description: "Mark feature with this id as done (requires --verify-command)",
+    },
+    "verify-command": {
+      type: "string",
+      required: false,
+      description:
+        "(with --done) how the feature was verified — required to close. Operator responsibility; sgc does not execute it (parity with debug close)",
+    },
+    evidence: {
+      type: "string",
+      required: false,
+      description: "(with --done) optional free-text evidence naming what was observed",
     },
   },
   async run({ args }) {
@@ -185,6 +196,8 @@ const work = defineCommand({
     await runWork({
       add: args.add as string | undefined,
       done: args.done as string | undefined,
+      verifyCommand: args["verify-command"] as string | undefined,
+      evidence: args.evidence as string | undefined,
     })
   },
 })

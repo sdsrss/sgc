@@ -74,7 +74,7 @@ describe("L1 copy scenario (eval §12)", () => {
     expect(intent.body ?? "").toMatch(/default classification/)
 
     // STEP 2: work
-    await runWork({ stateRoot: tmp, done: "f1", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
 
     // STEP 3: review — pure text diff (markdown copy change), no TODO markers
     const textDiff =
@@ -116,7 +116,7 @@ describe("L1 copy scenario (eval §12)", () => {
       "update the privacy policy paragraph in the footer",
       { stateRoot: tmp, motivation: LONG_MOTIVATION_FIXTURE, log: () => {} },
     )
-    await runWork({ stateRoot: tmp, done: "f1", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
     const r = await runReview({
       stateRoot: tmp,
       diffOverride:

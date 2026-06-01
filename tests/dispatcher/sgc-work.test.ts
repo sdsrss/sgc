@@ -50,10 +50,10 @@ describe("runWork", () => {
   test("--done marks feature done; active advances", async () => {
     await freshTask()
     await runWork({ stateRoot: tmp, add: "second feature", log: () => {} })
-    const after1 = await runWork({ stateRoot: tmp, done: "f1", log: () => {} })
+    const after1 = await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "tests pass", log: () => {} })
     expect(after1.active?.id).toBe("f2")
     expect(after1.allDone).toBe(false)
-    const after2 = await runWork({ stateRoot: tmp, done: "f2", log: () => {} })
+    const after2 = await runWork({ stateRoot: tmp, done: "f2", verifyCommand: "tests pass", log: () => {} })
     expect(after2.allDone).toBe(true)
     expect(after2.remaining.length).toBe(0)
   })
@@ -67,7 +67,60 @@ describe("runWork", () => {
 
   test("--done on already-done feature is idempotent (no error)", async () => {
     await freshTask()
-    await runWork({ stateRoot: tmp, done: "f1", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "tests pass", log: () => {} })
+    await expect(
+      runWork({ stateRoot: tmp, done: "f1", log: () => {} }),
+    ).resolves.toBeDefined()
+  })
+
+  test("--done without --verify-command is refused (close-gate)", async () => {
+    await freshTask()
+    await expect(
+      runWork({ stateRoot: tmp, done: "f1", log: () => {} }),
+    ).rejects.toThrow(/verify-command/)
+  })
+
+  test("--done with empty/whitespace --verify-command is refused", async () => {
+    await freshTask()
+    await expect(
+      runWork({ stateRoot: tmp, done: "f1", verifyCommand: "   ", log: () => {} }),
+    ).rejects.toThrow(/verify-command/)
+  })
+
+  test("--done with --verify-command persists verify_command into the feature record", async () => {
+    await freshTask()
+    await runWork({
+      stateRoot: tmp,
+      done: "f1",
+      verifyCommand: "bun test tests/dispatcher/sgc-work.test.ts: 12 passed",
+      log: () => {},
+    })
+    const fl = readFeatureList(tmp)
+    const f1 = fl?.list.features.find((f) => f.id === "f1")
+    expect(f1?.status).toBe("done")
+    expect(f1?.verify_command).toBe(
+      "bun test tests/dispatcher/sgc-work.test.ts: 12 passed",
+    )
+  })
+
+  test("--done persists optional --evidence alongside verify_command", async () => {
+    await freshTask()
+    await runWork({
+      stateRoot: tmp,
+      done: "f1",
+      verifyCommand: "tsc --noEmit: 0 errors",
+      evidence: "gate refuses bare --done; field round-trips",
+      log: () => {},
+    })
+    const fl = readFeatureList(tmp)
+    const f1 = fl?.list.features.find((f) => f.id === "f1")
+    expect(f1?.evidence).toBe("gate refuses bare --done; field round-trips")
+  })
+
+  test("already-done feature is grandfathered (idempotent, no verify-command needed)", async () => {
+    await freshTask()
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "x", log: () => {} })
+    // Second --done with no verify-command must NOT throw (already done → no-op).
     await expect(
       runWork({ stateRoot: tmp, done: "f1", log: () => {} }),
     ).resolves.toBeDefined()
@@ -85,7 +138,7 @@ describe("runWork", () => {
   test("all-done prompts to run sgc review", async () => {
     const logs: string[] = []
     await freshTask()
-    await runWork({ stateRoot: tmp, done: "f1", log: (m) => logs.push(m) })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "tests pass", log: (m) => logs.push(m) })
     expect(logs.some((m) => m.includes("sgc review"))).toBe(true)
   })
 })

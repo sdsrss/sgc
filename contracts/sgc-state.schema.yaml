@@ -133,6 +133,13 @@ progress:
               values: [pending, in_progress, blocked, done]
             depends_on:      { type: array[string], optional: true }
             blocked_by:      { type: string, optional: true }
+            # Verification close-gate (sp:verification-before-completion absorb,
+            # Tier 1). Set when a feature transitions to `done` via
+            # `sgc work --done`; required at that transition (operator
+            # responsibility, sgc does not execute). Optional here because
+            # features done before the gate existed are grandfathered.
+            verify_command:  { type: string, optional: true }
+            evidence:        { type: string, optional: true }
 
     current_task:
       filename: current-task.md

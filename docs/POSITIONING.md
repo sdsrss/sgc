@@ -25,6 +25,7 @@ sgc coexists with the `superpowers` (sp) and `gstack` (gs) plugins. It does NOT 
 | Pre-ship comprehensive review | `gs:/review` |
 | Git / PR / deploy | `gs:/ship` + `gs:/land-and-deploy` |
 | Systematic-debug execution | `sgc debug` — 4-phase walker, absorb (GS-4 v1.15.0) |
+| Completion verification | `sgc work --done` close-gate — `verify_command` required to mark a feature done, absorb (`sp:verification-before-completion` v1.19.0) |
 | Post-publish chain (sgc-self) | `sgc land` — chains `watch-ci-failure` + `canary`, zero gh-CLI dep |
 | Pre-ship security review | `sgc cso` — infra-first audit, daily/comprehensive modes, absorb (GS-5 v1.17.0) |
 | Intent framing / brainstorm | `sgc discover --template` — framing selector, absorb (GS-6 v1.16.0) |

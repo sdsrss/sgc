@@ -40,6 +40,14 @@ jobs:
         # green (typescript pinned in devDependencies). Fail-fast before tests.
         run: npm run typecheck
 
+      - name: Build CLI bundle
+        run: npm run build:cli
+
+      - name: Bundle parity (committed == rebuild)
+        run: |
+          git diff --exit-code plugins/sgc/bin/sgc.mjs \
+            || (echo "ERROR: committed bundle is stale — run 'npm run build:cli' and commit" >&2; exit 1)
+
       - name: Run dispatcher + eval tests
         id: run_tests
         run: |

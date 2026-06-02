@@ -384,4 +384,24 @@ test("doctor (B) prompts check uses embedded keys, not readdirSync", async () =>
   const report = await runDoctor({ log: (m) => lines.push(m), repoRoot: "/nonexistent-root-xyz" })
   expect(lines.some((l) => l.includes("planner-eng.md"))).toBe(true)
   expect(report.fail).toBe(0)
+
+  // ── Each source-only check (D/E/F/G/H/I) MUST emit its skip row ───────────
+  // A `fail===0` assertion alone wouldn't catch a deleted hasSource guard: with
+  // the bogus root the unguarded check would emit a `warn` (missing file), not a
+  // `fail`, so fail===0 still passes. Asserting the exact skip-row text means
+  // removing ANY single guard flips that check from the skip row to a warn row,
+  // failing one of these matchers.
+  const skipRow = (snippet: string): boolean =>
+    lines.some((l) => l.includes(snippet) && /skipped \(no source checkout/.test(l))
+  expect(skipRow("bunfig.toml root")).toBe(true) // (D)
+  expect(skipRow("package.json files")).toBe(true) // (E)
+  expect(skipRow("vendored-components.yaml")).toBe(true) // (F)
+  expect(skipRow("invariant-enforcement.yaml")).toBe(true) // (G)
+  expect(skipRow("slash↔CLI parity")).toBe(true) // (H)
+  expect(skipRow("invariant-source parity")).toBe(true) // (I)
+
+  // All six skips land as `ok` rows, never warn/fail — so the bogus root yields
+  // zero warnings beyond embedded-prompt orphans and zero hard failures.
+  const skipRowCount = lines.filter((l) => /skipped \(no source checkout/.test(l)).length
+  expect(skipRowCount).toBe(6)
 })

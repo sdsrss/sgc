@@ -26,7 +26,7 @@ async function l1Ready() {
     motivation: LONG_MOTIVATION,
     log: () => {},
   })
-  await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+  await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
   await runReview({ stateRoot: tmp, diffOverride: "+ok\n", log: () => {} })
   return p
 }
@@ -37,7 +37,7 @@ async function l2Ready() {
     motivation: LONG_MOTIVATION,
     log: () => {},
   })
-  await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+  await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
   await runReview({ stateRoot: tmp, diffOverride: "+ok\n", log: () => {} })
   await runQa({ stateRoot: tmp, target: "http://x", flows: ["a"], log: () => {} })
   return p
@@ -51,7 +51,7 @@ async function l3Ready() {
     readConfirmation: async () => "yes",
     log: () => {},
   })
-  await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+  await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
   await runReview({ stateRoot: tmp, diffOverride: "+ok\n", log: () => {} })
   await runQa({ stateRoot: tmp, target: "http://x", flows: ["a"], log: () => {} })
   return p
@@ -79,7 +79,7 @@ describe("runShip — gates (negative)", () => {
       motivation: LONG_MOTIVATION,
       log: () => {},
     })
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
     // No runReview call
     await expect(runShip({ stateRoot: tmp, log: () => {} })).rejects.toThrow(
       /no code reviews/,
@@ -93,7 +93,7 @@ describe("runShip — gates (negative)", () => {
       motivation: LONG_MOTIVATION,
       log: () => {},
     })
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
     await runReview({ stateRoot: tmp, diffOverride: "+ok\n", log: () => {} })
     // No runQa call
     await expect(runShip({ stateRoot: tmp, log: () => {} })).rejects.toThrow(
@@ -157,7 +157,7 @@ describe("runShip — happy paths", () => {
     const p = await runPlan("fix typo in README", { stateRoot: tmp, log: () => {} })
     expect(p.level).toBe("L0")
     // Seed a feature so feature-list isn't empty (L0 runPlan still writes it)
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
     const r = await runShip({ stateRoot: tmp, log: () => {} })
     expect(r.shipPath).toBeNull()
     expect(existsSync(resolve(tmp, "decisions", p.taskId, "ship.md"))).toBe(false)

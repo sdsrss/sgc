@@ -47,7 +47,7 @@ async function l1Ready() {
     motivation: LONG_MOTIVATION,
     log: () => {},
   })
-  await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+  await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
   await runReview({ stateRoot: tmp, diffOverride: "+ok\n", log: () => {} })
   return p
 }
@@ -205,7 +205,7 @@ describe("runShip --pr integration", () => {
       },
     }
     await runPlan("fix typo in README", { stateRoot: tmp, log: () => {} })
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
     const r = await runShip({
       stateRoot: tmp,
       createPr: true,

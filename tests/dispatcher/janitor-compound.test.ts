@@ -154,7 +154,7 @@ describe("ship → janitor → compound integration (Invariant §6)", () => {
       motivation: LONG_MOTIVATION,
       log: () => {},
     })
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
     await runReview({ stateRoot: tmp, diffOverride: "+ok\n", log: () => {} })
   }
 
@@ -164,7 +164,7 @@ describe("ship → janitor → compound integration (Invariant §6)", () => {
       motivation: LONG_MOTIVATION,
       log: () => {},
     })
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
     await runReview({ stateRoot: tmp, diffOverride: "+ok\n", log: () => {} })
     await runQa({ stateRoot: tmp, target: "http://x", flows: ["a"], log: () => {} })
   }

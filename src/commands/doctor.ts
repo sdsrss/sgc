@@ -62,20 +62,22 @@ interface CheckRow {
 export async function bundleParityCheck(root: string): Promise<CheckRow> {
   const srcEntry = resolve(root, "src", "sgc.ts")
   const committed = resolve(root, "plugins", "sgc", "bin", "sgc.mjs")
-  if (!existsSync(srcEntry) || !existsSync(committed)) {
+  // scripts/build-cli.mjs is the SINGLE source of truth for the bun-build flags
+  // (shared with package.json build:cli). Rebuilding via the same script means
+  // a flag change can never produce a silent false-STALE failure here.
+  const buildScript = resolve(root, "scripts", "build-cli.mjs")
+  if (!existsSync(srcEntry) || !existsSync(committed) || !existsSync(buildScript)) {
     return { severity: "ok", msg: "  ⓘ bundle-hash parity skipped (no source checkout — dev/CI-only check)" }
   }
   const tmp = mkdtempSync(resolve(tmpdir(), "sgc-bundle-"))
   const out = resolve(tmp, "sgc.mjs")
   try {
-    const r = await spawnCapture(
-      ["bun", "build", srcEntry, "--target=node", "--format=esm", "--external", "playwright", "--outfile", out],
-      { cwd: root },
-    )
+    const r = await spawnCapture(["node", buildScript, "--outfile", out], { cwd: root })
     if (r.exitCode !== 0) return { severity: "warn", msg: `  ⚠ bundle-hash parity: rebuild failed (${r.stderr.slice(0, 120)})` }
     const sha = (buf: Buffer) => createHash("sha256").update(buf).digest("hex")
-    // strip shebang line from both before hashing (build:cli normalizes it post-build;
-    // the raw bun build output may differ only in the shebang line)
+    // build-cli.mjs normalizes the shebang identically in both the committed
+    // bundle and this temp rebuild; strip-before-hash is kept as defensive
+    // belt-and-suspenders (harmless when both already match).
     const strip = (b: Buffer) => Buffer.from(b.toString("utf8").replace(/^#![^\n]*\n/, ""))
     const a = sha(strip(readFileSync(out)))
     const b = sha(strip(readFileSync(committed)))

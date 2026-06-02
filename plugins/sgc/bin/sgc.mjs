@@ -17576,13 +17576,14 @@ function extractCliSubcommands(src2) {
 async function bundleParityCheck(root4) {
   const srcEntry = resolve15(root4, "src", "sgc.ts");
   const committed = resolve15(root4, "plugins", "sgc", "bin", "sgc.mjs");
-  if (!existsSync19(srcEntry) || !existsSync19(committed)) {
+  const buildScript = resolve15(root4, "scripts", "build-cli.mjs");
+  if (!existsSync19(srcEntry) || !existsSync19(committed) || !existsSync19(buildScript)) {
     return { severity: "ok", msg: "  ⓘ bundle-hash parity skipped (no source checkout — dev/CI-only check)" };
   }
   const tmp = mkdtempSync(resolve15(tmpdir(), "sgc-bundle-"));
   const out = resolve15(tmp, "sgc.mjs");
   try {
-    const r3 = await spawnCapture(["bun", "build", srcEntry, "--target=node", "--format=esm", "--external", "playwright", "--outfile", out], { cwd: root4 });
+    const r3 = await spawnCapture(["node", buildScript, "--outfile", out], { cwd: root4 });
     if (r3.exitCode !== 0)
       return { severity: "warn", msg: `  ⚠ bundle-hash parity: rebuild failed (${r3.stderr.slice(0, 120)})` };
     const sha = (buf) => createHash4("sha256").update(buf).digest("hex");
@@ -22340,7 +22341,7 @@ var package_default = {
   ],
   scripts: {
     "build:browse": "bun build ./plugins/sgc/browse/src/cli.ts --compile --outfile ./plugins/sgc/browse/dist/browse",
-    "build:cli": `bun build src/sgc.ts --target=node --format=esm --external playwright --outfile plugins/sgc/bin/sgc.mjs && node -e "const f='plugins/sgc/bin/sgc.mjs';const fs=require('fs');let s=fs.readFileSync(f,'utf8');if(!s.startsWith('#!'))fs.writeFileSync(f,'#!/usr/bin/env node\\n'+s);else fs.writeFileSync(f,s.replace(/^#![^\\n]*\\n/,'#!/usr/bin/env node\\n'));fs.chmodSync(f,0o755)"`,
+    "build:cli": "node scripts/build-cli.mjs",
     typecheck: "tsc --noEmit",
     test: "SGC_FORCE_INLINE=1 bun test tests/dispatcher",
     "test:eval": "bun test tests/eval",

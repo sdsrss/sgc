@@ -1,256 +1,206 @@
-# SGC — Spec Layer + Knowledge Engine
+# sgc — All-in-One Engineering Workflow & Knowledge Engine for Claude Code
 
-L0-L3 task classification, 13 runtime invariants, and a dedup-enforced `.sgc/` knowledge base. A **规范层 + 知识引擎** that *coexists* with `superpowers` (sp) and `gstack` (gs) rather than replacing them — sgc owns classification + invariants + the solutions corpus; sp owns deep planning / TDD / debugging; gs owns ship + browser QA + deploy. See [docs/POSITIONING.md](docs/POSITIONING.md) for the delegate pattern.
+[![npm version](https://img.shields.io/npm/v/@sdsrs/sgc?logo=npm)](https://www.npmjs.com/package/@sdsrs/sgc)
+[![install size](https://img.shields.io/badge/runtime-node%20%E2%89%A518-339933?logo=node.js&logoColor=white)](#install)
+[![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-d97757)](https://docs.claude.com/en/docs/claude-code)
+[![license](https://img.shields.io/npm/l/@sdsrs/sgc)](LICENSE)
 
-**Status**: production (current version on [npm](https://www.npmjs.com/package/@sdsrs/sgc) / [CHANGELOG.md](CHANGELOG.md)) — full L0→L3 pipeline with 19 CLI commands (16 exposed as `/sgc:*` slash commands; 3 CLI-only: `canary` · `watch-ci-failure` · `land`), 10 LLM-backed agents (`prompt_path` templates with `cache_control` split), 1 intentionally heuristic (`compound.related` — its `dedup_stamp` authorizes Invariant §3 writes and must stay deterministic), all 13 invariants enforced at runtime, plus the **CE compound-engineering loop end-to-end** (CE-1 prevention injection → planner.adversarial; CE-2 `sgc reflect` decisions↔solutions audit; CE-3 `sgc watch-ci-failure` + `sgc compound --from-ship-failure` ship-failure capture/promote; CE-4 `sgc plan --async` detached planner; CE-5 `sgc loop` orchestrator; CE-6 `applied_in` L3 score feedback + `surfaced_in` L2 prevention-reuse tracking), the **GS-N absorb arc complete (7/7)** — sgc-native heuristic implementations of selected gstack-style capabilities per [docs/POSITIONING.md](docs/POSITIONING.md): `sgc canary` (GS-1) · `handoff` (GS-2) · `plan` fused decision (GS-3) · `debug` (GS-4) · `cso` (GS-5) · `discover --template` (GS-6) · `land` (GS-7), and the **Tier-1 Superpowers absorb** — `sgc work --done` verification close-gate (`sp:verification-before-completion`). LLM integration via `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` / local `claude` binary — auto-detected per `resolveMode` priority. See [CHANGELOG.md](CHANGELOG.md) for shipped phases, [docs/POSITIONING.md](docs/POSITIONING.md) for the coexist-with-sp/gs design, and [docs/SOLUTIONS.md](docs/SOLUTIONS.md) for curated solution/prevention knowledge.
+**sgc is a self-contained [Claude Code](https://docs.claude.com/en/docs/claude-code) plugin that runs your entire engineering loop — plan → implement → review → QA → ship → compound — from one install.** It adds L0–L3 task classification, 13 runtime invariants, and a deduplicated knowledge engine that *compounds* what every task teaches you. One command to install, node-only, no extra runtime, no other plugins required.
 
----
+> **In one sentence:** sgc turns Claude Code into a disciplined engineering agent that classifies each task, enforces the right process for its risk level, runs review/QA/security gates, ships it, and records reusable knowledge so the same mistake is never made twice.
+
+sgc consolidates — natively, in-process — the engineering capabilities you'd otherwise install separately: gstack-style **canary / security review / browser QA / ship orchestration**, Superpowers-style **systematic debugging and verification gates**, and the **Compound Engineering** capture→promote→reuse loop. You don't need to install or wire up those plugins; sgc owns the whole workflow and runs standalone. (It will still interoperate with `superpowers` / `gstack` if you have them.)
+
+## Why sgc?
+
+- **One-command install, zero runtime hassle.** `/plugin install sgc` ships a self-contained Node bundle — works on any machine that runs Claude Code (Node ≥ 18). No `bun`, no second install step, no global setup.
+- **Right-sized process per task.** Every task is classified **L0–L3** (typo → architecture) and gets exactly the planning, review depth, and human gates its risk warrants — no ceremony on a typo, full adversarial review + human signature on a migration.
+- **13 runtime invariants, enforced — not suggested.** Generator/evaluator separation, immutable decisions, dedup-gated knowledge writes, scope tokens pinned at spawn, two-tier event audit. The protocol is machine-checked at every write.
+- **A knowledge engine that compounds.** Every shipped task can promote a reusable solution/prevention into a deduplicated corpus; future plans surface prior art automatically, so lessons accumulate instead of evaporating.
+- **Full loop in one tool.** `plan · work · review · qa · ship · compound · debug · cso · canary · land · reflect · loop` — the complete plan-to-prod pipeline plus security review, systematic debugging, post-publish canary, and knowledge reflection.
 
 ## Install
-
-sgc has two pieces: the **CLI** (the dispatcher) and the **Claude Code plugin** (the markdown prompt layer that invokes the CLI from `/sgc:*` slash commands).
-
-### 1. Install the CLI
-
-**Recommended — npm (global):**
-
-```bash
-npm install -g @sdsrs/sgc
-sgc --version
-```
-
-`bun ≥ 1.3` is required as the runtime — `bun --version` to verify. Once installed, `/sgc:*` commands work from any project directory.
-
-**Alternative — from source** (when you want to hack on sgc itself or the npm registry is unreachable):
-
-```bash
-git clone https://github.com/sdsrss/sgc && cd sgc
-
-# bun client doesn't honor HTTP_PROXY; use npm for install
-PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install
-
-bun --version    # ≥1.3
-```
-
-In source-clone mode, `/sgc:*` commands must run from inside the `sgc/` directory (each slash command preflight detects npm-installed first, then falls back to checking `src/sgc.ts` in `cwd`). Lockfile: `package-lock.json` (npm); Bun reads it fine.
-
-### 2. Install the Claude Code plugin
 
 ```bash
 /plugin marketplace add sdsrss/sgc
 /plugin install sgc
 ```
 
-Installs the prompt layer in `~/.claude/plugins/cache/sgc/sgc/`: 16 slash commands (`/sgc:plan`, `/sgc:work`, `/sgc:doctor`, …), 9 skills, and the SessionStart bootstrap hook. After install, `/sgc:plan` etc. become available in any Claude Code session — the slash command auto-detects whichever CLI install you have.
+That's it. The plugin ships a self-contained Node CLI bundle (`plugins/sgc/bin/sgc.mjs`), so every `/sgc:*` slash command works immediately on any machine that runs Claude Code — **no `bun`, no separate `npm install`, no PATH setup.**
 
-## Update
-
-```bash
-# Plugin layer
-/plugin marketplace update sgc    # refresh marketplace metadata
-/plugin update sgc                # pull the new plugin version
-
-# CLI — npm install
-npm update -g @sdsrs/sgc
-
-# CLI — source clone
-git pull && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install
-```
-
-Both plugin steps are needed — `/plugin update sgc` alone uses cached marketplace metadata and won't see new versions. The plugin update only refreshes the markdown prompt layer, not the dispatcher; bump the CLI separately via the matching method.
-
-## Uninstall
+**Also available on npm** (for `npx`, CI, or use outside Claude Code):
 
 ```bash
-/plugin uninstall sgc               # removes plugin from ~/.claude/plugins/cache
-/plugin marketplace remove sgc      # removes the marketplace entry
+npm install -g @sdsrs/sgc
+sgc --version
 ```
 
-Both steps for a clean removal. Project-level `.sgc/` state directories are **not** touched — that's project data, not plugin data. Run `rm -rf .sgc` per-project if you also want to wipe the state layer.
+The npm package runs on Node ≥ 18 (no `bun` runtime required). Both channels ship the **same bundle**; when both are present, the plugin-bundled CLI wins for version determinism.
+
+<details>
+<summary><strong>From source</strong> (to hack on sgc itself)</summary>
+
+```bash
+git clone https://github.com/sdsrss/sgc && cd sgc
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install   # bun client ignores HTTP_PROXY; use npm
+bun --version    # ≥1.3 — dev/build/test runtime only (not needed by end users)
+npm run build:cli                                 # rebuild plugins/sgc/bin/sgc.mjs
+```
+
+In source mode the slash commands fall back to `bun src/sgc.ts` when no bundle/global CLI is found.
+</details>
+
+### Update
+
+```bash
+/plugin marketplace update sgc   # refresh marketplace metadata first
+/plugin update sgc               # then pull the new version
+npm update -g @sdsrs/sgc         # if you also use the npm channel
+```
+
+Both plugin steps are needed — `/plugin update` alone uses cached marketplace metadata. Your project `.sgc/` state is untouched by updates.
+
+### Uninstall
+
+```bash
+/plugin uninstall sgc
+/plugin marketplace remove sgc
+```
+
+No global footprint is left behind. Project-level `.sgc/` directories are **not** removed — that's your data, not plugin data (`rm -rf .sgc` per project to wipe state).
 
 ## Quick start
 
 ```bash
-# 1. Plan a task (classifier → planner.eng → write intent)
-#    L1+ requires --motivation ≥20 words (sgc-state.schema.yaml min_words);
-#    L0 tasks (typo/format/comment) skip intent.md entirely.
-bun src/sgc.ts plan "add an Example section to plan/SKILL.md" \
-  --motivation "Newcomers can't verify the skill end-to-end without sample input/output, so add a runnable Example block matching the format used elsewhere in the repo."
+# 1. Plan a task — classifier picks L0–L3, runs the planner cluster, writes immutable intent
+#    (L1+ requires --motivation ≥20 words; L0 typos skip intent entirely)
+sgc plan "add an Example section to the plan skill" \
+  --motivation "Newcomers can't verify the skill end-to-end without sample input/output, so add a runnable Example block matching the repo's format."
 
-# 2. Track progress (no LLM here — you implement, dispatcher tracks)
-bun src/sgc.ts work                    # list features, highlight active
-bun src/sgc.ts work --add "verify"     # append a feature
-bun src/sgc.ts work --done f1          # mark done, advance
+# 2. Track implementation progress (you write code; sgc tracks features + gates 'done')
+sgc work                                   # list features, highlight active
+sgc work --add "verify empty-input path"
+sgc work --done f1 --verify-command "bun test tests/foo.test.ts"
 
-# 3. Review the diff (reviewer.correctness against git diff HEAD)
-bun src/sgc.ts review                  # or --base <ref>
+# 3. Independent review of your diff
+sgc review                                 # reviewer.correctness vs git diff (or --base <ref>)
 
-# 4. Dashboard
-bun src/sgc.ts status
+# 4. Ship + compound knowledge
+sgc ship                                   # 8-gate ship; auto-runs the compound janitor
+sgc status                                 # dashboard: active task, level, last activity
 ```
 
-State files land under `.sgc/` in the project (override via `SGC_STATE_ROOT`). The `.sgc/` directory is `.gitignore`d — runtime state, not source.
+State lives under `.sgc/` in the project (override via `SGC_STATE_ROOT`); it's `.gitignore`d — runtime state, not source.
 
 ## Commands
 
-| Command | Status | Purpose |
-|---------|--------|---------|
-| `sgc plan <task> [--motivation\|--signed-by\|--level]` | ✅ | Classify L0-L3; L1+ runs planner cluster (L2 adds ceo+researcher; L3 adds adversarial); writes immutable `decisions/{id}/intent.md` |
-| `sgc work [--add\|--done <id> --verify-command <s> [--evidence <s>]]` | ✅ | Track `feature-list.md` progress; `--done` **requires** `--verify-command` (verification close-gate, `sp:verification-before-completion` absorb — operator-supplied, not executed) |
-| `sgc review [--base <ref>]` | ✅ | reviewer.correctness on git diff → append-only review report |
-| `sgc qa [<target>] [--flows a,b,c]` | ✅ | qa.browser agent writes review report; L2+ ship requires this |
-| `sgc ship [--auto\|--pr\|--no-janitor\|--force-compound]` | ✅ | 8-gate ship; writeShip; optional `gh pr create`; auto-janitor invokes compound |
-| `sgc compound [--force\|--slug\|--from-ship-failure <slug>\|--from-canary <slug>\|--solution-slug <s>]` | ✅ | 4-agent compound cluster + dedup (0.85 threshold) + write `solutions/{cat}/{slug}.md`. **CE-3**: `--from-ship-failure` promotes a captured ship-failure record. **GS-1.1**: `--from-canary` promotes a captured canary-failure record. Both go through the same Invariant §3 write-gate (real `compound.related` spawn → DedupStamp → writeSolution); `--force` bypasses dedup refuse; `--solution-slug` overrides the default promoted slug. |
-| `sgc status` | ✅ | Active task + level + last activity |
-| `sgc agent-loop [--list\|--show\|--submit]` | ✅ | File-poll fulfillment helper (for external Claude session) |
-| `sgc discover <topic>` | ✅ | clarifier.discover forcing-questions; feeds into `sgc plan --motivation` |
-| `sgc tail [--task\|--agent\|--event-type\|--since\|--follow\|--limit]` | ✅ | Read `.sgc/progress/events.ndjson` (Invariant §13 two-tier audit stream); `--follow` polls with rotation handling |
-| `sgc plan --async <task>` | ✅ | CE-4: fork detached planner cluster, return job handle in <100ms. Surfaces via `sgc plan --jobs` / `--status <id>`. Single active job per project enforced. |
-| `sgc reflect [--task\|--since\|--save\|--json]` | ✅ | CE-2: read-only audit of `.sgc/decisions/*/intent.md` against `.sgc/solutions/*/*.md` `prevention:` field; classifies each match as `discussed` or `silent`. CE-6 surfaces `applied: N` (L3 adversarial-validated reuse) + `surfaced: N` (L2+ `researcher.history` reuse) per candidate. |
-| `sgc loop <task> [--resume <run-id>\|--runs\|--status]` | ✅ | CE-5: end-to-end orchestrator chaining `plan → [pause work] → review → qa → [pause ship] → compound`. Manual gates at `work` and `ship`; `--resume` continues from paused/failed step. L0 auto-skips review/qa/ship/compound. |
-| `sgc watch-ci-failure [--run-id <id>\|--workflow <name>]` | ✅ | CE-3: poll publish CI for current branch HEAD; on `failure`, write templated record at `.sgc/ship-failures/<date>-<sha>.md` with `prevention_seed: "TODO …"` for operator to fill. Pairs with `sgc compound --from-ship-failure` to promote. |
-| `sgc canary [--package\|--version\|--phases\|--health-url\|--health-regex\|--interval\|--timeout]` | ✅ | GS-1: post-publish health check — 3-phase ladder (`npm_propagation` → `smoke_install` via `npx --yes` → optional `health_url` GET). On failure, writes `.sgc/canaries/<date>-<sha>-<phase>.md` with `regression_seed: "TODO …"` and exits 1 (gating signal; sibling to CE-3 exit-0 silent-observer model). First ship of GS-N absorb arc. |
-| `sgc handoff [--auto]` | ✅ | GS-2: session-state checkpoint — scans `.sgc/` across 6 namespaces, derives the Iron Law #2 verify command, writes `tasks/<slug>-paused.md` for post-compaction recovery. |
-| `sgc debug <start\|close> [...]` | ✅ | GS-4: 4-phase systematic-debugging walker (investigate → analyze → hypothesize → implement). `close` is an Iron Law #3 hard-gate requiring `--root-cause` + `--fix-commit` + `--verify-command`. |
-| `sgc cso [--mode daily\|comprehensive]` | ✅ | GS-5: pre-ship security review — secret scan + dependency audit + `events.ndjson` anomaly detection. Append-only report under `.sgc/cso/`; exit 1 on fail, 0 on pass/warn. |
-| `sgc land` | ✅ | GS-7: post-publish ship chain — `watch-ci-failure` + `canary`, fail-fast on either. Zero `gh`-CLI dependency. |
-| `sgc doctor` | ✅ | Consistency check across `contracts/sgc-capabilities.yaml` ↔ `prompts/` ↔ slot-only annotations. Exit 1 on any failure. |
-
-One more CLI from the same repo:
-
 | Command | Purpose |
 |---------|---------|
-| `browse` | Headless browser CLI for QA testing (compiled binary, `bun run build:browse`). **Vendored** gstack-derived source under `plugins/sgc/browse/`, backing `sgc qa`'s browser checks. Its `test/` dir is upstream gstack's suite and is **not** part of sgc's CI gate (`bunfig.toml` scopes `bun test` to `tests/`); see [docs/POSITIONING.md](docs/POSITIONING.md) "Vendored components". |
+| `sgc discover <topic>` | Forcing-question clarifier; feeds `sgc plan --motivation` |
+| `sgc plan <task> [--motivation\|--signed-by\|--level\|--async]` | Classify L0–L3; run the planner cluster (L2 adds ceo+researcher, L3 adds adversarial + human signature); write immutable `decisions/{id}/intent.md` |
+| `sgc work [--add\|--done <id> --verify-command <s> [--evidence <s>]]` | Track `feature-list.md`; `--done` **requires** a verify command (verification close-gate) |
+| `sgc review [--base <ref>]` | Independent `reviewer.correctness` on your git diff → append-only report |
+| `sgc qa [<target>] [--flows a,b,c]` | Real-browser end-to-end QA; required before an L2+ ship |
+| `sgc ship [--auto\|--pr\|--no-janitor\|--force-compound]` | 8-gate ship; optional `gh pr create`; auto-invokes the compound janitor |
+| `sgc compound [--from-ship-failure\|--from-canary\|--force\|--slug …]` | Extract + dedup-gate (0.85) + write reusable `solutions/{cat}/{slug}.md` |
+| `sgc reflect [--task\|--since\|--save\|--json]` | Audit which stored solutions/preventions actually surfaced in your decisions |
+| `sgc loop <task> [--resume\|--runs\|--status]` | End-to-end orchestrator: plan → work → review → qa → ship → compound with manual gates |
+| `sgc debug <start\|close> […]` | 4-phase systematic debugging (investigate → analyze → hypothesize → implement); `close` is a hard-gate |
+| `sgc cso [--mode daily\|comprehensive]` | Pre-ship security review — secret scan + dependency audit + event-stream anomaly detection |
+| `sgc canary [--package\|--version\|--phases\|--health-url …]` | Post-publish health check (npm propagation → smoke install → optional health URL) |
+| `sgc land` | Post-publish ship chain (`watch-ci-failure` + `canary`, fail-fast) |
+| `sgc watch-ci-failure [--run-id\|--workflow]` | Poll publish CI; capture a templated ship-failure record for promotion |
+| `sgc handoff [--auto]` | Session-state checkpoint → `tasks/<slug>-paused.md` for post-compaction recovery |
+| `sgc status` / `sgc tail […]` | Dashboard / live `.sgc/progress/events.ndjson` audit stream |
+| `sgc doctor` | Self-check: contracts ↔ prompts ↔ command parity ↔ bundle freshness |
 
-## State layout
+19 commands total — 16 are also exposed as `/sgc:*` slash commands inside Claude Code; `canary`, `watch-ci-failure`, and `land` are CLI-only. A vendored `browse` headless-browser binary backs `sgc qa`.
 
-```
-.sgc/
-├── decisions/{task_id}/
-│   ├── intent.md          ← immutable (Invariant §2). Written by /plan (L1+).
-│   └── ship.md            ← immutable. Written by /ship (L1+).
-├── progress/
-│   ├── current-task.md    ← mutable. Active task + last_activity.
-│   ├── feature-list.md    ← mutable. Checklist managed by /work.
-│   ├── handoff.md         ← session-to-session continuity (manual write).
-│   ├── agent-prompts/     ← audit trail. Each spawn writes one prompt file.
-│   └── agent-results/     ← audit trail. Mirrors prompts.
-├── solutions/{cat}/{slug}.md     ← compound knowledge (delete-forbidden, dedup 0.85).
-└── reviews/{task_id}/{stage}/
-    └── {reviewer}.md      ← append-only per (task, stage, reviewer) (Invariant §6).
-```
+## Task levels (L0–L3)
 
-### Storage model — operator-local by design
+| Level | Scope | Planning | Review | Human gate |
+|-------|-------|----------|--------|------------|
+| **L0** | Trivial (typo, format, config) | Skip — direct to work | None | No |
+| **L1** | Single file, < 50 lines, no behavior change | Light planner.eng | reviewer.correctness | No |
+| **L2** | Multi-file / behavior change / new tests | + planner.ceo + researcher.history | Reviewer cluster | No |
+| **L3** | Architecture, schema, prod, infra | + planner.adversarial | + conditional specialists (security/migration/perf/infra) | **Signature required; `--auto` refused** |
 
-`.sgc/` is **gitignored** and lives per-project, per-machine. `solutions/` is the knowledge corpus that `researcher.history` mines, and it accumulates on whichever machine runs `sgc compound`. There is **no built-in team-sync** today — cross-machine and cross-teammate continuity is a future-work item.
+## Knowledge engine — the compounding loop
 
-If you want continuity across machines or with a teammate, the manual workaround is to version `.sgc/solutions/` into a private side repo (push from machine A, pull on machine B). A native `sgc solutions sync` command + opinionated local/team partition is on the roadmap once the right partition shape emerges from real usage; see review notes for the design space (local/team split vs `sgc solutions sync` vs SQLite backend).
+sgc's differentiator is that work **compounds**. The loop: a shipped task → the compound janitor decides if it's worth keeping → a 4-agent cluster extracts a solution/prevention → it passes a deduplication gate (Jaccard ≥ 0.85, non-tunable) → it's written to an append-only `solutions/` corpus. On the next plan, `researcher.history` mines that corpus and `planner.adversarial` is injected with relevant preventions — so prior lessons actively shape new decisions. `sgc reflect` audits how often stored knowledge actually surfaces.
+
+## Invariants (enforced at runtime)
+
+| § | Rule |
+|---|------|
+| 1 | Reviewers/QA cannot read `solutions/` (generator–evaluator separation) |
+| 2 | Decisions are immutable once written (changed intent → new task) |
+| 3 | No write to `solutions/` without a dedup stamp from a prior `compound.related` run |
+| 4 | L3 requires a human signature + interactive confirm; `--auto` refused |
+| 5 | A reviewer-fail override needs a human signature + reason (≥ 40 chars) |
+| 6 | Every janitor/review/QA decision is logged (no silent skips) |
+| 7 | Schema validation precedes every `.sgc/` write |
+| 8 | Subagent scope tokens are pinned at spawn (no runtime elevation) |
+| 9 | Subagents may only emit their declared output shape |
+| 10 | The compound cluster is all-or-nothing (transactional) |
+| 11 | The classifier must justify its level with a concrete task feature |
+| 12 | The eval framework is authoritative; a new invariant ships with its regression test |
+| 13 | Every spawn + LLM call emits paired audit events (two-tier) |
+
+§1 and §8 are fully enforced in `inline` mode; under real-LLM modes (`claude-cli` / `anthropic-sdk`) they are advisory unless you sandbox the spawned process. See [docs/POSITIONING.md](docs/POSITIONING.md) for the full trust model.
+
+## Agent dispatch modes
+
+sgc auto-detects an LLM backend per priority: `ANTHROPIC_API_KEY` → **anthropic-sdk** (direct API + prompt caching) · `claude` binary in PATH → **claude-cli** (subscription-friendly) · otherwise **file-poll** (you fulfill prompts manually via `sgc agent-loop`). Force a mode with `SGC_AGENT_MODE=<mode>`.
 
 ## Architecture
 
 ```
-contracts/                 ← spec source-of-truth (YAML + markdown, human-readable DSL)
-├── sgc-capabilities.yaml  ← scope tokens, command permissions, subagent manifests
-├── sgc-state.schema.yaml  ← shape + mutability rules per state-layer file
-└── sgc-invariants.md      ← 13 non-negotiable rules
-
+contracts/        spec source-of-truth — capabilities.yaml, state.schema.yaml, invariants.md
 src/
-├── sgc.ts                 ← citty CLI (19 subcommands; `sgc doctor` enforces slash↔CLI parity)
-├── commands/              ← per-subcommand implementations (one .ts each; status inline in sgc.ts)
-└── dispatcher/
-    ├── types.ts           ← TaskId, Level, ScopeToken, IntentDoc, …
-    ├── preprocessor.ts    ← DSL → strict YAML (array[T], name?)
-    ├── schema.ts          ← cached spec loader
-    ├── capabilities.ts    ← scope token computation + Invariant §1 enforcement
-    ├── state.ts           ← .sgc/ I/O with mutability rules + atomic writes
-    ├── spawn.ts           ← subagent spawn protocol (inline-stub + file-poll + claude-cli + anthropic-sdk)
-    ├── dedup.ts           ← signature + Jaccard similarity (Invariant §3)
-    └── agents/            ← stub agents for all 20 manifested subagents
-
-plugins/sgc/               ← Claude Code plugin (skills + agents + hooks, markdown)
-└── browse/                ← headless browser source (TypeScript, compiles to single binary)
-
-tests/dispatcher/          ← unit + integration tests (bun test)
-tests/eval/                ← 8 end-to-end scenarios per Invariant §12
-docs/                      ← C-phase plan + demo run
+  sgc.ts          citty CLI (19 subcommands)
+  commands/       one implementation per subcommand
+  dispatcher/     spawn protocol, scope tokens, dedup, embedded contracts/prompts, state I/O
+plugins/sgc/
+  bin/sgc.mjs     self-contained Node bundle shipped to /plugin install (contracts+prompts inlined)
+  {skills,commands,hooks}/   markdown prompt layer + slash commands + SessionStart hook
+  browse/         vendored headless-browser source (compiles to a single binary)
+tests/dispatcher/ deterministic unit + integration suite (bun test)
+tests/eval/       end-to-end LLM scenarios (Invariant §12)
 ```
 
-The skills under `plugins/sgc/skills/{discover,plan,work,review,qa,ship,compound,status,bootstrap}/SKILL.md` are the human-facing prompt layer. Once dispatcher matures, skills will dispatch to `sgc <cmd>` rather than narrate processes inline.
-
-## Invariants enforced today
-
-| § | Rule | Where enforced | Trust model |
-|---|------|----------------|-------------|
-| 1 | Reviewers/QA cannot read `solutions/` | `capabilities.ts` `forbidden_for` + manifest `scope_tokens` — the manifest declaration is validated at every spawn | **advisory for real-LLM modes** (see below) |
-| 2 | Decisions immutable | `state.ts` `writeIntent` / `writeShip` throw on existing | filesystem-enforced |
-| 3 | Solutions writes pass dedup | `state.ts` `writeSolution` requires `DedupStamp` produced by a prior `compound.related` spawn — direct write without stamp throws `DedupStampMissing` | filesystem-enforced |
-| 4 | L3 needs human signature + interactive yes | `commands/plan.ts` + `commands/ship.ts` refuse without `--signed-by` AND stdin `yes`; `--auto` refused | flag-enforced |
-| 5 | Reviewer override needs reason ≥40 chars | `state.ts` `appendReview` validates | filesystem-enforced |
-| 6 | Every janitor decision logged | `writeJanitorDecision` always; `--janitor-skip-reason "<≥40 chars>"` still writes a synthetic skip decision | flag-enforced |
-| 7 | Schema validation precedes write | field-presence + dedup-stamp checks in all writers | filesystem-enforced |
-| 8 | Scope tokens pinned at spawn | `spawn.ts` calls `computeSubagentTokens` first; pinned set written to prompt audit | **advisory for real-LLM modes** (see below) |
-| 9 | Subagents output only declared shape | `spawn.ts` `validateOutputShape` after agent output (rejects undeclared fields and type-mismatches) | filesystem-enforced |
-| 10 | Compound cluster is a transaction | `runCompound` sequential — `writeSolution` is the final step; earlier throw = no write; `forceError` test hook exercises this | filesystem-enforced |
-| 11 | Classifier rationale must be concrete | `rationale.ts` regex check post-classifier; refuses generic rationales | flag-enforced |
-| 12 | Eval framework authoritative | `tests/eval/` (L0 + L1; 8 more in backlog per D-dec-6) | eval-authored |
-
-### Trust model — real-LLM modes
-
-§1 (reviewers no `read:solutions`) and §8 (scope pinned at spawn) are **fully enforced only in `inline` mode** — the in-process stubs can only do what their code permits, and `validateOutputShape` filters their output.
-
-In **`claude-cli`** and **`anthropic-sdk`** modes the LLM is free to use whatever tools its runtime grants it. sgc embeds the pinned tokens + forbidden-tokens list in the prompt, but that's **advisory**. A malicious or confused LLM running under `claude-cli` could, for example, `bash cat /.sgc/solutions/*.md` — no sandbox is applied. A production deployment that needs §1/§8 runtime-enforced against an arbitrary LLM response would need either:
-
-- a filesystem sandbox around the spawned `claude` process, or
-- a follow-up validator that diff-checks the LLM's observable actions against the pinned scope
-
-Both are E-phase concerns. Today: if you need ironclad §1/§8, run in `inline` mode (stubs) or dispatch to a Claude main session via `file-poll` where you manually review what the agent produces before submitting via `sgc agent-loop`.
+The Node bundle inlines `contracts/` + `prompts/`, so the shipped CLI is fully self-contained. `sgc doctor` verifies the committed bundle matches a fresh rebuild (`scripts/build-cli.mjs`), and CI fails on a stale bundle.
 
 ## Test
 
 ```bash
-bun test tests/dispatcher tests/eval     # 357 tests across 32 files, ~700ms
+npm test              # deterministic dispatcher suite (1051 tests, 0 flake)
+npm run test:eval     # real-LLM evaluation lane (gated on API keys)
+npm run typecheck     # tsc --noEmit (strict)
 ```
 
-CI runs the same on every push/PR via [`.github/workflows/test.yml`](.github/workflows/test.yml).
+CI (`.github/workflows/test.yml`) runs the dispatcher suite + typecheck + a bundle-freshness gate on every push/PR.
 
-Dispatcher tests (24 files):
-- `preprocessor.test.ts`, `schema.test.ts`, `capabilities.test.ts`, `state.test.ts`, `spawn.test.ts` — foundations
-- `rationale.test.ts` — §11 concrete-reference check
-- `sgc-cli.test.ts`, `sgc-plan.test.ts`, `sgc-work.test.ts`, `sgc-review.test.ts`, `sgc-discover.test.ts` — command loop
-- `planner-ceo.test.ts`, `researcher-history.test.ts`, `planner-adversarial.test.ts`, `clarifier-discover.test.ts` — agent cluster
-- `qa-browser.test.ts`, `sgc-ship.test.ts`, `gh-runner.test.ts` — qa + ship
-- `solutions-state.test.ts`, `compound.test.ts`, `janitor-compound.test.ts` — compound + janitor
-- `claude-cli-agent.test.ts`, `anthropic-sdk-agent.test.ts`, `agent-loop.test.ts` — real LLM modes
+## FAQ
 
-Eval scenarios (8 files per Invariant §12):
-- `L0-typo.test.ts`, `L1-bugfix.test.ts`, `L2-cross-file.test.ts`, `L3-migration.test.ts` — full pipeline by level
-- `qa-browser.test.ts`, `compound-happy.test.ts`, `dedup.test.ts`, `reviewer-isolation.test.ts` — invariant + supporting-agent
+**Do I need bun, Superpowers, or gstack to use sgc?**
+No. As of v1.24.0 the CLI ships as a self-contained Node bundle — `/plugin install sgc` gives you a working CLI on any machine with Node ≥ 18. sgc runs the full loop standalone; if `superpowers` / `gstack` are installed it can interoperate, but neither is required.
 
-## Agent dispatch modes
+**How does sgc install in one command?**
+`/plugin marketplace add sdsrss/sgc` then `/plugin install sgc`. The plugin payload contains the compiled Node bundle plus the slash-command prompt layer, so there is no separate CLI install step.
 
-SGC supports four agent backends, auto-picked in this order:
+**What makes sgc different from a generic AI coding assistant?**
+It enforces a level-appropriate process (L0–L3), 13 machine-checked invariants, and a deduplicated knowledge corpus that compounds across tasks — so review rigor scales with risk and lessons are reused, not relearned.
 
-| Priority | Mode | When it's picked | Notes |
-|----------|------|------------------|-------|
-| 1 | `opts.mode` (programmatic) | explicit override | used by tests + embedding |
-| 2 | `SGC_AGENT_MODE=<mode>` env | explicit | one of `inline` / `file-poll` / `claude-cli` / `anthropic-sdk` |
-| 3 | `SGC_USE_FILE_AGENTS=1` (legacy) | explicit | forces `file-poll` |
-| 4 | `inline` stub | caller passes `inlineStub` | tests + demo |
-| 5 | `anthropic-sdk` | `ANTHROPIC_API_KEY` present | direct API calls, uses prompt caching, billed to API key |
-| 6 | `claude-cli` | `claude` binary in PATH | shells out to `claude -p`, uses your `claude login` (subscription-friendly) |
-| 7 | `file-poll` (default) | no key, no CLI | CLI blocks waiting for result file — you submit via `sgc agent-loop --submit <id>` |
+**Where is my data stored?**
+Per-project, per-machine, under a `.gitignore`d `.sgc/` directory. There is no telemetry and no built-in cloud sync (cross-machine knowledge sharing is on the roadmap).
 
-**Subscription users** (Claude Pro/Max, no API key): priority 6 activates automatically if `claude` is in PATH. Otherwise you fall back to `file-poll` and submit manually — useful in Claude Code sessions where you can have Claude read + reply in-session.
+## Links
 
-**API users** (`ANTHROPIC_API_KEY` set): priority 5 activates automatically. Uses `claude-opus-4-6` with adaptive thinking and ephemeral prompt caching.
-
-Override with `SGC_AGENT_MODE=file-poll` at any time to fall back to manual submission (useful for debugging).
-
-## Gotchas
-
-- **`bun install` is slow on this machine**: `bun add` doesn't honor `HTTP_PROXY` env. Use `npm install` instead. `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` skips the 100MB chromium fetch (bring your own at runtime).
-- **`bun test` propagates `NODE_ENV=test` to children**, which makes child citty CLIs silence stdout. Spawn helpers in `tests/dispatcher/sgc-cli.test.ts` `delete env.NODE_ENV` to work around.
-- **YAML spec uses DSL shorthand**: `array[T]`, `name?` in flow-sequences. Strict `js-yaml.safeLoad` chokes; the dispatcher routes spec through `preprocessor.ts` before parse.
+- npm: [@sdsrs/sgc](https://www.npmjs.com/package/@sdsrs/sgc)
+- Changelog: [CHANGELOG.md](CHANGELOG.md)
+- Positioning & trust model: [docs/POSITIONING.md](docs/POSITIONING.md)
+- Curated solutions/preventions: [docs/SOLUTIONS.md](docs/SOLUTIONS.md)
 
 ## License
 

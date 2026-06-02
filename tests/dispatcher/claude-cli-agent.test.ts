@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import {
   ClaudeCliError,
+  defaultRunner,
   extractYamlBody,
   runClaudeCliAgent,
   type SubprocessRunner,
@@ -174,8 +175,6 @@ describe("runClaudeCliAgent — error paths", () => {
   })
 })
 
-import { defaultRunner } from "../../src/dispatcher/claude-cli-agent"
-
 test("defaultRunner times out and reports timedOut", async () => {
   const r = await defaultRunner(["node", "-e", "setTimeout(()=>{},5000)"], 200)
   expect(r.timedOut).toBe(true)
@@ -197,6 +196,7 @@ test("defaultRunner exposes a kill handle via onSpawn", async () => {
   const r = await p
   expect(killed).toBe(true)
   expect(r.exitCode).not.toBe(0)
+  expect(r.timedOut).toBe(false)
 })
 
 describe("spawn integration — mode=claude-cli", () => {

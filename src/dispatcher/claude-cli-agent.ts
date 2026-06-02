@@ -76,13 +76,28 @@ export const defaultRunner: SubprocessRunner = async (argv, timeoutMs, onSpawn) 
         // already exited / not killable — nothing to reap.
       }
     })
+    // Parity with subprocess.ts: explicit single-resolve guard so exactly one
+    // of error/close wins, eliminating the close-before-error path that would
+    // otherwise drop the error text.
+    let resolved = false
+    const finish = (r: {
+      stdout: string
+      stderr: string
+      exitCode: number
+      timedOut: boolean
+    }): void => {
+      if (resolved) return
+      resolved = true
+      clearTimeout(timer)
+      resolveP(r)
+    }
     let stdout = ""
     let stderr = ""
     child.stdout?.on("data", (c: Buffer) => (stdout += c.toString()))
     child.stderr?.on("data", (c: Buffer) => (stderr += c.toString()))
     child.on("error", (e) => {
-      clearTimeout(timer)
-      resolveP({
+      // On timeout, drop any partial stdout as untrustworthy (truncated mid-write).
+      finish({
         stdout: timedOut ? "" : stdout,
         stderr: timedOut ? String(e) : stderr + String(e),
         exitCode: -1,
@@ -90,8 +105,7 @@ export const defaultRunner: SubprocessRunner = async (argv, timeoutMs, onSpawn) 
       })
     })
     child.on("close", (code) => {
-      clearTimeout(timer)
-      resolveP({ stdout, stderr, exitCode: timedOut ? -1 : code ?? -1, timedOut })
+      finish({ stdout, stderr, exitCode: timedOut ? -1 : code ?? -1, timedOut })
     })
   })
 }

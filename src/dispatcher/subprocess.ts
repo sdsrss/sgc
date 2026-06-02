@@ -1,0 +1,48 @@
+// src/dispatcher/subprocess.ts
+//
+// node:child_process subprocess adapter. Replaces all Bun.spawn / Bun.which
+// so the shipped bundle runs under plain `node` (no bun runtime). Works
+// identically under bun (dev/test) and node (bundle) — both implement
+// node:child_process.
+import { spawn, spawnSync } from "node:child_process"
+
+export interface CaptureResult {
+  stdout: string
+  stderr: string
+  exitCode: number
+}
+
+/** Async spawn + capture. Never rejects: a spawn error (e.g. missing binary)
+ *  resolves exitCode -1 with the error text in stderr, matching the old
+ *  Bun.spawn-based call sites that treated nonzero/failed as a soft null. */
+export function spawnCapture(
+  argv: string[],
+  opts: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
+): Promise<CaptureResult> {
+  return new Promise((resolveP) => {
+    const child = spawn(argv[0]!, argv.slice(1), {
+      cwd: opts.cwd,
+      env: opts.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    })
+    let stdout = ""
+    let stderr = ""
+    child.stdout?.on("data", (c: Buffer) => (stdout += c.toString()))
+    child.stderr?.on("data", (c: Buffer) => (stderr += c.toString()))
+    child.on("error", (e) =>
+      resolveP({ stdout, stderr: stderr + String(e), exitCode: -1 }),
+    )
+    child.on("close", (code) =>
+      resolveP({ stdout, stderr, exitCode: code ?? -1 }),
+    )
+  })
+}
+
+/** Resolve an executable on PATH. Replaces Bun.which. */
+export function whichSync(bin: string): string | null {
+  const cmd = process.platform === "win32" ? "where" : "which"
+  const r = spawnSync(cmd, [bin], { encoding: "utf8" })
+  if (r.status !== 0) return null
+  const line = (r.stdout || "").split("\n")[0]?.trim()
+  return line && line.length > 0 ? line : null
+}

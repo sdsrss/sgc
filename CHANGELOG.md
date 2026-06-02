@@ -1,5 +1,42 @@
 # Changelog
 
+## v1.25.0 — 2026-06-02 — TDD-ledger (Phase 2a)
+
+**MIGRATION (behavior change to `sgc work --done`):** closing a feature now
+requires a recorded prior-RED **in addition to** the existing `--verify-command`.
+Supply either a prior-RED pair or waive it:
+
+```sh
+# with a recorded RED:
+sgc work --done f1 --verify-command "bun test x" \
+  --prior-red "tests/x.test.ts::t" --red-output "expected 20 got 50"
+
+# waive (docs-only / additive, no prior failing path):
+sgc work --done f1 --verify-command "n/a" --waive-red "docs-only"
+```
+
+`--waive-red "<reason>"` is the per-call escape hatch (zero-breakage path).
+Already-done features remain a grandfathered no-op.
+
+### What changed
+
+- **TDD-ledger close-gate** — `sgc work --done` enforces `(--prior-red +
+  --red-output)` XOR `--waive-red <reason>`, level-agnostic. sgc *records* the
+  attestation; it does not execute the test (parity with `--verify-command` /
+  `sgc debug close`). The prior-RED pair and the waive reason persist on the
+  feature record as a ledger.
+- **red-green capture** — a prior-RED done writes `<stateRoot>/red-green/<slug>.md`
+  (mirrors `ship-failures/`), seeded with an operator-fill `prevention_seed`.
+- **`sgc compound --from-red-green <slug>`** — promotes a filled capture into
+  `solutions/` through the same deterministic Invariant §3 dedup pipeline as
+  `--from-ship-failure` (compound.context → compound.related stamp →
+  writeSolution); operationalizes the CE capture→promote loop for RED→GREEN
+  knowledge feeding prior-art. Promote stays the deliberate, dedup-gated step
+  (no done-time auto-write).
+
+Spec: `docs/superpowers/specs/2026-06-02-tdd-ledger-design.md`. Plan:
+`docs/superpowers/plans/2026-06-02-tdd-ledger.md`.
+
 ## v1.24.1 — 2026-06-02 — docs: super-plugin positioning + README / POSITIONING rewrite (npm page refresh)
 
 Documentation + metadata only — no code, no behavior, no state-file change.

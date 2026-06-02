@@ -19,11 +19,11 @@ The full L0→L3 pipeline is executable end-to-end via `bun src/sgc.ts <cmd>`. A
 | Command | Status | CLI |
 |---------|--------|-----|
 | `/plan` | ✅ L0-L3 + planner cluster (eng/ceo/adversarial) + researcher.history + CE-4 `--async` | `sgc plan <task> [--motivation\|--signed-by\|--level\|--async]` |
-| `/work` | ✅ feature-list tracker + verification close-gate (v1.19.0) | `sgc work [--add\|--done <id> --verify-command <s> [--evidence <s>]]` |
+| `/work` | ✅ feature-list tracker + verification close-gate (v1.19.0) + TDD-ledger prior-RED gate (v1.25.0) | `sgc work [--add\|--done <id> --verify-command <s> [--evidence <s>] (--prior-red <s> --red-output <s> \| --waive-red <s>)]` |
 | `/review` | ✅ reviewer.correctness on git diff | `sgc review [--base <ref>]` |
 | `/qa` | ✅ qa.browser stub; real browse binary opt-in | `sgc qa [<target>] [--flows a,b,c]` |
 | `/ship` | ✅ 8-gate ship + writeShip + optional `gh pr create` + auto-janitor | `sgc ship [--auto\|--pr\|--no-janitor\|--force-compound]` |
-| `/compound` | ✅ 4-agent cluster + dedup + writeSolution; CE-3 `--from-ship-failure` + GS-1.1 `--from-canary` promote bridges | `sgc compound [--force\|--slug\|--from-ship-failure <s>\|--from-canary <s>\|--solution-slug <s>]` |
+| `/compound` | ✅ 4-agent cluster + dedup + writeSolution; CE-3 `--from-ship-failure` + GS-1.1 `--from-canary` + TDD-ledger `--from-red-green` promote bridges | `sgc compound [--force\|--slug\|--from-ship-failure <s>\|--from-canary <s>\|--from-red-green <s>\|--solution-slug <s>]` |
 | `/status` | ✅ active task + level + last_activity | `sgc status` |
 | `/agent-loop` | ✅ file-poll submission helper (non-SDK path) | `sgc agent-loop [--list\|--show\|--submit]` |
 | `/discover` | ✅ clarifier.discover forcing-questions stub | `sgc discover <topic>` |

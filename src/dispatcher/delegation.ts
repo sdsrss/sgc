@@ -124,7 +124,7 @@ export function delegationHintsFor(
           agent: "planner.adversarial",
           recommended: "/superpowers:dispatching-parallel-agents",
           reason:
-            "L3 pre-mortem benefits from parallel-agent dispatch — sp formalizes the contract sgc fan-out approximates",
+            "sgc runs the L3 pre-mortem fan-out natively; sp's parallel-agent contract is an optional richer orchestration if you've installed it",
         })
       }
       break
@@ -152,7 +152,7 @@ export function delegationHintsFor(
           agent: "reviewer.correctness",
           recommended: "/superpowers:requesting-code-review",
           reason:
-            "sp's review contract enforces author/reviewer context separation — strong complement to sgc Invariant §1",
+            "sgc Invariant §1 already enforces author/reviewer context separation natively; sp's review contract is an optional richer path if installed",
         })
       }
       if (plugins.codeGraphMcp) {

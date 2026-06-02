@@ -4,14 +4,14 @@
     "name": "SDS"
   },
   "metadata": {
-    "description": "SGC marketplace — engineering agent (plan / execute / review / QA / ship / compound) with L0-L3 task routing and knowledge accumulation.",
+    "description": "SGC marketplace — self-contained engineering super-plugin (plan / execute / review / QA / security / ship / compound) with L0-L3 task routing and compounding knowledge. All-in-one, runs standalone.",
     "homepage": "https://github.com/sdsrss/sgc"
   },
   "plugins": [
     {
       "name": "sgc",
       "source": "./plugins/sgc",
-      "description": "SGC — engineering agent: plan, execute, review, QA, ship, and compound knowledge."
+      "description": "SGC — self-contained engineering super-plugin: plan, execute, review, QA, security, ship, and compound knowledge. All-in-one, one-command install, runs standalone (Node >= 18, no other plugins required)."
     }
   ]
 }

@@ -14402,7 +14402,7 @@ function delegationHintsFor(context, plugins = detectInstalledPlugins()) {
         hints.push({
           agent: "planner.adversarial",
           recommended: "/superpowers:dispatching-parallel-agents",
-          reason: "L3 pre-mortem benefits from parallel-agent dispatch — sp formalizes the contract sgc fan-out approximates"
+          reason: "sgc runs the L3 pre-mortem fan-out natively; sp's parallel-agent contract is an optional richer orchestration if you've installed it"
         });
       }
       break;
@@ -14427,7 +14427,7 @@ function delegationHintsFor(context, plugins = detectInstalledPlugins()) {
         hints.push({
           agent: "reviewer.correctness",
           recommended: "/superpowers:requesting-code-review",
-          reason: "sp's review contract enforces author/reviewer context separation — strong complement to sgc Invariant §1"
+          reason: "sgc Invariant §1 already enforces author/reviewer context separation natively; sp's review contract is an optional richer path if installed"
         });
       }
       if (plugins.codeGraphMcp) {
@@ -23223,7 +23223,7 @@ var main = defineCommand({
   meta: {
     name: "sgc",
     version: package_default.version,
-    description: "SGC \u2014 engineering agent: plan, execute, review, QA, ship, and compound knowledge"
+    description: "SGC \u2014 self-contained engineering super-plugin: plan, execute, review, QA, security, ship, and compound knowledge (L0\u2013L3, standalone, no other plugins required)"
   },
   subCommands: {
     discover: () => discover,

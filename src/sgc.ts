@@ -1,6 +1,11 @@
 #!/usr/bin/env bun
 //
-// sgc — unified engineering agent CLI (citty).
+// sgc — self-contained engineering super-plugin CLI (citty).
+//
+// All-in-one, runs standalone (Node >= 18, no other plugins required); absorbs
+// the plan / execute / review / QA / security / ship / compound-knowledge loop
+// natively. Installed plugins (sp / gs / code-graph) are optional richer paths,
+// surfaced as non-binding hints — never required (see dispatcher/delegation.ts).
 //
 // 19 subcommands spanning the L0→L3 pipeline + GS-N + the CE knowledge loop
 // (16 mirrored as /sgc:* slash commands + 3 CLI-only: canary, watch-ci-failure,
@@ -840,7 +845,7 @@ const main = defineCommand({
     name: "sgc",
     version: packageJson.version,
     description:
-      "SGC — engineering agent: plan, execute, review, QA, ship, and compound knowledge",
+      "SGC — self-contained engineering super-plugin: plan, execute, review, QA, security, ship, and compound knowledge (L0–L3, standalone, no other plugins required)",
   },
   subCommands: {
     discover: () => discover,

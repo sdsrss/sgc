@@ -10,9 +10,10 @@ Read-only audit of `.sgc/decisions/*/intent.md` motivations against `.sgc/soluti
 ## Invocation
 
 ```bash
-if command -v sgc >/dev/null 2>&1; then SGC=sgc
-elif test -f src/sgc.ts; then SGC="bun src/sgc.ts"
-else echo "sgc CLI not found — npm i -g @sdsrs/sgc (needs bun≥1.3), or https://github.com/sdsrss/sgc#install" >&2; exit 1
+if   [ -f "$CLAUDE_PLUGIN_ROOT/bin/sgc.mjs" ]; then SGC="node $CLAUDE_PLUGIN_ROOT/bin/sgc.mjs"
+elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
+elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
 fi
 
 $SGC reflect                          # audit all decisions/

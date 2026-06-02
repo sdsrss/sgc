@@ -174,6 +174,31 @@ describe("runClaudeCliAgent — error paths", () => {
   })
 })
 
+import { defaultRunner } from "../../src/dispatcher/claude-cli-agent"
+
+test("defaultRunner times out and reports timedOut", async () => {
+  const r = await defaultRunner(["node", "-e", "setTimeout(()=>{},5000)"], 200)
+  expect(r.timedOut).toBe(true)
+  expect(r.exitCode).toBe(-1)
+})
+
+test("defaultRunner captures normal output", async () => {
+  const r = await defaultRunner(["node", "-e", "process.stdout.write('ok')"], 5000)
+  expect(r.stdout).toBe("ok")
+  expect(r.exitCode).toBe(0)
+  expect(r.timedOut).toBe(false)
+})
+
+test("defaultRunner exposes a kill handle via onSpawn", async () => {
+  let killed = false
+  const p = defaultRunner(["node", "-e", "setTimeout(()=>{},5000)"], 5000, (kill) => {
+    setTimeout(() => { killed = true; kill() }, 100)
+  })
+  const r = await p
+  expect(killed).toBe(true)
+  expect(r.exitCode).not.toBe(0)
+})
+
 describe("spawn integration — mode=claude-cli", () => {
   test("routes through claude-cli runner when opts.mode='claude-cli'", async () => {
     const runner: SubprocessRunner = async () => ({

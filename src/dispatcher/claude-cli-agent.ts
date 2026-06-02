@@ -21,6 +21,7 @@
 // Usage: set env `SGC_AGENT_MODE=claude-cli` before running `sgc plan`
 // or any other command that spawns agents.
 
+import { spawn } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { load as yamlLoad } from "js-yaml"
 import type { SubagentManifest } from "./types"
@@ -53,42 +54,46 @@ export interface SubprocessRunner {
   }>
 }
 
-/** Default runner: Bun.spawn. Split out so tests can inject a fake. */
+/** Default runner: node:child_process.spawn. Split out so tests can inject a
+ *  fake. Ported off Bun.spawn so the shipped bundle runs under node. */
 export const defaultRunner: SubprocessRunner = async (argv, timeoutMs, onSpawn) => {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  let timedOut = false
-  try {
-    const proc = Bun.spawn(argv, {
-      stdout: "pipe",
-      stderr: "pipe",
+  return new Promise((resolveP) => {
+    const controller = new AbortController()
+    let timedOut = false
+    controller.signal.addEventListener("abort", () => {
+      timedOut = true
+    })
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    const child = spawn(argv[0]!, argv.slice(1), {
+      stdio: ["ignore", "pipe", "pipe"],
       signal: controller.signal,
     })
-    // STAB-2: expose a kill handle so a signal drain can SIGTERM this child
-    // rather than orphaning it. Bun's proc.kill() defaults to SIGTERM.
+    // STAB-2: expose a kill handle so a signal drain can SIGTERM this child.
     onSpawn?.(() => {
       try {
-        proc.kill()
+        child.kill()
       } catch {
         // already exited / not killable — nothing to reap.
       }
     })
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
-    ])
-    return { stdout, stderr, exitCode, timedOut }
-  } catch (e) {
-    // AbortController.abort() surfaces as "The operation was aborted" or similar
-    if (controller.signal.aborted) {
-      timedOut = true
-      return { stdout: "", stderr: String(e), exitCode: -1, timedOut }
-    }
-    throw e
-  } finally {
-    clearTimeout(timer)
-  }
+    let stdout = ""
+    let stderr = ""
+    child.stdout?.on("data", (c: Buffer) => (stdout += c.toString()))
+    child.stderr?.on("data", (c: Buffer) => (stderr += c.toString()))
+    child.on("error", (e) => {
+      clearTimeout(timer)
+      resolveP({
+        stdout: timedOut ? "" : stdout,
+        stderr: timedOut ? String(e) : stderr + String(e),
+        exitCode: -1,
+        timedOut,
+      })
+    })
+    child.on("close", (code) => {
+      clearTimeout(timer)
+      resolveP({ stdout, stderr, exitCode: timedOut ? -1 : code ?? -1, timedOut })
+    })
+  })
 }
 
 /**

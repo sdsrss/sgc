@@ -17549,9 +17549,12 @@ var init_agent_loop = __esm(() => {
 var exports_doctor = {};
 __export(exports_doctor, {
   runDoctor: () => runDoctor,
-  extractCliSubcommands: () => extractCliSubcommands
+  extractCliSubcommands: () => extractCliSubcommands,
+  bundleParityCheck: () => bundleParityCheck
 });
-import { existsSync as existsSync19, readdirSync as readdirSync7, readFileSync as readFileSync17 } from "node:fs";
+import { createHash as createHash4 } from "node:crypto";
+import { existsSync as existsSync19, mkdtempSync, readdirSync as readdirSync7, readFileSync as readFileSync17, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname as dirname6, resolve as resolve15 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 function extractCliSubcommands(src2) {
@@ -17569,6 +17572,27 @@ function extractCliSubcommands(src2) {
   while ((m2 = re.exec(block)) !== null)
     names.push(m2[1]);
   return names;
+}
+async function bundleParityCheck(root4) {
+  const srcEntry = resolve15(root4, "src", "sgc.ts");
+  const committed = resolve15(root4, "plugins", "sgc", "bin", "sgc.mjs");
+  if (!existsSync19(srcEntry) || !existsSync19(committed)) {
+    return { severity: "ok", msg: "  ⓘ bundle-hash parity skipped (no source checkout — dev/CI-only check)" };
+  }
+  const tmp = mkdtempSync(resolve15(tmpdir(), "sgc-bundle-"));
+  const out = resolve15(tmp, "sgc.mjs");
+  try {
+    const r3 = await spawnCapture(["bun", "build", srcEntry, "--target=node", "--format=esm", "--external", "playwright", "--outfile", out], { cwd: root4 });
+    if (r3.exitCode !== 0)
+      return { severity: "warn", msg: `  ⚠ bundle-hash parity: rebuild failed (${r3.stderr.slice(0, 120)})` };
+    const sha = (buf) => createHash4("sha256").update(buf).digest("hex");
+    const strip2 = (b3) => Buffer.from(b3.toString("utf8").replace(/^#![^\n]*\n/, ""));
+    const a2 = sha(strip2(readFileSync17(out)));
+    const b2 = sha(strip2(readFileSync17(committed)));
+    return a2 === b2 ? { severity: "ok", msg: "  ✓ committed bundle matches source rebuild" } : { severity: "fail", msg: "  ✗ committed bundle STALE — run `npm run build:cli` and commit" };
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
 }
 async function runDoctor(opts = {}) {
   const log = opts.log ?? ((m2) => console.log(m2));
@@ -17669,7 +17693,15 @@ async function runDoctor(opts = {}) {
         });
         files = [];
       }
-      const leaks = files.filter((f3) => f3.replace(/^\.?\//, "").startsWith("plugins"));
+      const leaks = files.filter((f3) => {
+        const norm = f3.replace(/^\.?\//, "");
+        if (!norm.startsWith("plugins"))
+          return false;
+        const last = norm.split("/").at(-1) ?? "";
+        if (last === "" || !last.includes("."))
+          return true;
+        return !norm.startsWith("plugins/sgc/bin/");
+      });
       if (files.length === 0) {
         emit({
           severity: "warn",
@@ -17882,6 +17914,9 @@ async function runDoctor(opts = {}) {
       }
     }
   }
+  log("");
+  log("=== bundle parity ===");
+  emit(await bundleParityCheck(root4));
   const ok = rows.filter((r3) => r3.severity === "ok").length;
   const warn = rows.filter((r3) => r3.severity === "warn").length;
   const fail = rows.filter((r3) => r3.severity === "fail").length;
@@ -17892,6 +17927,7 @@ async function runDoctor(opts = {}) {
 }
 var moduleDir3, repoRoot;
 var init_doctor = __esm(() => {
+  init_subprocess();
   init_js_yaml();
   init_schema();
   init_embedded_data();
@@ -22267,9 +22303,10 @@ var package_default = {
   description: "SGC — L0-L3 task classifier + 13 runtime invariants + dedup-enforced .sgc/ knowledge engine. A 规范层 + 知识引擎 that coexists with Superpowers, gstack, and Compound Engineering rather than replacing them.",
   type: "module",
   bin: {
-    sgc: "./src/sgc.ts"
+    sgc: "./plugins/sgc/bin/sgc.mjs"
   },
   files: [
+    "plugins/sgc/bin/sgc.mjs",
     "src/",
     "contracts/",
     "prompts/",
@@ -22278,7 +22315,7 @@ var package_default = {
     "CHANGELOG.md"
   ],
   engines: {
-    bun: ">=1.3"
+    node: ">=18"
   },
   publishConfig: {
     access: "public",

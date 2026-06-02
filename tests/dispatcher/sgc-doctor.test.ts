@@ -420,9 +420,10 @@ test("doctor (B) prompts check uses embedded keys, not readdirSync", async () =>
   expect(skipRow("invariant-enforcement.yaml")).toBe(true) // (G)
   expect(skipRow("slash↔CLI parity")).toBe(true) // (H)
   expect(skipRow("invariant-source parity")).toBe(true) // (I)
+  expect(skipRow("bundle-hash parity")).toBe(true) // (J)
 
-  // All six skips land as `ok` rows, never warn/fail — so the bogus root yields
+  // All seven skips land as `ok` rows, never warn/fail — so the bogus root yields
   // zero warnings beyond embedded-prompt orphans and zero hard failures.
   const skipRowCount = lines.filter((l) => /skipped \(no source checkout/.test(l)).length
-  expect(skipRowCount).toBe(6)
+  expect(skipRowCount).toBe(7)
 })

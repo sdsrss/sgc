@@ -20,9 +20,12 @@
 // do not affect exit code — they signal "you may have stale template
 // files" without blocking ship.
 
-import { existsSync, readdirSync, readFileSync } from "node:fs"
+import { createHash } from "node:crypto"
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { spawnCapture } from "../dispatcher/subprocess"
 import { load as yamlLoad } from "js-yaml"
 import { getCapabilities } from "../dispatcher/schema"
 import { EMBEDDED_PROMPTS, listEmbeddedPromptKeys } from "../dispatcher/embedded-data"
@@ -54,6 +57,34 @@ type Severity = "ok" | "warn" | "fail"
 interface CheckRow {
   severity: Severity
   msg: string
+}
+
+export async function bundleParityCheck(root: string): Promise<CheckRow> {
+  const srcEntry = resolve(root, "src", "sgc.ts")
+  const committed = resolve(root, "plugins", "sgc", "bin", "sgc.mjs")
+  if (!existsSync(srcEntry) || !existsSync(committed)) {
+    return { severity: "ok", msg: "  ⓘ bundle-hash parity skipped (no source checkout — dev/CI-only check)" }
+  }
+  const tmp = mkdtempSync(resolve(tmpdir(), "sgc-bundle-"))
+  const out = resolve(tmp, "sgc.mjs")
+  try {
+    const r = await spawnCapture(
+      ["bun", "build", srcEntry, "--target=node", "--format=esm", "--external", "playwright", "--outfile", out],
+      { cwd: root },
+    )
+    if (r.exitCode !== 0) return { severity: "warn", msg: `  ⚠ bundle-hash parity: rebuild failed (${r.stderr.slice(0, 120)})` }
+    const sha = (buf: Buffer) => createHash("sha256").update(buf).digest("hex")
+    // strip shebang line from both before hashing (build:cli normalizes it post-build;
+    // the raw bun build output may differ only in the shebang line)
+    const strip = (b: Buffer) => Buffer.from(b.toString("utf8").replace(/^#![^\n]*\n/, ""))
+    const a = sha(strip(readFileSync(out)))
+    const b = sha(strip(readFileSync(committed)))
+    return a === b
+      ? { severity: "ok", msg: "  ✓ committed bundle matches source rebuild" }
+      : { severity: "fail", msg: "  ✗ committed bundle STALE — run `npm run build:cli` and commit" }
+  } finally {
+    rmSync(tmp, { recursive: true, force: true })
+  }
 }
 
 export interface DoctorOptions {
@@ -434,6 +465,11 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
       }
     }
   }
+
+  // ── (J) bundle-hash parity (dev/CI only — skips in bundle context) ────────
+  log("")
+  log("=== bundle parity ===")
+  emit(await bundleParityCheck(root))
 
   const ok = rows.filter((r) => r.severity === "ok").length
   const warn = rows.filter((r) => r.severity === "warn").length

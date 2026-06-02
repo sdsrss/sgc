@@ -9,6 +9,7 @@ import {
   captureShipFailure,
   watchPublishWorkflow,
 } from "../dispatcher/ship-failure"
+import { spawnCapture } from "../dispatcher/subprocess"
 
 export interface WatchCliOptions {
   workflow?: string
@@ -19,12 +20,7 @@ export interface WatchCliOptions {
 }
 
 async function gitOutput(args: string[]): Promise<string | null> {
-  const proc = Bun.spawn(["git", ...args], { stdout: "pipe", stderr: "pipe" })
-  const [stdout, _stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ])
+  const { stdout, exitCode } = await spawnCapture(["git", ...args])
   if (exitCode !== 0) return null
   const trimmed = stdout.trim()
   return trimmed.length > 0 ? trimmed : null

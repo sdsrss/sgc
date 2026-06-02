@@ -24,6 +24,7 @@ import {
   runCanaryChecks,
 } from "./canary"
 import { createLogger, type Logger } from "./logger"
+import { spawnCapture } from "./subprocess"
 
 export type LandStepName = "watch-ci-failure" | "canary"
 
@@ -301,12 +302,7 @@ export async function runLand(opts: LandOptions = {}): Promise<LandResult> {
 }
 
 async function gitOutput(args: string[]): Promise<string | null> {
-  const proc = Bun.spawn(["git", ...args], { stdout: "pipe", stderr: "pipe" })
-  const [stdout, _stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ])
+  const { stdout, exitCode } = await spawnCapture(["git", ...args])
   if (exitCode !== 0) return null
   const trimmed = stdout.trim()
   return trimmed.length > 0 ? trimmed : null

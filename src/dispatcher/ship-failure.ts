@@ -13,6 +13,7 @@
 import { mkdir, stat, writeFile } from "node:fs/promises"
 import { resolve } from "node:path"
 import { resolveStateRoot, serializeFrontmatter } from "./state"
+import { spawnCapture } from "./subprocess"
 
 export interface WatchOptions {
   intervalSec?: number
@@ -111,13 +112,7 @@ function todayUtcDate(now: () => number): string {
 }
 
 async function defaultRunCommand(args: string[]): Promise<RunResult> {
-  const proc = Bun.spawn(args, { stdout: "pipe", stderr: "pipe" })
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ])
-  return { stdout, stderr, exitCode }
+  return spawnCapture(args)
 }
 
 async function defaultSleep(ms: number): Promise<void> {

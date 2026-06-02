@@ -18,6 +18,7 @@ import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir as osTmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { resolveStateRoot, serializeFrontmatter } from "./state"
+import { spawnCapture } from "./subprocess"
 
 export type CanaryPhase = "npm_propagation" | "smoke_install" | "health_url"
 
@@ -132,12 +133,7 @@ function isSafeUrl(url: string): boolean {
 }
 
 async function defaultNpmView(pkg: string): Promise<string> {
-  const proc = Bun.spawn(
-    ["npm", "view", pkg, "dist-tags.latest", "--json"],
-    { stdout: "pipe", stderr: "pipe" },
-  )
-  const stdout = await new Response(proc.stdout).text()
-  await proc.exited
+  const { stdout } = await spawnCapture(["npm", "view", pkg, "dist-tags.latest", "--json"])
   return stdout
 }
 
@@ -165,27 +161,14 @@ async function defaultNpxSmoke(
   // which cannot resolve via PATH.
   const dir = await mkdtemp(join(osTmpdir(), "sgc-canary-smoke-"))
   try {
-    const install = Bun.spawn(
-      [
-        "npm",
-        "install",
-        "--prefix",
-        dir,
-        "--no-save",
-        "--silent",
-        `${pkg}@${ver}`,
-      ],
-      {
-        stdout: "pipe",
-        stderr: "pipe",
-        env: { ...process.env, PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1" },
-      },
+    const {
+      stdout: installStdout,
+      stderr: installStderr,
+      exitCode: installExit,
+    } = await spawnCapture(
+      ["npm", "install", "--prefix", dir, "--no-save", "--silent", `${pkg}@${ver}`],
+      { env: { ...process.env, PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1" } },
     )
-    const [installStdout, installStderr, installExit] = await Promise.all([
-      new Response(install.stdout).text(),
-      new Response(install.stderr).text(),
-      install.exited,
-    ])
     if (installExit !== 0) {
       return {
         exitCode: installExit,
@@ -195,15 +178,7 @@ async function defaultNpxSmoke(
     }
     const binName = bin ?? deriveBinName(pkg)
     const binPath = resolve(dir, "node_modules", ".bin", binName)
-    const run = Bun.spawn([binPath, "--version"], {
-      stdout: "pipe",
-      stderr: "pipe",
-    })
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(run.stdout).text(),
-      new Response(run.stderr).text(),
-      run.exited,
-    ])
+    const { stdout, stderr, exitCode } = await spawnCapture([binPath, "--version"])
     return { stdout, stderr, exitCode }
   } finally {
     await rm(dir, { recursive: true, force: true })

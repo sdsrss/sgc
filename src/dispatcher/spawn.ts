@@ -35,6 +35,7 @@ import { promptPath as getPromptPath, resultPath as getResultPath } from "./spaw
 import { validateOutputShape } from "./validation"
 import { getFingerprintsCached, scanOutputForLeak } from "./fingerprint"
 import { runClaudeCliAgent, type SubprocessRunner } from "./claude-cli-agent"
+import { whichSync } from "./subprocess"
 import {
   runAnthropicSdkAgent,
   type AnthropicClientFactory,
@@ -453,7 +454,7 @@ const ROUTES: ModeRoute[] = [
   {
     reason: "`claude` CLI in PATH (subscription-friendly)",
     resolve: (opts) => {
-      const hasCli = opts.hasClaudeCli ?? (() => Bun.which("claude") !== null)
+      const hasCli = opts.hasClaudeCli ?? (() => whichSync("claude") !== null)
       return hasCli() ? "claude-cli" : null
     },
   },

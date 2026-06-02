@@ -13,6 +13,8 @@
 // Matches D-dec-4 (a): ship-to-PR in D-phase; land-and-deploy + canary
 // are E-phase.
 
+import { spawnCapture } from "./subprocess"
+
 export class GhRunnerError extends Error {
   constructor(
     message: string,
@@ -68,13 +70,8 @@ export class UpstreamCheckError extends Error {
 }
 
 async function gitOutput(args: string[]): Promise<{ stdout: string; stderr: string; code: number }> {
-  const proc = Bun.spawn(["git", ...args], { stdout: "pipe", stderr: "pipe" })
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ])
-  return { stdout: stdout.trim(), stderr: stderr.trim(), code }
+  const { stdout, stderr, exitCode } = await spawnCapture(["git", ...args])
+  return { stdout: stdout.trim(), stderr: stderr.trim(), code: exitCode }
 }
 
 /**
@@ -108,15 +105,7 @@ export const defaultGhRunner: GhRunner = {
   async createPr({ title, body, draft }) {
     const argv = ["gh", "pr", "create", "--title", title, "--body", body]
     if (draft) argv.push("--draft")
-    const proc = Bun.spawn(argv, {
-      stdout: "pipe",
-      stderr: "pipe",
-    })
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
-    ])
+    const { stdout, stderr, exitCode } = await spawnCapture(argv)
     if (exitCode !== 0) {
       throw new GhRunnerError(
         `gh pr create failed (exit ${exitCode}): ${stderr.slice(0, 300)}`,

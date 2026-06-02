@@ -67,7 +67,7 @@ describe("L1 bugfix scenario (eval §12)", () => {
     expect(intent.body ?? "").toMatch(/Classifier rationale/)
 
     // STEP 2: work
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
 
     // STEP 3: review
     const review = await runReview({

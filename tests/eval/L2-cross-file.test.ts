@@ -77,7 +77,7 @@ describe("L2 cross-file scenario (eval §12)", () => {
     expect(intent.body ?? "").toMatch(/Classifier rationale/)
 
     // STEP 2: work
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
 
     // STEP 3: review (code)
     const review = await runReview({
@@ -123,7 +123,7 @@ describe("L2 cross-file scenario (eval §12)", () => {
       motivation: LONG_MOTIVATION_FIXTURE,
       log: () => {},
     })
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
     await runReview({ stateRoot: tmp, diffOverride: "+ok\n", log: () => {} })
     // No runQa
     await expect(runShip({ stateRoot: tmp, log: () => {} })).rejects.toThrow(/qa evidence/)
@@ -134,7 +134,7 @@ describe("L2 cross-file scenario (eval §12)", () => {
       "add a new field to the public API response payload",
       { stateRoot: tmp, motivation: LONG_MOTIVATION_FIXTURE, log: () => {} },
     )
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
     await runReview({ stateRoot: tmp, diffOverride: "+ok\n", log: () => {} })
     // reviewer.correctness now uses prompt_path (external template). The
     // template itself never mentions read:solutions, and computeSubagentTokens

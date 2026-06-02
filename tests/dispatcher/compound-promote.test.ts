@@ -338,4 +338,23 @@ describe("promoteRedGreen (--from-red-green)", () => {
     }
     rmSync(root, { recursive: true, force: true })
   })
+
+  it("dedup hit (no --force) → DuplicateMatch; §3 gate holds, capture not mutated", async () => {
+    // Uses the shared beforeEach `stateRoot` so the seeded solution and the
+    // promote share one corpus. promoteRedGreen feeds `${red_output}\n\n${prior_red}`
+    // to compound.context; seed a solution with that exact problem so the
+    // deterministic signature collides at 1.0 (mirrors the ship-failure dedup test).
+    writeRedGreenFixture(stateRoot, "dup-t-abcd1", "Lock the row before the coupon subtract.")
+    seedExistingSolutionWithSameProblem(
+      "expected 90.00 got 100.00\n\ntests/orders.test.ts::coupon_once",
+    )
+    const { runRedGreenPromote } = await import("../../src/commands/compound")
+    const path = join(stateRoot, "red-green", "dup-t-abcd1.md")
+    const before = readFileSync(path, "utf8")
+    await expect(
+      runRedGreenPromote({ slug: "dup-t-abcd1", stateRoot }),
+    ).rejects.toMatchObject({ code: "DuplicateMatch" })
+    // §3 refuse path: capture file is NOT mutated (no promoted_to written).
+    expect(readFileSync(path, "utf8")).toBe(before)
+  })
 })

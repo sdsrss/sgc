@@ -47,7 +47,7 @@ describe("compound happy-path scenario (eval §12)", () => {
     )
     expect(plan.level).toBe("L2")
 
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
     await runReview({ stateRoot: tmp, diffOverride: "+auth.ts change\n", log: () => {} })
     await runQa({ stateRoot: tmp, target: "http://x", flows: ["login"], log: () => {} })
 
@@ -76,7 +76,7 @@ describe("compound happy-path scenario (eval §12)", () => {
       "refactor the auth token validation middleware for the public API",
       { stateRoot: tmp, motivation: LONG_MOTIVATION_FIXTURE, log: () => {} },
     )
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
     await runReview({ stateRoot: tmp, diffOverride: "+ok\n", log: () => {} })
     await runQa({ stateRoot: tmp, target: "http://x", flows: ["a"], log: () => {} })
     await runShip({ stateRoot: tmp, log: () => {} })

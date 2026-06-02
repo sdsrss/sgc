@@ -51,7 +51,7 @@ describe("Invariant §4: L3 refuses --auto", () => {
       readConfirmation: async () => "yes",
       log: () => {},
     })
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
     await runReview({
       stateRoot: tmp,
       diffOverride: "+  ALTER TABLE users ADD COLUMN totp_secret TEXT;\n",

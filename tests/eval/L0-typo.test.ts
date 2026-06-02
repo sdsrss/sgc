@@ -50,7 +50,7 @@ describe("L0 typo scenario (eval §12)", () => {
     expect(agentsInvoked(tmp)).toEqual(["classifier.level"])
 
     // STEP 2: work — mark single auto-feature done
-    const work = await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+    const work = await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
     expect(work.allDone).toBe(true)
 
     // STEP 3: ship — L0 skips ship.md but runs janitor
@@ -72,7 +72,7 @@ describe("L0 typo scenario (eval §12)", () => {
 
   test("agent count: classifier + janitor only", async () => {
     await runPlan("fix typo in README", { stateRoot: tmp, log: () => {} })
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
     await runShip({ stateRoot: tmp, log: () => {} })
     // Prompts written: 1 classifier + 1 janitor.compound = 2
     expect(countAgentPrompts(tmp)).toBe(2)

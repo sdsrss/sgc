@@ -32,7 +32,7 @@ describe("Invariant §5: override.reason ≥40 chars", () => {
       "fix the null pointer crash when the config file is missing on startup",
       { stateRoot: tmp, motivation: LONG_MOTIVATION_FIXTURE, log: () => {} },
     )
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
 
     // Seed a failing review with no override
     seedFailingReview(tmp, plan.taskId)
@@ -47,7 +47,7 @@ describe("Invariant §5: override.reason ≥40 chars", () => {
       "fix the null pointer crash when the config file is missing on startup",
       { stateRoot: tmp, motivation: LONG_MOTIVATION_FIXTURE, log: () => {} },
     )
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
 
     // Seed a failing review with a short override reason (< 40 chars)
     seedFailingReview(tmp, plan.taskId, {
@@ -68,7 +68,7 @@ describe("Invariant §5: override.reason ≥40 chars", () => {
       "fix the null pointer crash when the config file is missing on startup",
       { stateRoot: tmp, motivation: LONG_MOTIVATION_FIXTURE, log: () => {} },
     )
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
 
     // Seed a failing review with a valid override reason (≥ 40 chars)
     seedFailingReview(tmp, plan.taskId, {
@@ -90,7 +90,7 @@ describe("Invariant §5: override.reason ≥40 chars", () => {
       "fix the null pointer crash when the config file is missing on startup",
       { stateRoot: tmp, motivation: LONG_MOTIVATION_FIXTURE, log: () => {} },
     )
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
 
     // Seed a passing review
     seedPassingReview(tmp, plan.taskId)

@@ -146,6 +146,80 @@ export function writeAtomic(path: string, content: string): void {
   }
 }
 
+// TDD-ledger red-green capture (Phase 2a) ─────────────────────────────────────
+
+export interface RedGreenFrontmatter {
+  kind: "red-green"
+  captured_at: string
+  task_id: string
+  feature_id: string
+  level: string
+  prior_red: string
+  red_output: string
+  verify_command: string
+  evidence?: string
+  prevention_seed: string
+  promoted_to?: string
+}
+
+export const RED_GREEN_PLACEHOLDER = "TODO: operator-fill the reusable prevention"
+
+function redGreenSlug(title: string, taskId: string): string {
+  const base =
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "feature"
+  return `${base}-${taskId.slice(0, 8).toLowerCase()}`
+}
+
+/**
+ * Write a red-green capture record under <stateRoot>/red-green/<slug>.md,
+ * mirroring ship-failures. Same-minute collision appends -2, -3, … Uses
+ * writeAtomic (STAB-4). Returns the slug actually written. prevention_seed is
+ * seeded with the operator-fill placeholder — promote refuses until it is
+ * filled (parity with ship-failure promote).
+ */
+export function writeRedGreenCapture(
+  fm: Omit<RedGreenFrontmatter, "kind" | "captured_at" | "prevention_seed"> & {
+    title: string
+  },
+  stateRoot?: string,
+): string {
+  const dir = resolve(root(stateRoot), "red-green")
+  mkdirSync(dir, { recursive: true })
+  const baseSlug = redGreenSlug(fm.title, fm.task_id)
+  let slug = baseSlug
+  let n = 1
+  while (existsSync(resolve(dir, `${slug}.md`))) {
+    n += 1
+    slug = `${baseSlug}-${n}`
+    if (n > 50) throw new Error(`red-green slug collision overflow for ${fm.task_id}`)
+  }
+  const data: RedGreenFrontmatter = {
+    kind: "red-green",
+    captured_at: new Date().toISOString(),
+    task_id: fm.task_id,
+    feature_id: fm.feature_id,
+    level: fm.level,
+    prior_red: fm.prior_red,
+    red_output: fm.red_output,
+    verify_command: fm.verify_command,
+    ...(fm.evidence ? { evidence: fm.evidence } : {}),
+    prevention_seed: RED_GREEN_PLACEHOLDER,
+  }
+  const body =
+    `## RED→GREEN\n\n- prior RED: ${fm.prior_red}\n- observed: ${fm.red_output}\n` +
+    `- verified by: ${fm.verify_command}\n\nFill \`prevention_seed:\` with the ` +
+    `reusable safeguard, then run \`sgc compound --from-red-green ${slug}\`.\n`
+  writeAtomic(
+    resolve(dir, `${slug}.md`),
+    serializeFrontmatter(data as unknown as Record<string, unknown>, body),
+  )
+  return slug
+}
+
 // Decisions: intent.md ───────────────────────────────────────────────────────
 
 const REQUIRED_INTENT_FIELDS = [

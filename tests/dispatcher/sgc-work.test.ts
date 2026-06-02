@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { mkdtempSync, rmSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { runPlan } from "../../src/commands/plan"
@@ -195,5 +195,44 @@ describe("runWork", () => {
     const fl = readFeatureList(tmp)
     expect(fl?.list.features[0]?.waived_red).toBe("docs-only")
     expect(fl?.list.features[0]?.prior_red).toBeUndefined()
+  })
+
+  // TDD-ledger red-green capture (Phase 2a)
+  test("--done with a prior-red pair writes a red-green capture file", async () => {
+    await freshTask()
+    await runWork({
+      stateRoot: tmp, done: "f1", verifyCommand: "bun test x",
+      priorRed: "tests/x.test.ts::t_pagination", redOutput: "expected 20 got 50",
+      evidence: "f1 green after lock", log: () => {},
+    })
+    const dir = join(tmp, "red-green")
+    expect(existsSync(dir)).toBe(true)
+    const files = readdirSync(dir).filter((f) => f.endsWith(".md"))
+    expect(files.length).toBe(1)
+    const raw = readFileSync(join(dir, files[0]!), "utf8")
+    expect(raw).toContain("kind: red-green")
+    expect(raw).toContain("prior_red:")
+    expect(raw).toContain("expected 20 got 50")
+    expect(raw).toContain("prevention_seed:")
+  })
+
+  test("--done with --waive-red writes NO capture file", async () => {
+    await freshTask()
+    await runWork({
+      stateRoot: tmp, done: "f1", verifyCommand: "n/a", waiveRed: "docs-only", log: () => {},
+    })
+    expect(existsSync(join(tmp, "red-green"))).toBe(false)
+  })
+
+  test("already-done feature is a grandfathered no-op (no capture)", async () => {
+    await freshTask()
+    await runWork({
+      stateRoot: tmp, done: "f1", verifyCommand: "x",
+      priorRed: "t", redOutput: "boom", log: () => {},
+    })
+    const dir = join(tmp, "red-green")
+    const before = readdirSync(dir).length
+    await runWork({ stateRoot: tmp, done: "f1", log: () => {} }) // re-done, no gate
+    expect(readdirSync(dir).length).toBe(before)
   })
 })

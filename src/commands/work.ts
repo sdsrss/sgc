@@ -14,6 +14,7 @@ import {
   readFeatureList,
   writeCurrentTask,
   writeFeatureList,
+  writeRedGreenCapture,
 } from "../dispatcher/state"
 import type { Feature, FeatureList } from "../dispatcher/types"
 import { createLogger, type Logger } from "../dispatcher/logger"
@@ -154,6 +155,21 @@ export async function runWork(opts: WorkOptions = {}): Promise<WorkResult> {
       }
       writeFeatureList(list, "", stateRoot)
       log(`marked ${opts.done} done`)
+      if (hasPair) {
+        writeRedGreenCapture(
+          {
+            title: list.features[idx]!.title,
+            task_id: ct.task.task_id,
+            feature_id: opts.done,
+            level: String(ct.task.level),
+            prior_red: priorRed!,
+            red_output: redOutput!,
+            verify_command: verifyCommand,
+            ...(evidence ? { evidence } : {}),
+          },
+          stateRoot,
+        )
+      }
     }
   }
 

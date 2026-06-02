@@ -47,6 +47,7 @@ import {
 import type { ScopeToken, SubagentManifest } from "./types"
 import type { Logger, LlmAgentContext } from "./logger"
 import { createLogger } from "./logger"
+import { readPrompt } from "./embedded-data"
 
 // Re-export for callers that referenced OutputShapeMismatch from spawn.ts
 export { OutputShapeMismatch } from "./validation"
@@ -551,13 +552,14 @@ export function formatPrompt(
   // hits (anthropic-sdk mode). Template is authored to contain the
   // `## Input` marker and `<input_yaml/>` placeholder.
   if (manifest.prompt_path) {
-    const templatePath = resolve(sgcRepoRoot, manifest.prompt_path)
-    if (!existsSync(templatePath)) {
+    let template: string
+    try {
+      template = readPrompt(manifest.prompt_path)
+    } catch {
       throw new SpawnError(
         `prompt_path declared (${manifest.prompt_path}) but file does not exist for agent ${manifest.name}`,
       )
     }
-    const template = readFileSync(templatePath, "utf8")
     if (!template.includes("<input_yaml/>")) {
       throw new SpawnError(
         `prompt_path ${manifest.prompt_path} missing <input_yaml/> placeholder for agent ${manifest.name}`,

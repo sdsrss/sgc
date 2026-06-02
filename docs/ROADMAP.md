@@ -14,6 +14,8 @@ Guiding constraints (carry into every phase):
 
 - ✅ **Phase 0 — install / distribution** (SHIPPED v1.24.0): self-contained Node bundle (`plugins/sgc/bin/sgc.mjs`, contracts+prompts inlined), dual-channel (plugin payload + npm), no bun runtime, 4-tier resolver, doctor bundle-parity + CI staleness gate, two e2e acceptance scripts.
 - ✅ **Phase 1 (doc part)** (SHIPPED v1.24.1): README + GitHub About + `docs/POSITIONING.md` + `plugins/sgc/CLAUDE.md` + npm/plugin descriptions reframed from "coexist, NOT a replacement" → self-contained super-plugin (delegate table → *optional interop*).
+- ✅ **Phase 1 (runtime part)** (SHIPPED, framing-only commit `82558e0`): `delegation.ts` hint reasons + `sgc.ts` header/`--help` + `marketplace.json` reframed to "sgc-native default, sp/gs optional richer path".
+- ✅ **Phase 2a — TDD-ledger** (SHIPPED v1.25.0): `sgc work --done` close-gate anchors to a recorded prior-RED pair XOR `--waive-red` (level-agnostic, grandfather already-done); prior-RED done writes a `red-green/<slug>.md` capture (mirrors ship-failures); `sgc compound --from-red-green` promotes it into `solutions/` through the deterministic Invariant §3 dedup pipeline. Capture auto, promote deliberate (no done-time auto-write). Spec/plan under `docs/superpowers/`.
 
 ---
 

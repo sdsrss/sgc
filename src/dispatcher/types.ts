@@ -67,6 +67,16 @@ export interface Feature {
   verify_command?: string
   /** Optional free-text evidence naming what was observed (Iron Law #2). */
   evidence?: string
+  /**
+   * TDD-ledger (Phase 2a). Set when `--done` records a prior-RED pair: the
+   * failing test / repro identifier and the observed failure output. sgc
+   * records the attestation; it does not execute the test. Absent on
+   * features closed via --waive-red or before the gate existed.
+   */
+  prior_red?: string
+  red_output?: string
+  /** Reason a feature was closed without a prior-RED (e.g. "docs-only"). */
+  waived_red?: string
 }
 
 export interface FeatureList {

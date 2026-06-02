@@ -1,5 +1,48 @@
 # Changelog
 
+## v1.24.0 — 2026-06-02 — feat: self-contained node-bundle install (Phase 0 — dual-channel, no bun runtime)
+
+`/plugin install sgc` now yields a working CLI on a node-only machine — no bun
+runtime, no separate `npm i -g` step. The CLI ships as a single self-contained
+node ESM bundle (`plugins/sgc/bin/sgc.mjs`, contracts + prompts inlined) through
+both the plugin payload and npm, which share one artifact. First phase of the
+self-contained super-plugin direction (spec + plan under `docs/superpowers/`).
+Dispatcher suite 1035 → 1051 (+16 tests). No state-file or `.sgc/` schema change.
+
+### What changed
+
+**Bundle + runtime (no bun needed at install)**
+
+- New `src/dispatcher/subprocess.ts` — `spawnCapture` / `whichSync` on
+  `node:child_process`; all 15 `Bun.spawn` / `Bun.which` sites converted (incl.
+  the claude-cli `defaultRunner`, STAB-2 signal-drain kill preserved). The CLI
+  is now node-runnable; bun is a dev/build tool only.
+- New `src/dispatcher/embedded-data.ts` — `contracts/*` + `prompts/*` inlined as
+  text (`with { type: "text" }`); env → embedded → disk read ladder
+  (`SGC_CONTRACTS_DIR` / `SGC_PROMPTS_DIR` escape hatches). `schema.ts`,
+  `spawn.ts:formatPrompt`, and `doctor.ts` all route through it.
+- New `scripts/build-cli.mjs` (`npm run build:cli`) — single-sources the
+  `bun build --target=node` flags shared by the build + the doctor parity check;
+  emits `plugins/sgc/bin/sgc.mjs` with a `#!/usr/bin/env node` shebang.
+
+**Distribution (dual-channel, both first-class)**
+
+- Plugin commands use a 4-tier resolver, plugin-bundle first
+  (`$CLAUDE_PLUGIN_ROOT/bin/sgc.mjs` → global `sgc` → `bun src/sgc.ts` → error).
+- `package.json`: `bin` → the bundle, bundle added to `files`,
+  `engines` → `node >= 18` (bun requirement dropped).
+
+**Guards**
+
+- `sgc doctor` adds a bundle-hash parity check (rebuilds + compares to the
+  committed bundle; skips when run from a source-less install).
+- `doctor` check E now whitelists `plugins/sgc/bin/` only — the vendored browse
+  tree still cannot reach the npm tarball.
+- CI (`test.yml` + `publish.yml`) rebuilds the bundle and fails on a stale
+  committed artifact (`git diff --exit-code`).
+- New e2e: `tests/e2e/clean-container.test.sh` (node-only docker acceptance) +
+  `tests/e2e/npm-isolated-install.test.sh` (isolated install, PATH-shadow-safe).
+
 ## v1.23.1 — 2026-06-01 — chore: production-readiness audit P2 (dead code, doc drift, domain errors, dedup-floor note)
 
 Low-priority P2 follow-ups (`docs/PRODUCTION-READINESS-AUDIT.md` §P2, selected).

@@ -27,6 +27,7 @@ import {
   resolveStateRoot,
   serializeFrontmatter,
   writeSolution,
+  type RedGreenFrontmatter,
 } from "./state"
 import type { DedupStamp, SolutionEntry } from "./types"
 
@@ -54,6 +55,7 @@ export type PromoteErrorCode =
   | "PlaceholderPreventionSeed"
   | "AlreadyPromoted"
   | "DuplicateMatch"
+  | "MissingRedGreen"
 
 export class PromoteError extends Error {
   readonly code: PromoteErrorCode
@@ -268,6 +270,165 @@ export async function promoteShipFailure(
 
   return {
     shipFailurePath,
+    solutionPath: written.path,
+    dedupAction,
+    relatedRefs: related.related_entries,
+  }
+}
+
+/**
+ * TDD-ledger promote (Phase 2a) — bridge a `<stateRoot>/red-green/<slug>.md`
+ * capture into solutions/. Mirrors promoteShipFailure: routes through the SAME
+ * Invariant §3 write-gate (compound.context heuristic for category/tags/problem
+ * + compound.related heuristic for the dedup_stamp — never LLM-swapped per
+ * feedback_compound_related_invariant3). Operator-edited prevention_seed is
+ * authoritative.
+ */
+export async function promoteRedGreen(
+  opts: PromoteOptions,
+): Promise<PromoteResult> {
+  const stateRoot = opts.stateRoot
+  const root = resolveStateRoot(stateRoot)
+  const capturePath = resolve(root, "red-green", `${opts.slug}.md`)
+
+  if (!existsSync(capturePath)) {
+    throw new PromoteError(
+      "MissingRedGreen",
+      `red-green/${opts.slug}.md does not exist under ${root}. ` +
+        `Run \`ls ${root}/red-green/\` to see available slugs.`,
+      { slug: opts.slug, stateRoot: root },
+    )
+  }
+
+  const raw = readFileSync(capturePath, "utf8")
+  const parsed = parseFrontmatter<RedGreenFrontmatter>(raw)
+  const fm = parsed.data
+
+  if (typeof fm.promoted_to === "string" && fm.promoted_to.length > 0) {
+    throw new PromoteError(
+      "AlreadyPromoted",
+      `red-green/${opts.slug}.md already carries promoted_to: ${fm.promoted_to}. ` +
+        `Remove the field manually to re-promote; --force does NOT override.`,
+      { promoted_to: fm.promoted_to },
+    )
+  }
+
+  const seed = String(fm.prevention_seed ?? "").trim()
+  if (seed.length === 0 || seed.startsWith(PLACEHOLDER_PREFIX)) {
+    throw new PromoteError(
+      "PlaceholderPreventionSeed",
+      `red-green/${opts.slug}.md still carries the capture-time prevention_seed ` +
+        `placeholder (or empty). Edit \`prevention_seed:\` into the actual ` +
+        `safeguard before re-running promote.`,
+      { prevention_seed: seed.slice(0, 80) },
+    )
+  }
+
+  // Heuristic input: the observed RED is the problem text; the prior-RED id
+  // routes into tag candidates. compound.context derives category/tags/problem.
+  const intentText = `${fm.red_output}\n\n${fm.prior_red}`
+  const logger = opts.logger ?? createLogger({ stateRoot })
+
+  const ctxRes = await spawn<unknown, CompoundContextOutput>(
+    "compound.context",
+    { task_id: fm.task_id, intent: intentText },
+    {
+      stateRoot,
+      inlineStub: (i) =>
+        compoundContext(i as { task_id: string; intent: string; diff?: string }),
+      logger,
+    },
+  )
+  const context = ctxRes.output
+
+  const signature = computeSignature(context.problem_summary)
+  const existing = listSolutions(stateRoot)
+
+  const relRes = await spawn<unknown, CompoundRelatedOutput>(
+    "compound.related",
+    { context, signature, existing_solutions: existing },
+    {
+      stateRoot,
+      inlineStub: (i) =>
+        compoundRelated(
+          i as {
+            context: CompoundContextOutput
+            signature: string
+            existing_solutions: typeof existing
+          },
+        ),
+      logger,
+    },
+  )
+  const related = relRes.output
+
+  if (related.duplicate_match && !opts.force) {
+    throw new PromoteError(
+      "DuplicateMatch",
+      `compound.related found a duplicate at ${related.duplicate_match.ref} ` +
+        `(similarity ${related.duplicate_match.similarity.toFixed(3)} ≥ ` +
+        `${related.dedup_stamp.threshold}). Pass --force to write anyway, ` +
+        `or edit prevention_seed: to differentiate.`,
+      {
+        duplicate_ref: related.duplicate_match.ref,
+        similarity: related.duplicate_match.similarity,
+      },
+    )
+  }
+
+  const now = nowIso()
+  const entry: SolutionEntry = {
+    id: generateUlid(),
+    signature,
+    category: context.category,
+    problem: context.problem_summary,
+    symptoms:
+      context.symptoms.length > 0
+        ? context.symptoms
+        : [`RED→GREEN of ${fm.feature_id} (${fm.prior_red})`],
+    what_didnt_work: [],
+    solution:
+      `RED→GREEN for ${fm.feature_id} in task ${fm.task_id} (level ${fm.level}): ` +
+      `prior-RED ${fm.prior_red} → green via ${fm.verify_command}` +
+      (fm.evidence ? `; evidence: ${fm.evidence}` : "") +
+      `. See body + operator's prevention_seed.`,
+    prevention: seed,
+    tags:
+      context.tags.length > 0
+        ? Array.from(new Set([...context.tags, "tdd", "red-green"]))
+        : ["tdd", "red-green"],
+    first_seen: now,
+    last_updated: now,
+    times_referenced: 0,
+    source_task_ids: [fm.task_id],
+    related_entries:
+      related.related_entries.length > 0 ? related.related_entries : undefined,
+    confidence: "provisional",
+  }
+
+  const solutionSlug =
+    opts.solutionSlug ??
+    `red-green-${fm.task_id.slice(0, 8).toLowerCase()}-${fm.feature_id}`
+  const dedupAction: "new_entry" | "user_forced" =
+    opts.force && related.duplicate_match ? "user_forced" : "new_entry"
+  const stamp: DedupStamp = {
+    compound_related_spawn_id: relRes.spawnId,
+    threshold_met_or_forced: true,
+    reason: dedupAction,
+  }
+
+  const written = writeSolution(entry, solutionSlug, stamp, "", stateRoot)
+  const promotedRef = `${entry.category}/${solutionSlug}`
+
+  const updatedFm: RedGreenFrontmatter = { ...fm, promoted_to: promotedRef }
+  writeFileSync(
+    capturePath,
+    serializeFrontmatter(updatedFm as unknown as Record<string, unknown>, parsed.body),
+    "utf8",
+  )
+
+  return {
+    shipFailurePath: capturePath,
     solutionPath: written.path,
     dedupAction,
     relatedRefs: related.related_entries,

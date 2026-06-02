@@ -354,6 +354,12 @@ const compound = defineCommand({
       description:
         "GS-1.1 promote: convert a captured canary-failure record into a solutions/ entry. Pass the slug under <stateRoot>/canaries/<slug>.md (e.g. 2026-05-25-c29f021-smoke_install).",
     },
+    "from-red-green": {
+      type: "string",
+      required: false,
+      description:
+        "TDD-ledger promote: convert a captured red-green record into a solutions/ entry. Pass the slug under <stateRoot>/red-green/<slug>.md.",
+    },
     "solution-slug": {
       type: "string",
       required: false,
@@ -372,6 +378,19 @@ const compound = defineCommand({
       })
       process.stderr.write(
         `promote: action=${result.dedupAction} solution=${result.solutionPath} canary=${result.canaryPath}\n`,
+      )
+      return
+    }
+    const fromRedGreen = args["from-red-green"] as string | undefined
+    if (fromRedGreen !== undefined && fromRedGreen.length > 0) {
+      const { runRedGreenPromote } = await import("./commands/compound")
+      const result = await runRedGreenPromote({
+        slug: fromRedGreen,
+        force: args.force as boolean | undefined,
+        solutionSlug: args["solution-slug"] as string | undefined,
+      })
+      process.stderr.write(
+        `promote: action=${result.dedupAction} solution=${result.solutionPath} red-green=${result.shipFailurePath}\n`,
       )
       return
     }

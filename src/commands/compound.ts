@@ -24,6 +24,7 @@ import {
   compoundSolution,
 } from "../dispatcher/agents/compound"
 import {
+  promoteRedGreen,
   promoteShipFailure,
   type PromoteOptions,
   type PromoteResult,
@@ -274,6 +275,17 @@ export async function runCompoundPromote(
   opts: PromoteOptions,
 ): Promise<PromoteResult> {
   return promoteShipFailure(opts)
+}
+
+/**
+ * TDD-ledger promote entry point — operator/janitor path for red-green
+ * capture records. Sibling to runCompoundPromote; wraps promoteRedGreen.
+ * The CLI in sgc.ts routes `--from-red-green <slug>` here.
+ */
+export async function runRedGreenPromote(
+  opts: PromoteOptions,
+): Promise<PromoteResult> {
+  return promoteRedGreen(opts)
 }
 
 /**

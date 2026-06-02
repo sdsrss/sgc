@@ -262,3 +262,80 @@ describe("PromoteError shape", () => {
     }
   })
 })
+
+// ── TDD-ledger red-green promote (Phase 2a) ──────────────────────────────────
+
+function writeRedGreenFixture(root: string, slug: string, seed: string): void {
+  ensureSgcStructure(root)
+  const dir = join(root, "red-green")
+  mkdirSync(dir, { recursive: true })
+  const fm = [
+    "---",
+    "kind: red-green",
+    "captured_at: 2026-06-02T00:00:00.000Z",
+    "task_id: T-ABCD1234",
+    "feature_id: f1",
+    "level: 2",
+    "prior_red: tests/orders.test.ts::coupon_once",
+    "red_output: expected 90.00 got 100.00",
+    "verify_command: bun test orders",
+    `prevention_seed: ${seed}`,
+    "---",
+    "## RED→GREEN",
+    "",
+  ].join("\n")
+  writeFileSync(join(dir, `${slug}.md`), fm, "utf8")
+}
+
+describe("promoteRedGreen (--from-red-green)", () => {
+  it("promotes a filled capture into a solution + writes promoted_to back", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sgc-rg-promote-"))
+    writeRedGreenFixture(
+      root,
+      "coupon-bug-t-abcd1",
+      "Apply coupon exactly once; assert idempotent subtract.",
+    )
+    const { runRedGreenPromote } = await import("../../src/commands/compound")
+    const res = await runRedGreenPromote({ slug: "coupon-bug-t-abcd1", stateRoot: root })
+    expect(res.solutionPath).toContain("solutions")
+    expect(existsSync(res.solutionPath)).toBe(true)
+    const after = readFileSync(join(root, "red-green", "coupon-bug-t-abcd1.md"), "utf8")
+    expect(after).toContain("promoted_to:")
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it("refuses an unfilled prevention_seed placeholder", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sgc-rg-ph-"))
+    writeRedGreenFixture(root, "ph-t-abcd1", "TODO: operator-fill the reusable prevention")
+    const { runRedGreenPromote } = await import("../../src/commands/compound")
+    await expect(
+      runRedGreenPromote({ slug: "ph-t-abcd1", stateRoot: root }),
+    ).rejects.toThrow(/placeholder|prevention_seed/i)
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it("is idempotent — re-promote refuses (AlreadyPromoted)", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sgc-rg-rerun-"))
+    writeRedGreenFixture(root, "rerun-t-abcd1", "Lock the row before the coupon subtract.")
+    const { runRedGreenPromote } = await import("../../src/commands/compound")
+    await runRedGreenPromote({ slug: "rerun-t-abcd1", stateRoot: root })
+    await expect(
+      runRedGreenPromote({ slug: "rerun-t-abcd1", stateRoot: root }),
+    ).rejects.toThrow(/already|promoted_to/i)
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it("rejects a missing capture with MissingRedGreen", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sgc-rg-missing-"))
+    ensureSgcStructure(root)
+    const { runRedGreenPromote } = await import("../../src/commands/compound")
+    try {
+      await runRedGreenPromote({ slug: "nope", stateRoot: root })
+      throw new Error("expected rejection")
+    } catch (err) {
+      expect(err).toBeInstanceOf(PromoteError)
+      expect((err as PromoteError).code).toBe("MissingRedGreen")
+    }
+    rmSync(root, { recursive: true, force: true })
+  })
+})

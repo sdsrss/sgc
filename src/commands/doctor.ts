@@ -25,6 +25,7 @@ import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { load as yamlLoad } from "js-yaml"
 import { getCapabilities } from "../dispatcher/schema"
+import { EMBEDDED_PROMPTS, listEmbeddedPromptKeys } from "../dispatcher/embedded-data"
 
 const moduleDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(moduleDir, "..", "..")
@@ -81,17 +82,22 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   const caps = getCapabilities()
   const manifests = Object.entries(caps.subagents)
 
-  // ── (A) manifest.prompt_path → file exists ─────────────────────────────
+  // Detect whether a source checkout is present. Checks that read repo source/config
+  // files (D/E/F/G/H/I) are only meaningful in dev/CI; in a shipped bundle those
+  // files don't exist and each such check emits a single info/skip row instead.
+  const hasSource = existsSync(resolve(root, "src", "sgc.ts"))
+
+  // ── (A) manifest.prompt_path → embedded (bundle) or file exists (dev) ───
   log("=== Manifest prompt_path ↔ prompts/ ===")
   for (const [name, m] of manifests) {
     if (m.prompt_path == null) continue
-    const filePath = resolve(root, m.prompt_path)
-    if (existsSync(filePath)) {
+    const present = EMBEDDED_PROMPTS[m.prompt_path] !== undefined
+    if (present) {
       emit({ severity: "ok", msg: `  ✓ ${name} → ${m.prompt_path}` })
     } else {
       emit({
         severity: "fail",
-        msg: `  ✗ ${name} → ${m.prompt_path} (FILE MISSING)`,
+        msg: `  ✗ ${name} → ${m.prompt_path} (NOT EMBEDDED)`,
       })
     }
   }
@@ -99,23 +105,18 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   // ── (B) prompts/*.md → referenced by some manifest ─────────────────────
   log("")
   log("=== prompts/ ↔ manifest ===")
-  const promptsDir = resolve(root, "prompts")
   const declaredPrompts = new Set<string>()
   for (const [, m] of manifests) {
     if (m.prompt_path) declaredPrompts.add(m.prompt_path)
   }
-  if (existsSync(promptsDir)) {
-    for (const file of readdirSync(promptsDir).sort()) {
-      if (!file.endsWith(".md")) continue
-      const rel = `prompts/${file}`
-      if (declaredPrompts.has(rel)) {
-        emit({ severity: "ok", msg: `  ✓ ${rel}` })
-      } else {
-        emit({
-          severity: "warn",
-          msg: `  ⚠ ${rel} (orphan — no manifest references it)`,
-        })
-      }
+  for (const rel of listEmbeddedPromptKeys().sort()) {
+    if (declaredPrompts.has(rel)) {
+      emit({ severity: "ok", msg: `  ✓ ${rel}` })
+    } else {
+      emit({
+        severity: "warn",
+        msg: `  ⚠ ${rel} (orphan — embedded but unreferenced)`,
+      })
     }
   }
 
@@ -142,105 +143,117 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   // plugins/sgc/browse/ upstream suite gets swept and reports false failures.
   log("")
   log("=== bunfig.toml [test] root ===")
-  const bunfigPath = resolve(root, "bunfig.toml")
-  if (!existsSync(bunfigPath)) {
-    emit({
-      severity: "warn",
-      msg: '  ⚠ bunfig.toml not found — bare `bun test` may sweep vendored suites (R0)',
-    })
-  } else if (/root\s*=\s*["']tests["']/.test(readFileSync(bunfigPath, "utf8"))) {
-    emit({ severity: "ok", msg: '  ✓ bunfig.toml [test] root="tests"' })
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ bunfig.toml root skipped (no source checkout — dev/CI-only check)" })
   } else {
-    emit({
-      severity: "fail",
-      msg: '  ✗ bunfig.toml present but [test] root!="tests" — bare `bun test` may sweep plugins/sgc/browse (R0 regression)',
-    })
+    const bunfigPath = resolve(root, "bunfig.toml")
+    if (!existsSync(bunfigPath)) {
+      emit({
+        severity: "warn",
+        msg: '  ⚠ bunfig.toml not found — bare `bun test` may sweep vendored suites (R0)',
+      })
+    } else if (/root\s*=\s*["']tests["']/.test(readFileSync(bunfigPath, "utf8"))) {
+      emit({ severity: "ok", msg: '  ✓ bunfig.toml [test] root="tests"' })
+    } else {
+      emit({
+        severity: "fail",
+        msg: '  ✗ bunfig.toml present but [test] root!="tests" — bare `bun test` may sweep plugins/sgc/browse (R0 regression)',
+      })
+    }
   }
 
   // ── (E) package.json "files" excludes vendored plugins/ ────────────────
   log("")
   log("=== package.json files ↔ no vendored plugins/ ===")
-  const pkgPath = resolve(root, "package.json")
-  if (!existsSync(pkgPath)) {
-    emit({ severity: "warn", msg: "  ⚠ package.json not found" })
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ package.json files skipped (no source checkout — dev/CI-only check)" })
   } else {
-    let files: string[] = []
-    try {
-      const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { files?: unknown }
-      files = Array.isArray(pkg.files) ? (pkg.files as string[]) : []
-    } catch (e) {
-      emit({
-        severity: "fail",
-        msg: `  ✗ package.json parse error: ${(e as Error).message.slice(0, 80)}`,
-      })
-      files = []
-    }
-    const leaks = files.filter((f) => f.replace(/^\.?\//, "").startsWith("plugins"))
-    if (files.length === 0) {
-      emit({
-        severity: "warn",
-        msg: '  ⚠ package.json has no "files" allowlist — npm would publish vendored browse',
-      })
-    } else if (leaks.length) {
-      emit({
-        severity: "fail",
-        msg: `  ✗ package.json files includes vendored path(s): ${leaks.join(", ")}`,
-      })
+    const pkgPath = resolve(root, "package.json")
+    if (!existsSync(pkgPath)) {
+      emit({ severity: "warn", msg: "  ⚠ package.json not found" })
     } else {
-      emit({
-        severity: "ok",
-        msg: "  ✓ package.json files excludes plugins/ (vendored browse not npm-published)",
-      })
+      let files: string[] = []
+      try {
+        const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { files?: unknown }
+        files = Array.isArray(pkg.files) ? (pkg.files as string[]) : []
+      } catch (e) {
+        emit({
+          severity: "fail",
+          msg: `  ✗ package.json parse error: ${(e as Error).message.slice(0, 80)}`,
+        })
+        files = []
+      }
+      const leaks = files.filter((f) => f.replace(/^\.?\//, "").startsWith("plugins"))
+      if (files.length === 0) {
+        emit({
+          severity: "warn",
+          msg: '  ⚠ package.json has no "files" allowlist — npm would publish vendored browse',
+        })
+      } else if (leaks.length) {
+        emit({
+          severity: "fail",
+          msg: `  ✗ package.json files includes vendored path(s): ${leaks.join(", ")}`,
+        })
+      } else {
+        emit({
+          severity: "ok",
+          msg: "  ✓ package.json files excludes plugins/ (vendored browse not npm-published)",
+        })
+      }
     }
   }
 
   // ── (F) vendored-components.yaml provenance ────────────────────────────
   log("")
   log("=== vendored-components.yaml provenance ===")
-  const vcPath = resolve(root, "contracts/vendored-components.yaml")
-  if (!existsSync(vcPath)) {
-    emit({
-      severity: "warn",
-      msg: "  ⚠ contracts/vendored-components.yaml not found — vendored source unregistered (R0/Rec4)",
-    })
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ vendored-components.yaml skipped (no source checkout — dev/CI-only check)" })
   } else {
-    let comps: Record<string, unknown>[] | null = []
-    try {
-      const doc = yamlLoad(readFileSync(vcPath, "utf8")) as { components?: unknown }
-      comps = Array.isArray(doc?.components)
-        ? (doc.components as Record<string, unknown>[])
-        : []
-    } catch (e) {
+    const vcPath = resolve(root, "contracts/vendored-components.yaml")
+    if (!existsSync(vcPath)) {
       emit({
-        severity: "fail",
-        msg: `  ✗ vendored-components.yaml parse error: ${(e as Error).message.slice(0, 80)}`,
+        severity: "warn",
+        msg: "  ⚠ contracts/vendored-components.yaml not found — vendored source unregistered (R0/Rec4)",
       })
-      comps = null
-    }
-    if (comps && comps.length === 0) {
-      emit({ severity: "warn", msg: "  ⚠ vendored-components.yaml lists no components" })
-    } else if (comps) {
-      const required = ["path", "upstream", "upstream_ref", "vendored_at"]
-      for (const c of comps) {
-        const missing = required.filter(
-          (k) => c[k] == null || String(c[k]).trim() === "",
-        )
-        const cpath = (c["path"] as string) ?? "<no path>"
-        if (missing.length) {
-          emit({
-            severity: "fail",
-            msg: `  ✗ vendored ${cpath}: missing field(s) ${missing.join(", ")}`,
-          })
-        } else if (!existsSync(resolve(root, cpath))) {
-          emit({
-            severity: "fail",
-            msg: `  ✗ vendored ${cpath}: registered path missing on disk`,
-          })
-        } else {
-          emit({
-            severity: "ok",
-            msg: `  ✓ vendored ${cpath} (upstream_ref: ${String(c["upstream_ref"])})`,
-          })
+    } else {
+      let comps: Record<string, unknown>[] | null = []
+      try {
+        const doc = yamlLoad(readFileSync(vcPath, "utf8")) as { components?: unknown }
+        comps = Array.isArray(doc?.components)
+          ? (doc.components as Record<string, unknown>[])
+          : []
+      } catch (e) {
+        emit({
+          severity: "fail",
+          msg: `  ✗ vendored-components.yaml parse error: ${(e as Error).message.slice(0, 80)}`,
+        })
+        comps = null
+      }
+      if (comps && comps.length === 0) {
+        emit({ severity: "warn", msg: "  ⚠ vendored-components.yaml lists no components" })
+      } else if (comps) {
+        const required = ["path", "upstream", "upstream_ref", "vendored_at"]
+        for (const c of comps) {
+          const missing = required.filter(
+            (k) => c[k] == null || String(c[k]).trim() === "",
+          )
+          const cpath = (c["path"] as string) ?? "<no path>"
+          if (missing.length) {
+            emit({
+              severity: "fail",
+              msg: `  ✗ vendored ${cpath}: missing field(s) ${missing.join(", ")}`,
+            })
+          } else if (!existsSync(resolve(root, cpath))) {
+            emit({
+              severity: "fail",
+              msg: `  ✗ vendored ${cpath}: registered path missing on disk`,
+            })
+          } else {
+            emit({
+              severity: "ok",
+              msg: `  ✓ vendored ${cpath} (upstream_ref: ${String(c["upstream_ref"])})`,
+            })
+          }
         }
       }
     }
@@ -249,8 +262,11 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   // ── (G) invariant-enforcement.yaml coverage ────────────────────────────
   log("")
   log("=== invariant-enforcement.yaml coverage ===")
+  // iePath is also referenced by check (I); declare it here so both share scope.
   const iePath = resolve(root, "contracts/invariant-enforcement.yaml")
-  if (!existsSync(iePath)) {
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ invariant-enforcement.yaml skipped (no source checkout — dev/CI-only check)" })
+  } else if (!existsSync(iePath)) {
     emit({
       severity: "warn",
       msg: "  ⚠ contracts/invariant-enforcement.yaml not found — invariant→test map unverified",
@@ -317,42 +333,46 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   const SLASH_EXEMPT = new Set(["canary", "watch-ci-failure", "land"])
   log("")
   log("=== slash commands ↔ CLI subcommands ===")
-  const sgcSrcPath = resolve(root, "src/sgc.ts")
-  const commandsDir = resolve(root, "plugins/sgc/commands")
-  if (!existsSync(sgcSrcPath) || !existsSync(commandsDir)) {
-    emit({
-      severity: "warn",
-      msg: "  ⚠ src/sgc.ts or plugins/sgc/commands/ not found — slash parity unchecked (npm-install layout?)",
-    })
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ slash↔CLI parity skipped (no source checkout — dev/CI-only check)" })
   } else {
-    const cliNames = extractCliSubcommands(readFileSync(sgcSrcPath, "utf8"))
-    const slashNames = new Set(
-      readdirSync(commandsDir)
-        .filter((f) => f.endsWith(".md"))
-        .map((f) => f.slice(0, -3)),
-    )
-    if (cliNames.length === 0) {
-      emit({ severity: "warn", msg: "  ⚠ could not parse subCommands block in src/sgc.ts" })
-    }
-    for (const name of cliNames) {
-      if (slashNames.has(name)) {
-        emit({ severity: "ok", msg: `  ✓ ${name} (CLI + slash command)` })
-      } else if (SLASH_EXEMPT.has(name)) {
-        emit({ severity: "ok", msg: `  ✓ ${name} (CLI-only, slash-exempt)` })
-      } else {
-        emit({
-          severity: "fail",
-          msg: `  ✗ ${name} (CLI subcommand has no slash command — add plugins/sgc/commands/${name}.md or add to SLASH_EXEMPT)`,
-        })
+    const sgcSrcPath = resolve(root, "src/sgc.ts")
+    const commandsDir = resolve(root, "plugins/sgc/commands")
+    if (!existsSync(sgcSrcPath) || !existsSync(commandsDir)) {
+      emit({
+        severity: "warn",
+        msg: "  ⚠ src/sgc.ts or plugins/sgc/commands/ not found — slash parity unchecked (npm-install layout?)",
+      })
+    } else {
+      const cliNames = extractCliSubcommands(readFileSync(sgcSrcPath, "utf8"))
+      const slashNames = new Set(
+        readdirSync(commandsDir)
+          .filter((f) => f.endsWith(".md"))
+          .map((f) => f.slice(0, -3)),
+      )
+      if (cliNames.length === 0) {
+        emit({ severity: "warn", msg: "  ⚠ could not parse subCommands block in src/sgc.ts" })
       }
-    }
-    const cliSet = new Set(cliNames)
-    for (const slash of [...slashNames].sort()) {
-      if (!cliSet.has(slash)) {
-        emit({
-          severity: "warn",
-          msg: `  ⚠ ${slash}.md (orphan slash command — no matching CLI subcommand)`,
-        })
+      for (const name of cliNames) {
+        if (slashNames.has(name)) {
+          emit({ severity: "ok", msg: `  ✓ ${name} (CLI + slash command)` })
+        } else if (SLASH_EXEMPT.has(name)) {
+          emit({ severity: "ok", msg: `  ✓ ${name} (CLI-only, slash-exempt)` })
+        } else {
+          emit({
+            severity: "fail",
+            msg: `  ✗ ${name} (CLI subcommand has no slash command — add plugins/sgc/commands/${name}.md or add to SLASH_EXEMPT)`,
+          })
+        }
+      }
+      const cliSet = new Set(cliNames)
+      for (const slash of [...slashNames].sort()) {
+        if (!cliSet.has(slash)) {
+          emit({
+            severity: "warn",
+            msg: `  ⚠ ${slash}.md (orphan slash command — no matching CLI subcommand)`,
+          })
+        }
       }
     }
   }
@@ -364,39 +384,43 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   // docs drifts (audit 2026-06-01: README said 12, both contracts said 13).
   log("")
   log("=== invariant sources aligned (§ count) ===")
-  const invMdPath = resolve(root, "contracts/sgc-invariants.md")
-  if (!existsSync(invMdPath) || !existsSync(iePath)) {
-    emit({
-      severity: "warn",
-      msg: "  ⚠ sgc-invariants.md or invariant-enforcement.yaml missing — § parity unchecked",
-    })
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ invariant-source parity skipped (no source checkout — dev/CI-only check)" })
   } else {
-    const mdNums = new Set<number>()
-    const secRe = /^##\s*§(\d+)\./gm
-    let sm: RegExpExecArray | null
-    const mdText = readFileSync(invMdPath, "utf8")
-    while ((sm = secRe.exec(mdText)) !== null) mdNums.add(Number(sm[1]))
-    const yamlNums = new Set<number>()
-    try {
-      const doc = yamlLoad(readFileSync(iePath, "utf8")) as {
-        invariants?: Record<string, unknown>
-      }
-      if (doc?.invariants) for (const k of Object.keys(doc.invariants)) yamlNums.add(Number(k))
-    } catch {
-      /* (G) already surfaced the parse error */
-    }
-    const onlyMd = [...mdNums].filter((n) => !yamlNums.has(n)).sort((a, b) => a - b)
-    const onlyYaml = [...yamlNums].filter((n) => !mdNums.has(n)).sort((a, b) => a - b)
-    if (mdNums.size > 0 && onlyMd.length === 0 && onlyYaml.length === 0) {
+    const invMdPath = resolve(root, "contracts/sgc-invariants.md")
+    if (!existsSync(invMdPath) || !existsSync(iePath)) {
       emit({
-        severity: "ok",
-        msg: `  ✓ both sources define §1–§${Math.max(...mdNums)} (${mdNums.size} invariants)`,
+        severity: "warn",
+        msg: "  ⚠ sgc-invariants.md or invariant-enforcement.yaml missing — § parity unchecked",
       })
     } else {
-      emit({
-        severity: "fail",
-        msg: `  ✗ invariant sources disagree — only in .md: [${onlyMd.join(",") || "—"}], only in .yaml: [${onlyYaml.join(",") || "—"}]`,
-      })
+      const mdNums = new Set<number>()
+      const secRe = /^##\s*§(\d+)\./gm
+      let sm: RegExpExecArray | null
+      const mdText = readFileSync(invMdPath, "utf8")
+      while ((sm = secRe.exec(mdText)) !== null) mdNums.add(Number(sm[1]))
+      const yamlNums = new Set<number>()
+      try {
+        const doc = yamlLoad(readFileSync(iePath, "utf8")) as {
+          invariants?: Record<string, unknown>
+        }
+        if (doc?.invariants) for (const k of Object.keys(doc.invariants)) yamlNums.add(Number(k))
+      } catch {
+        /* (G) already surfaced the parse error */
+      }
+      const onlyMd = [...mdNums].filter((n) => !yamlNums.has(n)).sort((a, b) => a - b)
+      const onlyYaml = [...yamlNums].filter((n) => !mdNums.has(n)).sort((a, b) => a - b)
+      if (mdNums.size > 0 && onlyMd.length === 0 && onlyYaml.length === 0) {
+        emit({
+          severity: "ok",
+          msg: `  ✓ both sources define §1–§${Math.max(...mdNums)} (${mdNums.size} invariants)`,
+        })
+      } else {
+        emit({
+          severity: "fail",
+          msg: `  ✗ invariant sources disagree — only in .md: [${onlyMd.join(",") || "—"}], only in .yaml: [${onlyYaml.join(",") || "—"}]`,
+        })
+      }
     }
   }
 

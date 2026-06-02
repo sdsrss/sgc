@@ -22,41 +22,97 @@ afterEach(() => {
   _resetCachesForTest()
 })
 
-function seed(manifestBody: string, promptFiles: string[]): void {
+function seed(manifestBody: string, _unusedPromptFiles?: string[]): void {
   const cdir = join(tmp, "contracts")
   mkdirSync(cdir, { recursive: true })
   const yaml = `schema_version: "0.1"\nscope_tokens: {}\npermissions: {}\nsubagents:\n${manifestBody}`
   writeFileSync(join(cdir, "sgc-capabilities.yaml"), yaml, "utf8")
-  const pdir = join(tmp, "prompts")
-  mkdirSync(pdir, { recursive: true })
-  for (const f of promptFiles) writeFileSync(join(pdir, f), "# stub\n", "utf8")
+  // Note: check (B) now iterates embedded keys, not disk files.
+  // Disk prompts/ dir is no longer read by doctor — no need to create it.
 }
 
 describe("sgc doctor", () => {
+  // D1-D5 use real embedded prompt keys (prompts/planner-eng.md etc.) because
+  // check (A) now looks up EMBEDDED_PROMPTS, not disk files.
   test("D1: all prompt_path files present + no orphans + slot-only clean → fail=0", async () => {
+    // Use a real embedded key so check (A) resolves present=true.
+    // Seed ALL embedded keys as manifests so check (B) has no orphans.
     seed(
       `  alpha.test:\n` +
         `    purpose: smoke\n` +
-        `    prompt_path: prompts/alpha.md\n` +
+        `    prompt_path: prompts/planner-eng.md\n` +
+        `    inputs:\n      x: string\n` +
+        `    outputs:\n      y: string\n` +
+        `    scope_tokens: []\n` +
+        `  alpha2.test:\n` +
+        `    purpose: smoke2\n` +
+        `    prompt_path: prompts/planner-adversarial.md\n` +
+        `    inputs:\n      x: string\n` +
+        `    outputs:\n      y: string\n` +
+        `    scope_tokens: []\n` +
+        `  alpha3.test:\n` +
+        `    purpose: smoke3\n` +
+        `    prompt_path: prompts/planner-ceo.md\n` +
+        `    inputs:\n      x: string\n` +
+        `    outputs:\n      y: string\n` +
+        `    scope_tokens: []\n` +
+        `  alpha4.test:\n` +
+        `    purpose: smoke4\n` +
+        `    prompt_path: prompts/clarifier-discover.md\n` +
+        `    inputs:\n      x: string\n` +
+        `    outputs:\n      y: string\n` +
+        `    scope_tokens: []\n` +
+        `  alpha5.test:\n` +
+        `    purpose: smoke5\n` +
+        `    prompt_path: prompts/classifier-level.md\n` +
+        `    inputs:\n      x: string\n` +
+        `    outputs:\n      y: string\n` +
+        `    scope_tokens: []\n` +
+        `  alpha6.test:\n` +
+        `    purpose: smoke6\n` +
+        `    prompt_path: prompts/compound-context.md\n` +
+        `    inputs:\n      x: string\n` +
+        `    outputs:\n      y: string\n` +
+        `    scope_tokens: []\n` +
+        `  alpha7.test:\n` +
+        `    purpose: smoke7\n` +
+        `    prompt_path: prompts/compound-prevention.md\n` +
+        `    inputs:\n      x: string\n` +
+        `    outputs:\n      y: string\n` +
+        `    scope_tokens: []\n` +
+        `  alpha8.test:\n` +
+        `    purpose: smoke8\n` +
+        `    prompt_path: prompts/compound-solution.md\n` +
+        `    inputs:\n      x: string\n` +
+        `    outputs:\n      y: string\n` +
+        `    scope_tokens: []\n` +
+        `  alpha9.test:\n` +
+        `    purpose: smoke9\n` +
+        `    prompt_path: prompts/researcher-history.md\n` +
+        `    inputs:\n      x: string\n` +
+        `    outputs:\n      y: string\n` +
+        `    scope_tokens: []\n` +
+        `  alpha10.test:\n` +
+        `    purpose: smoke10\n` +
+        `    prompt_path: prompts/reviewer-correctness.md\n` +
         `    inputs:\n      x: string\n` +
         `    outputs:\n      y: string\n` +
         `    scope_tokens: []\n`,
-      ["alpha.md"],
     )
     const r = await runDoctor({ log: () => {}, repoRoot: tmp })
     expect(r.fail).toBe(0)
     expect(r.ok).toBeGreaterThan(0)
   })
 
-  test("D2: declared prompt_path file missing → fail >= 1", async () => {
+  test("D2: declared prompt_path NOT in embedded → fail >= 1", async () => {
+    // Use a prompt_path that is NOT in EMBEDDED_PROMPTS to trigger the NOT EMBEDDED fail.
     seed(
       `  beta.test:\n` +
         `    purpose: missing\n` +
-        `    prompt_path: prompts/beta-missing.md\n` +
+        `    prompt_path: prompts/beta-not-embedded.md\n` +
         `    inputs:\n      x: string\n` +
         `    outputs:\n      y: string\n` +
         `    scope_tokens: []\n`,
-      [],
     )
     const r = await runDoctor({ log: () => {}, repoRoot: tmp })
     expect(r.fail).toBeGreaterThanOrEqual(1)
@@ -65,38 +121,39 @@ describe("sgc doctor", () => {
         (row) =>
           row.severity === "fail" &&
           row.msg.includes("beta.test") &&
-          row.msg.includes("FILE MISSING"),
+          row.msg.includes("NOT EMBEDDED"),
       ),
     ).toBe(true)
   })
 
-  test("D3: orphan prompts/*.md → warn (no manifest references it)", async () => {
+  test("D3: embedded prompt key not declared by any manifest → warn (orphan)", async () => {
+    // gamma.test has no prompt_path; all embedded keys are therefore orphans.
     seed(
       `  gamma.test:\n` +
         `    purpose: no prompt_path\n` +
         `    inputs:\n      x: string\n` +
         `    outputs:\n      y: string\n` +
         `    scope_tokens: []\n`,
-      ["orphan.md"],
     )
     const r = await runDoctor({ log: () => {}, repoRoot: tmp })
     expect(r.warn).toBeGreaterThanOrEqual(1)
     expect(r.fail).toBe(0)
+    // planner-eng.md is an embedded key that will be orphaned (no manifest references it)
     expect(
-      r.rows.some((row) => row.severity === "warn" && row.msg.includes("orphan.md")),
+      r.rows.some((row) => row.severity === "warn" && row.msg.includes("planner-eng.md")),
     ).toBe(true)
   })
 
-  test("D4: status=slot-only WITH prompt_path → fail (slots must be null)", async () => {
+  test("D4: status=slot-only WITH non-embedded prompt_path → fail (A and C both fail)", async () => {
+    // prompt_path is not in embedded → fail from check (A); slot-only → fail from check (C)
     seed(
       `  delta.test:\n` +
         `    purpose: bad slot\n` +
-        `    prompt_path: prompts/delta.md\n` +
+        `    prompt_path: prompts/delta-not-embedded.md\n` +
         `    status: slot-only\n` +
         `    inputs:\n      x: string\n` +
         `    outputs:\n      y: string\n` +
         `    scope_tokens: []\n`,
-      ["delta.md"],
     )
     const r = await runDoctor({ log: () => {}, repoRoot: tmp })
     expect(r.fail).toBeGreaterThanOrEqual(1)
@@ -119,9 +176,9 @@ describe("sgc doctor", () => {
         `    inputs:\n      x: string\n` +
         `    outputs:\n      y: string\n` +
         `    scope_tokens: []\n`,
-      [],
     )
     const r = await runDoctor({ log: () => {}, repoRoot: tmp })
+    // slot-only check passes; embedded orphan warns are ok (no fail)
     expect(r.fail).toBe(0)
     expect(
       r.rows.some(
@@ -136,6 +193,7 @@ describe("sgc doctor", () => {
   // ── Repo-hygiene checks (D/E/F/G) — guard R0-class regressions ─────────
   // seedHygiene writes valid versions of all four artifacts under tmp; each
   // test overrides one to its broken form and asserts the check fails.
+  // IMPORTANT: also creates src/sgc.ts stub so hasSource=true, enabling D/E/F/G/H/I.
   function seedHygiene(o: {
     bunfig?: string
     files?: string[]
@@ -143,6 +201,9 @@ describe("sgc doctor", () => {
     invariants?: string
     invariantsMd?: string
   } = {}): void {
+    // Stub src/sgc.ts so hasSource=true — D/E/F/G/H/I checks run (not skipped)
+    mkdirSync(join(tmp, "src"), { recursive: true })
+    writeFileSync(join(tmp, "src", "sgc.ts"), "// stub\n", "utf8")
     writeFileSync(join(tmp, "bunfig.toml"), o.bunfig ?? '[test]\nroot = "tests"\n', "utf8")
     writeFileSync(
       join(tmp, "package.json"),
@@ -172,16 +233,19 @@ describe("sgc doctor", () => {
     writeFileSync(join(tmp, "contracts", "sgc-invariants.md"), o.invariantsMd ?? invMd, "utf8")
   }
 
+  // baseManifest uses a real embedded key (prompts/planner-eng.md) so check (A) passes.
+  // Tests that call seed(baseManifest, ...) will have exactly one declared prompt
+  // while the other 9 embedded keys appear as orphan-warns (no fail).
   const baseManifest =
     `  alpha.test:\n` +
     `    purpose: smoke\n` +
-    `    prompt_path: prompts/alpha.md\n` +
+    `    prompt_path: prompts/planner-eng.md\n` +
     `    inputs:\n      x: string\n` +
     `    outputs:\n      y: string\n` +
     `    scope_tokens: []\n`
 
   test("H1: all hygiene artifacts valid → hygiene rows ok, no hygiene fail", async () => {
-    seed(baseManifest, ["alpha.md"])
+    seed(baseManifest)
     seedHygiene()
     const r = await runDoctor({ log: () => {}, repoRoot: tmp })
     expect(r.fail).toBe(0)
@@ -192,7 +256,7 @@ describe("sgc doctor", () => {
   })
 
   test("D-fail: bunfig root!=tests → fail (R0 regression guard)", async () => {
-    seed(baseManifest, ["alpha.md"])
+    seed(baseManifest)
     seedHygiene({ bunfig: '[test]\nroot = "."\n' })
     const r = await runDoctor({ log: () => {}, repoRoot: tmp })
     expect(r.fail).toBeGreaterThanOrEqual(1)
@@ -200,7 +264,7 @@ describe("sgc doctor", () => {
   })
 
   test("E-fail: package.json files includes plugins/ → fail", async () => {
-    seed(baseManifest, ["alpha.md"])
+    seed(baseManifest)
     seedHygiene({ files: ["src/", "plugins/"] })
     const r = await runDoctor({ log: () => {}, repoRoot: tmp })
     expect(r.fail).toBeGreaterThanOrEqual(1)
@@ -208,7 +272,7 @@ describe("sgc doctor", () => {
   })
 
   test("F-fail: vendored component missing required field → fail", async () => {
-    seed(baseManifest, ["alpha.md"])
+    seed(baseManifest)
     seedHygiene({
       vendored:
         'schema_version: "0.1"\ncomponents:\n  - path: vendored-x\n    upstream: up\n',
@@ -219,7 +283,7 @@ describe("sgc doctor", () => {
   })
 
   test("G-fail: invariant map missing a section → fail", async () => {
-    seed(baseManifest, ["alpha.md"])
+    seed(baseManifest)
     seedHygiene({
       invariants: 'schema_version: "0.1"\ninvariants:\n  "1":\n    title: only one\n    machine_enforced: false\n    tests: []\n',
     })
@@ -247,7 +311,7 @@ describe("sgc doctor", () => {
   }
 
   test("H-parity1: every non-exempt CLI subcommand has a slash .md → ok", async () => {
-    seed(baseManifest, ["alpha.md"])
+    seed(baseManifest)
     seedParity(["plan", "work"], ["plan", "work"])
     const r = await runDoctor({ log: () => {}, repoRoot: tmp })
     expect(r.fail).toBe(0)
@@ -257,7 +321,7 @@ describe("sgc doctor", () => {
   })
 
   test("H-parity2: non-exempt CLI subcommand missing its slash .md → fail", async () => {
-    seed(baseManifest, ["alpha.md"])
+    seed(baseManifest)
     seedParity(["plan", "reflect"], ["plan"]) // reflect has no .md
     const r = await runDoctor({ log: () => {}, repoRoot: tmp })
     expect(r.fail).toBeGreaterThanOrEqual(1)
@@ -269,7 +333,7 @@ describe("sgc doctor", () => {
   })
 
   test("H-parity3: exempt CLI-only subcommand (canary) needs no slash .md → ok", async () => {
-    seed(baseManifest, ["alpha.md"])
+    seed(baseManifest)
     seedParity(["plan", "canary", "watch-ci-failure", "land"], ["plan"])
     const r = await runDoctor({ log: () => {}, repoRoot: tmp })
     expect(r.fail).toBe(0)
@@ -279,7 +343,7 @@ describe("sgc doctor", () => {
   })
 
   test("H-parity4: orphan slash .md with no CLI subcommand → warn", async () => {
-    seed(baseManifest, ["alpha.md"])
+    seed(baseManifest)
     seedParity(["plan"], ["plan", "ghost"]) // ghost.md has no CLI subcommand
     const r = await runDoctor({ log: () => {}, repoRoot: tmp })
     expect(r.fail).toBe(0)
@@ -289,7 +353,7 @@ describe("sgc doctor", () => {
   })
 
   test("I-fail: sgc-invariants.md missing a § that the yaml map has → fail", async () => {
-    seed(baseManifest, ["alpha.md"])
+    seed(baseManifest)
     let md12 = "# SGC System Invariants\n"
     for (let n = 1; n <= 12; n++) md12 += `## §${n}. inv ${n}\n\nbody\n\n`
     seedHygiene({ invariantsMd: md12 }) // yaml map still defines §1–13
@@ -299,4 +363,25 @@ describe("sgc doctor", () => {
       r.rows.some((row) => row.severity === "fail" && row.msg.includes("invariant sources disagree")),
     ).toBe(true)
   })
+
+})
+
+// ── Bundle context: no source checkout ──────────────────────────────────────
+// This test must live OUTSIDE the describe block so it is not affected by the
+// describe's beforeEach which sets SGC_CONTRACTS_DIR to a nonexistent tmp dir.
+// With a bogus root (no src/, no prompts/, no bunfig.toml, etc.) doctor must:
+//   • resolve (A)/(B) from EMBEDDED_PROMPTS (embedded keys include planner-eng.md)
+//   • skip every source-only check (D/E/F/G/H/I) with an info row
+//   • report fail=0 (no hard failures from missing source)
+test("doctor (B) prompts check uses embedded keys, not readdirSync", async () => {
+  // The global beforeEach sets SGC_CONTRACTS_DIR to a nonexistent tmp dir so that
+  // other tests can inject fixture contracts. For this test we need the embedded
+  // fallback path (no env override, no disk files) — clear it here and reset cache.
+  delete process.env["SGC_CONTRACTS_DIR"]
+  _resetCachesForTest()
+
+  const lines: string[] = []
+  const report = await runDoctor({ log: (m) => lines.push(m), repoRoot: "/nonexistent-root-xyz" })
+  expect(lines.some((l) => l.includes("planner-eng.md"))).toBe(true)
+  expect(report.fail).toBe(0)
 })

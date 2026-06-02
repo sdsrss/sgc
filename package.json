@@ -40,6 +40,7 @@
   ],
   "scripts": {
     "build:browse": "bun build ./plugins/sgc/browse/src/cli.ts --compile --outfile ./plugins/sgc/browse/dist/browse",
+    "build:cli": "bun build src/sgc.ts --target=node --format=esm --external playwright --outfile plugins/sgc/bin/sgc.mjs && node -e \"const f='plugins/sgc/bin/sgc.mjs';const fs=require('fs');let s=fs.readFileSync(f,'utf8');if(!s.startsWith('#!'))fs.writeFileSync(f,'#!/usr/bin/env node\\n'+s);else fs.writeFileSync(f,s.replace(/^#![^\\n]*\\n/,'#!/usr/bin/env node\\n'));fs.chmodSync(f,0o755)\"",
     "typecheck": "tsc --noEmit",
     "test": "SGC_FORCE_INLINE=1 bun test tests/dispatcher",
     "test:eval": "bun test tests/eval",

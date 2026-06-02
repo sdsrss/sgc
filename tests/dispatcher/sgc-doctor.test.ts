@@ -279,6 +279,19 @@ describe("sgc doctor", () => {
     expect(r.rows.some((row) => row.severity === "ok" && row.msg.includes("excludes plugins/"))).toBe(true)
   })
 
+  test("E-fail: explicit browse file (extension, non-bin) plugins/sgc/browse/src/cli.ts → fail", async () => {
+    seed(baseManifest)
+    // Only plugins/sgc/bin/ files are whitelisted; an extensioned browse file
+    // must still be flagged (the entire vendored browse tree has extensions).
+    seedHygiene({ files: ["plugins/sgc/bin/sgc.mjs", "plugins/sgc/browse/src/cli.ts", "src/"] })
+    const r = await runDoctor({ log: () => {}, repoRoot: tmp })
+    expect(r.fail).toBeGreaterThanOrEqual(1)
+    const leakRow = r.rows.find((row) => row.severity === "fail" && row.msg.includes("vendored path"))
+    expect(leakRow).toBeDefined()
+    expect(leakRow!.msg).toContain("plugins/sgc/browse/src/cli.ts")
+    expect(leakRow!.msg).not.toContain("plugins/sgc/bin/sgc.mjs")
+  })
+
   test("F-fail: vendored component missing required field → fail", async () => {
     seed(baseManifest)
     seedHygiene({

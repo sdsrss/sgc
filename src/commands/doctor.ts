@@ -183,15 +183,17 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
         })
         files = []
       }
-      // Flag directory-level entries (e.g. "plugins/" or "plugins") that would
-      // publish the entire vendored browse tree. Specific committed file paths
-      // (e.g. "plugins/sgc/bin/sgc.mjs") are intentional artifacts — not leaks.
+      // Flag any entry under "plugins" that would publish the vendored browse
+      // tree. Only files under the committed bundle dir "plugins/sgc/bin/"
+      // (e.g. "plugins/sgc/bin/sgc.mjs") are intentional npm artifacts — every
+      // other plugins path (directory-style OR explicit browse files like
+      // "plugins/sgc/browse/src/cli.ts") is a leak.
       const leaks = files.filter((f) => {
         const norm = f.replace(/^\.?\//, "")
         if (!norm.startsWith("plugins")) return false
-        // Allow explicit file paths: must contain a dot in the last path segment
         const last = norm.split("/").at(-1) ?? ""
-        return last === "" || !last.includes(".")
+        if (last === "" || !last.includes(".")) return true // directory-style → flag
+        return !norm.startsWith("plugins/sgc/bin/") // explicit non-bin plugins file → flag
       })
       if (files.length === 0) {
         emit({

@@ -183,7 +183,16 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
         })
         files = []
       }
-      const leaks = files.filter((f) => f.replace(/^\.?\//, "").startsWith("plugins"))
+      // Flag directory-level entries (e.g. "plugins/" or "plugins") that would
+      // publish the entire vendored browse tree. Specific committed file paths
+      // (e.g. "plugins/sgc/bin/sgc.mjs") are intentional artifacts — not leaks.
+      const leaks = files.filter((f) => {
+        const norm = f.replace(/^\.?\//, "")
+        if (!norm.startsWith("plugins")) return false
+        // Allow explicit file paths: must contain a dot in the last path segment
+        const last = norm.split("/").at(-1) ?? ""
+        return last === "" || !last.includes(".")
+      })
       if (files.length === 0) {
         emit({
           severity: "warn",

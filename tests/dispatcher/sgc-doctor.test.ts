@@ -207,7 +207,7 @@ describe("sgc doctor", () => {
     writeFileSync(join(tmp, "bunfig.toml"), o.bunfig ?? '[test]\nroot = "tests"\n', "utf8")
     writeFileSync(
       join(tmp, "package.json"),
-      JSON.stringify({ name: "x", files: o.files ?? ["src/", "contracts/"] }),
+      JSON.stringify({ name: "x", files: o.files ?? ["plugins/sgc/bin/sgc.mjs", "src/", "contracts/"] }),
       "utf8",
     )
     // valid vendored component → a real dir under tmp
@@ -269,6 +269,14 @@ describe("sgc doctor", () => {
     const r = await runDoctor({ log: () => {}, repoRoot: tmp })
     expect(r.fail).toBeGreaterThanOrEqual(1)
     expect(r.rows.some((row) => row.severity === "fail" && row.msg.includes("vendored path"))).toBe(true)
+  })
+
+  test("E-ok: package.json files includes explicit bundle file plugins/sgc/bin/sgc.mjs → ok", async () => {
+    seed(baseManifest)
+    seedHygiene({ files: ["plugins/sgc/bin/sgc.mjs", "src/", "contracts/"] })
+    const r = await runDoctor({ log: () => {}, repoRoot: tmp })
+    expect(r.rows.some((row) => row.severity === "fail" && row.msg.includes("vendored path"))).toBe(false)
+    expect(r.rows.some((row) => row.severity === "ok" && row.msg.includes("excludes plugins/"))).toBe(true)
   })
 
   test("F-fail: vendored component missing required field → fail", async () => {

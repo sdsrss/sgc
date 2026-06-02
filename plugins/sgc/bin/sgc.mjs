@@ -3591,6 +3591,45 @@ function writeAtomic(path, content) {
     throw err;
   }
 }
+function redGreenSlug(title, taskId) {
+  const base = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "feature";
+  return `${base}-${taskId.slice(0, 8).toLowerCase()}`;
+}
+function writeRedGreenCapture(fm, stateRoot) {
+  const dir = resolve2(root(stateRoot), "red-green");
+  mkdirSync2(dir, { recursive: true });
+  const baseSlug = redGreenSlug(fm.title, fm.task_id);
+  let slug = baseSlug;
+  let n2 = 1;
+  while (existsSync(resolve2(dir, `${slug}.md`))) {
+    n2 += 1;
+    slug = `${baseSlug}-${n2}`;
+    if (n2 > 50)
+      throw new Error(`red-green slug collision overflow for ${fm.task_id}`);
+  }
+  const data = {
+    kind: "red-green",
+    captured_at: new Date().toISOString(),
+    task_id: fm.task_id,
+    feature_id: fm.feature_id,
+    level: fm.level,
+    prior_red: fm.prior_red,
+    red_output: fm.red_output,
+    verify_command: fm.verify_command,
+    ...fm.evidence ? { evidence: fm.evidence } : {},
+    prevention_seed: RED_GREEN_PLACEHOLDER
+  };
+  const body = `## RED→GREEN
+
+- prior RED: ${fm.prior_red}
+- observed: ${fm.red_output}
+` + `- verified by: ${fm.verify_command}
+
+Fill \`prevention_seed:\` with the ` + `reusable safeguard, then run \`sgc compound --from-red-green ${slug}\`.
+`;
+  writeAtomic(resolve2(dir, `${slug}.md`), serializeFrontmatter(data, body));
+  return slug;
+}
 function wordCount(text) {
   let n2 = 0;
   for (const seg of WORD_SEGMENTER.segment(text)) {
@@ -3889,7 +3928,7 @@ function listReviewsForStage(taskId, stage, stateRoot) {
   }
   return reports;
 }
-var StateError, DEFAULT_STATE_DIR = ".sgc", root, LAYERS, FRONTMATTER_RE, atomicWriteSeq = 0, REQUIRED_INTENT_FIELDS, WORD_SEGMENTER, REQUIRED_SHIP_FIELDS, REQUIRED_REVIEW_FIELDS, REVIEW_SUFFIX_RE, SOLUTION_CATEGORIES, REQUIRED_SOLUTION_FIELDS, REQUIRED_JANITOR_FIELDS;
+var StateError, DEFAULT_STATE_DIR = ".sgc", root, LAYERS, FRONTMATTER_RE, atomicWriteSeq = 0, RED_GREEN_PLACEHOLDER = "TODO: operator-fill the reusable prevention", REQUIRED_INTENT_FIELDS, WORD_SEGMENTER, REQUIRED_SHIP_FIELDS, REQUIRED_REVIEW_FIELDS, REVIEW_SUFFIX_RE, SOLUTION_CATEGORIES, REQUIRED_SOLUTION_FIELDS, REQUIRED_JANITOR_FIELDS;
 var init_state = __esm(() => {
   init_js_yaml();
   init_types();
@@ -15388,15 +15427,42 @@ async function runWork(opts = {}) {
       if (!verifyCommand) {
         throw new Error(`done refused: --verify-command required to mark ${opts.done} done ` + `(operator responsibility; sgc does not execute it)`);
       }
+      const priorRed = opts.priorRed?.trim();
+      const redOutput = opts.redOutput?.trim();
+      const waiveRed = opts.waiveRed?.trim();
+      const hasPair = Boolean(priorRed) && Boolean(redOutput);
+      if (Boolean(priorRed) !== Boolean(redOutput)) {
+        throw new Error(`done refused: --prior-red and --red-output must be supplied together`);
+      }
+      if (hasPair && waiveRed) {
+        throw new Error(`done refused: supply a prior-RED pair OR --waive-red, not both (conflict)`);
+      }
+      if (!hasPair && !waiveRed) {
+        throw new Error(`done refused: record a prior-RED (--prior-red "<failing test>" ` + `--red-output "<observed failure>") or pass --waive-red "<reason>"`);
+      }
       const evidence = opts.evidence?.trim();
       list.features[idx] = {
         ...list.features[idx],
         status: "done",
         verify_command: verifyCommand,
-        ...evidence ? { evidence } : {}
+        ...evidence ? { evidence } : {},
+        ...hasPair ? { prior_red: priorRed, red_output: redOutput } : {},
+        ...waiveRed ? { waived_red: waiveRed } : {}
       };
       writeFeatureList(list, "", stateRoot);
       log(`marked ${opts.done} done`);
+      if (hasPair) {
+        writeRedGreenCapture({
+          title: list.features[idx].title,
+          task_id: ct.task.task_id,
+          feature_id: opts.done,
+          level: String(ct.task.level),
+          prior_red: priorRed,
+          red_output: redOutput,
+          verify_command: verifyCommand,
+          ...evidence ? { evidence } : {}
+        }, stateRoot);
+      }
     }
   }
   const activeId = nextActiveId(list);
@@ -16130,6 +16196,83 @@ ${fm.workflow_name}`;
     relatedRefs: related.related_entries
   };
 }
+async function promoteRedGreen(opts) {
+  const stateRoot = opts.stateRoot;
+  const root3 = resolveStateRoot(stateRoot);
+  const capturePath = resolve11(root3, "red-green", `${opts.slug}.md`);
+  if (!existsSync11(capturePath)) {
+    throw new PromoteError("MissingRedGreen", `red-green/${opts.slug}.md does not exist under ${root3}. ` + `Run \`ls ${root3}/red-green/\` to see available slugs.`, { slug: opts.slug, stateRoot: root3 });
+  }
+  const raw = readFileSync13(capturePath, "utf8");
+  const parsed = parseFrontmatter(raw);
+  const fm = parsed.data;
+  if (typeof fm.promoted_to === "string" && fm.promoted_to.length > 0) {
+    throw new PromoteError("AlreadyPromoted", `red-green/${opts.slug}.md already carries promoted_to: ${fm.promoted_to}. ` + `Remove the field manually to re-promote; --force does NOT override.`, { promoted_to: fm.promoted_to });
+  }
+  const seed = String(fm.prevention_seed ?? "").trim();
+  if (seed.length === 0 || seed.startsWith(PLACEHOLDER_PREFIX)) {
+    throw new PromoteError("PlaceholderPreventionSeed", `red-green/${opts.slug}.md still carries the capture-time prevention_seed ` + `placeholder (or empty). Edit \`prevention_seed:\` into the actual ` + `safeguard before re-running promote.`, { prevention_seed: seed.slice(0, 80) });
+  }
+  const intentText = `${fm.red_output}
+
+${fm.prior_red}`;
+  const logger = opts.logger ?? createLogger({ stateRoot });
+  const ctxRes = await spawn3("compound.context", { task_id: fm.task_id, intent: intentText }, {
+    stateRoot,
+    inlineStub: (i3) => compoundContext(i3),
+    logger
+  });
+  const context = ctxRes.output;
+  const signature = computeSignature(context.problem_summary);
+  const existing = listSolutions(stateRoot);
+  const relRes = await spawn3("compound.related", { context, signature, existing_solutions: existing }, {
+    stateRoot,
+    inlineStub: (i3) => compoundRelated(i3),
+    logger
+  });
+  const related = relRes.output;
+  if (related.duplicate_match && !opts.force) {
+    throw new PromoteError("DuplicateMatch", `compound.related found a duplicate at ${related.duplicate_match.ref} ` + `(similarity ${related.duplicate_match.similarity.toFixed(3)} ≥ ` + `${related.dedup_stamp.threshold}). Pass --force to write anyway, ` + `or edit prevention_seed: to differentiate.`, {
+      duplicate_ref: related.duplicate_match.ref,
+      similarity: related.duplicate_match.similarity
+    });
+  }
+  const now = nowIso5();
+  const entry = {
+    id: generateUlid4(),
+    signature,
+    category: context.category,
+    problem: context.problem_summary,
+    symptoms: context.symptoms.length > 0 ? context.symptoms : [`RED→GREEN of ${fm.feature_id} (${fm.prior_red})`],
+    what_didnt_work: [],
+    solution: `RED→GREEN for ${fm.feature_id} in task ${fm.task_id} (level ${fm.level}): ` + `prior-RED ${fm.prior_red} → green via ${fm.verify_command}` + (fm.evidence ? `; evidence: ${fm.evidence}` : "") + `. See body + operator's prevention_seed.`,
+    prevention: seed,
+    tags: context.tags.length > 0 ? Array.from(new Set([...context.tags, "tdd", "red-green"])) : ["tdd", "red-green"],
+    first_seen: now,
+    last_updated: now,
+    times_referenced: 0,
+    source_task_ids: [fm.task_id],
+    related_entries: related.related_entries.length > 0 ? related.related_entries : undefined,
+    confidence: "provisional"
+  };
+  const solutionSlug = opts.solutionSlug ?? `red-green-${fm.task_id.slice(0, 8).toLowerCase()}-${fm.feature_id}`;
+  const dedupAction = opts.force && related.duplicate_match ? "user_forced" : "new_entry";
+  const stamp = {
+    compound_related_spawn_id: relRes.spawnId,
+    threshold_met_or_forced: true,
+    reason: dedupAction
+  };
+  const written = writeSolution(entry, solutionSlug, stamp, "", stateRoot);
+  const promotedRef = `${entry.category}/${solutionSlug}`;
+  const updatedFm = { ...fm, promoted_to: promotedRef };
+  writeFileSync4(capturePath, serializeFrontmatter(updatedFm, parsed.body), "utf8");
+  return {
+    shipFailurePath: capturePath,
+    solutionPath: written.path,
+    dedupAction,
+    relatedRefs: related.related_entries
+  };
+}
 var PromoteError, PLACEHOLDER_PREFIX = "TODO: operator-fill";
 var init_compound_promote = __esm(() => {
   init_compound();
@@ -16273,6 +16416,7 @@ var init_canary_promote = __esm(() => {
 // src/commands/compound.ts
 var exports_compound = {};
 __export(exports_compound, {
+  runRedGreenPromote: () => runRedGreenPromote,
   runCompoundPromote: () => runCompoundPromote,
   runCompound: () => runCompound,
   runCanaryPromote: () => runCanaryPromote
@@ -16399,6 +16543,9 @@ ${intent.motivation}`;
 }
 async function runCompoundPromote(opts) {
   return promoteShipFailure(opts);
+}
+async function runRedGreenPromote(opts) {
+  return promoteRedGreen(opts);
 }
 async function runCanaryPromote(opts) {
   return promoteCanaryFailure(opts);
@@ -16667,6 +16814,7 @@ var init_ship = __esm(() => {
 // src/commands/compound.ts
 var exports_compound2 = {};
 __export(exports_compound2, {
+  runRedGreenPromote: () => runRedGreenPromote2,
   runCompoundPromote: () => runCompoundPromote2,
   runCompound: () => runCompound2,
   runCanaryPromote: () => runCanaryPromote2
@@ -16794,6 +16942,9 @@ ${intent.motivation}`;
 async function runCompoundPromote2(opts) {
   return promoteShipFailure(opts);
 }
+async function runRedGreenPromote2(opts) {
+  return promoteRedGreen(opts);
+}
 async function runCanaryPromote2(opts) {
   return promoteCanaryFailure(opts);
 }
@@ -16812,6 +16963,7 @@ var exports_state = {};
 __export(exports_state, {
   writeSolution: () => writeSolution2,
   writeShip: () => writeShip2,
+  writeRedGreenCapture: () => writeRedGreenCapture2,
   writeJanitorDecision: () => writeJanitorDecision2,
   writeIntent: () => writeIntent2,
   writeHandoff: () => writeHandoff2,
@@ -16841,7 +16993,8 @@ __export(exports_state, {
   ensureSgcStructure: () => ensureSgcStructure2,
   deleteSolution: () => deleteSolution,
   appendReview: () => appendReview2,
-  StateError: () => StateError2
+  StateError: () => StateError2,
+  RED_GREEN_PLACEHOLDER: () => RED_GREEN_PLACEHOLDER2
 });
 import {
   existsSync as existsSync16,
@@ -16893,6 +17046,45 @@ function writeAtomic2(path2, content) {
     } catch {}
     throw err;
   }
+}
+function redGreenSlug2(title, taskId) {
+  const base = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "feature";
+  return `${base}-${taskId.slice(0, 8).toLowerCase()}`;
+}
+function writeRedGreenCapture2(fm, stateRoot) {
+  const dir = resolve13(root3(stateRoot), "red-green");
+  mkdirSync3(dir, { recursive: true });
+  const baseSlug = redGreenSlug2(fm.title, fm.task_id);
+  let slug = baseSlug;
+  let n2 = 1;
+  while (existsSync16(resolve13(dir, `${slug}.md`))) {
+    n2 += 1;
+    slug = `${baseSlug}-${n2}`;
+    if (n2 > 50)
+      throw new Error(`red-green slug collision overflow for ${fm.task_id}`);
+  }
+  const data = {
+    kind: "red-green",
+    captured_at: new Date().toISOString(),
+    task_id: fm.task_id,
+    feature_id: fm.feature_id,
+    level: fm.level,
+    prior_red: fm.prior_red,
+    red_output: fm.red_output,
+    verify_command: fm.verify_command,
+    ...fm.evidence ? { evidence: fm.evidence } : {},
+    prevention_seed: RED_GREEN_PLACEHOLDER2
+  };
+  const body = `## RED→GREEN
+
+- prior RED: ${fm.prior_red}
+- observed: ${fm.red_output}
+` + `- verified by: ${fm.verify_command}
+
+Fill \`prevention_seed:\` with the ` + `reusable safeguard, then run \`sgc compound --from-red-green ${slug}\`.
+`;
+  writeAtomic2(resolve13(dir, `${slug}.md`), serializeFrontmatter2(data, body));
+  return slug;
 }
 function wordCount2(text) {
   let n2 = 0;
@@ -17224,7 +17416,7 @@ function listReviewsForStage2(taskId, stage, stateRoot) {
   }
   return reports;
 }
-var StateError2, DEFAULT_STATE_DIR2 = ".sgc", root3, LAYERS2, FRONTMATTER_RE2, atomicWriteSeq2 = 0, REQUIRED_INTENT_FIELDS2, WORD_SEGMENTER2, REQUIRED_SHIP_FIELDS2, REQUIRED_REVIEW_FIELDS2, REVIEW_SUFFIX_RE2, SOLUTION_CATEGORIES2, REQUIRED_SOLUTION_FIELDS2, REQUIRED_JANITOR_FIELDS2;
+var StateError2, DEFAULT_STATE_DIR2 = ".sgc", root3, LAYERS2, FRONTMATTER_RE2, atomicWriteSeq2 = 0, RED_GREEN_PLACEHOLDER2 = "TODO: operator-fill the reusable prevention", REQUIRED_INTENT_FIELDS2, WORD_SEGMENTER2, REQUIRED_SHIP_FIELDS2, REQUIRED_REVIEW_FIELDS2, REVIEW_SUFFIX_RE2, SOLUTION_CATEGORIES2, REQUIRED_SOLUTION_FIELDS2, REQUIRED_JANITOR_FIELDS2;
 var init_state2 = __esm(() => {
   init_js_yaml();
   init_types();
@@ -22630,6 +22822,21 @@ var work = defineCommand({
       type: "string",
       required: false,
       description: "(with --done) optional free-text evidence naming what was observed"
+    },
+    "prior-red": {
+      type: "string",
+      required: false,
+      description: "(with --done) failing test / repro that was RED before the fix (TDD-ledger). Pairs with --red-output."
+    },
+    "red-output": {
+      type: "string",
+      required: false,
+      description: "(with --done) the observed failure output of --prior-red."
+    },
+    "waive-red": {
+      type: "string",
+      required: false,
+      description: '(with --done) close without a prior-RED, giving a reason (e.g. "docs-only"). Escape hatch for the TDD-ledger gate.'
     }
   },
   async run({ args }) {
@@ -22638,7 +22845,10 @@ var work = defineCommand({
       add: args.add,
       done: args.done,
       verifyCommand: args["verify-command"],
-      evidence: args.evidence
+      evidence: args.evidence,
+      priorRed: args["prior-red"],
+      redOutput: args["red-output"],
+      waiveRed: args["waive-red"]
     });
   }
 });
@@ -22764,6 +22974,11 @@ var compound = defineCommand({
       required: false,
       description: "GS-1.1 promote: convert a captured canary-failure record into a solutions/ entry. Pass the slug under <stateRoot>/canaries/<slug>.md (e.g. 2026-05-25-c29f021-smoke_install)."
     },
+    "from-red-green": {
+      type: "string",
+      required: false,
+      description: "TDD-ledger promote: convert a captured red-green record into a solutions/ entry. Pass the slug under <stateRoot>/red-green/<slug>.md."
+    },
     "solution-slug": {
       type: "string",
       required: false,
@@ -22780,6 +22995,18 @@ var compound = defineCommand({
         solutionSlug: args["solution-slug"]
       });
       process.stderr.write(`promote: action=${result.dedupAction} solution=${result.solutionPath} canary=${result.canaryPath}
+`);
+      return;
+    }
+    const fromRedGreen = args["from-red-green"];
+    if (fromRedGreen !== undefined && fromRedGreen.length > 0) {
+      const { runRedGreenPromote: runRedGreenPromote3 } = await Promise.resolve().then(() => (init_compound3(), exports_compound2));
+      const result = await runRedGreenPromote3({
+        slug: fromRedGreen,
+        force: args.force,
+        solutionSlug: args["solution-slug"]
+      });
+      process.stderr.write(`promote: action=${result.dedupAction} solution=${result.solutionPath} red-green=${result.shipFailurePath}
 `);
       return;
     }

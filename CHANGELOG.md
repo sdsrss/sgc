@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.24.1 — 2026-06-02 — docs: super-plugin positioning + README / POSITIONING rewrite (npm page refresh)
+
+Documentation + metadata only — no code, no behavior, no state-file change.
+Republished to refresh the npm package page (README + description) and to align
+the positioning docs with the self-contained super-plugin framing shipped in
+v1.24.0.
+
+### What changed
+
+- **README.md** — rewritten around the all-in-one / one-command-install /
+  standalone story; added badges, GEO-citable FAQ + value bullets; fixed stale
+  facts (test count 357 → 1051, removed the obsolete bun-runtime install steps).
+- **docs/POSITIONING.md** + **plugins/sgc/CLAUDE.md** — "coexists with sp/gs,
+  NOT a replacement" → **self-contained super-plugin** that installs in one
+  command, runs standalone (Node ≥ 18, no bun), and absorbs gstack +
+  Superpowers + Compound-Engineering patterns natively. The old delegate table
+  is reframed as *optional interop* (a richer path if sp/gs are installed,
+  never required). Honest note retained: deep plan authoring + full TDD
+  discipline are the thinnest native gaps and remain the one place sp is the
+  richer path.
+- **package.json** / **plugin.json** descriptions — keyword-rich super-plugin
+  framing for npm + marketplace SEO.
+
 ## v1.24.0 — 2026-06-02 — feat: self-contained node-bundle install (Phase 0 — dual-channel, no bun runtime)
 
 `/plugin install sgc` now yields a working CLI on a node-only machine — no bun

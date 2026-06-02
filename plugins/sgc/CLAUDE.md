@@ -4,13 +4,13 @@ A single engineering workflow combining process discipline, real-world QA, and k
 
 ## Positioning
 
-sgc is a **规范层 + 知识引擎** that coexists with `superpowers` (sp) and `gstack` (gs). See [docs/POSITIONING.md](../../docs/POSITIONING.md) for the full delegate pattern.
+sgc is a **self-contained engineering super-plugin + knowledge engine** for Claude Code — one-command install, runs standalone (Node ≥ 18, no bun), no other plugins required. See [docs/POSITIONING.md](../../docs/POSITIONING.md) for the full picture.
 
-- **sgc owns**: L0-L3 classification, 13 invariants, `.sgc/` state layer, dedup, compound, solutions/
-- **sgc delegates** (when sp/gs present): deep plan body, TDD, debugging, pre-ship review, git/PR/deploy, browser QA
-- **sgc falls back** (when sp/gs absent): current inline implementations
+- **sgc owns + runs natively**: L0-L3 classification, 13 invariants, `.sgc/` state layer, dedup, the compound knowledge loop, review, QA (vendored browse), security review (cso), systematic debugging, ship + canary
+- **Optional interop** (richer path if sp/gs installed, never required): deepest plan authoring + full TDD discipline → sp; comprehensive review / browser / deploy → gs
+- **Standalone by default**: every command has a working inline implementation; sp/gs are power-ups, not prerequisites
 
-User mental model: sgc decides the level, enforces the protocol, records the knowledge. sp does the thinking. gs ships.
+User mental model: sgc is the engineering layer — classifies the task, enforces the protocol, runs review/QA/security/ship, and compounds the knowledge, standalone and from one install. sp/gs are optional power-ups.
 
 ## Implementation Status (v1.20.0, GS-N arc complete 7/7 + Tier-1 sp absorb)
 

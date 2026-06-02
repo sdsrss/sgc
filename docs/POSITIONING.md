@@ -1,8 +1,10 @@
 # SGC Positioning
 
-## Role: 规范层 + 知识引擎
+## Role: self-contained engineering super-plugin + knowledge engine
 
-sgc coexists with the `superpowers` (sp) and `gstack` (gs) plugins. It does NOT replace them.
+sgc is a **self-contained engineering workflow + knowledge engine** for Claude Code. As of **v1.24.0** it installs in one command and runs **standalone** (Node ≥ 18, no `bun`) — it does **not require** `superpowers` (sp), `gstack` (gs), or any separate Compound-Engineering tooling. It owns the full plan → work → review → QA → ship → compound loop and has natively absorbed the best of all three: the **GS-N arc (7/7)** of gstack-style capabilities, **Tier-1 Superpowers** verification + systematic-debugging discipline, and the **Compound Engineering** capture → promote → reuse loop.
+
+If sp/gs happen to be installed, sgc can *optionally* hand the deepest work to them as a richer path — but that is **interop, not a dependency**.
 
 ### sgc owns (authoritative)
 
@@ -14,29 +16,26 @@ sgc coexists with the `superpowers` (sp) and `gstack` (gs) plugins. It does NOT 
 - **Capture → promote loops** — `sgc watch-ci-failure` (CE-3 ship-failure capture) + `sgc canary` (GS-1 post-publish capture); `sgc compound --from-ship-failure` / `--from-canary` promote each capture into `solutions/` through the **same Invariant §3 write-gate** (real `compound.related` spawn → `DedupStamp` → `writeSolution`). Promoted preventions feed back into `planner.adversarial` via CE-1 on next L3 plan.
 - **Root-cause debug** — `sgc debug` walks investigate → analyze → hypothesize → implement, enforcing Iron Law #3 at close (root_cause + fix_commit + verify_command all required).
 
-### sgc delegates (when sp/gs are available)
+### Optional interop (richer path if sp/gs are installed — never required)
 
-| Need | Delegate to |
-|------|-------------|
-| Deep plan authoring | `sp:writing-plans` |
-| TDD discipline | `sp:test-driven-development` |
-| Root-cause debugging | `sp:systematic-debugging` |
-| Parallel subagents | `sp:dispatching-parallel-agents` |
-| Pre-ship comprehensive review | `gs:/review` |
-| Git / PR / deploy | `gs:/ship` + `gs:/land-and-deploy` |
-| Systematic-debug execution | `sgc debug` — 4-phase walker, absorb (GS-4 v1.15.0) |
-| Completion verification | `sgc work --done` close-gate — `verify_command` required to mark a feature done, absorb (`sp:verification-before-completion` v1.19.0) |
-| Post-publish chain (sgc-self) | `sgc land` — chains `watch-ci-failure` + `canary`, zero gh-CLI dep |
-| Pre-ship security review | `sgc cso` — infra-first audit, daily/comprehensive modes, absorb (GS-5 v1.17.0) |
-| Intent framing / brainstorm | `sgc discover --template` — framing selector, absorb (GS-6 v1.16.0) |
-| Multi-perspective plan decision | `sgc plan` fused decision — deterministic planner-cluster fusion, absorb (GS-3 v1.18.0) |
-| Browser QA / dogfood | `gs:/browse` |
-| Design polish | `gs:/design-review` |
+sgc runs every capability below natively and standalone; nothing breaks when sp/gs are absent. When they are present, sgc surfaces the upstream tool as an *optional* richer path. The honest gaps in native depth today are **deep plan authoring** and **full TDD discipline** — sgc covers them lightly and will deepen native coverage in a later phase; if sp is installed it stays the richer path for those two.
 
-### sgc falls back (when sp/gs absent)
+| Capability | Native in sgc | Optional richer path (if installed) |
+|------------|---------------|-------------------------------------|
+| Task classification + planner cluster | `sgc plan` (fused L2/L3 decision, GS-3) | — |
+| Completion verification gate | `sgc work --done` close-gate (Tier-1 sp absorb, v1.19.0) | `sp:verification-before-completion` |
+| Systematic debugging | `sgc debug` 4-phase walker (GS-4) | `sp:systematic-debugging` |
+| Independent review | `sgc review` (reviewer cluster) | `gs:/review` |
+| Browser QA | `sgc qa` (vendored `browse` binary) | `gs:/browse` |
+| Security review | `sgc cso` (GS-5) | — |
+| Ship + post-publish chain | `sgc ship` / `sgc land` / `sgc canary` (GS-1/7) | `gs:/ship` + `gs:/land-and-deploy` |
+| Intent framing / brainstorm | `sgc discover --template` (GS-6) | `sp:brainstorming` |
+| Deep plan authoring | light (planner cluster) | `sp:writing-plans` ← thinnest native gap |
+| TDD discipline | light | `sp:test-driven-development` ← thinnest native gap |
+| Parallel subagents | — | `sp:dispatching-parallel-agents` |
+| Design polish | — | `gs:/design-review` |
 
-Each `sgc` command keeps a working inline implementation. The delegate is a
-recommendation surfaced in the command's output, not a hard dependency.
+Every `sgc` command keeps a working inline implementation; the optional path is a recommendation surfaced in the command's output, not a hard dependency.
 
 ### GS-N absorb arc (sgc-native heuristic absorptions)
 
@@ -87,11 +86,10 @@ a build input, not a heuristic absorption and not a runtime gs dependency.
 
 ### Non-goals
 
-- sgc is NOT a replacement for sp or gs
-- sgc does NOT implement full CI/deploy — that stays in gs
-- sgc does NOT manage IDE integration or agent orchestration UIs
+- sgc is **not a CI/CD platform** — it orchestrates ship, post-publish canary, and CI-failure capture, but it is not a build runner or deploy target
+- sgc does **not** manage IDE integration or agent-orchestration UIs
+- sgc does **not** require, bundle, or re-host sp/gs source — interop with them is optional (see above); the only vendored upstream code is the `browse` binary (see "Vendored components")
 
 ## User mental model
 
-> "`sgc` decides the level, enforces the protocol, and records the knowledge.
-> `sp` does the thinking and implementation work. `gs` ships it and monitors prod."
+> "`sgc` is the engineering layer — it classifies the task, enforces the right process for its risk level, runs review / QA / security / ship, and compounds the knowledge, **standalone and from one install**. `sp` and `gs` are optional power-ups for the deepest planning / TDD / browser work, not prerequisites."

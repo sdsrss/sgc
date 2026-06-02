@@ -185,6 +185,23 @@ const work = defineCommand({
       required: false,
       description: "(with --done) optional free-text evidence naming what was observed",
     },
+    "prior-red": {
+      type: "string",
+      required: false,
+      description:
+        "(with --done) failing test / repro that was RED before the fix (TDD-ledger). Pairs with --red-output.",
+    },
+    "red-output": {
+      type: "string",
+      required: false,
+      description: "(with --done) the observed failure output of --prior-red.",
+    },
+    "waive-red": {
+      type: "string",
+      required: false,
+      description:
+        "(with --done) close without a prior-RED, giving a reason (e.g. \"docs-only\"). Escape hatch for the TDD-ledger gate.",
+    },
   },
   async run({ args }) {
     const { runWork } = await import("./commands/work")
@@ -193,6 +210,9 @@ const work = defineCommand({
       done: args.done as string | undefined,
       verifyCommand: args["verify-command"] as string | undefined,
       evidence: args.evidence as string | undefined,
+      priorRed: args["prior-red"] as string | undefined,
+      redOutput: args["red-output"] as string | undefined,
+      waiveRed: args["waive-red"] as string | undefined,
     })
   },
 })

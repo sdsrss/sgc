@@ -32,6 +32,12 @@ export interface WorkOptions {
   verifyCommand?: string
   /** Optional free-text evidence naming what was observed (Iron Law #2). */
   evidence?: string
+  /** TDD-ledger: prior-RED identifier (failing test / repro). Pairs with redOutput. */
+  priorRed?: string
+  /** TDD-ledger: observed failure output of the prior-RED. Pairs with priorRed. */
+  redOutput?: string
+  /** TDD-ledger: reason for closing without a prior-RED (escape hatch). */
+  waiveRed?: string
   log?: (msg: string) => void
   logger?: Logger
 }
@@ -114,12 +120,37 @@ export async function runWork(opts: WorkOptions = {}): Promise<WorkResult> {
             `(operator responsibility; sgc does not execute it)`,
         )
       }
+      // TDD-ledger close-gate (Phase 2a): require a recorded prior-RED pair
+      // (--prior-red + --red-output) XOR --waive-red <reason>. sgc records the
+      // attestation; it does not run the test.
+      const priorRed = opts.priorRed?.trim()
+      const redOutput = opts.redOutput?.trim()
+      const waiveRed = opts.waiveRed?.trim()
+      const hasPair = Boolean(priorRed) && Boolean(redOutput)
+      if (Boolean(priorRed) !== Boolean(redOutput)) {
+        throw new Error(
+          `done refused: --prior-red and --red-output must be supplied together`,
+        )
+      }
+      if (hasPair && waiveRed) {
+        throw new Error(
+          `done refused: supply a prior-RED pair OR --waive-red, not both (conflict)`,
+        )
+      }
+      if (!hasPair && !waiveRed) {
+        throw new Error(
+          `done refused: record a prior-RED (--prior-red "<failing test>" ` +
+            `--red-output "<observed failure>") or pass --waive-red "<reason>"`,
+        )
+      }
       const evidence = opts.evidence?.trim()
       list.features[idx] = {
         ...list.features[idx]!,
         status: "done",
         verify_command: verifyCommand,
         ...(evidence ? { evidence } : {}),
+        ...(hasPair ? { prior_red: priorRed, red_output: redOutput } : {}),
+        ...(waiveRed ? { waived_red: waiveRed } : {}),
       }
       writeFeatureList(list, "", stateRoot)
       log(`marked ${opts.done} done`)

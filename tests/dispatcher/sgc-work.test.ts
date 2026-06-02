@@ -50,10 +50,10 @@ describe("runWork", () => {
   test("--done marks feature done; active advances", async () => {
     await freshTask()
     await runWork({ stateRoot: tmp, add: "second feature", log: () => {} })
-    const after1 = await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "tests pass", log: () => {} })
+    const after1 = await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "tests pass", waiveRed: "test-fixture", log: () => {} })
     expect(after1.active?.id).toBe("f2")
     expect(after1.allDone).toBe(false)
-    const after2 = await runWork({ stateRoot: tmp, done: "f2", verifyCommand: "tests pass", log: () => {} })
+    const after2 = await runWork({ stateRoot: tmp, done: "f2", verifyCommand: "tests pass", waiveRed: "test-fixture", log: () => {} })
     expect(after2.allDone).toBe(true)
     expect(after2.remaining.length).toBe(0)
   })
@@ -67,7 +67,7 @@ describe("runWork", () => {
 
   test("--done on already-done feature is idempotent (no error)", async () => {
     await freshTask()
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "tests pass", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "tests pass", waiveRed: "test-fixture", log: () => {} })
     await expect(
       runWork({ stateRoot: tmp, done: "f1", log: () => {} }),
     ).resolves.toBeDefined()
@@ -93,6 +93,7 @@ describe("runWork", () => {
       stateRoot: tmp,
       done: "f1",
       verifyCommand: "bun test tests/dispatcher/sgc-work.test.ts: 12 passed",
+      waiveRed: "test-fixture",
       log: () => {},
     })
     const fl = readFeatureList(tmp)
@@ -110,6 +111,7 @@ describe("runWork", () => {
       done: "f1",
       verifyCommand: "tsc --noEmit: 0 errors",
       evidence: "gate refuses bare --done; field round-trips",
+      waiveRed: "test-fixture",
       log: () => {},
     })
     const fl = readFeatureList(tmp)
@@ -119,7 +121,7 @@ describe("runWork", () => {
 
   test("already-done feature is grandfathered (idempotent, no verify-command needed)", async () => {
     await freshTask()
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "x", log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "x", waiveRed: "test-fixture", log: () => {} })
     // Second --done with no verify-command must NOT throw (already done → no-op).
     await expect(
       runWork({ stateRoot: tmp, done: "f1", log: () => {} }),
@@ -138,7 +140,60 @@ describe("runWork", () => {
   test("all-done prompts to run sgc review", async () => {
     const logs: string[] = []
     await freshTask()
-    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "tests pass", log: (m) => logs.push(m) })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "tests pass", waiveRed: "test-fixture", log: (m) => logs.push(m) })
     expect(logs.some((m) => m.includes("sgc review"))).toBe(true)
+  })
+
+  // TDD-ledger close-gate (Phase 2a)
+  test("--done without prior-red or waive-red is refused", async () => {
+    await freshTask()
+    await expect(
+      runWork({ stateRoot: tmp, done: "f1", verifyCommand: "tests pass", log: () => {} }),
+    ).rejects.toThrow(/prior-red|waive-red/)
+  })
+
+  test("--done with --prior-red but no --red-output is refused", async () => {
+    await freshTask()
+    await expect(
+      runWork({
+        stateRoot: tmp, done: "f1", verifyCommand: "tests pass",
+        priorRed: "tests/x.test.ts::t", log: () => {},
+      }),
+    ).rejects.toThrow(/red-output/)
+  })
+
+  test("--done with a prior-red pair AND --waive-red is refused (conflict)", async () => {
+    await freshTask()
+    await expect(
+      runWork({
+        stateRoot: tmp, done: "f1", verifyCommand: "tests pass",
+        priorRed: "tests/x.test.ts::t", redOutput: "AssertionError", waiveRed: "x",
+        log: () => {},
+      }),
+    ).rejects.toThrow(/not both|conflict/)
+  })
+
+  test("--done with a prior-red pair persists prior_red/red_output on the feature", async () => {
+    await freshTask()
+    await runWork({
+      stateRoot: tmp, done: "f1", verifyCommand: "tests pass",
+      priorRed: "tests/x.test.ts::t_pagination", redOutput: "expected 20 got 50",
+      log: () => {},
+    })
+    const fl = readFeatureList(tmp)
+    expect(fl?.list.features[0]?.prior_red).toBe("tests/x.test.ts::t_pagination")
+    expect(fl?.list.features[0]?.red_output).toBe("expected 20 got 50")
+    expect(fl?.list.features[0]?.waived_red).toBeUndefined()
+  })
+
+  test("--done with --waive-red persists waived_red and no prior_red", async () => {
+    await freshTask()
+    await runWork({
+      stateRoot: tmp, done: "f1", verifyCommand: "tests pass", waiveRed: "docs-only",
+      log: () => {},
+    })
+    const fl = readFeatureList(tmp)
+    expect(fl?.list.features[0]?.waived_red).toBe("docs-only")
+    expect(fl?.list.features[0]?.prior_red).toBeUndefined()
   })
 })

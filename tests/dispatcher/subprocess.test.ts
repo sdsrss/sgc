@@ -10,12 +10,14 @@ test("spawnCapture captures stdout + exitCode 0", async () => {
 test("spawnCapture captures stderr + nonzero exit", async () => {
   const r = await spawnCapture(["node", "-e", "process.stderr.write('boom');process.exit(3)"])
   expect(r.stderr).toBe("boom")
+  expect(r.stdout).toBe("")
   expect(r.exitCode).toBe(3)
 })
 
 test("spawnCapture on missing binary resolves exitCode -1 (no throw)", async () => {
   const r = await spawnCapture(["sgc-no-such-binary-xyz"])
   expect(r.exitCode).toBe(-1)
+  expect(r.stderr).toBeTruthy()
 })
 
 test("whichSync finds node, returns null for nonexistent", () => {

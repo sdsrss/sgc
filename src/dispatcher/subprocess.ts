@@ -19,6 +19,7 @@ export function spawnCapture(
   argv: string[],
   opts: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
 ): Promise<CaptureResult> {
+  if (!argv[0]) return Promise.resolve({ stdout: "", stderr: "empty argv", exitCode: -1 })
   return new Promise((resolveP) => {
     const child = spawn(argv[0]!, argv.slice(1), {
       cwd: opts.cwd,
@@ -27,14 +28,16 @@ export function spawnCapture(
     })
     let stdout = ""
     let stderr = ""
+    let errored = false
     child.stdout?.on("data", (c: Buffer) => (stdout += c.toString()))
     child.stderr?.on("data", (c: Buffer) => (stderr += c.toString()))
-    child.on("error", (e) =>
-      resolveP({ stdout, stderr: stderr + String(e), exitCode: -1 }),
-    )
-    child.on("close", (code) =>
-      resolveP({ stdout, stderr, exitCode: code ?? -1 }),
-    )
+    child.on("error", (e) => {
+      errored = true
+      resolveP({ stdout, stderr: stderr + String(e), exitCode: -1 })
+    })
+    child.on("close", (code) => {
+      if (!errored) resolveP({ stdout, stderr, exitCode: code ?? -1 })
+    })
   })
 }
 

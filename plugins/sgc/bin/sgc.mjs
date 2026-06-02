@@ -12968,8 +12968,7 @@ var init_openrouter_agent = __esm(() => {
 
 // src/dispatcher/spawn.ts
 import { existsSync as existsSync6, readFileSync as readFileSync7 } from "node:fs";
-import { dirname as dirname4, resolve as resolve7 } from "node:path";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
+import { resolve as resolve7 } from "node:path";
 function clampTimeout(rawMs) {
   return Math.max(MIN_TIMEOUT_MS, Math.min(MAX_TIMEOUT_MS, rawMs));
 }
@@ -13269,7 +13268,7 @@ async function spawn3(agentName, input, opts = {}) {
     deregisterOpenSpawn(spawnId);
   }
 }
-var moduleDir2, sgcRepoRoot, MIN_TIMEOUT_MS = 30000, MAX_TIMEOUT_MS = 300000, SpawnTimeout, defaultSleep = (ms) => new Promise((r3) => setTimeout(r3, ms)), openSpawns, signalHandlersInstalled = false, SpawnError, PRIOR_ART_SENTINEL_BEGIN = "<!-- sgc:prior-art:begin -->", PRIOR_ART_SENTINEL_END = "<!-- sgc:prior-art:end -->", PRE_MORTEM_SENTINEL_BEGIN = "<!-- sgc:pre-mortem:begin -->", PRE_MORTEM_SENTINEL_END = "<!-- sgc:pre-mortem:end -->", PRIOR_ART_BACK_CHANNEL_RE, PRE_MORTEM_BACK_CHANNEL_RE, root2 = (custom) => resolve7(custom ?? process.env["SGC_STATE_ROOT"] ?? ".sgc"), VALID_ENV_MODES, ROUTES;
+var MIN_TIMEOUT_MS = 30000, MAX_TIMEOUT_MS = 300000, SpawnTimeout, defaultSleep = (ms) => new Promise((r3) => setTimeout(r3, ms)), openSpawns, signalHandlersInstalled = false, SpawnError, PRIOR_ART_SENTINEL_BEGIN = "<!-- sgc:prior-art:begin -->", PRIOR_ART_SENTINEL_END = "<!-- sgc:prior-art:end -->", PRE_MORTEM_SENTINEL_BEGIN = "<!-- sgc:pre-mortem:begin -->", PRE_MORTEM_SENTINEL_END = "<!-- sgc:pre-mortem:end -->", PRIOR_ART_BACK_CHANNEL_RE, PRE_MORTEM_BACK_CHANNEL_RE, root2 = (custom) => resolve7(custom ?? process.env["SGC_STATE_ROOT"] ?? ".sgc"), VALID_ENV_MODES, ROUTES;
 var init_spawn = __esm(() => {
   init_js_yaml();
   init_capabilities();
@@ -13285,8 +13284,6 @@ var init_spawn = __esm(() => {
   init_logger();
   init_embedded_data();
   init_validation();
-  moduleDir2 = dirname4(fileURLToPath2(import.meta.url));
-  sgcRepoRoot = resolve7(moduleDir2, "..", "..");
   SpawnTimeout = class SpawnTimeout extends Error {
     constructor(spawnId, timeoutMs) {
       super(`spawn ${spawnId} timed out waiting for result after ${timeoutMs}ms`);
@@ -16856,7 +16853,7 @@ import {
   writeFileSync as writeFileSync6
 } from "node:fs";
 import { randomBytes as randomBytes2 } from "node:crypto";
-import { dirname as dirname5, resolve as resolve13 } from "node:path";
+import { dirname as dirname4, resolve as resolve13 } from "node:path";
 function resolveStateRoot2(custom) {
   return resolve13(custom ?? process.env["SGC_STATE_ROOT"] ?? DEFAULT_STATE_DIR2);
 }
@@ -16885,7 +16882,7 @@ ${yaml}
 ${trimmedBody}`;
 }
 function writeAtomic2(path2, content) {
-  mkdirSync3(dirname5(path2), { recursive: true });
+  mkdirSync3(dirname4(path2), { recursive: true });
   const tmp = `${path2}.tmp.${process.pid}.${Date.now()}.${atomicWriteSeq2++}.${randomBytes2(4).toString("hex")}`;
   writeFileSync6(tmp, content, "utf8");
   try {
@@ -17555,8 +17552,8 @@ __export(exports_doctor, {
 import { createHash as createHash4 } from "node:crypto";
 import { existsSync as existsSync19, mkdtempSync, readdirSync as readdirSync7, readFileSync as readFileSync17, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname as dirname6, resolve as resolve15 } from "node:path";
-import { fileURLToPath as fileURLToPath3 } from "node:url";
+import { dirname as dirname5, resolve as resolve15 } from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
 function extractCliSubcommands(src2) {
   const marker = "subCommands: {";
   const start = src2.indexOf(marker);
@@ -17926,14 +17923,14 @@ async function runDoctor(opts = {}) {
   log(`${ok} OK · ${warn} warn · ${fail} fail`);
   return { ok, warn, fail, rows };
 }
-var moduleDir3, repoRoot;
+var moduleDir2, repoRoot;
 var init_doctor = __esm(() => {
   init_subprocess();
   init_js_yaml();
   init_schema();
   init_embedded_data();
-  moduleDir3 = dirname6(fileURLToPath3(import.meta.url));
-  repoRoot = resolve15(moduleDir3, "..", "..");
+  moduleDir2 = dirname5(fileURLToPath2(import.meta.url));
+  repoRoot = resolve15(moduleDir2, "..", "..");
 });
 
 // src/dispatcher/reflect.ts

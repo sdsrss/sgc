@@ -52,14 +52,7 @@ import { readPrompt } from "./embedded-data"
 // Re-export for callers that referenced OutputShapeMismatch from spawn.ts
 export { OutputShapeMismatch } from "./validation"
 
-import { dirname, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
-
-// H.1 #3: prompt_path / fixture paths resolve relative to sgc's source location,
-// not the user's cwd. Mirrors schema.ts:18 pattern. Pre-fix: cwd assumption
-// broke when sgc was invoked from a non-repo-root directory (silent flake).
-const moduleDir = dirname(fileURLToPath(import.meta.url))
-const sgcRepoRoot = resolve(moduleDir, "..", "..")
+import { resolve } from "node:path"
 
 /** Minimum timeout for any spawn (prevents instant-timeout from misconfigured manifests). */
 export const MIN_TIMEOUT_MS = 30_000 // 30 seconds

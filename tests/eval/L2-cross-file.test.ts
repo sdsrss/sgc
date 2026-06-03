@@ -80,12 +80,17 @@ describe("L2 cross-file scenario (eval §12)", () => {
     await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
 
     // STEP 3: review (code)
+    // Phase 2c: L2+ always-on quality cluster (reviewer.tests + reviewer.maintainability)
+    // runs alongside reviewer.correctness. The diff adds a source file (api.ts) without
+    // test additions, so reviewer.tests returns "concern". Aggregate is worst-of, so the
+    // overall verdict is "concern" (not "fail" — ship still proceeds). reviewer.correctness
+    // itself still passes; we assert the individual stored report, not the aggregate.
     const review = await runReview({
       stateRoot: tmp,
       diffOverride: "diff --git a/api.ts b/api.ts\n+++ b/api.ts\n+  extraField: string\n",
       log: () => {},
     })
-    expect(review.verdict).toBe("pass")
+    expect(review.verdict).not.toBe("fail")   // concern is expected; fail would block ship
     const codeReview = readReview(plan.taskId, "code", "reviewer.correctness", tmp)
     expect(codeReview?.report.verdict).toBe("pass")
 
@@ -105,9 +110,11 @@ describe("L2 cross-file scenario (eval §12)", () => {
     expect(shipDoc.outcome).toBe("success")
     expect(shipDoc.linked_reviews.length).toBeGreaterThanOrEqual(1)
 
-    // Janitor: L2_plus_success triggers compound
+    // Janitor: compound triggered — either "L2_plus_success" (no reviewer severity)
+    // or "reviewer_severity_medium_plus" (quality cluster flags medium severity, e.g.
+    // reviewer.tests concern on source-without-test). Both are valid compound paths.
     expect(ship.janitorDecision?.decision).toBe("compound")
-    expect(ship.janitorDecision?.reason_code).toBe("L2_plus_success")
+    expect(["L2_plus_success", "reviewer_severity_medium_plus"]).toContain(ship.janitorDecision!.reason_code)
     expect(readJanitorDecision(plan.taskId, tmp)).not.toBeNull()
 
     // Compound ran and wrote a solution entry

@@ -165,15 +165,11 @@ describe("subagent status annotations", () => {
   test("reviewer.infra is marked implemented", () => {
     expect(getSubagentManifest("reviewer.infra")?.status).toBe("implemented")
   })
-  test("reviewer.tests is slot-only with deferred roadmap", () => {
-    const m = getSubagentManifest("reviewer.tests")
-    expect(m?.status).toBe("slot-only")
-    expect(m?.roadmap).toMatch(/deferred/i)
+  test("reviewer.tests is marked implemented (Phase 2c)", () => {
+    expect(getSubagentManifest("reviewer.tests")?.status).toBe("implemented")
   })
-  test("reviewer.maintainability is slot-only with roadmap", () => {
-    const m = getSubagentManifest("reviewer.maintainability")
-    expect(m?.status).toBe("slot-only")
-    expect(m?.roadmap).toBeDefined()
+  test("reviewer.maintainability is marked implemented (Phase 2c)", () => {
+    expect(getSubagentManifest("reviewer.maintainability")?.status).toBe("implemented")
   })
   test("reviewer.adversarial is slot-only", () => {
     expect(getSubagentManifest("reviewer.adversarial")?.status).toBe("slot-only")

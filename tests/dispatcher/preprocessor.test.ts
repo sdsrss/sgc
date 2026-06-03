@@ -171,4 +171,10 @@ describe("loadSpec — full contract files", () => {
     expect(spec.solutions).toBeDefined()
     expect(spec.reviews).toBeDefined()
   })
+
+  test("reviewer.tests + reviewer.maintainability are implemented (Phase 2c)", () => {
+    const spec = loadSpec<CapabilitiesSpec>(capsYaml)
+    expect((spec.subagents["reviewer.tests"] as { status?: string }).status).toBe("implemented")
+    expect((spec.subagents["reviewer.maintainability"] as { status?: string }).status).toBe("implemented")
+  })
 })

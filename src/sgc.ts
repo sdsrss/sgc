@@ -915,42 +915,4 @@ const main = defineCommand({
   },
 })
 
-// Guard: only run the CLI when this file is the direct entry point.
-// When imported by tests (to access exported helpers), runMain must NOT fire.
-if (import.meta.main) {
-  runMain(main)
-}
-
-// ---------------------------------------------------------------------------
-// Exported helpers (for unit tests — not part of the CLI runtime path)
-// ---------------------------------------------------------------------------
-
-import type { PlanOptions } from "./commands/plan"
-
-/**
- * Parse plan flags from a raw argv slice (the tokens AFTER "plan", i.e. what
- * would follow "sgc plan" on the command line).  Returns the subset of
- * PlanOptions that can be expressed as CLI flags.  Positional args (task
- * description) are ignored — this function only extracts boolean/string flags.
- *
- * Contract (argv examples):
- *   ["do a thing", "--deep"]          → { deep: true }
- *   ["do a thing"]                    → {} (deep is undefined)
- *   ["do a thing", "--auto", "--deep"]→ { autoConfirm: true, deep: true }
- */
-export function parsePlanFlags(argv: string[]): Partial<PlanOptions> {
-  const opts: Partial<PlanOptions> = {}
-  for (const arg of argv) {
-    if (arg === "--auto") {
-      opts.autoConfirm = true
-    } else if (arg === "--force-new-task") {
-      opts.forceNewTask = true
-    } else if (arg === "--async") {
-      opts.async = true
-    } else if (arg === "--deep") {
-      opts.deep = true
-    }
-    // positional args (task description) and other flags are ignored
-  }
-  return opts
-}
+runMain(main)

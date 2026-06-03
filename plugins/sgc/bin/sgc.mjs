@@ -23679,24 +23679,4 @@ var main = defineCommand({
     doctor: () => doctor
   }
 });
-if (__require.main == __require.module) {
-  runMain(main);
-}
-function parsePlanFlags(argv2) {
-  const opts = {};
-  for (const arg of argv2) {
-    if (arg === "--auto") {
-      opts.autoConfirm = true;
-    } else if (arg === "--force-new-task") {
-      opts.forceNewTask = true;
-    } else if (arg === "--async") {
-      opts.async = true;
-    } else if (arg === "--deep") {
-      opts.deep = true;
-    }
-  }
-  return opts;
-}
-export {
-  parsePlanFlags
-};
+runMain(main);

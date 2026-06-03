@@ -200,6 +200,13 @@ describe("sgc CLI smoke", () => {
     expect(exitCode).toBe(0)
     expect(stdout).toContain("loop")
   })
+
+  test("plan --help shows --deep flag (Phase 2b deep planning)", async () => {
+    const { stdout, exitCode } = await runSgc(["plan", "--help"])
+    expect(exitCode).toBe(0)
+    // toContain (not regex) per DOG-3 — citty wraps names in backticks under CI.
+    expect(stdout).toContain("--deep")
+  })
 })
 
 describe("sgc status (implemented)", () => {

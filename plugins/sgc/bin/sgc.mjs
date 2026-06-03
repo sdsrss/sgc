@@ -3550,7 +3550,7 @@ import {
   writeFileSync
 } from "node:fs";
 import { randomBytes } from "node:crypto";
-import { dirname as dirname2, resolve as resolve2 } from "node:path";
+import { dirname as dirname2, join, resolve as resolve2 } from "node:path";
 function resolveStateRoot(custom) {
   return resolve2(custom ?? process.env["SGC_STATE_ROOT"] ?? DEFAULT_STATE_DIR);
 }
@@ -3721,6 +3721,13 @@ function readCurrentTask(stateRoot) {
 function writeFeatureList(list, body = "", stateRoot) {
   const path = progressPath("feature-list", stateRoot);
   writeAtomic(path, serializeFrontmatter(list, body));
+  return path;
+}
+function writePlanDoc(slug, dateIso, content, base) {
+  const dir = join(base ?? process.cwd(), "docs", "superpowers", "plans");
+  mkdirSync2(dir, { recursive: true });
+  const path = join(dir, `${dateIso}-${slug}.md`);
+  writeAtomic(path, content);
   return path;
 }
 function readFeatureList(stateRoot) {
@@ -4367,7 +4374,7 @@ __export(exports_debug, {
 });
 import { existsSync as existsSync3 } from "node:fs";
 import { readFile as readFile2, readdir as readdir2, writeFile, rename, mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { join as join2 } from "node:path";
 import { spawnSync } from "node:child_process";
 function deriveInvestigationId(symptom, now) {
   const yyyy = now.getUTCFullYear().toString().padStart(4, "0");
@@ -4383,7 +4390,7 @@ function deriveInvestigationId(symptom, now) {
   return `${prefix}-${truncated}`;
 }
 async function readEventsTail(stateRoot, lineLimit) {
-  const path = join(stateRoot, "progress", "events.ndjson");
+  const path = join2(stateRoot, "progress", "events.ndjson");
   try {
     const content = await readFile2(path, "utf8");
     const all = content.split(`
@@ -4512,7 +4519,7 @@ async function detectThreeStrikeImpl(opts) {
   return strikes;
 }
 async function scanDir(stateRoot, dir, needle) {
-  const path = join(stateRoot, dir);
+  const path = join2(stateRoot, dir);
   let entries;
   try {
     entries = await readdir2(path);
@@ -4525,7 +4532,7 @@ async function scanDir(stateRoot, dir, needle) {
       continue;
     let content;
     try {
-      content = await readFile2(join(path, name), "utf8");
+      content = await readFile2(join2(path, name), "utf8");
     } catch {
       continue;
     }
@@ -4652,9 +4659,9 @@ function renderFrontmatter(fm) {
 `;
 }
 async function writeInvestigation(opts) {
-  const dir = join(opts.stateRoot, "investigations");
+  const dir = join2(opts.stateRoot, "investigations");
   await mkdir(dir, { recursive: true });
-  const target = join(dir, `${opts.id}.md`);
+  const target = join2(dir, `${opts.id}.md`);
   const tmp = `${target}.tmp.${process.pid}.${Date.now()}`;
   const content = renderFrontmatter(opts.frontmatter) + opts.body;
   await writeFile(tmp, content, "utf8");
@@ -4662,18 +4669,18 @@ async function writeInvestigation(opts) {
   return target;
 }
 async function resolveCollisionId(stateRoot, baseId) {
-  const dir = join(stateRoot, "investigations");
-  if (!existsSync3(join(dir, `${baseId}.md`)))
+  const dir = join2(stateRoot, "investigations");
+  if (!existsSync3(join2(dir, `${baseId}.md`)))
     return baseId;
   for (let n2 = 2;n2 < 100; n2++) {
     const candidate = `${baseId}-${n2}`;
-    if (!existsSync3(join(dir, `${candidate}.md`)))
+    if (!existsSync3(join2(dir, `${candidate}.md`)))
       return candidate;
   }
   throw new Error(`collision: too many same-minute investigations for ${baseId}`);
 }
 async function readInvestigationContent(stateRoot, id) {
-  const path = join(stateRoot, "investigations", `${id}.md`);
+  const path = join2(stateRoot, "investigations", `${id}.md`);
   try {
     const content = await readFile2(path, "utf8");
     return { path, content };
@@ -4682,7 +4689,7 @@ async function readInvestigationContent(stateRoot, id) {
   }
 }
 async function runDebugClose(opts) {
-  const stateRoot = opts.stateRoot ?? join(process.cwd(), ".sgc");
+  const stateRoot = opts.stateRoot ?? join2(process.cwd(), ".sgc");
   const stderrWrite = opts.stderrWrite ?? ((c3) => {
     process.stderr.write(c3);
   });
@@ -4711,7 +4718,7 @@ async function runDebugClose(opts) {
   }
   const existing = await readInvestigationContent(stateRoot, opts.id);
   if (!existing) {
-    stderrWrite(`close refused: no investigation at ${join(stateRoot, "investigations", `${opts.id}.md`)}
+    stderrWrite(`close refused: no investigation at ${join2(stateRoot, "investigations", `${opts.id}.md`)}
 `);
     return { exitCode: 1 };
   }
@@ -4778,7 +4785,7 @@ async function runDebugClose(opts) {
   return { exitCode: 0 };
 }
 async function runDebugStatus(opts) {
-  const stateRoot = opts.stateRoot ?? join(process.cwd(), ".sgc");
+  const stateRoot = opts.stateRoot ?? join2(process.cwd(), ".sgc");
   const stdoutWrite = opts.stdoutWrite ?? ((c3) => {
     process.stdout.write(c3);
   });
@@ -4787,7 +4794,7 @@ async function runDebugStatus(opts) {
   });
   const result = await readInvestigationContent(stateRoot, opts.id);
   if (!result) {
-    stderrWrite(`no investigation at ${join(stateRoot, "investigations", `${opts.id}.md`)}
+    stderrWrite(`no investigation at ${join2(stateRoot, "investigations", `${opts.id}.md`)}
 `);
     return { exitCode: 1 };
   }
@@ -4795,11 +4802,11 @@ async function runDebugStatus(opts) {
   return { exitCode: 0 };
 }
 async function runDebugList(opts) {
-  const stateRoot = opts.stateRoot ?? join(process.cwd(), ".sgc");
+  const stateRoot = opts.stateRoot ?? join2(process.cwd(), ".sgc");
   const stdoutWrite = opts.stdoutWrite ?? ((c3) => {
     process.stdout.write(c3);
   });
-  const dir = join(stateRoot, "investigations");
+  const dir = join2(stateRoot, "investigations");
   let entries;
   try {
     entries = await readdir2(dir);
@@ -4813,7 +4820,7 @@ async function runDebugList(opts) {
     if (!name.endsWith(".md"))
       continue;
     try {
-      const content = await readFile2(join(dir, name), "utf8");
+      const content = await readFile2(join2(dir, name), "utf8");
       const fm = parseFrontmatter(content);
       records.push({
         id: String(fm.data.id ?? name.replace(/\.md$/, "")),
@@ -4840,7 +4847,7 @@ async function runDebugList(opts) {
   return { exitCode: 0 };
 }
 async function runDebugStart(opts) {
-  const stateRoot = opts.stateRoot ?? join(opts.repoRoot ?? process.cwd(), ".sgc");
+  const stateRoot = opts.stateRoot ?? join2(opts.repoRoot ?? process.cwd(), ".sgc");
   const repoRoot = opts.repoRoot ?? process.cwd();
   const heuristic = opts.heuristic ?? defaultHeuristic();
   const now = (opts.now ?? (() => new Date))();
@@ -5406,6 +5413,28 @@ subagents:
     token_budget: 6000
     timeout_s: 180
 
+  planner.decompose:
+    version: "0.1"
+    source: sp:writing-plans pattern (re-authored natively, Phase 2b; not vendored)
+    purpose: >
+      Decompose an approved intent into file-level tasks with bite-sized TDD
+      steps. CE reuse-in: prior failure-modes/preventions become guard steps;
+      prior_art solution_refs flow into per-task prior_art_refs.
+    prompt_path: prompts/planner-decompose.md
+    inputs:
+      intent_draft: markdown
+      # Prior data crosses as INPUT only — the agent holds no read:solutions
+      # (Invariant §1, same relaxation as planner.adversarial / CE-1).
+      structural_risks: array[{area, risk, mitigation}]
+      prior_art: array[{solution_ref, relevance_score, excerpt}]
+      failure_modes: array[{scenario, probability, impact, early_signal}]
+      prior_preventions: array[{solution_ref, category, prevention_text}]
+    outputs:
+      tasks: array[{id, title, files, steps, prior_art_refs}]
+    scope_tokens: ["read:decisions:*", "read:progress", "exec:git:read"]
+    token_budget: 8000
+    timeout_s: 240
+
   # ---- Researcher (CE lineage) ----
   researcher.history:
     version: "0.2"
@@ -5750,6 +5779,11 @@ progress:
             # features done before the gate existed are grandfathered.
             verify_command:  { type: string, optional: true }
             evidence:        { type: string, optional: true }
+            # Phase 2b deep-plan fields (additive, optional — absent on non-deep plans):
+            #   files:          { create: [path], modify: [path], test: [path] }
+            #   steps:          [{ kind, text, run?, expect? }]  kind ∈ test|verify-red|
+            #                   implement|verify-green|commit|guard
+            #   prior_art_refs: [solution_ref]  — CE reuse-in provenance
 
     current_task:
       filename: current-task.md
@@ -6829,6 +6863,10 @@ Write only the YAML above. No prose outside the YAML block.
 `;
 var init_planner_adversarial = () => {};
 
+// prompts/planner-decompose.md
+var planner_decompose_default = '# planner.decompose\n\nYou decompose an approved engineering intent into a **file-level task list with\nbite-sized TDD steps**. You write the plan an engineer with zero context for\nthis codebase would need: exact files, complete steps, real commands. NO\nplaceholders ("TBD", "handle edge cases", "add validation" are failures).\n\n## Inputs\n\n- `intent_draft` — the approved task description.\n- `structural_risks` — areas the eng reviewer flagged (area / risk / mitigation).\n- `prior_art` — prior solutions surfaced from the knowledge corpus\n  (`solution_ref` / `relevance_score` / `excerpt`). REUSE these: when a task\n  reuses a prior solution, list its `solution_ref` in that task\'s\n  `prior_art_refs`.\n- `failure_modes` — pre-mortem scenarios (scenario / probability / impact /\n  early_signal). For each, emit a `guard` step (a defensive test or check) in\n  the task most likely to trigger it.\n- `prior_preventions` — known failure shapes to avoid; emit a `guard` step\n  citing the `solution_ref`.\n\n## Output (JSON)\n\n```json\n{\n  "tasks": [\n    {\n      "id": "f1",\n      "title": "<imperative task title>",\n      "files": { "create": ["path"], "modify": ["path"], "test": ["path"] },\n      "steps": [\n        { "kind": "test", "text": "Write the failing test: ..." },\n        { "kind": "verify-red", "text": "Run it", "run": "<cmd>", "expect": "FAIL ..." },\n        { "kind": "implement", "text": "..." },\n        { "kind": "verify-green", "text": "Run it", "run": "<cmd>", "expect": "PASS" },\n        { "kind": "guard", "text": "Guard against <failure_mode>: ..." },\n        { "kind": "commit", "text": "Commit", "run": "git commit -m \\"...\\"" }\n      ],\n      "prior_art_refs": ["<solution_ref reused by this task>"]\n    }\n  ]\n}\n```\n\n## Rules\n\n- `kind` must be one of: `test`, `verify-red`, `implement`, `verify-green`, `commit`, `guard`.\n- Each task is self-contained and independently testable. Split by\n  responsibility, not by technical layer. Smallest diff that works.\n- Every `verify-*` / `commit` step has a real `run` command.\n- Do NOT invent file paths you cannot justify from the intent. If unsure of an\n  exact path, describe the file\'s responsibility in `text` and leave `files`\n  arrays conservative.\n- Banned vocabulary: no "robust", "comprehensive", "significantly",\n  "should work", or baseline-less ratios.\n\n## Input\n\n<input_yaml/>\n';
+var init_planner_decompose = () => {};
+
 // prompts/planner-ceo.md
 var planner_ceo_default = `# Purpose
 
@@ -7225,6 +7263,7 @@ var init_embedded_data = __esm(() => {
   init_compound_prevention();
   init_compound_solution();
   init_planner_adversarial();
+  init_planner_decompose();
   init_planner_ceo();
   init_planner_eng();
   init_researcher_history2();
@@ -7243,6 +7282,7 @@ var init_embedded_data = __esm(() => {
     "prompts/compound-prevention.md": compound_prevention_default,
     "prompts/compound-solution.md": compound_solution_default,
     "prompts/planner-adversarial.md": planner_adversarial_default,
+    "prompts/planner-decompose.md": planner_decompose_default,
     "prompts/planner-ceo.md": planner_ceo_default,
     "prompts/planner-eng.md": planner_eng_default,
     "prompts/researcher-history.md": researcher_history_default,
@@ -7380,7 +7420,7 @@ var init_spawn_protocol = () => {};
 
 // src/dispatcher/fingerprint.ts
 import { existsSync as existsSync5, readdirSync as readdirSync3, readFileSync as readFileSync3, statSync } from "node:fs";
-import { join as join2, resolve as resolve6 } from "node:path";
+import { join as join3, resolve as resolve6 } from "node:path";
 import { createHash as createHash2 } from "node:crypto";
 function isFingerprintable(line) {
   const trimmed = line.trim();
@@ -7424,13 +7464,13 @@ function loadSolutionsFingerprints(stateRoot) {
   if (!existsSync5(dir))
     return set2;
   for (const cat of safeReaddir(dir)) {
-    const catPath = join2(dir, cat);
+    const catPath = join3(dir, cat);
     if (!isDir(catPath))
       continue;
     for (const file of safeReaddir(catPath)) {
       if (!file.endsWith(".md"))
         continue;
-      const text = safeReadFile(join2(catPath, file));
+      const text = safeReadFile(join3(catPath, file));
       if (!text)
         continue;
       for (const line of text.split(`
@@ -14103,6 +14143,83 @@ var init_planner_adversarial2 = __esm(() => {
   plannerAdversarial = plannerAdversarialHeuristic;
 });
 
+// src/dispatcher/agents/planner-decompose.ts
+function plannerDecomposeHeuristic(input) {
+  const title = (input.intent_draft ?? "").trim().slice(0, 200) || "implement the task";
+  const steps = [
+    { kind: "test", text: `Write a failing test for: ${title}` },
+    { kind: "verify-red", text: "Run the test and confirm it fails", run: "bun test", expect: "FAIL" },
+    { kind: "implement", text: "Write the minimal implementation to make the test pass" },
+    { kind: "verify-green", text: "Run the test and confirm it passes", run: "bun test", expect: "PASS" }
+  ];
+  for (const fm of input.failure_modes ?? []) {
+    steps.push({
+      kind: "guard",
+      text: `Guard against prior failure mode: ${fm.scenario}. Early signal: ${fm.early_signal}`
+    });
+  }
+  for (const p of input.prior_preventions ?? []) {
+    steps.push({
+      kind: "guard",
+      text: `Apply prevention from ${p.solution_ref}: ${p.prevention_text}`
+    });
+  }
+  steps.push({ kind: "commit", text: "Commit the change", run: 'git commit -m "<conventional message>"' });
+  const prior_art_refs = (input.prior_art ?? []).map((p) => p.solution_ref);
+  return {
+    tasks: [{ id: "f1", title, files: { create: [], modify: [], test: [] }, steps, prior_art_refs }]
+  };
+}
+var plannerDecompose;
+var init_planner_decompose2 = __esm(() => {
+  plannerDecompose = plannerDecomposeHeuristic;
+});
+
+// src/dispatcher/plan-render.ts
+function renderPlanMarkdown(list, intent) {
+  const out = [];
+  out.push(`# ${intent.title} Implementation Plan`);
+  out.push("");
+  out.push("> **For agentic workers:** REQUIRED SUB-SKILL: Use " + "superpowers:subagent-driven-development (recommended) or " + "superpowers:executing-plans to implement this plan task-by-task. " + "Steps use checkbox (`- [ ]`) syntax for tracking.");
+  out.push("");
+  out.push(`**Level:** ${intent.level}`);
+  out.push("");
+  out.push("---");
+  out.push("");
+  let taskNo = 1;
+  for (const f3 of list.features) {
+    out.push(`### Task ${taskNo}: ${f3.title}`);
+    out.push("");
+    if (f3.files) {
+      out.push("**Files:**");
+      for (const p of f3.files.create)
+        out.push(`- Create: \`${p}\``);
+      for (const p of f3.files.modify)
+        out.push(`- Modify: \`${p}\``);
+      for (const p of f3.files.test)
+        out.push(`- Test: \`${p}\``);
+      out.push("");
+    }
+    if (f3.prior_art_refs && f3.prior_art_refs.length > 0) {
+      out.push(`**Prior art (reused):** ${f3.prior_art_refs.map((r3) => `\`${r3}\``).join(", ")}`);
+      out.push("");
+    }
+    let stepNo = 1;
+    for (const s2 of f3.steps ?? []) {
+      out.push(`- [ ] **Step ${stepNo} (${s2.kind}):** ${s2.text}`);
+      if (s2.run)
+        out.push(`  - Run: \`${s2.run}\``);
+      if (s2.expect)
+        out.push(`  - Expected: ${s2.expect}`);
+      stepNo++;
+    }
+    out.push("");
+    taskNo++;
+  }
+  return out.join(`
+`);
+}
+
 // src/dispatcher/preventions.ts
 function truncateOnWordBoundary(text, maxChars) {
   if (text.length <= maxChars)
@@ -15212,6 +15329,25 @@ async function runPlanCore(taskDescription, opts = {}) {
 
 ` : "";
   const fusedVerdict = fused?.fused_verdict;
+  const deepActive = level !== "L0" && (LEVEL_RANK[level] >= 2 || level === "L1" && opts.deep === true);
+  let decomposed = null;
+  if (deepActive) {
+    const decomposeInput = {
+      intent_draft: taskDescription,
+      ...plannerEngOut ? { structural_risks: plannerEngOut.structural_risks } : {},
+      ...researcherOut ? { prior_art: researcherOut.prior_art } : {},
+      ...adversarialOut ? { failure_modes: adversarialOut.failure_modes } : {},
+      ...capturedPriorPreventions.length > 0 ? { prior_preventions: capturedPriorPreventions } : {}
+    };
+    const decRes = await spawn3("planner.decompose", decomposeInput, {
+      stateRoot,
+      inlineStub: (i3) => plannerDecompose(i3),
+      logger,
+      taskId
+    });
+    decomposed = decRes.output;
+    log(`planner.decompose: ${decomposed.tasks.length} task(s)`);
+  }
   if (level === "L3") {
     log("");
     log("=== L3 PLAN SUMMARY — confirm before intent.md is written (immutable) ===");
@@ -15317,15 +15453,32 @@ ${PRE_MORTEM_SENTINEL_END}
   } else {
     log(`L0 task: skipping intent.md per schema (decisions/ not written for L0)`);
   }
-  writeFeatureList({
-    features: [
-      {
-        id: "f1",
-        title: taskDescription.slice(0, 200),
-        status: "pending"
-      }
-    ]
-  }, "Refine this list during `sgc work`. The dispatcher does not infer fine-grained features in MVP.\n", stateRoot);
+  if (decomposed && decomposed.tasks.length > 0) {
+    const features = decomposed.tasks.map((t2) => ({
+      id: t2.id,
+      title: t2.title,
+      status: "pending",
+      files: t2.files,
+      steps: t2.steps,
+      ...t2.prior_art_refs.length > 0 ? { prior_art_refs: t2.prior_art_refs } : {}
+    }));
+    writeFeatureList({ features }, "Authored by `sgc plan` deep decomposition. Each task carries file-level scope + bite-sized TDD steps.\n", stateRoot);
+    const slug = taskDescription.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "plan";
+    const dateIso = createdAt.slice(0, 10);
+    const md = renderPlanMarkdown({ features }, { title: taskDescription.slice(0, 120), level });
+    const docPath = writePlanDoc(slug, dateIso, md, stateRoot);
+    log(`wrote plan doc ${docPath}`);
+  } else {
+    writeFeatureList({
+      features: [
+        {
+          id: "f1",
+          title: taskDescription.slice(0, 200),
+          status: "pending"
+        }
+      ]
+    }, "Refine this list during `sgc work`. The dispatcher does not infer fine-grained features in MVP.\n", stateRoot);
+  }
   writeCurrentTask({
     task_id: taskId,
     level,
@@ -15353,6 +15506,7 @@ var init_plan = __esm(() => {
   init_planner_ceo2();
   init_researcher_history();
   init_planner_adversarial2();
+  init_planner_decompose2();
   init_preventions();
   init_applied_tracker();
   init_rationale();
@@ -16964,6 +17118,7 @@ __export(exports_state, {
   writeSolution: () => writeSolution2,
   writeShip: () => writeShip2,
   writeRedGreenCapture: () => writeRedGreenCapture2,
+  writePlanDoc: () => writePlanDoc2,
   writeJanitorDecision: () => writeJanitorDecision2,
   writeIntent: () => writeIntent2,
   writeHandoff: () => writeHandoff2,
@@ -17006,7 +17161,7 @@ import {
   writeFileSync as writeFileSync6
 } from "node:fs";
 import { randomBytes as randomBytes2 } from "node:crypto";
-import { dirname as dirname4, resolve as resolve13 } from "node:path";
+import { dirname as dirname4, join as join4, resolve as resolve13 } from "node:path";
 function resolveStateRoot2(custom) {
   return resolve13(custom ?? process.env["SGC_STATE_ROOT"] ?? DEFAULT_STATE_DIR2);
 }
@@ -17185,6 +17340,13 @@ function readCurrentTask2(stateRoot) {
 function writeFeatureList2(list, body = "", stateRoot) {
   const path2 = progressPath2("feature-list", stateRoot);
   writeAtomic2(path2, serializeFrontmatter2(list, body));
+  return path2;
+}
+function writePlanDoc2(slug, dateIso, content, base) {
+  const dir = join4(base ?? process.cwd(), "docs", "superpowers", "plans");
+  mkdirSync3(dir, { recursive: true });
+  const path2 = join4(dir, `${dateIso}-${slug}.md`);
+  writeAtomic2(path2, content);
   return path2;
 }
 function readFeatureList2(stateRoot) {
@@ -18584,7 +18746,7 @@ var init_watch_ci_failure = __esm(() => {
 // src/dispatcher/canary.ts
 import { mkdir as mkdir6, mkdtemp, rm, stat as stat3, writeFile as writeFile4 } from "node:fs/promises";
 import { tmpdir as osTmpdir } from "node:os";
-import { join as join3, resolve as resolve18 } from "node:path";
+import { join as join5, resolve as resolve18 } from "node:path";
 function clamp3(n2, lo, hi) {
   return Math.max(lo, Math.min(hi, n2));
 }
@@ -18617,7 +18779,7 @@ function deriveBinName(pkg) {
   return pkg;
 }
 async function defaultNpxSmoke(pkg, ver, bin) {
-  const dir = await mkdtemp(join3(osTmpdir(), "sgc-canary-smoke-"));
+  const dir = await mkdtemp(join5(osTmpdir(), "sgc-canary-smoke-"));
   try {
     const {
       stdout: installStdout,
@@ -19236,6 +19398,25 @@ async function runPlanCore2(taskDescription, opts = {}) {
 
 ` : "";
   const fusedVerdict = fused?.fused_verdict;
+  const deepActive = level !== "L0" && (LEVEL_RANK2[level] >= 2 || level === "L1" && opts.deep === true);
+  let decomposed = null;
+  if (deepActive) {
+    const decomposeInput = {
+      intent_draft: taskDescription,
+      ...plannerEngOut ? { structural_risks: plannerEngOut.structural_risks } : {},
+      ...researcherOut ? { prior_art: researcherOut.prior_art } : {},
+      ...adversarialOut ? { failure_modes: adversarialOut.failure_modes } : {},
+      ...capturedPriorPreventions.length > 0 ? { prior_preventions: capturedPriorPreventions } : {}
+    };
+    const decRes = await spawn3("planner.decompose", decomposeInput, {
+      stateRoot: stateRoot2,
+      inlineStub: (i3) => plannerDecompose(i3),
+      logger,
+      taskId
+    });
+    decomposed = decRes.output;
+    log(`planner.decompose: ${decomposed.tasks.length} task(s)`);
+  }
   if (level === "L3") {
     log("");
     log("=== L3 PLAN SUMMARY — confirm before intent.md is written (immutable) ===");
@@ -19341,15 +19522,32 @@ ${PRE_MORTEM_SENTINEL_END}
   } else {
     log(`L0 task: skipping intent.md per schema (decisions/ not written for L0)`);
   }
-  writeFeatureList({
-    features: [
-      {
-        id: "f1",
-        title: taskDescription.slice(0, 200),
-        status: "pending"
-      }
-    ]
-  }, "Refine this list during `sgc work`. The dispatcher does not infer fine-grained features in MVP.\n", stateRoot2);
+  if (decomposed && decomposed.tasks.length > 0) {
+    const features = decomposed.tasks.map((t2) => ({
+      id: t2.id,
+      title: t2.title,
+      status: "pending",
+      files: t2.files,
+      steps: t2.steps,
+      ...t2.prior_art_refs.length > 0 ? { prior_art_refs: t2.prior_art_refs } : {}
+    }));
+    writeFeatureList({ features }, "Authored by `sgc plan` deep decomposition. Each task carries file-level scope + bite-sized TDD steps.\n", stateRoot2);
+    const slug = taskDescription.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "plan";
+    const dateIso = createdAt.slice(0, 10);
+    const md = renderPlanMarkdown({ features }, { title: taskDescription.slice(0, 120), level });
+    const docPath = writePlanDoc(slug, dateIso, md, stateRoot2);
+    log(`wrote plan doc ${docPath}`);
+  } else {
+    writeFeatureList({
+      features: [
+        {
+          id: "f1",
+          title: taskDescription.slice(0, 200),
+          status: "pending"
+        }
+      ]
+    }, "Refine this list during `sgc work`. The dispatcher does not infer fine-grained features in MVP.\n", stateRoot2);
+  }
   writeCurrentTask({
     task_id: taskId,
     level,
@@ -19377,6 +19575,7 @@ var init_plan2 = __esm(() => {
   init_planner_ceo2();
   init_researcher_history();
   init_planner_adversarial2();
+  init_planner_decompose2();
   init_preventions();
   init_applied_tracker();
   init_rationale();
@@ -19865,7 +20064,7 @@ var init_loop = __esm(() => {
 // src/dispatcher/handoff.ts
 import { existsSync as existsSync21 } from "node:fs";
 import * as fs from "node:fs/promises";
-import { join as join4 } from "node:path";
+import { join as join6 } from "node:path";
 import { spawn as nodeSpawn3 } from "node:child_process";
 function kebabize(s2) {
   return s2.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -19876,7 +20075,7 @@ function timestampFallback(now) {
 }
 async function deriveSlug(stateRoot2, now) {
   const dateStr = now.toISOString().slice(0, 10);
-  const decisionsDir = join4(stateRoot2, "decisions");
+  const decisionsDir = join6(stateRoot2, "decisions");
   if (!existsSync21(decisionsDir))
     return timestampFallback(now);
   const entries = await fs.readdir(decisionsDir, { withFileTypes: true });
@@ -19884,7 +20083,7 @@ async function deriveSlug(stateRoot2, now) {
   for (const e2 of entries) {
     if (!e2.isDirectory())
       continue;
-    const intentPath3 = join4(decisionsDir, e2.name, "intent.md");
+    const intentPath3 = join6(decisionsDir, e2.name, "intent.md");
     try {
       const stat5 = await fs.stat(intentPath3);
       intents.push({ path: intentPath3, mtime: stat5.mtimeMs, id: e2.name });
@@ -19940,7 +20139,7 @@ function inferVerifyCommand(snapshot) {
   };
 }
 async function gatherActiveIntent(stateRoot2) {
-  const decisionsDir = join4(stateRoot2, "decisions");
+  const decisionsDir = join6(stateRoot2, "decisions");
   if (!existsSync21(decisionsDir))
     return;
   try {
@@ -19949,7 +20148,7 @@ async function gatherActiveIntent(stateRoot2) {
     for (const e2 of entries) {
       if (!e2.isDirectory())
         continue;
-      const p = join4(decisionsDir, e2.name, "intent.md");
+      const p = join6(decisionsDir, e2.name, "intent.md");
       try {
         const stat5 = await fs.stat(p);
         refs.push({ path: p, mtime: stat5.mtimeMs, id: e2.name });
@@ -20014,7 +20213,7 @@ async function scanCaptureDir(dir, kind, seedField) {
         continue;
       const slug = name.slice(0, -3);
       try {
-        const text = await fs.readFile(join4(dir, name), "utf-8");
+        const text = await fs.readFile(join6(dir, name), "utf-8");
         const fm = parseFrontmatter(text).data;
         if (typeof fm.promoted_to === "string" && fm.promoted_to.length > 0)
           continue;
@@ -20030,13 +20229,13 @@ async function scanCaptureDir(dir, kind, seedField) {
 }
 async function gatherUnpromotedCaptures(stateRoot2) {
   const [ships, canaries] = await Promise.all([
-    scanCaptureDir(join4(stateRoot2, "ship-failures"), "ship-failure", "prevention_seed"),
-    scanCaptureDir(join4(stateRoot2, "canaries"), "canary", "regression_seed")
+    scanCaptureDir(join6(stateRoot2, "ship-failures"), "ship-failure", "prevention_seed"),
+    scanCaptureDir(join6(stateRoot2, "canaries"), "canary", "regression_seed")
   ]);
   return [...ships, ...canaries];
 }
 async function gatherUnclosedSpawns(stateRoot2, tailLines) {
-  const eventsPath2 = join4(stateRoot2, "progress", "events.ndjson");
+  const eventsPath2 = join6(stateRoot2, "progress", "events.ndjson");
   if (!existsSync21(eventsPath2))
     return [];
   try {
@@ -20270,10 +20469,10 @@ function renderHandoffMarkdown(snap) {
 `);
 }
 async function writeHandoffMarkdown(repoRoot2, slug, content) {
-  const tasksDir = join4(repoRoot2, "tasks");
+  const tasksDir = join6(repoRoot2, "tasks");
   await fs.mkdir(tasksDir, { recursive: true });
-  const target = join4(tasksDir, `${slug}-paused.md`);
-  const tmp = join4(tasksDir, `.${slug}-paused.md.tmp.${process.pid}.${Date.now()}`);
+  const target = join6(tasksDir, `${slug}-paused.md`);
+  const tmp = join6(tasksDir, `.${slug}-paused.md.tmp.${process.pid}.${Date.now()}`);
   await fs.writeFile(tmp, content, "utf-8");
   await fs.rename(tmp, target);
   return target;
@@ -20292,10 +20491,10 @@ __export(exports_handoff, {
 });
 import { existsSync as existsSync22 } from "node:fs";
 import * as fs2 from "node:fs/promises";
-import { join as join5 } from "node:path";
+import { join as join7 } from "node:path";
 async function runHandoff(opts) {
   const repoRoot2 = opts.repoRoot ?? process.cwd();
-  const stateRoot2 = opts.stateRoot ?? join5(repoRoot2, ".sgc");
+  const stateRoot2 = opts.stateRoot ?? join7(repoRoot2, ".sgc");
   const stdout2 = opts.stdoutWrite ?? ((s2) => process.stdout.write(s2));
   const stderr = opts.stderrWrite ?? ((s2) => process.stderr.write(s2));
   if (opts.auto) {
@@ -20318,7 +20517,7 @@ async function runHandoff(opts) {
     }
   }
   if (typeof opts.print === "string" && opts.print.length > 0) {
-    const target = join5(repoRoot2, "tasks", `${opts.print}-paused.md`);
+    const target = join7(repoRoot2, "tasks", `${opts.print}-paused.md`);
     if (!existsSync22(target)) {
       stderr(`no paused.md for slug ${opts.print}
 `);
@@ -22702,6 +22901,11 @@ var plan = defineCommand({
       required: false,
       description: "Override active handoff and start a new task"
     },
+    deep: {
+      type: "boolean",
+      required: false,
+      description: "Force deep decomposition at L1 (implied at L2/L3)"
+    },
     async: {
       type: "boolean",
       required: false,
@@ -22796,7 +23000,8 @@ var plan = defineCommand({
       motivation: args.motivation,
       autoConfirm: args.auto,
       forceNewTask: args["force-new-task"],
-      async: args.async
+      async: args.async,
+      deep: args.deep
     });
   }
 });
@@ -23474,4 +23679,24 @@ var main = defineCommand({
     doctor: () => doctor
   }
 });
-runMain(main);
+if (__require.main == __require.module) {
+  runMain(main);
+}
+function parsePlanFlags(argv2) {
+  const opts = {};
+  for (const arg of argv2) {
+    if (arg === "--auto") {
+      opts.autoConfirm = true;
+    } else if (arg === "--force-new-task") {
+      opts.forceNewTask = true;
+    } else if (arg === "--async") {
+      opts.async = true;
+    } else if (arg === "--deep") {
+      opts.deep = true;
+    }
+  }
+  return opts;
+}
+export {
+  parsePlanFlags
+};

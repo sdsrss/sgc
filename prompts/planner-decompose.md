@@ -53,3 +53,7 @@ placeholders ("TBD", "handle edge cases", "add validation" are failures).
   arrays conservative.
 - Banned vocabulary: no "robust", "comprehensive", "significantly",
   "should work", or baseline-less ratios.
+
+## Input
+
+<input_yaml/>

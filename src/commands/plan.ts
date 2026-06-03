@@ -41,6 +41,12 @@ import {
   type PlannerAdversarialOutput,
 } from "../dispatcher/agents/planner-adversarial"
 import {
+  plannerDecompose,
+  type DecomposeInput,
+  type DecomposeOutput,
+} from "../dispatcher/agents/planner-decompose"
+import { renderPlanMarkdown } from "../dispatcher/plan-render"
+import {
   extractPreventions,
   type PriorPrevention,
 } from "../dispatcher/preventions"
@@ -59,6 +65,7 @@ import {
   writeFeatureList,
   writeHandoff,
   writeIntent,
+  writePlanDoc,
 } from "../dispatcher/state"
 import { computeCommandTokens } from "../dispatcher/capabilities"
 import { delegationHintsFor, formatHint } from "../dispatcher/delegation"
@@ -90,6 +97,13 @@ export interface PlanOptions {
   // signaled to `runPlan` via the `SGC_PLAN_ASYNC_CHILD` env var and
   // runs runPlanCore wrapped in completePlanJob/failPlanJob.
   async?: boolean
+  /**
+   * Phase 2b: deep decomposition. Implied at L2/L3; opt-in at L1 via --deep.
+   * When active, planner.decompose authors file-level tasks + bite-sized steps
+   * into feature-list.md (replacing the single placeholder) and a derived
+   * sp-style markdown doc is written.
+   */
+  deep?: boolean
   // Test hook: inject the interactive confirmation reader (returns user
   // input, e.g. "yes"). Default reads one line from process.stdin.
   readConfirmation?: () => Promise<string>
@@ -606,6 +620,36 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
   const fusedSection = fused ? renderFusedSection(fused) + "\n\n" : ""
   const fusedVerdict: PlanVerdict | undefined = fused?.fused_verdict
 
+  // Phase 2b: deep decomposition. Active at L2/L3 automatically; at L1 only
+  // with --deep; never at L0 (no intent). Runs serially after fusion because
+  // it consumes the cluster outputs (eng risks + prior_art + failure_modes).
+  const deepActive =
+    level !== "L0" && (LEVEL_RANK[level] >= 2 || (level === "L1" && opts.deep === true))
+  let decomposed: DecomposeOutput | null = null
+  if (deepActive) {
+    const decomposeInput: DecomposeInput = {
+      intent_draft: taskDescription,
+      ...(plannerEngOut ? { structural_risks: plannerEngOut.structural_risks } : {}),
+      ...(researcherOut ? { prior_art: researcherOut.prior_art } : {}),
+      ...(adversarialOut ? { failure_modes: adversarialOut.failure_modes } : {}),
+      ...(capturedPriorPreventions.length > 0
+        ? { prior_preventions: capturedPriorPreventions }
+        : {}),
+    }
+    const decRes = await spawn<unknown, DecomposeOutput>(
+      "planner.decompose",
+      decomposeInput,
+      {
+        stateRoot,
+        inlineStub: (i) => plannerDecompose(i as DecomposeInput),
+        logger,
+        taskId,
+      },
+    )
+    decomposed = decRes.output
+    log(`planner.decompose: ${decomposed.tasks.length} task(s)`)
+  }
+
   if (level === "L3") {
     log("")
     log("=== L3 PLAN SUMMARY — confirm before intent.md is written (immutable) ===")
@@ -714,20 +758,49 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
     log(`L0 task: skipping intent.md per schema (decisions/ not written for L0)`)
   }
 
-  // Step 5: write feature-list (single placeholder for L0/L1 MVP)
-  writeFeatureList(
-    {
-      features: [
-        {
-          id: "f1",
-          title: taskDescription.slice(0, 200),
-          status: "pending",
-        },
-      ],
-    },
-    "Refine this list during `sgc work`. The dispatcher does not infer fine-grained features in MVP.\n",
-    stateRoot,
-  )
+  // Step 5: write feature-list. Deep path → one feature per decomposed task;
+  // otherwise the single-placeholder MVP shape (unchanged). Build the features
+  // array ONCE (single source of truth) and reuse it for both the feature-list
+  // write and the derived markdown render.
+  if (decomposed && decomposed.tasks.length > 0) {
+    const features = decomposed.tasks.map((t) => ({
+      id: t.id,
+      title: t.title,
+      status: "pending" as const,
+      files: t.files,
+      steps: t.steps,
+      ...(t.prior_art_refs.length > 0 ? { prior_art_refs: t.prior_art_refs } : {}),
+    }))
+    writeFeatureList(
+      { features },
+      "Authored by `sgc plan` deep decomposition. Each task carries file-level scope + bite-sized TDD steps.\n",
+      stateRoot,
+    )
+    const slug =
+      taskDescription
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 60) || "plan"
+    const dateIso = createdAt.slice(0, 10)
+    const md = renderPlanMarkdown({ features }, { title: taskDescription.slice(0, 120), level })
+    const docPath = writePlanDoc(slug, dateIso, md, stateRoot)
+    log(`wrote plan doc ${docPath}`)
+  } else {
+    writeFeatureList(
+      {
+        features: [
+          {
+            id: "f1",
+            title: taskDescription.slice(0, 200),
+            status: "pending",
+          },
+        ],
+      },
+      "Refine this list during `sgc work`. The dispatcher does not infer fine-grained features in MVP.\n",
+      stateRoot,
+    )
+  }
 
   // Step 6: write current-task
   writeCurrentTask(

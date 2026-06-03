@@ -83,7 +83,7 @@ sgc work --add "verify empty-input path"
 sgc work --done f1 --verify-command "bun test tests/foo.test.ts"
 
 # 3. Independent review of your diff
-sgc review                                 # reviewer.correctness vs git diff (or --base <ref>)
+sgc review                                 # reviewer.correctness at L1; full cluster (tests + maintainability + conditional specialists) at L2+ vs git diff
 
 # 4. Ship + compound knowledge
 sgc ship                                   # 8-gate ship; auto-runs the compound janitor
@@ -99,7 +99,7 @@ State lives under `.sgc/` in the project (override via `SGC_STATE_ROOT`); it's `
 | `sgc discover <topic>` | Forcing-question clarifier; feeds `sgc plan --motivation` |
 | `sgc plan <task> [--motivation\|--signed-by\|--level\|--async]` | Classify L0–L3; run the planner cluster (L2 adds ceo+researcher, L3 adds adversarial + human signature); write immutable `decisions/{id}/intent.md` |
 | `sgc work [--add\|--done <id> --verify-command <s> [--evidence <s>]]` | Track `feature-list.md`; `--done` **requires** a verify command (verification close-gate) |
-| `sgc review [--base <ref>]` | Independent `reviewer.correctness` on your git diff → append-only report |
+| `sgc review [--base <ref>]` | Independent review on your git diff → append-only report(s); correctness at L1, full cluster at L2+ |
 | `sgc qa [<target>] [--flows a,b,c]` | Real-browser end-to-end QA; required before an L2+ ship |
 | `sgc ship [--auto\|--pr\|--no-janitor\|--force-compound]` | 8-gate ship; optional `gh pr create`; auto-invokes the compound janitor |
 | `sgc compound [--from-ship-failure\|--from-canary\|--force\|--slug …]` | Extract + dedup-gate (0.85) + write reusable `solutions/{cat}/{slug}.md` |
@@ -122,7 +122,7 @@ State lives under `.sgc/` in the project (override via `SGC_STATE_ROOT`); it's `
 |-------|-------|----------|--------|------------|
 | **L0** | Trivial (typo, format, config) | Skip — direct to work | None | No |
 | **L1** | Single file, < 50 lines, no behavior change | Light planner.eng | reviewer.correctness | No |
-| **L2** | Multi-file / behavior change / new tests | + planner.ceo + researcher.history | Reviewer cluster | No |
+| **L2** | Multi-file / behavior change / new tests | + planner.ceo + researcher.history | correctness + tests + maintainability + conditional specialists | No |
 | **L3** | Architecture, schema, prod, infra | + planner.adversarial | + conditional specialists (security/migration/perf/infra) | **Signature required; `--auto` refused** |
 
 ## Knowledge engine — the compounding loop

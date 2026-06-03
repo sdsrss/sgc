@@ -25,7 +25,7 @@ sgc runs every capability below natively and standalone; nothing breaks when sp/
 | Task classification + planner cluster | `sgc plan` (fused L2/L3 decision, GS-3) | — |
 | Completion verification gate | `sgc work --done` close-gate (Tier-1 sp absorb, v1.19.0) | `sp:verification-before-completion` |
 | Systematic debugging | `sgc debug` 4-phase walker (GS-4) | `sp:systematic-debugging` |
-| Independent review | `sgc review` (reviewer cluster) | `gs:/review` |
+| Independent review | `sgc review` (native L2+ cluster: correctness + tests + maintainability + conditional specialists) | `gs:/review` |
 | Browser QA | `sgc qa` (vendored `browse` binary) | `gs:/browse` |
 | Security review | `sgc cso` (GS-5) | — |
 | Ship + post-publish chain | `sgc ship` / `sgc land` / `sgc canary` (GS-1/7) | `gs:/ship` + `gs:/land-and-deploy` |

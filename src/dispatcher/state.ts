@@ -31,7 +31,7 @@ import {
   writeFileSync,
 } from "node:fs"
 import { randomBytes } from "node:crypto"
-import { dirname, resolve } from "node:path"
+import { dirname, join, resolve } from "node:path"
 import { dump as yamlDump, load as yamlLoad } from "js-yaml"
 import { PLAN_VERDICTS } from "./types"
 import type {
@@ -386,6 +386,25 @@ export function readCurrentTask(stateRoot?: string): { task: CurrentTask; body: 
 export function writeFeatureList(list: FeatureList, body = "", stateRoot?: string): string {
   const path = progressPath("feature-list", stateRoot)
   writeAtomic(path, serializeFrontmatter(list as unknown as Record<string, unknown>, body))
+  return path
+}
+
+/**
+ * Write a derived sp-style plan markdown doc (Phase 2b). Path:
+ * <base>/docs/superpowers/plans/<date>-<slug>.md. `base` defaults to cwd;
+ * tests pass a tmp dir. The content is produced by renderPlanMarkdown — this
+ * is a thin I/O wrapper only (the markdown is never hand-edited).
+ */
+export function writePlanDoc(
+  slug: string,
+  dateIso: string,
+  content: string,
+  base?: string,
+): string {
+  const dir = join(base ?? process.cwd(), "docs", "superpowers", "plans")
+  mkdirSync(dir, { recursive: true })
+  const path = join(dir, `${dateIso}-${slug}.md`)
+  writeAtomic(path, content)
   return path
 }
 

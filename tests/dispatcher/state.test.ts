@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -22,6 +23,7 @@ import {
   writeCurrentTask,
   writeFeatureList,
   writeIntent,
+  writePlanDoc,
   writeShip,
 } from "../../src/dispatcher/state"
 import type { IntentDoc, ReviewReport, ShipDoc } from "../../src/dispatcher/types"
@@ -348,4 +350,12 @@ test("feature-list round-trips files/steps/prior_art_refs", () => {
   expect(f.steps).toHaveLength(3)
   expect(f.steps![1]).toEqual({ kind: "verify-red", text: "run it", run: "bun test", expect: "FAIL" })
   expect(f.prior_art_refs).toEqual(["perf/pagination-cursor"])
+})
+
+test("writePlanDoc writes under docs/superpowers/plans relative to base", () => {
+  const root = mkdtempSync(join(tmpdir(), "sgc-plandoc-"))
+  const p = writePlanDoc("native-deep-planning", "2026-06-03", "# Plan\n", root)
+  expect(p).toContain("docs/superpowers/plans/2026-06-03-native-deep-planning.md")
+  expect(existsSync(p)).toBe(true)
+  expect(readFileSync(p, "utf8")).toBe("# Plan\n")
 })

@@ -54,10 +54,11 @@ function nowIso(): string {
 }
 
 function nextActiveId(list: FeatureList): string | null {
-  // Prefer in_progress; else first pending.
-  const inProgress = list.features.find((f) => f.status === "in_progress")
+  const done = new Set(list.features.filter((f) => f.status === "done").map((f) => f.id))
+  const depsMet = (f: { depends_on?: string[] }) => (f.depends_on ?? []).every((d) => done.has(d))
+  const inProgress = list.features.find((f) => f.status === "in_progress" && depsMet(f))
   if (inProgress) return inProgress.id
-  const pending = list.features.find((f) => f.status === "pending")
+  const pending = list.features.find((f) => f.status === "pending" && depsMet(f))
   return pending ? pending.id : null
 }
 
@@ -69,7 +70,15 @@ function printList(log: (m: string) => void, list: FeatureList, activeId: string
   for (const f of list.features) {
     const marker = f.status === "done" ? "[x]" : f.id === activeId ? "[>]" : "[ ]"
     const status = f.status === "done" ? "" : ` (${f.status})`
-    log(`  ${marker} ${f.id}: ${f.title}${status}`)
+    let meta = ""
+    if (f.files) {
+      const n = f.files.create.length + f.files.modify.length + f.files.test.length
+      meta += ` — ${n} file${n === 1 ? "" : "s"}`
+    }
+    if (f.steps && f.steps.length > 0) {
+      meta += `${f.files ? "," : " —"} ${f.steps.length} step${f.steps.length === 1 ? "" : "s"}`
+    }
+    log(`  ${marker} ${f.id}: ${f.title}${status}${meta}`)
   }
 }
 

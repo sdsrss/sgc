@@ -302,6 +302,28 @@ subagents:
     token_budget: 6000
     timeout_s: 180
 
+  planner.decompose:
+    version: "0.1"
+    source: sp:writing-plans pattern (re-authored natively, Phase 2b; not vendored)
+    purpose: >
+      Decompose an approved intent into file-level tasks with bite-sized TDD
+      steps. CE reuse-in: prior failure-modes/preventions become guard steps;
+      prior_art solution_refs flow into per-task prior_art_refs.
+    prompt_path: prompts/planner-decompose.md
+    inputs:
+      intent_draft: markdown
+      # Prior data crosses as INPUT only — the agent holds no read:solutions
+      # (Invariant §1, same relaxation as planner.adversarial / CE-1).
+      structural_risks: array[{area, risk, mitigation}]
+      prior_art: array[{solution_ref, relevance_score, excerpt}]
+      failure_modes: array[{scenario, probability, impact, early_signal}]
+      prior_preventions: array[{solution_ref, category, prevention_text}]
+    outputs:
+      tasks: array[{id, title, files, steps, prior_art_refs}]
+    scope_tokens: ["read:decisions:*", "read:progress", "exec:git:read"]
+    token_budget: 8000
+    timeout_s: 240
+
   # ---- Researcher (CE lineage) ----
   researcher.history:
     version: "0.2"

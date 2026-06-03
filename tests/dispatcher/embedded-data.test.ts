@@ -12,8 +12,8 @@ test("contracts are inlined and non-empty", () => {
   expect(EMBEDDED_CONTRACTS["sgc-state.schema.yaml"]?.length).toBeGreaterThan(100)
 })
 
-test("all 10 prompts are inlined", () => {
-  expect(listEmbeddedPromptKeys().length).toBe(10)
+test("all 11 prompts are inlined", () => {
+  expect(listEmbeddedPromptKeys().length).toBe(11)
   expect(EMBEDDED_PROMPTS["prompts/planner-eng.md"]?.length).toBeGreaterThan(50)
 })
 
@@ -34,4 +34,9 @@ test("readContract honors SGC_CONTRACTS_DIR override", () => {
 
 test("readPrompt returns embedded text by default", () => {
   expect(readPrompt("prompts/planner-eng.md")).toBe(EMBEDDED_PROMPTS["prompts/planner-eng.md"]!)
+})
+
+test("planner-decompose prompt is embedded in the bundle", () => {
+  expect(EMBEDDED_PROMPTS["prompts/planner-decompose.md"]).toBeDefined()
+  expect(EMBEDDED_PROMPTS["prompts/planner-decompose.md"]!.length).toBeGreaterThan(100)
 })

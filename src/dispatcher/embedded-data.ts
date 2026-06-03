@@ -26,6 +26,7 @@ import compoundContext from "../../prompts/compound-context.md" with { type: "te
 import compoundPrevention from "../../prompts/compound-prevention.md" with { type: "text" }
 import compoundSolution from "../../prompts/compound-solution.md" with { type: "text" }
 import plannerAdversarial from "../../prompts/planner-adversarial.md" with { type: "text" }
+import plannerDecompose from "../../prompts/planner-decompose.md" with { type: "text" }
 import plannerCeo from "../../prompts/planner-ceo.md" with { type: "text" }
 import plannerEng from "../../prompts/planner-eng.md" with { type: "text" }
 import researcherHistory from "../../prompts/researcher-history.md" with { type: "text" }
@@ -46,6 +47,7 @@ export const EMBEDDED_PROMPTS: Record<string, string> = {
   "prompts/compound-prevention.md": compoundPrevention,
   "prompts/compound-solution.md": compoundSolution,
   "prompts/planner-adversarial.md": plannerAdversarial,
+  "prompts/planner-decompose.md": plannerDecompose,
   "prompts/planner-ceo.md": plannerCeo,
   "prompts/planner-eng.md": plannerEng,
   "prompts/researcher-history.md": researcherHistory,

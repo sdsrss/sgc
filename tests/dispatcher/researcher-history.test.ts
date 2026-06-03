@@ -240,7 +240,7 @@ describe("runPlan — researcher.history wiring (D-2.2)", () => {
     expect(body).toContain("Prior art (researcher.history)")
   })
 
-  test("L2 audit trail has all 4 expected prompts (classifier + eng + ceo + research)", async () => {
+  test("L2 audit trail has all 5 expected prompts (classifier + eng + ceo + research + decompose)", async () => {
     seedSolution(
       tmp,
       "data",
@@ -257,7 +257,9 @@ describe("runPlan — researcher.history wiring (D-2.2)", () => {
     expect(prompts.filter((f) => f.includes("planner.eng")).length).toBe(1)
     expect(prompts.filter((f) => f.includes("planner.ceo")).length).toBe(1)
     expect(prompts.filter((f) => f.includes("researcher.history")).length).toBe(1)
-    expect(prompts.length).toBe(4)
+    // Phase 2b: L2 auto-decomposes, so planner.decompose also spawns (5th prompt).
+    expect(prompts.filter((f) => f.includes("planner.decompose")).length).toBe(1)
+    expect(prompts.length).toBe(5)
   })
 
   test("L3 researcher runs + intent body has prior art (even if empty)", async () => {

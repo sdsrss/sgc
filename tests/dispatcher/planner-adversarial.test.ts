@@ -189,8 +189,10 @@ describe("runPlan — L3 adversarial wiring (D-3.1)", () => {
     expect(r.level).toBe("L3")
     const prompts = readdirSync(resolve(tmp, "progress/agent-prompts"))
     expect(prompts.some((f) => f.includes("planner.adversarial"))).toBe(true)
-    // L3 audit trail has 5 prompt files
-    expect(prompts.length).toBe(5)
+    // Phase 2b: L3 also auto-decomposes (planner.decompose), so the audit trail
+    // has 6 prompt files (classifier + eng + ceo + research + adversarial + decompose).
+    expect(prompts.some((f) => f.includes("planner.decompose"))).toBe(true)
+    expect(prompts.length).toBe(6)
     const intent = readIntent(r.taskId, tmp)
     expect(intent.body ?? "").toContain("Pre-mortem (planner.adversarial)")
   })

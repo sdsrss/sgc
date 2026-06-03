@@ -32,6 +32,10 @@ import {
   type ReviewerSpecialistOutput,
 } from "../dispatcher/agents/reviewer-specialists"
 import {
+  reviewerTests,
+  reviewerMaintainability,
+} from "../dispatcher/agents/reviewer-quality"
+import {
   appendReview,
   readCurrentTask,
   readIntent,
@@ -215,9 +219,51 @@ export async function runReview(opts: ReviewOptions = {}): Promise<{
     log(`  ... ${correctnessReport.findings.length - 5} more findings (see ${reportPath})`)
   }
 
-  // L3 diff-conditional specialist cluster
+  // Phase 2c: L2+ always-on quality reviewers (tests + maintainability) +
+  // lowered specialist gate. L1 stays correctness-only. Reviewers receive the
+  // already-stripped intentForReviewer (Invariant §1) and hold no read:solutions.
+  const isL2Plus = level === "L2" || level === "L3"
+  const clusterReports: SpecialistReportRef[] = []
+
+  async function runClusterReviewer(
+    name: string,
+    agent: (i: { diff: string; intent: string }) => ReviewerSpecialistOutput,
+  ): Promise<void> {
+    const res = await spawn<unknown, ReviewerSpecialistOutput>(
+      name,
+      { diff, intent: intentForReviewer },
+      { stateRoot, inlineStub: (i) => agent(i as { diff: string; intent: string }), logger, taskId },
+    )
+    const report: ReviewReport = {
+      report_id: generateReportId(),
+      task_id: taskId,
+      stage: "code",
+      reviewer_id: name,
+      reviewer_version: "0.1",
+      verdict: res.output.verdict,
+      severity: res.output.severity,
+      findings: res.output.findings,
+      created_at: nowIso(),
+    }
+    const path = appendReview(report, "", stateRoot, opts.appendAs)
+    clusterReports.push({
+      reviewerId: name,
+      verdict: res.output.verdict,
+      severity: res.output.severity,
+      reportPath: path,
+      findingsCount: res.output.findings.length,
+    })
+    log(`${name}: ${res.output.verdict} (severity: ${res.output.severity}, ${res.output.findings.length} finding(s))`)
+  }
+
+  if (isL2Plus) {
+    await runClusterReviewer("reviewer.tests", reviewerTests)
+    await runClusterReviewer("reviewer.maintainability", reviewerMaintainability)
+  }
+
+  // L2+ diff-conditional specialist cluster (lowered from L3-only)
   const specialistReports: SpecialistReportRef[] = []
-  if (level === "L3") {
+  if (isL2Plus) {
     const matched = matchSpecialists(diff)
     if (matched.length > 0) {
       const specResults = await Promise.all(
@@ -271,8 +317,9 @@ export async function runReview(opts: ReviewOptions = {}): Promise<{
 
   const aggregateVerdict = worstVerdict([
     correctnessReport.verdict,
+    ...clusterReports.map((s) => s.verdict),
     ...specialistReports.map((s) => s.verdict),
   ])
 
-  return { taskId, verdict: aggregateVerdict, reportPath, specialistReports }
+  return { taskId, verdict: aggregateVerdict, reportPath, specialistReports: [...clusterReports, ...specialistReports] }
 }

@@ -251,27 +251,38 @@ describe("runReview — L3 diff-conditional specialists", () => {
     expect(r.specialistReports).toEqual([])
   })
 
-  test("L3 with no specialist trigger → only correctness report", async () => {
+  test("L3 with no specialist trigger → correctness + quality trio, no domain specialists", async () => {
     await l3Task()
     const r = await runReview({
       stateRoot: tmp,
       diffOverride: "+const greeting = 'hi'\n",
       log: () => {},
     })
-    expect(r.specialistReports).toEqual([])
+    // Phase 2c: L2+ always-on quality reviewers run even without domain triggers.
+    // No +++ headers in this diff → reviewerTests sees no source paths → pass.
+    const ids = r.specialistReports.map((s) => s.reviewerId)
+    expect(ids).toContain("reviewer.tests")
+    expect(ids).toContain("reviewer.maintainability")
+    expect(ids).not.toContain("reviewer.security")
+    expect(ids).not.toContain("reviewer.migration")
     expect(r.verdict).toBe("pass")
   })
 
-  test("L3 with auth-keyword diff spawns reviewer.security", async () => {
+  test("L3 with auth-keyword diff spawns reviewer.security + quality trio", async () => {
     const plan = await l3Task()
     const r = await runReview({
       stateRoot: tmp,
       diffOverride: "+function signJwt(payload) { return jwt.sign(payload) }\n",
       log: () => {},
     })
-    expect(r.specialistReports.length).toBe(1)
-    expect(r.specialistReports[0]?.reviewerId).toBe("reviewer.security")
-    expect(r.specialistReports[0]?.severity).toBe("medium")
+    // Phase 2c: quality trio (tests + maintainability) always run at L2+;
+    // security specialist added by keyword match. No +++ headers → reviewerTests=pass.
+    const ids = r.specialistReports.map((s) => s.reviewerId)
+    expect(ids).toContain("reviewer.tests")
+    expect(ids).toContain("reviewer.maintainability")
+    expect(ids).toContain("reviewer.security")
+    const secReport = r.specialistReports.find((s) => s.reviewerId === "reviewer.security")
+    expect(secReport?.severity).toBe("medium")
     // Aggregate verdict reflects worst-of (correctness=pass + security=concern)
     expect(r.verdict).toBe("concern")
     // Each specialist gets its own append-only report on disk
@@ -279,7 +290,7 @@ describe("runReview — L3 diff-conditional specialists", () => {
     expect(stored?.report.verdict).toBe("concern")
   })
 
-  test("L3 with multiple triggers spawns multiple specialists in parallel", async () => {
+  test("L3 with multiple triggers spawns quality trio + multiple domain specialists in parallel", async () => {
     await l3Task()
     const r = await runReview({
       stateRoot: tmp,
@@ -290,12 +301,15 @@ describe("runReview — L3 diff-conditional specialists", () => {
         "+FROM node:20-alpine\n",
       log: () => {},
     })
+    // Phase 2c: quality trio always at L2+; domain specialists added by keyword match.
     const ids = r.specialistReports.map((s) => s.reviewerId).sort()
     expect(ids).toEqual([
       "reviewer.infra",
+      "reviewer.maintainability",
       "reviewer.migration",
       "reviewer.performance",
       "reviewer.security",
+      "reviewer.tests",
     ])
     // Worst severity (high from migration/infra) drives aggregate
     expect(r.verdict).toBe("concern")
@@ -318,6 +332,51 @@ describe("runReview — L3 diff-conditional specialists", () => {
         log: () => {},
       }),
     ).rejects.toThrow(/append-only/)
+  })
+})
+
+describe("runReview — L2+ quality trio cluster", () => {
+  test("L1 review spawns ONLY reviewer.correctness (no quality/specialists)", async () => {
+    await runPlan("simple change", { stateRoot: tmp, motivation: LONG_MOTIVATION, log: () => {} })
+    await runReview({ stateRoot: tmp, diffOverride: "diff --git a/src/x.ts b/src/x.ts\n+++ b/src/x.ts\n+const ok = 1\n", log: () => {} })
+    const prompts = readdirSync(resolve(tmp, "progress", "agent-prompts"))
+    expect(prompts.some((f) => f.includes("reviewer.correctness"))).toBe(true)
+    expect(prompts.some((f) => f.includes("reviewer.tests"))).toBe(false)
+    expect(prompts.some((f) => f.includes("reviewer.maintainability"))).toBe(false)
+  })
+
+  test("L2 review spawns the quality trio + matched specialist", async () => {
+    const plan = await runPlan("add OAuth token refresh to the public API client", {
+      stateRoot: tmp, forceLevel: "L2", motivation: LONG_MOTIVATION, log: () => {},
+    })
+    const r = await runReview({
+      stateRoot: tmp,
+      diffOverride: "diff --git a/src/auth.ts b/src/auth.ts\n+++ b/src/auth.ts\n+const token = signJwt(user)\n",
+      log: () => {},
+    })
+    const prompts = readdirSync(resolve(tmp, "progress", "agent-prompts"))
+    for (const name of ["reviewer.correctness", "reviewer.tests", "reviewer.maintainability", "reviewer.security"]) {
+      expect(prompts.some((f) => f.includes(name))).toBe(true)
+    }
+    expect(["concern", "fail"]).toContain(r.verdict)
+    expect(readReview(plan.taskId, "code", "reviewer.tests", tmp)?.report.verdict).toBe("concern")
+  })
+
+  test("L3 review still spawns correctness + quality + specialists (regression)", async () => {
+    await runPlan("add a database migration to rename a column on the orders table", {
+      stateRoot: tmp, forceLevel: "L3",
+      userSignature: { signed_at: "2026-06-03T00:00:00Z", signer_id: "alice" },
+      readConfirmation: async () => "yes", motivation: LONG_MOTIVATION, log: () => {},
+    })
+    await runReview({
+      stateRoot: tmp,
+      diffOverride: "diff --git a/db/m.sql b/db/m.sql\n+++ b/db/m.sql\n+ALTER TABLE orders RENAME COLUMN a TO b;\n",
+      log: () => {},
+    })
+    const prompts = readdirSync(resolve(tmp, "progress", "agent-prompts"))
+    for (const name of ["reviewer.correctness", "reviewer.tests", "reviewer.maintainability", "reviewer.migration"]) {
+      expect(prompts.some((f) => f.includes(name))).toBe(true)
+    }
   })
 })
 

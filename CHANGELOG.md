@@ -11,29 +11,31 @@ specialist automatically.
 
 ### What changed
 
-**New subagents**
+**New subagents** (both in `src/dispatcher/agents/reviewer-quality.ts`)
 
-- `src/dispatcher/agents/reviewer-tests.ts` — `reviewer.tests` checks whether the
-  diff includes test coverage for each changed source path; emits a `concern`
-  when source files change without an accompanying test file in the diff.
-- `src/dispatcher/agents/reviewer-maintainability.ts` — `reviewer.maintainability`
-  flags structural issues: long functions, missing type annotations on exported
-  symbols, and naming inconsistencies.
+- `reviewer.tests` — emits a `concern` (severity `medium`) when the diff changes
+  source files but adds no test file (classified from the `+++ b/<path>` headers).
+- `reviewer.maintainability` — emits a `concern` (severity `low`, advisory) for
+  added lines over 120 chars or carrying a `TODO` / `FIXME` / `@ts-ignore` /
+  `@ts-nocheck` / `eslint-disable` / `as any` marker.
+
+Both are heuristic stubs; the LLM path uses the synthesized prompt derived from
+the `reviewer.correctness` anchor (`prompt_path: null`, no new prompt files —
+same shape as the existing domain specialists). Manifest entries flipped from
+`status: slot-only` to `status: implemented`.
 
 **`sgc review` wiring (L2+)**
 
-- `src/commands/review.ts` — the reviewer dispatch block now fans out
-  `reviewer.correctness`, `reviewer.tests`, and `reviewer.maintainability` in
-  parallel at L2+, in addition to the existing diff-conditional specialists
-  (security / migration / performance / infra) whose gate is lowered to L2+.
+- `src/commands/review.ts` — `reviewer.correctness` still runs at every review;
+  at L2+ the dispatch additionally runs `reviewer.tests` + `reviewer.maintainability`
+  (always) plus the diff-conditional specialists (security / migration /
+  performance / infra) whose gate is lowered from L3-only to L2+.
 - Aggregate verdict remains worst-of across all spawned reviewers (`pass < concern < fail`).
+  Note the L2 strictness shift: a source-only diff (no test file) now yields a
+  `concern` from `reviewer.tests`.
 - Invariant §1 (generator-evaluator separation, reviewers MUST NOT read `solutions/`)
-  is preserved: the two new agents are amnesiac by construction.
-
-**Prompt files**
-
-- `prompts/reviewer-tests.md` — embedded in bundle via `src/dispatcher/embedded-data.ts`.
-- `prompts/reviewer-maintainability.md` — embedded in bundle.
+  is preserved: the two new agents receive the same back-channel-stripped intent
+  and inherit the `reviewer_base` scope tokens (no `read:solutions`).
 
 **POSITIONING**
 

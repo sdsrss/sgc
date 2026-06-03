@@ -140,6 +140,11 @@ progress:
             # features done before the gate existed are grandfathered.
             verify_command:  { type: string, optional: true }
             evidence:        { type: string, optional: true }
+            # Phase 2b deep-plan fields (additive, optional — absent on non-deep plans):
+            #   files:          { create: [path], modify: [path], test: [path] }
+            #   steps:          [{ kind, text, run?, expect? }]  kind ∈ test|verify-red|
+            #                   implement|verify-green|commit|guard
+            #   prior_art_refs: [solution_ref]  — CE reuse-in provenance
 
     current_task:
       filename: current-task.md

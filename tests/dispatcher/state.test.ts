@@ -318,3 +318,34 @@ describe("writeAtomic (STAB-4: tmp cleanup + collision-safe naming)", () => {
     expect(readdirSync(tmp).filter((f) => f.includes(".tmp."))).toEqual([])
   })
 })
+
+import type { FeatureList } from "../../src/dispatcher/types"
+
+test("feature-list round-trips files/steps/prior_art_refs", () => {
+  const root = mkdtempSync(join(tmpdir(), "sgc-state-deep-"))
+  ensureSgcStructure(root)
+  const list: FeatureList = {
+    features: [
+      {
+        id: "f1",
+        title: "add cursor pagination",
+        status: "pending",
+        files: { create: ["src/page.ts"], modify: ["src/api.ts"], test: ["tests/page.test.ts"] },
+        steps: [
+          { kind: "test", text: "write failing test" },
+          { kind: "verify-red", text: "run it", run: "bun test", expect: "FAIL" },
+          { kind: "guard", text: "guard against off-by-one" },
+        ],
+        prior_art_refs: ["perf/pagination-cursor"],
+      },
+    ],
+  }
+  writeFeatureList(list, "", root)
+  const back = readFeatureList(root)
+  expect(back).not.toBeNull()
+  const f = back!.list.features[0]!
+  expect(f.files).toEqual({ create: ["src/page.ts"], modify: ["src/api.ts"], test: ["tests/page.test.ts"] })
+  expect(f.steps).toHaveLength(3)
+  expect(f.steps![1]).toEqual({ kind: "verify-red", text: "run it", run: "bun test", expect: "FAIL" })
+  expect(f.prior_art_refs).toEqual(["perf/pagination-cursor"])
+})

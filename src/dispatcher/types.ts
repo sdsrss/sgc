@@ -50,6 +50,30 @@ export interface ShipDoc {
   rollback_ref?: string
 }
 
+export type PlanStepKind =
+  | "test"
+  | "verify-red"
+  | "implement"
+  | "verify-green"
+  | "commit"
+  | "guard"
+
+/**
+ * One bite-sized step inside a decomposed plan task (Phase 2b). Mirrors the
+ * sp:writing-plans 5-step TDD cycle (test → verify-red → implement →
+ * verify-green → commit) plus `guard` — a defensive step derived from a prior
+ * failure-mode / prevention (CE reuse-in).
+ */
+export interface PlanStep {
+  kind: PlanStepKind
+  /** Complete content for the engineer. NO placeholders (sp:writing-plans rule). */
+  text: string
+  /** Exact command for verify-* / commit steps. */
+  run?: string
+  /** Expected output for verify-* steps. */
+  expect?: string
+}
+
 export interface Feature {
   id: string
   title: string
@@ -77,6 +101,17 @@ export interface Feature {
   red_output?: string
   /** Reason a feature was closed without a prior-RED (e.g. "docs-only"). */
   waived_red?: string
+  /**
+   * Deep-plan decomposition (Phase 2b). Set when `sgc plan` authors a
+   * file-level task. Absent on the single-placeholder feature (non-deep paths).
+   */
+  files?: { create: string[]; modify: string[]; test: string[] }
+  steps?: PlanStep[]
+  /**
+   * solution_refs from researcher.history prior_art that seeded this task
+   * (CE reuse-in). Drives surfaced_in / applied_in writeback in plan.ts.
+   */
+  prior_art_refs?: string[]
 }
 
 export interface FeatureList {

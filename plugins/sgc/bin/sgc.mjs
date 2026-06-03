@@ -5480,8 +5480,8 @@ subagents:
   # prompts (the anchor carries prompt_path from reviewer.correctness).
   reviewer.security:        { <<: *reviewer_base, prompt_path: null, status: implemented }
   reviewer.performance:     { <<: *reviewer_base, prompt_path: null, status: implemented }
-  reviewer.tests:           { <<: *reviewer_base, prompt_path: null, status: slot-only, roadmap: "L2+ test-coverage review; deferred" }
-  reviewer.maintainability: { <<: *reviewer_base, prompt_path: null, status: slot-only, roadmap: "readability/complexity review; deferred" }
+  reviewer.tests:           { <<: *reviewer_base, prompt_path: null, status: implemented }
+  reviewer.maintainability: { <<: *reviewer_base, prompt_path: null, status: implemented }
   reviewer.adversarial:     { <<: *reviewer_base, prompt_path: null, status: slot-only, roadmap: "L3 pre-mortem reviewer; deferred" }
   reviewer.migration:       { <<: *reviewer_base, prompt_path: null, status: implemented }
   reviewer.infra:           { <<: *reviewer_base, prompt_path: null, status: implemented }
@@ -15770,6 +15770,65 @@ var init_reviewer_specialists = __esm(() => {
   ];
 });
 
+// src/dispatcher/agents/reviewer-quality.ts
+function addedLines2(diff) {
+  return (diff ?? "").split(`
+`).filter((l2) => l2.startsWith("+") && !l2.startsWith("+++"));
+}
+function changedFilePaths(diff) {
+  const paths = [];
+  for (const line of (diff ?? "").split(`
+`)) {
+    if (line.startsWith("+++ ")) {
+      const p = line.slice(4).replace(/^[ab]\//, "").trim();
+      if (p && p !== "/dev/null")
+        paths.push(p);
+    }
+  }
+  return paths;
+}
+function isTestPath(path2) {
+  return /(^|\/)(tests?|spec|__tests__)(\/|$)/i.test(path2) || /\.(test|spec)\./i.test(path2) || /_test\./i.test(path2);
+}
+function reviewerTests(input) {
+  const paths = changedFilePaths(input.diff ?? "");
+  const sourceChanged = paths.filter((p) => !isTestPath(p) && !NON_SOURCE.test(p));
+  const testChanged = paths.filter((p) => isTestPath(p));
+  if (sourceChanged.length > 0 && testChanged.length === 0) {
+    const findings = [
+      {
+        description: `source/behavior change without test additions: ${sourceChanged.slice(0, 5).join(", ")}`
+      }
+    ];
+    return { verdict: "concern", severity: "medium", findings };
+  }
+  return { verdict: "pass", severity: "none", findings: [] };
+}
+function reviewerMaintainability(input) {
+  const findings = [];
+  for (const raw of addedLines2(input.diff ?? "")) {
+    const line = raw.slice(1);
+    if (line.length > MAX_LINE) {
+      findings.push({
+        description: `long added line (${line.length} > ${MAX_LINE} chars): ${line.slice(0, 80).trim()}`
+      });
+    }
+    if (MAINT_MARKERS.test(line)) {
+      findings.push({
+        description: `maintainability marker in added line: ${line.slice(0, 120).trim()}`
+      });
+    }
+  }
+  const severity = findings.length > 0 ? "low" : "none";
+  const verdict = findings.length > 0 ? "concern" : "pass";
+  return { verdict, severity, findings };
+}
+var NON_SOURCE, MAINT_MARKERS, MAX_LINE = 120;
+var init_reviewer_quality = __esm(() => {
+  NON_SOURCE = /\.(md|markdown|txt|json|ya?ml|toml|lock|cfg|ini)$/i;
+  MAINT_MARKERS = /(TODO|FIXME|@ts-ignore|@ts-nocheck|eslint-disable|\bas any\b)/;
+});
+
 // src/commands/review.ts
 var exports_review = {};
 __export(exports_review, {
@@ -15861,8 +15920,37 @@ async function runReview(opts = {}) {
   if (correctnessReport.findings.length > 5) {
     log(`  ... ${correctnessReport.findings.length - 5} more findings (see ${reportPath})`);
   }
+  const isL2Plus = level === "L2" || level === "L3";
+  const clusterReports = [];
+  async function runClusterReviewer(name, agent) {
+    const res = await spawn3(name, { diff, intent: intentForReviewer }, { stateRoot, inlineStub: (i3) => agent(i3), logger, taskId });
+    const report = {
+      report_id: generateReportId(),
+      task_id: taskId,
+      stage: "code",
+      reviewer_id: name,
+      reviewer_version: "0.1",
+      verdict: res.output.verdict,
+      severity: res.output.severity,
+      findings: res.output.findings,
+      created_at: nowIso3()
+    };
+    const path2 = appendReview(report, "", stateRoot, opts.appendAs);
+    clusterReports.push({
+      reviewerId: name,
+      verdict: res.output.verdict,
+      severity: res.output.severity,
+      reportPath: path2,
+      findingsCount: res.output.findings.length
+    });
+    log(`${name}: ${res.output.verdict} (severity: ${res.output.severity}, ${res.output.findings.length} finding(s))`);
+  }
+  if (isL2Plus) {
+    await runClusterReviewer("reviewer.tests", reviewerTests);
+    await runClusterReviewer("reviewer.maintainability", reviewerMaintainability);
+  }
   const specialistReports = [];
-  if (level === "L3") {
+  if (isL2Plus) {
     const matched = matchSpecialists(diff);
     if (matched.length > 0) {
       const specResults = await Promise.all(matched.map((s2) => spawn3(s2.name, { diff, intent: intentForReviewer }, {
@@ -15903,15 +15991,17 @@ async function runReview(opts = {}) {
   log(`wrote ${reportPath}${specialistReports.length > 0 ? ` (+${specialistReports.length} specialists)` : ""}`);
   const aggregateVerdict = worstVerdict([
     correctnessReport.verdict,
+    ...clusterReports.map((s2) => s2.verdict),
     ...specialistReports.map((s2) => s2.verdict)
   ]);
-  return { taskId, verdict: aggregateVerdict, reportPath, specialistReports };
+  return { taskId, verdict: aggregateVerdict, reportPath, specialistReports: [...clusterReports, ...specialistReports] };
 }
 var VERDICT_ORDER;
 var init_review = __esm(() => {
   init_spawn();
   init_reviewer_correctness2();
   init_reviewer_specialists();
+  init_reviewer_quality();
   init_state();
   init_delegation();
   init_logger();
@@ -19689,8 +19779,37 @@ async function runReview2(opts = {}) {
   if (correctnessReport.findings.length > 5) {
     log(`  ... ${correctnessReport.findings.length - 5} more findings (see ${reportPath})`);
   }
+  const isL2Plus = level === "L2" || level === "L3";
+  const clusterReports = [];
+  async function runClusterReviewer(name, agent) {
+    const res = await spawn3(name, { diff, intent: intentForReviewer }, { stateRoot: stateRoot2, inlineStub: (i3) => agent(i3), logger, taskId });
+    const report = {
+      report_id: generateReportId3(),
+      task_id: taskId,
+      stage: "code",
+      reviewer_id: name,
+      reviewer_version: "0.1",
+      verdict: res.output.verdict,
+      severity: res.output.severity,
+      findings: res.output.findings,
+      created_at: nowIso11()
+    };
+    const path2 = appendReview(report, "", stateRoot2, opts.appendAs);
+    clusterReports.push({
+      reviewerId: name,
+      verdict: res.output.verdict,
+      severity: res.output.severity,
+      reportPath: path2,
+      findingsCount: res.output.findings.length
+    });
+    log(`${name}: ${res.output.verdict} (severity: ${res.output.severity}, ${res.output.findings.length} finding(s))`);
+  }
+  if (isL2Plus) {
+    await runClusterReviewer("reviewer.tests", reviewerTests);
+    await runClusterReviewer("reviewer.maintainability", reviewerMaintainability);
+  }
   const specialistReports = [];
-  if (level === "L3") {
+  if (isL2Plus) {
     const matched = matchSpecialists(diff);
     if (matched.length > 0) {
       const specResults = await Promise.all(matched.map((s2) => spawn3(s2.name, { diff, intent: intentForReviewer }, {
@@ -19731,15 +19850,17 @@ async function runReview2(opts = {}) {
   log(`wrote ${reportPath}${specialistReports.length > 0 ? ` (+${specialistReports.length} specialists)` : ""}`);
   const aggregateVerdict = worstVerdict2([
     correctnessReport.verdict,
+    ...clusterReports.map((s2) => s2.verdict),
     ...specialistReports.map((s2) => s2.verdict)
   ]);
-  return { taskId, verdict: aggregateVerdict, reportPath, specialistReports };
+  return { taskId, verdict: aggregateVerdict, reportPath, specialistReports: [...clusterReports, ...specialistReports] };
 }
 var VERDICT_ORDER2;
 var init_review2 = __esm(() => {
   init_spawn();
   init_reviewer_correctness2();
   init_reviewer_specialists();
+  init_reviewer_quality();
   init_state();
   init_delegation();
   init_logger();
@@ -22698,7 +22819,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.26.0",
+  version: "1.27.0",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {

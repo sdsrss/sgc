@@ -1,5 +1,49 @@
 # Changelog
 
+## v1.27.0 — 2026-06-03 — native L2 reviewer cluster (Phase 2c)
+
+`sgc review` at L2+ now runs a three-agent correctness+tests+maintainability
+cluster plus the diff-conditional domain specialists. Previously the multi-reviewer
+path was wired only at L3; L2 tasks received a single `reviewer.correctness` pass.
+The gate threshold for the diff-conditional specialists is also lowered from L3-only
+to L2+, so a security-keyword or migration diff at L2 now triggers the appropriate
+specialist automatically.
+
+### What changed
+
+**New subagents**
+
+- `src/dispatcher/agents/reviewer-tests.ts` — `reviewer.tests` checks whether the
+  diff includes test coverage for each changed source path; emits a `concern`
+  when source files change without an accompanying test file in the diff.
+- `src/dispatcher/agents/reviewer-maintainability.ts` — `reviewer.maintainability`
+  flags structural issues: long functions, missing type annotations on exported
+  symbols, and naming inconsistencies.
+
+**`sgc review` wiring (L2+)**
+
+- `src/commands/review.ts` — the reviewer dispatch block now fans out
+  `reviewer.correctness`, `reviewer.tests`, and `reviewer.maintainability` in
+  parallel at L2+, in addition to the existing diff-conditional specialists
+  (security / migration / performance / infra) whose gate is lowered to L2+.
+- Aggregate verdict remains worst-of across all spawned reviewers (`pass < concern < fail`).
+- Invariant §1 (generator-evaluator separation, reviewers MUST NOT read `solutions/`)
+  is preserved: the two new agents are amnesiac by construction.
+
+**Prompt files**
+
+- `prompts/reviewer-tests.md` — embedded in bundle via `src/dispatcher/embedded-data.ts`.
+- `prompts/reviewer-maintainability.md` — embedded in bundle.
+
+**POSITIONING**
+
+- `docs/POSITIONING.md` — "Reviewer cluster" row updated from
+  `L3-only → all clusters` to `L2+ → correctness + tests + maintainability + specialists`
+  to match the now-true behaviour.
+
+**Strictly no change to**: `solutions/` access paths, Invariant §1–§13 enforcement,
+`reviewer.correctness` logic, or L0/L1 review paths.
+
 ## v1.26.0 — 2026-06-03 — native deep planning (Phase 2b)
 
 `sgc plan` now authors file-level tasks with bite-sized TDD steps at L2 and L3

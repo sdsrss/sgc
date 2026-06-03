@@ -1,5 +1,67 @@
 # Changelog
 
+## v1.26.0 — 2026-06-03 — native deep planning (Phase 2b)
+
+`sgc plan` now authors file-level tasks with bite-sized TDD steps at L2 and L3
+(and at L1 with `--deep`), writing a single-source-of-truth feature-list.md and
+a derived sp-style markdown doc. The new `planner.decompose` subagent runs after
+the planning cluster and consumes eng structural risks, researcher prior-art, and
+adversarial failure modes to produce concrete `files` + `steps` per feature.
+
+### What changed
+
+**New: `planner.decompose` subagent (Phase 2b)**
+
+- `src/dispatcher/agents/planner-decompose.ts` — inline stub produces
+  file-level tasks; LLM path consumes `structural_risks`, `prior_art`,
+  `failure_modes`, and `prior_preventions` from the cluster outputs and
+  returns `DecomposeOutput` (`tasks[]` with `files`, `steps`,
+  `prior_art_refs`, `depends_on`).
+- `prompts/planner-decompose.md` — full prompt embedded in bundle via
+  `src/dispatcher/embedded-data.ts`; enforces bite-sized TDD steps (one
+  RED-then-GREEN pair each), CE guard-step injection from prior failure modes,
+  and `depends_on` ordering.
+
+**Enriched `Feature` type**
+
+- `src/dispatcher/types.ts` — `Feature` gains optional `files: string[]`,
+  `steps: Step[]`, `prior_art_refs: string[]`, and `depends_on: string[]`
+  fields (Phase 2b addition; backward-compatible, undefined on old records).
+- `renderPlanMarkdown` + `writePlanDoc` produce a formatted sp-style doc
+  under `docs/superpowers/plans/<date>-<slug>.md` when decompose output is
+  present.
+
+**`sgc plan` gating**
+
+- Deep decomposition is **implicit at L2/L3** (always on) and **opt-in at L1**
+  via `--deep` flag; never at L0.
+- `src/commands/plan.ts` runs `planner.decompose` serially after fusion,
+  writes enriched features to feature-list.md (single source of truth), then
+  writes the derived plan doc.
+
+**`sgc work` adaptation**
+
+- `src/commands/work.ts` `printList` surfaces `files` count and `steps` count
+  for decomposed tasks when present.
+- `depends_on` ordering is respected: a feature with unmet deps is surfaced
+  as blocked in status output.
+
+**CE reuse-in**
+
+- Prior failure modes from `planner.adversarial` flow into decompose as
+  guard steps; `prior_art` from `researcher.history` populates `prior_art_refs`
+  on each task so the plan inherits the CE knowledge layer.
+
+**POSITIONING**
+
+- `docs/POSITIONING.md` — "Deep plan authoring" row updated from
+  `light (planner cluster)` to `native (sgc plan L2/L3 + --deep ...)`;
+  intro paragraph updated to remove "deep plan authoring" from the
+  remaining-gaps list (only "running the full TDD loop" remains honest gap).
+
+Spec: `docs/superpowers/specs/2026-06-03-deep-planning-design.md`. Plan:
+`docs/superpowers/plans/2026-06-03-phase-2b-deep-planning.md`.
+
 ## v1.25.0 — 2026-06-02 — TDD-ledger (Phase 2a)
 
 **MIGRATION (behavior change to `sgc work --done`):** closing a feature now

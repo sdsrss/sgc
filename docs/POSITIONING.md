@@ -18,7 +18,7 @@ If sp/gs happen to be installed, sgc can *optionally* hand the deepest work to t
 
 ### Optional interop (richer path if sp/gs are installed — never required)
 
-sgc runs every capability below natively and standalone; nothing breaks when sp/gs are absent. When they are present, sgc surfaces the upstream tool as an *optional* richer path. As of v1.25.0 sgc has a native **TDD-ledger** — `sgc work --done` enforces a recorded prior-RED (or an explicit waive) and promotes the RED→GREEN pair into the knowledge corpus — but it *records* the loop rather than *running* it; the honest remaining native gaps are **deep plan authoring** and **running** the full TDD loop. If sp is installed it stays the richer path for those.
+sgc runs every capability below natively and standalone; nothing breaks when sp/gs are absent. When they are present, sgc surfaces the upstream tool as an *optional* richer path. As of v1.25.0 sgc has a native **TDD-ledger** — `sgc work --done` enforces a recorded prior-RED (or an explicit waive) and promotes the RED→GREEN pair into the knowledge corpus — but it *records* the loop rather than *running* it; the honest remaining native gap is **running** the full TDD loop. If sp is installed it stays the richer path for that.
 
 | Capability | Native in sgc | Optional richer path (if installed) |
 |------------|---------------|-------------------------------------|
@@ -30,7 +30,7 @@ sgc runs every capability below natively and standalone; nothing breaks when sp/
 | Security review | `sgc cso` (GS-5) | — |
 | Ship + post-publish chain | `sgc ship` / `sgc land` / `sgc canary` (GS-1/7) | `gs:/ship` + `gs:/land-and-deploy` |
 | Intent framing / brainstorm | `sgc discover --template` (GS-6) | `sp:brainstorming` |
-| Deep plan authoring | light (planner cluster) | `sp:writing-plans` ← thinnest native gap |
+| Deep plan authoring | native (`sgc plan` L2/L3 + `--deep`: file-level tasks + bite-sized TDD steps, CE reuse-in) | `sp:writing-plans` (optional richer path) |
 | TDD discipline | native ledger (records prior-RED → GREEN, feeds CE); does not *run* tests | `sp:test-driven-development` runs the loop |
 | Parallel subagents | — | `sp:dispatching-parallel-agents` |
 | Design polish | — | `gs:/design-review` |

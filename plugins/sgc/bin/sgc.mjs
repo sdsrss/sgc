@@ -15528,10 +15528,12 @@ function nowIso2() {
   return new Date().toISOString();
 }
 function nextActiveId(list) {
-  const inProgress = list.features.find((f3) => f3.status === "in_progress");
+  const done = new Set(list.features.filter((f3) => f3.status === "done").map((f3) => f3.id));
+  const depsMet = (f3) => (f3.depends_on ?? []).every((d2) => done.has(d2));
+  const inProgress = list.features.find((f3) => f3.status === "in_progress" && depsMet(f3));
   if (inProgress)
     return inProgress.id;
-  const pending = list.features.find((f3) => f3.status === "pending");
+  const pending = list.features.find((f3) => f3.status === "pending" && depsMet(f3));
   return pending ? pending.id : null;
 }
 function printList(log, list, activeId) {
@@ -15542,7 +15544,15 @@ function printList(log, list, activeId) {
   for (const f3 of list.features) {
     const marker = f3.status === "done" ? "[x]" : f3.id === activeId ? "[>]" : "[ ]";
     const status = f3.status === "done" ? "" : ` (${f3.status})`;
-    log(`  ${marker} ${f3.id}: ${f3.title}${status}`);
+    let meta = "";
+    if (f3.files) {
+      const n2 = f3.files.create.length + f3.files.modify.length + f3.files.test.length;
+      meta += ` — ${n2} file${n2 === 1 ? "" : "s"}`;
+    }
+    if (f3.steps && f3.steps.length > 0) {
+      meta += `${f3.files ? "," : " —"} ${f3.steps.length} step${f3.steps.length === 1 ? "" : "s"}`;
+    }
+    log(`  ${marker} ${f3.id}: ${f3.title}${status}${meta}`);
   }
 }
 async function runWork(opts = {}) {
@@ -22688,7 +22698,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.25.0",
+  version: "1.26.0",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {

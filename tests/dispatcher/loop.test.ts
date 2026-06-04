@@ -19,6 +19,8 @@ import {
   listLoopRuns,
   showLoopRun,
   LoopError,
+  STEPS,
+  MANUAL_GATES,
   type LoopRun,
   type StepRunners,
 } from "../../src/dispatcher/loop"
@@ -430,4 +432,12 @@ describe("LoopError shape", () => {
       expect((err as LoopError).code).toBe("RunNotFound")
     }
   })
+})
+
+it("MANUAL_GATES is exported and holds exactly work + ship", () => {
+  expect(STEPS.length).toBe(6)
+  expect(MANUAL_GATES.size).toBe(2)
+  expect(MANUAL_GATES.has("work")).toBe(true)
+  expect(MANUAL_GATES.has("ship")).toBe(true)
+  expect(STEPS.filter((s) => !MANUAL_GATES.has(s)).length).toBe(4)
 })

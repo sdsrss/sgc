@@ -53,7 +53,7 @@ export const STEPS: readonly LoopStepName[] = [
  * `status:paused` + exit so the operator can act; `--resume` marks
  * paused → done before continuing.
  */
-const MANUAL_GATES = new Set<LoopStepName>(["work", "ship"])
+export const MANUAL_GATES = new Set<LoopStepName>(["work", "ship"])
 
 export interface LoopStepEntry {
   step: LoopStepName

@@ -156,7 +156,7 @@ sgc discover → sgc plan (L0-L3 分级) → sgc work → sgc land → sgc compo
 
 ### 5.3 智能化 —— 11 LLM agents，融合刻意设上限
 
-- 11 个 LLM 后端 agents（多 provider 自动检测；`planner.decompose` Phase 2b 新增；8 个 reviewer stub `prompt_path:null` 不计入 LLM-invokable —— 6 个 status:implemented + 2 个 slot-only）；`planner.{ceo,eng,adversarial}` 多视角 + GS-3 **确定性**融合成 `fused_verdict`。
+- **11 个 LLM-invokable agents / 23 manifested**（有真实 `prompt_path` 才能进 LLM 后端，见 `spawn.ts` ROUTES；多 provider 自动检测；`planner.decompose` Phase 2b 新增）。其余 12 个不计入：8 个 reviewer `prompt_path:null`（6 status:implemented + 2 slot-only）+ `janitor.archive`（manual-only）+ `qa.browser` + `compound.related` + `janitor.compound`（启发式）。`planner.{ceo,eng,adversarial}` 多视角 + GS-3 **确定性**融合成 `fused_verdict`。由 `sgc metrics`（Phase 3）机器度量。
 - 度量补充：eval flake 率 2/1051——已由 Rec 2 隔离出默认 `npm test` 信号（见 §6 测试诚实声明）。
 - GS-3 出于契约安全**刻意不做** LLM 仲裁（model-A，保 §1），故"智能融合"有意设上限——审慎而非不足。
 

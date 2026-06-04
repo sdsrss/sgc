@@ -179,3 +179,52 @@ test("runMetrics --write-baseline writes a parseable baseline", async () => {
     rmSync(root, { recursive: true, force: true })
   }
 })
+
+import { runDoctor } from "../../src/commands/doctor"
+import { computeMetricsLive as _live, serializeBaseline as _ser } from "../../src/dispatcher/metrics"
+
+function makeRootWithBaseline(): string {
+  const root = makeRoot()
+  mkdirSync(resolve(root, "src"), { recursive: true })
+  writeFileSync(resolve(root, "src/sgc.ts"), "// stub entry so hasSource is true\n")
+  mkdirSync(resolve(root, "metrics"), { recursive: true })
+  writeFileSync(resolve(root, "metrics/metrics-baseline.yaml"), _ser(_live(root)))
+  return root
+}
+
+test("doctor metrics check passes when baseline is in sync", async () => {
+  const root = makeRootWithBaseline()
+  try {
+    const report = await runDoctor({ repoRoot: root, log: () => {} })
+    expect(report.rows.some((r) => r.msg.includes("metrics baseline in sync") && r.severity === "ok")).toBe(true)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test("doctor metrics check fails on on-disk source drift", async () => {
+  const root = makeRootWithBaseline()
+  try {
+    // Mutate a drift-gated source WITHOUT regenerating the baseline.
+    writeFileSync(
+      resolve(root, "contracts/invariant-enforcement.yaml"),
+      `invariants:\n  "1": { machine_enforced: true }\n  "2": { machine_enforced: true }\n  "3": { machine_enforced: true }\n`,
+    )
+    const report = await runDoctor({ repoRoot: root, log: () => {} })
+    expect(report.rows.some((r) => r.msg.includes("metrics drift") && r.severity === "fail")).toBe(true)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test("doctor metrics check tolerates a bundle_bytes-only difference", async () => {
+  const root = makeRootWithBaseline()
+  try {
+    // Rewrite the bundle stub larger; bundle_bytes is NOT drift-gated.
+    writeFileSync(resolve(root, "plugins/sgc/bin/sgc.mjs"), "// stub bundle\n".repeat(500))
+    const report = await runDoctor({ repoRoot: root, log: () => {} })
+    expect(report.rows.some((r) => r.msg.includes("metrics drift") && r.severity === "fail")).toBe(false)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})

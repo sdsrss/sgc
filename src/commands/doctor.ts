@@ -29,6 +29,7 @@ import { spawnCapture } from "../dispatcher/subprocess"
 import { load as yamlLoad } from "js-yaml"
 import { getCapabilities } from "../dispatcher/schema"
 import { EMBEDDED_PROMPTS, listEmbeddedPromptKeys } from "../dispatcher/embedded-data"
+import { computeMetricsLive, parseBaseline, diffMetrics } from "../dispatcher/metrics"
 
 const moduleDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(moduleDir, "..", "..")
@@ -472,6 +473,30 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   log("")
   log("=== bundle parity ===")
   emit(await bundleParityCheck(root))
+
+  // ── (K) metrics baseline drift ──────────────────────────────────────────
+  log("")
+  log("=== metrics baseline drift ===")
+  const baselinePath = resolve(root, "metrics", "metrics-baseline.yaml")
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ metrics baseline skipped (no source checkout — dev/CI-only check)" })
+  } else if (!existsSync(baselinePath)) {
+    emit({ severity: "fail", msg: "  ✗ metrics/metrics-baseline.yaml missing — run `sgc metrics --write-baseline`" })
+  } else {
+    try {
+      const live = computeMetricsLive(root)
+      const baseline = parseBaseline(readFileSync(baselinePath, "utf8"))
+      const drifts = diffMetrics(live, baseline)
+      if (drifts.length === 0) {
+        emit({ severity: "ok", msg: "  ✓ metrics baseline in sync (live == baseline; bundle_bytes excluded)" })
+      } else {
+        for (const d of drifts) emit({ severity: "fail", msg: `  ✗ metrics drift — ${d}` })
+        emit({ severity: "fail", msg: "  ✗ regenerate: `sgc metrics --write-baseline`" })
+      }
+    } catch (e) {
+      emit({ severity: "fail", msg: `  ✗ metrics baseline check error: ${(e as Error).message.slice(0, 80)}` })
+    }
+  }
 
   const ok = rows.filter((r) => r.severity === "ok").length
   const warn = rows.filter((r) => r.severity === "warn").length

@@ -1,9 +1,40 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { _resetCachesForTest } from "../../src/dispatcher/schema"
 import { runDoctor } from "../../src/commands/doctor"
+import { computeMetricsLive, serializeBaseline } from "../../src/dispatcher/metrics"
+
+// Write a metrics baseline that matches the just-seeded source so the doctor
+// (K) drift check stays green — mirrors how each source-only check (D-J) gets a
+// valid artifact in roots that assert fail===0. computeMetricsLive needs
+// package.json + invariant-enforcement.yaml + sgc-capabilities.yaml; backfill
+// the first two when a caller (e.g. seedParity) didn't write them.
+function seedMetricsBaseline(root: string): void {
+  if (!existsSync(join(root, "package.json"))) {
+    writeFileSync(join(root, "package.json"), JSON.stringify({ name: "x", engines: { node: ">=18" } }), "utf8")
+  }
+  const iePath = join(root, "contracts", "invariant-enforcement.yaml")
+  if (!existsSync(iePath)) {
+    mkdirSync(join(root, "contracts"), { recursive: true })
+    // Cite a real stub test file so check (G) sees machine-enforced invariants
+    // as covered (tests: []) on a machine_enforced invariant is a (G) fail).
+    mkdirSync(join(root, "tests", "dispatcher"), { recursive: true })
+    writeFileSync(join(root, "tests", "dispatcher", "inv.test.ts"), "// stub\n", "utf8")
+    let map = 'schema_version: "0.1"\ninvariants:\n'
+    for (let n = 1; n <= 13; n++) {
+      if (n === 12) {
+        map += `  "12":\n    title: inv 12\n    machine_enforced: false\n    tests: []\n`
+      } else {
+        map += `  "${n}":\n    title: inv ${n}\n    machine_enforced: true\n    tests: ["tests/dispatcher/inv.test.ts"]\n`
+      }
+    }
+    writeFileSync(iePath, map, "utf8")
+  }
+  mkdirSync(join(root, "metrics"), { recursive: true })
+  writeFileSync(join(root, "metrics", "metrics-baseline.yaml"), serializeBaseline(computeMetricsLive(root)), "utf8")
+}
 
 let tmp: string
 let savedDir: string | undefined
@@ -231,6 +262,8 @@ describe("sgc doctor", () => {
     let invMd = "# SGC System Invariants\n"
     for (let n = 1; n <= 13; n++) invMd += `## §${n}. inv ${n}\n\nbody\n\n`
     writeFileSync(join(tmp, "contracts", "sgc-invariants.md"), o.invariantsMd ?? invMd, "utf8")
+    // Baseline written last so it matches the seeded source → (K) drift check ok.
+    seedMetricsBaseline(tmp)
   }
 
   // baseManifest uses a real embedded key (prompts/planner-eng.md) so check (A) passes.
@@ -329,6 +362,8 @@ describe("sgc doctor", () => {
     const cdir = join(tmp, "plugins", "sgc", "commands")
     mkdirSync(cdir, { recursive: true })
     for (const f of slashFiles) writeFileSync(join(cdir, `${f}.md`), "# stub\n", "utf8")
+    // Baseline so the (K) drift check stays ok in roots asserting fail===0.
+    seedMetricsBaseline(tmp)
   }
 
   test("H-parity1: every non-exempt CLI subcommand has a slash .md → ok", async () => {
@@ -421,9 +456,10 @@ test("doctor (B) prompts check uses embedded keys, not readdirSync", async () =>
   expect(skipRow("slash↔CLI parity")).toBe(true) // (H)
   expect(skipRow("invariant-source parity")).toBe(true) // (I)
   expect(skipRow("bundle-hash parity")).toBe(true) // (J)
+  expect(skipRow("metrics baseline")).toBe(true) // (K)
 
-  // All seven skips land as `ok` rows, never warn/fail — so the bogus root yields
+  // All eight skips land as `ok` rows, never warn/fail — so the bogus root yields
   // zero warnings beyond embedded-prompt orphans and zero hard failures.
   const skipRowCount = lines.filter((l) => /skipped \(no source checkout/.test(l)).length
-  expect(skipRowCount).toBe(7)
+  expect(skipRowCount).toBe(8)
 })

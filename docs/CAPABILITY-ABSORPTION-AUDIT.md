@@ -14,7 +14,7 @@
 | 有没有吸取三者优秀能力？ | **有，但不对称** | CE 全量内化（6/6），gs 选择性吸收（GS-N 弧 7/7），sp 以**委派为主 + 1 项概念吸收**（`sgc debug`） |
 | 有没有融合？ | **有，且有统一脊柱** | 三者被同一条 `capture → promote → CE-1` 闭环 + 13 invariants 串接，不是松散并列 |
 | 有没有做成新的独立插件？ | **已经做成并发布** | `@sdsrs/sgc` v1.18.0 已上 npm + marketplace，不是计划而是 shipped |
-| 是否实现规范化/自动化/智能化/高效化？ | **规范化最强、自动化与智能化达成、高效化部分** | 见 §5 四化评分；高效化受"两件套安装"摩擦拖累 |
+| 是否实现规范化/自动化/智能化/高效化？ | **规范化最强、自动化与智能化达成、高效化达成** | 见 §5 四化评分；R1 两步安装摩擦已于 v1.24.0 自带 bundle 消除（修正 2026-06-04） |
 
 **两个最重要的审核发现：**
 
@@ -108,9 +108,9 @@ sgc discover → sgc plan (L0-L3 分级) → sgc work → sgc land → sgc compo
 
 - **npm 包**：`@sdsrs/sgc` v1.18.0（`package.json:2`），`provenance: true` 签名发布。
 - **Claude Code 插件**：`/plugin marketplace add sdsrss/sgc` → `/plugin install sgc`（`README.md` Install 节）。
-- **两件套结构**：插件分两部分——CLI dispatcher（`src/sgc.ts`，18 个命令）+ markdown prompt 层（`plugins/sgc/`：11 slash commands、9 skills、SessionStart hook）。
+- **单包结构（v1.24.0 起）**：插件自带 CLI——`/plugin install` 即同时装 markdown prompt 层（`plugins/sgc/`：17 slash commands、9 skills、SessionStart hook）**和** 自包含 Node CLI bundle（`plugins/sgc/bin/sgc.mjs`，由 `src/sgc.ts` 的 20 个命令编译内联 contracts/prompts）。无需另行 `npm i -g` 或 `git clone`。
 
-⚠️ **审核发现的摩擦点**：`/plugin install sgc` 只装 markdown prompt 层，**CLI 仍需另行 `npm i -g` 或 `git clone`**（`README.md` Install 节明示，记忆 `project_sgc_plugin_packaging.md` 亦记录）。即"独立插件"在分发上是**两步安装**，不是单命令即用。详见 §6 风险 R1。
+> **修正 2026-06-04**：v1.24.0 起 `/plugin install sgc` 自带 Node CLI bundle（`plugins/sgc/bin/sgc.mjs`），CLI 与 markdown 层**一并安装**，"独立插件"已是**单步安装**、单命令即用（`README.md:29` 明示 "no `bun`, no separate `npm install`, no PATH setup"）。原审核（基线 v1.18.0）记录的"两件套/两步安装"摩擦点（§6 R1）已随 bundle 闭合。
 
 ---
 
@@ -118,7 +118,7 @@ sgc discover → sgc plan (L0-L3 分级) → sgc work → sgc land → sgc compo
 
 | 维度 | 数量 | 来源 |
 |---|---|---|
-| dispatcher CLI 命令 | 18（`src/commands/*.ts`） | 实测 `ls` |
+| dispatcher CLI 命令 | 20（`src/commands/*.ts`；17 同步为 `/sgc:*` slash + 3 CLI-only） | 实测 `ls` / README:118 |
 | LLM 后端 agents | 10（`prompt_path` 模板 + cache_control 切分） | README |
 | 刻意保持启发式的 agent | 1（`compound.related`，其 dedup_stamp 授权 §3 写入，必须确定性） | README + 记忆 |
 | runtime invariants | 13（§1–§13） | `contracts/sgc-invariants.md` |
@@ -140,8 +140,8 @@ sgc discover → sgc plan (L0-L3 分级) → sgc work → sgc land → sgc compo
 |---|---|---|---|
 | 规范化 | 机器强制 invariant 数 / 13 | **12 / 13**（§12 唯一 procedural） | `contracts/invariant-enforcement.yaml` + `sgc doctor` check G（实测 OK） |
 | 自动化 | 端到端流程的手动 gate 数 | **2**（`sgc loop`：work、ship） | `src/dispatcher/loop.ts`（`terminal_reason: paused_work\|paused_ship`） |
-| 智能化 | LLM 后端 agent 数 ｜ eval flake 率 | 10 agents ｜ 2 / 1051（已隔离出默认门禁，见 Rec 2） | README ｜ 实测 |
-| 高效化 | 安装步数 ｜ 运行时依赖 | 2 步（plugin + CLI 分装）｜ `bun ≥1.3` | README Install / 记忆 `project_sgc_plugin_packaging` |
+| 智能化 | LLM 后端 agent 数 ｜ eval flake 率 | 11 agents ｜ 2 / 1051（已隔离出默认门禁，见 Rec 2） | README ｜ 实测 |
+| 高效化 | 安装步数 ｜ 运行时依赖 | **1 步**（`/plugin install` 自带 bundle）｜ `node ≥18`（bun 已移除） | README Install / 记忆 `project_sgc_plugin_packaging` |
 
 ### 5.1 规范化 —— 12/13 机器强制（**修正**先前"13 条在 dispatch 时统一硬强制"的高估）
 
@@ -154,16 +154,16 @@ sgc discover → sgc plan (L0-L3 分级) → sgc work → sgc land → sgc compo
 - 自动链路：`sgc loop`（CE-5）、`sgc plan --async`（CE-4）、`sgc watch-ci-failure`（CE-3）、`sgc canary`（GS-1）、`sgc land`（GS-7）；捕获→晋升全自动走统一写入门。
 - 度量：`sgc loop` 端到端含 **2 个有意保留的手动 gate**（work 由操作者实现、ship 受 §4 L3 人签）。降低此数=提高自动化，但 §4 的人签 gate 是规范要求、不应消除。
 
-### 5.3 智能化 —— 10 LLM agents，融合刻意设上限
+### 5.3 智能化 —— 11 LLM agents，融合刻意设上限
 
-- 10 个 LLM 后端 agents（多 provider 自动检测）；`planner.{ceo,eng,adversarial}` 多视角 + GS-3 **确定性**融合成 `fused_verdict`。
+- 11 个 LLM 后端 agents（多 provider 自动检测；`planner.decompose` Phase 2b 新增；8 个 reviewer stub `prompt_path:null` 不计入 LLM-invokable —— 6 个 status:implemented + 2 个 slot-only）；`planner.{ceo,eng,adversarial}` 多视角 + GS-3 **确定性**融合成 `fused_verdict`。
 - 度量补充：eval flake 率 2/1051——已由 Rec 2 隔离出默认 `npm test` 信号（见 §6 测试诚实声明）。
 - GS-3 出于契约安全**刻意不做** LLM 仲裁（model-A，保 §1），故"智能融合"有意设上限——审慎而非不足。
 
-### 5.4 高效化 —— 运行期高、分发期有摩擦
+### 5.4 高效化 —— 运行期高、分发摩擦已闭合（v1.24.0 自带 bundle）
 
 - 运行期：委派避免重复造轮子（gs 在场直接复用）+ 零依赖启发式 fallback + dedup ≥0.85 压缩语料。
-- 拖累项（可度量）：**安装 2 步**（`/plugin install` 只装 markdown，CLI 另装，见 R1）+ 运行时依赖 `bun ≥1.3`。降低安装步数=提高高效化。
+- 拖累项（可度量）：**安装 1 步**（`/plugin install` 自带 bundle，见 R1）+ 运行时依赖 `node ≥18`（bun 已移除）。降低安装步数=提高高效化。
 
 ---
 
@@ -172,7 +172,7 @@ sgc discover → sgc plan (L0-L3 分级) → sgc work → sgc land → sgc compo
 | 编号 | 等级 | 发现 | 依据 | 建议 |
 |---|---|---|---|---|
 | **R0** | **✅ RESOLVED 2026-05-29** | **`plugins/sgc/browse/` 是 vendored gstack browse 源码**（29+ 文件：`browser-manager`/`cdp-inspector`/`sidebar-agent`/`cookie-picker`…，`package.json` `build:browse` 编译它，测试名为 `gstack-update-check`/`gstack-config`/`gstack-learnings-search`），其 **64 个测试在裸 `bun test` 下全红**（`bin/gstack-learnings-search` 等 fixture 未一并 vendored）。根因：CI 门禁本就只跑 `bun test tests/dispatcher [tests/eval]`，从不含 browse；只有裸 `bun test`（无路径）误扫上游 vendored 套件。声明张力：POSITIONING:46-48 "no gstack source copied" 只在 **GS-N 吸收弧（dispatcher 命令）** 范围成立，browse 是范围外的独立 vendored 副本。 | 实测：`bun test tests/dispatcher` = 946/0 绿（EXIT=0）；裸 `bun test` 经 root 排除后不再扫 browse | **已修**：(1) 新增 `bunfig.toml` `[test] root="tests"` → 裸 `bun test` 对齐 CI 门禁、排除 browse（实测显式指定 browse 路径已发现 0 测试）；(2) `package.json` test 脚本显式化为 `bun test tests/`；(3) POSITIONING 新增 "Vendored components" 节 + 限定吸收弧声明、README browse 行加 vendored 注记，消除张力 |
-| R1 | 中 | "独立插件"是两步安装：`/plugin install` 只装 markdown，CLI 需另装 npm/clone | `README.md` Install、记忆 `project_sgc_plugin_packaging.md` | 文档已说明；可考虑 bundling 或 install 后探测并自动提示装 CLI |
+| **R1** | **✅ RESOLVED v1.24.0（2026-06-04 复核）** | ~~"独立插件"是两步安装：`/plugin install` 只装 markdown，CLI 需另装 npm/clone~~ → **已闭合**：v1.24.0 起 `/plugin install` 自带自包含 Node CLI bundle（`plugins/sgc/bin/sgc.mjs`），单步安装、单命令即用 | `README.md:29`（"no separate `npm install`"）、`plugins/sgc/bin/sgc.mjs`、记忆 `project_sgc_plugin_packaging.md` | **已修**：v1.24.0 把 CLI bundle 进插件（dual-channel：plugin 经 `$CLAUDE_PLUGIN_ROOT` + npm bin→同一 bundle），bundling 方案已落地 |
 | R2 | 低 | `plugins/sgc/agents/<cat>/<name>.md` 是 sgc 内部 agent，**不是** Claude Code subagent，易被误读为可被 CC 直接调度 | 记忆 `project_sgc_plugin_packaging.md` | 在 plugin README 标注边界 |
 | R3 | 低（设计选择，**部分收窄** v1.19.0） | sp 缺席时，sgc 的 native fallback 现覆盖 systematic-debugging（`sgc debug`）+ verification-before-completion（`sgc work --done` close-gate，Tier 1）；**TDD / 深度规划仍委派**（有意 Non-goal） | `delegation.ts`、POSITIONING 委派表、`src/commands/work.ts` | verification gate 已补（v1.19.0）；TDD-lite 仍可选评估，深度规划维持委派 |
 | R4 | 低 | 旧语料（pre-CE-1 minimal frontmatter）曾导致 dedup 崩溃，已修（v1.12.1 防御 coerce） | CHANGELOG:634 | 已闭合，保留为回归测试 |
@@ -182,7 +182,7 @@ sgc discover → sgc plan (L0-L3 分级) → sgc work → sgc land → sgc compo
 
 ## 7. 总评与建议
 
-**总评**：sgc 已是一个**已发布的、围绕 Compound Engineering 闭环为核心、选择性吸收 gstack 能力、对 Superpowers 以委派为主**的独立规范层 + 知识引擎插件。三者能力被 13 条 invariants 与统一写入门**真实融合**（非并列），并非纸面声明——多处由 dogfood-as-test 与契约降级决策佐证。规范化与自动化/智能化达成度高，高效化受安装分发摩擦拖累。
+**总评**：sgc 已是一个**已发布的、围绕 Compound Engineering 闭环为核心、选择性吸收 gstack 能力、对 Superpowers 以委派为主**的独立规范层 + 知识引擎插件。三者能力被 13 条 invariants 与统一写入门**真实融合**（非并列），并非纸面声明——多处由 dogfood-as-test 与契约降级决策佐证。规范化与自动化/智能化达成度高；高效化原受安装分发摩擦拖累，但该摩擦已于 v1.24.0 自带 CLI bundle 消除（R1 闭合，单步安装），现亦达成。
 
 **高价值建议落实状态（2026-05-29）**：
 1. ~~**R0（高）**：browse 红测试 + 声明张力~~ — **✅ 已修**（bunfig root=tests、脚本显式化、POSITIONING "Vendored components" 节 + README 注记）。
@@ -190,7 +190,7 @@ sgc discover → sgc plan (L0-L3 分级) → sgc work → sgc land → sgc compo
 3. ~~**Rec 2（高）**：隔离 LLM-eval flake~~ — **✅ 已修**（`npm test`=`tests/dispatcher` 确定性 946/0；新增 `test:eval` / `test:all` lane）。
 4. ~~**Rec 3（高）**：把审核固化进 `sgc doctor`~~ — **✅ 已修**（新增 check D bunfig-root / E npm-files / F vendored-provenance / G invariant→test 映射；实测 41 OK·0 fail；+5 TDD 测试，doctor 套件 10/10）。
 5. ~~**Rec 4（中）**：browse vendored 根因治理~~ — **✅ 部分修**（`contracts/vendored-components.yaml` 记录 provenance + 标注 upstream_ref=unknown 为债务 + cso dependency-audit 盲区；**待办**：回填上游 gstack commit、评估改 build-time fetch/真依赖）。
-6. **R1（中，未做）**：降低两步安装摩擦——CLI bundling 或 SessionStart 探测缺失 CLI 一键提示。
+6. ~~**R1（中）**：降低两步安装摩擦——CLI bundling~~ — **✅ 已修（v1.24.0，2026-06-04 复核）**：`/plugin install` 自带自包含 Node CLI bundle（`plugins/sgc/bin/sgc.mjs`），两步安装降为单步、单命令即用。
 7. **R5（沟通，未做）**：README 顶部一句话固化"coexist 而非替代"。
 8. **R3-原（可选，未做）**：sp 缺席时的 native TDD-lite fallback。
 
@@ -207,7 +207,7 @@ sgc discover → sgc plan (L0-L3 分级) → sgc work → sgc land → sgc compo
 - 13 invariants：`contracts/sgc-invariants.md §1-§13` + Cross-References:110-120
 - 统一写入门：`docs/POSITIONING.md:14`、`contracts/sgc-invariants.md §3` + metadata-only carve-out (CE-6)
 - 能力契约（dispatch 时强制）：`contracts/sgc-capabilities.yaml`（scope_tokens / permissions / subagents）
-- 命令清单：`src/commands/*.ts`（18）、`src/dispatcher/*.ts`
+- 命令清单：`src/commands/*.ts`（20 CLI / 17 slash，见 README:118）、`src/dispatcher/*.ts`
 - 测试实测：`SGC_FORCE_INLINE=1 bun test tests/` → 1049 pass / 2 fail（LLM-eval）/ 1051；全量 `bun test` 另 +64 fail（browse）
 - vendored browse：`plugins/sgc/browse/src/*.ts`（含 gstack 字样 29+ 文件）、`package.json:42` `build:browse`、测试 `gstack-update-check`/`gstack-config`/`gstack-learnings-search`、`plugins/sgc/bin/gstack-learnings-search` ENOENT
 - npm 分发边界：`package.json` `files`（不含 `plugins/`）

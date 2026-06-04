@@ -112,9 +112,12 @@ State lives under `.sgc/` in the project (override via `SGC_STATE_ROOT`); it's `
 | `sgc watch-ci-failure [--run-id\|--workflow]` | Poll publish CI; capture a templated ship-failure record for promotion |
 | `sgc handoff [--auto]` | Session-state checkpoint → `tasks/<slug>-paused.md` for post-compaction recovery |
 | `sgc status` / `sgc tail […]` | Dashboard / live `.sgc/progress/events.ndjson` audit stream |
+| `sgc metrics [--json\|--write-baseline]` | Four-化 product self-scorecard (read-only); numbers below are reproduced by this command |
 | `sgc doctor` | Self-check: contracts ↔ prompts ↔ command parity ↔ bundle freshness |
 
-19 commands total — 16 are also exposed as `/sgc:*` slash commands inside Claude Code; `canary`, `watch-ci-failure`, and `land` are CLI-only. A vendored `browse` headless-browser binary backs `sgc qa`.
+20 commands total — 17 are also exposed as `/sgc:*` slash commands inside Claude Code; `canary`, `watch-ci-failure`, and `land` are CLI-only. A vendored `browse` headless-browser binary backs `sgc qa`.
+
+**Four-化 scorecard** (run `sgc metrics` to reproduce): 规范化 12/13 · 智能化 11/23 LLM-invokable · 自动化 4/6 · 高效化 1 step·node≥18. These numbers are produced by `sgc metrics`; see `metrics/metrics-baseline.yaml` — they are not hand-maintained.
 
 ## Task levels (L0–L3)
 

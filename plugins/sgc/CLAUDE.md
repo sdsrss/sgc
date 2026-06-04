@@ -59,6 +59,7 @@ Agent modes (auto-detected per priority):
 | `/agent-loop` | File-poll fulfillment helper for external Claude session (`--list / --show / --submit`) |
 | `/tail` | Stream `.sgc/progress/events.ndjson` (Invariant §13 two-tier audit) |
 | `/reflect` | CE-2 audit: which solutions/ preventions surfaced in intent.md discussions (CE-6 `applied: N` + `surfaced: N`) |
+| `/metrics` | Four-化 product self-scorecard (read-only) |
 | `/loop` | CE-5 orchestrator: plan→work→review→qa→ship→compound with manual gates |
 | `/debug` | GS-4: 4-phase systematic-debugging walker (investigate → analyze → hypothesize → implement); `close` is an Iron Law #3 hard-gate |
 | `/cso` | GS-5: pre-ship security review — secret scan + dependency audit + event-stream anomaly detection |

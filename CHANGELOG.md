@@ -1,5 +1,48 @@
 # Changelog
 
+## v1.28.0 — 2026-06-04 — four-化 metrics scorecard (Phase 3)
+
+`sgc metrics` reports the product's four 化 (规范化 / 智能化 / 自动化 / 高效化)
+as honest, reproducible numbers computed from git-tracked + compiled artifacts —
+the Phase 3 deliverable from `docs/ROADMAP.md`.
+
+### What changed
+
+**New: `sgc metrics` command** (`src/commands/metrics.ts` + `src/dispatcher/metrics.ts`)
+
+- `sgc metrics` — human scorecard; `--json` — machine form; `--write-baseline`
+  — regenerate the dev/CI baseline.
+- Computed live at runtime from data already inside the bundle (embedded
+  contracts via `readContract`, the compiled `STEPS` / `MANUAL_GATES` symbols,
+  the bundled `package.json`, and the bundle's own size via `import.meta.url`) —
+  no baseline read at runtime, identical across plugin / npm / source layouts.
+- The four metrics:
+  - **规范化** — `machine_enforced / total invariants` = **12/13** (parses
+    `contracts/invariant-enforcement.yaml`; §12 is the lone procedural one).
+  - **智能化** — `LLM-invokable / total manifested subagents` = **11/23**, keyed
+    on `prompt_path` truthiness (the only honest LLM-backed signal per
+    `spawn.ts` ROUTES — `prompt_path: null` reviewers are heuristic stubs).
+    Framed as roster **capacity**, not a quality measurement.
+  - **自动化** — `automated / total loop steps` = **4/6** (the 2 manual gates,
+    `work` + `ship`, are intentionally retained per Invariant §4).
+  - **高效化** — **1 install step · node ≥ 18 · ~896 KB bundle**.
+
+**New: anti-drift gate** — `metrics/metrics-baseline.yaml` is a committed dev/CI
+drift reference (not embedded, not shipped, not read at runtime). `sgc doctor`
+check (K) re-computes from on-disk sources and fails on drift; `bundle_bytes` is
+display-only and excluded from the diff to avoid a per-commit tripwire.
+
+**Other**
+
+- `src/dispatcher/loop.ts` now exports `MANUAL_GATES` (for 自动化).
+- README + `plugins/sgc/CLAUDE.md` add `/metrics`; the four-化 numbers reference
+  the baseline (no hand-maintained figures). `docs/CAPABILITY-ABSORPTION-AUDIT.md`
+  §4/§5 corrected (智能化 10 → 11, 高效化 "2 步·bun≥1.3" → "1 步·node≥18").
+
+**Strictly no change to**: `solutions/` access, Invariant §1–§13 enforcement, or
+any L0–L3 pipeline behaviour. `sgc metrics` is read-only (no LLM, no spawn, no
+events) — a measurement surface, the lone documented CE-loop-closure exception.
+
 ## v1.27.0 — 2026-06-03 — native L2 reviewer cluster (Phase 2c)
 
 `sgc review` at L2+ now runs a three-agent correctness+tests+maintainability

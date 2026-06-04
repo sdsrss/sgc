@@ -146,14 +146,16 @@ during TDD.
     "../package.json"`** (bun inlines the object into the bundle — `sgc.ts:21`
     precedent), NOT a fresh on-disk read (which fails in the plugin-install
     layout where only `plugins/sgc/` is present).
-  - **bundle byte-size is a build-time-recorded constant** frozen into the
-    baseline at `--write-baseline` time (run in the source checkout, right after
-    `build:cli`), via `statSync(plugins/sgc/bin/sgc.mjs).size`. At user runtime
-    `sgc metrics` reports the **recorded** value — a product attribute of the
-    shipped artifact — NOT a live cross-layout `statSync` (the bundle path
-    differs per channel: `$CLAUDE_PLUGIN_ROOT/bin/` vs `<pkg>/plugins/sgc/bin/`
-    vs source). This keeps the number honest and channel-independent.
-  - install-step count = **1**.
+  - **bundle byte-size** is recorded into the baseline at `--write-baseline`
+    time (source checkout, after `build:cli`) via `statSync(resolve(root,
+    "plugins/sgc/bin/sgc.mjs")).size`; runtime `sgc metrics` reports the
+    **recorded** value (rendered rounded, e.g. "~886 KB"). It is **display-only,
+    excluded from the doctor drift diff** (`diffMetrics` ignores
+    `efficiency.bundle_bytes`) — bundle size changes on every `src/` edit, so
+    drift-gating it would turn the baseline into a per-commit tripwire and
+    contradict "四化 change slowly". Only the slow-changing structural fields
+    (`install_steps`, `runtime_node` + the other three 化) are drift-gated.
+  - install-step count = **1** (drift-gated).
 - **口径 (must encode):** **1 install step** (`/plugin install sgc` ships the
   self-contained node bundle and every `/sgc:*` command runs via plain `node` —
   no `npm i -g`, no bun; a one-time `/plugin marketplace add` registers the
@@ -174,16 +176,19 @@ during TDD.
 
 ## Command shape
 
-- `sgc metrics` — human-readable scorecard: four 化, each with headline +
-  baseline + a one-line 口径.
-- `sgc metrics --json` — stable machine form for README injection + the CI/doctor
-  drift check.
-- `sgc metrics --write-baseline` — regenerate `metrics/metrics-baseline.yaml`
-  from the current artifacts (the deliberate, build:cli-style refresh step; run
-  in a source checkout, after `build:cli`).
-- **Read-only** otherwise: no LLM, no agent spawn, no events emitted — same
-  nature as `reflect`. `--write-baseline` is the sole writing path and writes
-  only the tracked baseline file.
+- `sgc metrics` — human-readable scorecard rendered from the **shipped**
+  `metrics/metrics-baseline.yaml` (a frozen product snapshot — stable and
+  layout-independent; this is what makes the README numbers reproducible).
+- `sgc metrics --json` — the same snapshot as a stable machine form (README
+  injection).
+- `sgc metrics --write-baseline` — **live-compute** the four 化 from the source
+  artifacts and (re)write `metrics/metrics-baseline.yaml`. The deliberate refresh
+  step, run in a source checkout after `build:cli`.
+- **Read-only** otherwise: no LLM, no agent spawn, no events. `--write-baseline`
+  is the sole writing path. Runtime `sgc metrics` only *reads* the snapshot — it
+  does **not** recompute (a product scorecard is a frozen snapshot; the live
+  compute + drift gate live in dev/CI, see Anti-drift). Same read-only nature as
+  `reflect`.
 
 ### Files (new + edited units)
 
@@ -195,36 +200,36 @@ during TDD.
 | Automation source | `src/dispatcher/loop.ts` (edit) | **Export `MANUAL_GATES`** (or `AUTOMATED_STEPS`) so 自动化 can derive without hardcoding. |
 | Slash parity | `plugins/sgc/commands/metrics.md` (new) | doctor check H slash↔CLI parity (`reflect.md` is the mirror). |
 | Drift gate | `src/commands/doctor.ts` (edit) | New `!hasSource`-gated metrics-parity check (see Anti-drift). |
-| Baseline | `metrics/metrics-baseline.yaml` (new, tracked) | The frozen snapshot. NOT in npm `files` (no runtime consumer); generated banner. |
+| Baseline | `metrics/metrics-baseline.yaml` (new, tracked) | The frozen snapshot — runtime data source for `sgc metrics`. Generated banner; `metrics/` added to npm `files`. |
+| Ship allowlist | `package.json` (edit) | Add `"metrics/"` to `files` so the baseline ships. |
 
-### Read-path / source-of-truth note (per channel — corrected)
+### Read-path / source-of-truth note (per channel)
 
-The bundle inlines `contracts/` via **explicit** `import … with {type:"text"}`
-lines in `src/dispatcher/embedded-data.ts:17-21` (5 named contracts — **not** a
-glob), surfaced by `readContract()` / `getCapabilities()` (`schema.ts:21`). The
-read path differs by consumer, and conflating them is what the first draft got
-wrong:
+Two read paths by design — keep them separate (conflating them was the first
+draft's bug):
 
-- **`sgc metrics` / `--json` at user runtime (any channel):** read the input
-  contracts (`invariant-enforcement.yaml`, `sgc-capabilities.yaml`) via the
-  **embedded resolver** — correct, because the embedded copy *is* the shipped
-  product and the scorecard should describe what shipped. `loop.ts` symbols
-  (`STEPS`, `MANUAL_GATES`) are compiled into the bundle; `engines.node` comes
-  from the bundled `package.json` import; bundle-size + install-step are the
-  **recorded baseline constants**.
-- **`sgc doctor` metrics-parity check:** **`!hasSource`-gated, dev/CI-only**
-  (identical to checks D–I, which all `if (!hasSource) skip` —
-  `doctor.ts:179,201,253,311,380,431`). It recomputes the four 化 from
-  **on-disk** sources (`resolve(root, "contracts", …)` raw reads, like
-  `reflect.ts:162,247` already does; on-disk `loop.ts`/`package.json`;
-  `statSync` of the freshly-built bundle) and compares to the **on-disk**
-  baseline. Reading on-disk (not embedded) is what lets it catch "source edited
-  without baseline regen" — the embedded copy is frozen at build time and would
-  hide exactly that drift (the tautological-pass trap).
+- **`sgc metrics` / `--json` at user runtime (any channel):** read **only the
+  shipped `metrics/metrics-baseline.yaml`** and render it (`readBaseline(root)`).
+  No live source reads, no `readContract`, no cross-layout `statSync`. The
+  baseline is a frozen product self-description; rendering it is stable and
+  identical across plugin-install / npm / source layouts.
+- **`sgc metrics --write-baseline` + the `sgc doctor` drift check (dev/CI-only):**
+  `computeMetricsLive(root)` reads the **on-disk** sources fresh —
+  `readFileSync(resolve(root, "contracts/invariant-enforcement.yaml"))` +
+  `yamlLoad`; `loadSpec(readFileSync(resolve(root, "contracts/sgc-capabilities.yaml")))`
+  (the same preprocessor `getCapabilities` uses, so `<<: *reviewer_base` merges
+  resolve identically); the imported `STEPS` / `MANUAL_GATES` symbols;
+  `readFileSync(resolve(root, "package.json"))`; `statSync` of the built bundle.
+  Fresh on-disk reads (not the embedded/frozen `readContract`) are what let the
+  drift check catch "source edited without baseline regen", and what make the
+  TDD fixtures work (a test mutates a fixture under a temp `root` and the
+  recompute sees it). The doctor check is `!hasSource`-gated (skips in a shipped
+  bundle), identical to checks D–I (`doctor.ts:179,201,253,311,380,431`).
 
-So there genuinely **are** two read paths by design: embedded for runtime
-description, on-disk for the dev/CI drift gate. The first draft's "no second
-source of truth" claim was false and is removed.
+So: runtime renders the shipped snapshot (stable); dev/CI live-computes from
+on-disk sources and diffs against that snapshot (the drift gate). The baseline
+**ships** (`metrics/` added to `package.json` `files`) precisely because it is
+the runtime data source.
 
 ## Anti-drift mechanism (B 档 core — corrected)
 
@@ -232,24 +237,29 @@ source of truth" claim was false and is removed.
   top-level tracked dir**, NOT `contracts/` (verified: all 5 existing
   `contracts/*` are hand-authored inputs with no generated banner; doctor F/G/I
   parse them as authored truth — dropping a regenerated snapshot there pollutes
-  that semantic and ships it to npm for no runtime benefit). The file carries the
-  four 化 values + 口径 + a header banner ("generated by `sgc metrics
-  --write-baseline`; do not hand-edit"), and is **excluded from `package.json`
-  `files`** (consumed only by the dev/CI doctor check, never at user runtime).
-- **doctor check (dev/CI-only):** recomputes the four 化 from **on-disk** sources
-  and compares to the on-disk baseline; mismatch → `fail`. Mirrors doctor's
+  that semantic). The file carries the four 化 values + a header banner
+  ("GENERATED by `sgc metrics --write-baseline`; do not hand-edit"), and **ships**
+  (`metrics/` is added to `package.json` `files`) because it is the runtime data
+  source for `sgc metrics`.
+- **doctor check (dev/CI-only, `!hasSource`-gated):** `computeMetricsLive(root)`
+  from **on-disk** sources vs the committed baseline; mismatch → `fail`. The diff
+  (`diffMetrics`) covers the slow-changing structural fields — 规范化, 智能化,
+  自动化, and 高效化's `install_steps` + `runtime_node` — and **excludes
+  `efficiency.bundle_bytes`** (high-churn, display-only). Mirrors doctor's
   existing parity checks (G invariant→test, I invariant-source, bundle-parity)
-  and their `!hasSource` skip. Because the four 化 are **deterministic functions
+  and their `!hasSource` skip. Because the gated 化 are **deterministic functions
   of on-disk tracked sources at check time**, the only way live-compute diverges
   from the committed baseline is a source edit without a baseline regen — the
   exact drift the gate must catch (identical coupling to build:cli ⇄
   bundle-parity).
 - **README:** the four-化 numbers reference the baseline (类 ARCH-2 README
   de-hardcode) — no hand-written numbers that can rot.
-- **Refresh ritual:** when a 化 legitimately changes (e.g. §12 becomes
-  machine-enforced → 13/13; a new prompt-backed agent → 12/23; bundle rebuilt),
-  run `sgc metrics --write-baseline`, commit the updated snapshot; the doctor
-  gate forces this to stay in sync (the way build:cli forces a bundle rebuild).
+- **Refresh ritual:** when a drift-gated 化 legitimately changes (e.g. §12
+  becomes machine-enforced → 13/13; a new prompt-backed agent → 12/23), run
+  `sgc metrics --write-baseline`, commit the updated snapshot; the doctor gate
+  forces this to stay in sync (the way build:cli forces a bundle rebuild). A pure
+  bundle-size change does NOT require a regen (it is not drift-gated), though
+  `--write-baseline` refreshes the displayed `bundle_bytes` opportunistically.
 
 ## CE-loop closure + invariants (honest accounting)
 
@@ -285,8 +295,9 @@ warrant an explicit list:
    files today → 17). No `SLASH_EXEMPT` entry needed because the `.md` exists.
 5. **`src/commands/doctor.ts`** — register the metrics-parity check inline
    (checks are inline in `runDoctor`, no registration array).
-6. **`metrics/metrics-baseline.yaml`** — new tracked artifact (excluded from
-   npm `files`).
+6. **`metrics/metrics-baseline.yaml`** + **`package.json` `files`** — new tracked
+   artifact; add `"metrics/"` to the `files` allowlist so the baseline ships (it
+   is the runtime data source).
 7. **(code edit) `src/dispatcher/loop.ts`** — export `MANUAL_GATES` /
    `AUTOMATED_STEPS` for 自动化.
 
@@ -316,9 +327,12 @@ self-referential read).
   - 高效化: assert engines read + recorded-bundle-size + install-step.
   - `--json` shape is stable (snapshot of the JSON contract).
 - **doctor parity test (dev/CI):** in sync → `ok`; then **mutate an on-disk
-  source** (flip a §N `machine_enforced` in `contracts/invariant-enforcement.yaml`)
-  **without** regenerating the baseline → assert the check `fail`s. This proves
-  the gate reads the on-disk live path, not the frozen baseline (anti-tautology).
+  source** (flip a §N `machine_enforced` in `contracts/invariant-enforcement.yaml`
+  under a temp `root`) **without** regenerating the baseline → assert the check
+  `fail`s. This proves the gate reads the on-disk live path, not the frozen
+  baseline (anti-tautology). Negative case: change only `efficiency.bundle_bytes`
+  (live vs baseline) → assert the check stays `ok` (bundle size is not
+  drift-gated).
 - **slash↔CLI parity** (`feedback_sgc_command_surface_parity`): `commands/metrics.md`
   exists → doctor H green; CLI subcommand count synced.
 - **TDD:** RED-first per 化 computation before implementation.
@@ -338,10 +352,11 @@ self-referential read).
    roster **capacity**, not quality.
 4. 自动化 imports `STEPS` + the newly-**exported** `MANUAL_GATES` from `loop.ts`
    (no hardcoding); reports 4/6 with the static `STEPS.length` denominator.
-5. `metrics/metrics-baseline.yaml` committed (excluded from npm `files`, with
-   generated banner); the doctor drift check is `!hasSource` dev/CI-only, green
-   in sync, and `fail`s on an **on-disk source mutation** without baseline regen;
-   `--write-baseline` regenerates it.
+5. `metrics/metrics-baseline.yaml` committed (added to npm `files`, generated
+   banner); the doctor drift check is `!hasSource` dev/CI-only, green in sync,
+   `fail`s on an **on-disk source mutation** of a drift-gated 化 without baseline
+   regen, and does **not** fire on a bundle-size-only change; `--write-baseline`
+   regenerates it.
 6. `commands/metrics.md` added (doctor H slash-parity green); `sgc.ts`
    `subCommands` + subcommand-count synced (19→20).
 7. README four-化 numbers reference the baseline (no hand-written stale numbers);

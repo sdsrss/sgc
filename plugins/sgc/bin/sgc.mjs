@@ -17996,1180 +17996,6 @@ var init_agent_loop = __esm(() => {
   init_logger();
 });
 
-// src/commands/doctor.ts
-var exports_doctor = {};
-__export(exports_doctor, {
-  runDoctor: () => runDoctor,
-  extractCliSubcommands: () => extractCliSubcommands,
-  bundleParityCheck: () => bundleParityCheck
-});
-import { createHash as createHash4 } from "node:crypto";
-import { existsSync as existsSync19, mkdtempSync, readdirSync as readdirSync7, readFileSync as readFileSync17, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname as dirname5, resolve as resolve15 } from "node:path";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
-function extractCliSubcommands(src2) {
-  const marker = "subCommands: {";
-  const start = src2.indexOf(marker);
-  if (start === -1)
-    return [];
-  const rest = src2.slice(start + marker.length);
-  const end = rest.indexOf(`
-  }`);
-  const block = end === -1 ? rest : rest.slice(0, end);
-  const names = [];
-  const re = /["']?([a-z][a-z0-9-]*)["']?\s*:\s*\(\)\s*=>/g;
-  let m2;
-  while ((m2 = re.exec(block)) !== null)
-    names.push(m2[1]);
-  return names;
-}
-async function bundleParityCheck(root4) {
-  const srcEntry = resolve15(root4, "src", "sgc.ts");
-  const committed = resolve15(root4, "plugins", "sgc", "bin", "sgc.mjs");
-  const buildScript = resolve15(root4, "scripts", "build-cli.mjs");
-  if (!existsSync19(srcEntry) || !existsSync19(committed) || !existsSync19(buildScript)) {
-    return { severity: "ok", msg: "  ⓘ bundle-hash parity skipped (no source checkout — dev/CI-only check)" };
-  }
-  const tmp = mkdtempSync(resolve15(tmpdir(), "sgc-bundle-"));
-  const out = resolve15(tmp, "sgc.mjs");
-  try {
-    const r3 = await spawnCapture(["node", buildScript, "--outfile", out], { cwd: root4 });
-    if (r3.exitCode !== 0)
-      return { severity: "warn", msg: `  ⚠ bundle-hash parity: rebuild failed (${r3.stderr.slice(0, 120)})` };
-    const sha = (buf) => createHash4("sha256").update(buf).digest("hex");
-    const strip2 = (b3) => Buffer.from(b3.toString("utf8").replace(/^#![^\n]*\n/, ""));
-    const a2 = sha(strip2(readFileSync17(out)));
-    const b2 = sha(strip2(readFileSync17(committed)));
-    return a2 === b2 ? { severity: "ok", msg: "  ✓ committed bundle matches source rebuild" } : { severity: "fail", msg: "  ✗ committed bundle STALE — run `npm run build:cli` and commit" };
-  } finally {
-    rmSync(tmp, { recursive: true, force: true });
-  }
-}
-async function runDoctor(opts = {}) {
-  const log = opts.log ?? ((m2) => console.log(m2));
-  const root4 = opts.repoRoot ?? repoRoot;
-  const rows = [];
-  const emit = (row) => {
-    rows.push(row);
-    log(row.msg);
-  };
-  const caps = getCapabilities();
-  const manifests = Object.entries(caps.subagents);
-  const hasSource = existsSync19(resolve15(root4, "src", "sgc.ts"));
-  log("=== Manifest prompt_path ↔ prompts/ ===");
-  for (const [name, m2] of manifests) {
-    if (m2.prompt_path == null)
-      continue;
-    const present = EMBEDDED_PROMPTS[m2.prompt_path] !== undefined;
-    if (present) {
-      emit({ severity: "ok", msg: `  ✓ ${name} → ${m2.prompt_path}` });
-    } else {
-      emit({
-        severity: "fail",
-        msg: `  ✗ ${name} → ${m2.prompt_path} (NOT EMBEDDED)`
-      });
-    }
-  }
-  log("");
-  log("=== prompts/ ↔ manifest ===");
-  const declaredPrompts = new Set;
-  for (const [, m2] of manifests) {
-    if (m2.prompt_path)
-      declaredPrompts.add(m2.prompt_path);
-  }
-  for (const rel of listEmbeddedPromptKeys().sort()) {
-    if (declaredPrompts.has(rel)) {
-      emit({ severity: "ok", msg: `  ✓ ${rel}` });
-    } else {
-      emit({
-        severity: "warn",
-        msg: `  ⚠ ${rel} (orphan — embedded but unreferenced)`
-      });
-    }
-  }
-  log("");
-  log("=== status: slot-only ↔ prompt_path: null ===");
-  for (const [name, m2] of manifests) {
-    if (m2.status !== "slot-only")
-      continue;
-    if (m2.prompt_path == null) {
-      emit({
-        severity: "ok",
-        msg: `  ✓ ${name} (slot-only, no prompt_path)`
-      });
-    } else {
-      emit({
-        severity: "fail",
-        msg: `  ✗ ${name} (slot-only but declares prompt_path: ${m2.prompt_path})`
-      });
-    }
-  }
-  log("");
-  log("=== bunfig.toml [test] root ===");
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ bunfig.toml root skipped (no source checkout — dev/CI-only check)" });
-  } else {
-    const bunfigPath = resolve15(root4, "bunfig.toml");
-    if (!existsSync19(bunfigPath)) {
-      emit({
-        severity: "warn",
-        msg: "  ⚠ bunfig.toml not found — bare `bun test` may sweep vendored suites (R0)"
-      });
-    } else if (/root\s*=\s*["']tests["']/.test(readFileSync17(bunfigPath, "utf8"))) {
-      emit({ severity: "ok", msg: '  ✓ bunfig.toml [test] root="tests"' });
-    } else {
-      emit({
-        severity: "fail",
-        msg: '  ✗ bunfig.toml present but [test] root!="tests" — bare `bun test` may sweep plugins/sgc/browse (R0 regression)'
-      });
-    }
-  }
-  log("");
-  log("=== package.json files ↔ no vendored plugins/ ===");
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ package.json files skipped (no source checkout — dev/CI-only check)" });
-  } else {
-    const pkgPath = resolve15(root4, "package.json");
-    if (!existsSync19(pkgPath)) {
-      emit({ severity: "warn", msg: "  ⚠ package.json not found" });
-    } else {
-      let files = [];
-      try {
-        const pkg = JSON.parse(readFileSync17(pkgPath, "utf8"));
-        files = Array.isArray(pkg.files) ? pkg.files : [];
-      } catch (e2) {
-        emit({
-          severity: "fail",
-          msg: `  ✗ package.json parse error: ${e2.message.slice(0, 80)}`
-        });
-        files = [];
-      }
-      const leaks = files.filter((f3) => {
-        const norm = f3.replace(/^\.?\//, "");
-        if (!norm.startsWith("plugins"))
-          return false;
-        const last = norm.split("/").at(-1) ?? "";
-        if (last === "" || !last.includes("."))
-          return true;
-        return !norm.startsWith("plugins/sgc/bin/");
-      });
-      if (files.length === 0) {
-        emit({
-          severity: "warn",
-          msg: '  ⚠ package.json has no "files" allowlist — npm would publish vendored browse'
-        });
-      } else if (leaks.length) {
-        emit({
-          severity: "fail",
-          msg: `  ✗ package.json files includes vendored path(s): ${leaks.join(", ")}`
-        });
-      } else {
-        emit({
-          severity: "ok",
-          msg: "  ✓ package.json files excludes plugins/ (vendored browse not npm-published)"
-        });
-      }
-    }
-  }
-  log("");
-  log("=== vendored-components.yaml provenance ===");
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ vendored-components.yaml skipped (no source checkout — dev/CI-only check)" });
-  } else {
-    const vcPath = resolve15(root4, "contracts/vendored-components.yaml");
-    if (!existsSync19(vcPath)) {
-      emit({
-        severity: "warn",
-        msg: "  ⚠ contracts/vendored-components.yaml not found — vendored source unregistered (R0/Rec4)"
-      });
-    } else {
-      let comps = [];
-      try {
-        const doc = load(readFileSync17(vcPath, "utf8"));
-        comps = Array.isArray(doc?.components) ? doc.components : [];
-      } catch (e2) {
-        emit({
-          severity: "fail",
-          msg: `  ✗ vendored-components.yaml parse error: ${e2.message.slice(0, 80)}`
-        });
-        comps = null;
-      }
-      if (comps && comps.length === 0) {
-        emit({ severity: "warn", msg: "  ⚠ vendored-components.yaml lists no components" });
-      } else if (comps) {
-        const required = ["path", "upstream", "upstream_ref", "vendored_at"];
-        for (const c3 of comps) {
-          const missing = required.filter((k2) => c3[k2] == null || String(c3[k2]).trim() === "");
-          const cpath = c3["path"] ?? "<no path>";
-          if (missing.length) {
-            emit({
-              severity: "fail",
-              msg: `  ✗ vendored ${cpath}: missing field(s) ${missing.join(", ")}`
-            });
-          } else if (!existsSync19(resolve15(root4, cpath))) {
-            emit({
-              severity: "fail",
-              msg: `  ✗ vendored ${cpath}: registered path missing on disk`
-            });
-          } else {
-            emit({
-              severity: "ok",
-              msg: `  ✓ vendored ${cpath} (upstream_ref: ${String(c3["upstream_ref"])})`
-            });
-          }
-        }
-      }
-    }
-  }
-  log("");
-  log("=== invariant-enforcement.yaml coverage ===");
-  const iePath = resolve15(root4, "contracts/invariant-enforcement.yaml");
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ invariant-enforcement.yaml skipped (no source checkout — dev/CI-only check)" });
-  } else if (!existsSync19(iePath)) {
-    emit({
-      severity: "warn",
-      msg: "  ⚠ contracts/invariant-enforcement.yaml not found — invariant→test map unverified"
-    });
-  } else {
-    let inv = {};
-    try {
-      const doc = load(readFileSync17(iePath, "utf8"));
-      inv = doc?.invariants && typeof doc.invariants === "object" ? doc.invariants : {};
-    } catch (e2) {
-      emit({
-        severity: "fail",
-        msg: `  ✗ invariant-enforcement.yaml parse error: ${e2.message.slice(0, 80)}`
-      });
-      inv = null;
-    }
-    if (inv) {
-      const missingSections = [];
-      for (let n2 = 1;n2 <= 13; n2++)
-        if (inv[String(n2)] == null)
-          missingSections.push(`§${n2}`);
-      if (missingSections.length) {
-        emit({
-          severity: "fail",
-          msg: `  ✗ invariant map missing: ${missingSections.join(", ")}`
-        });
-      }
-      let machineCount = 0;
-      for (let n2 = 1;n2 <= 13; n2++) {
-        const e2 = inv[String(n2)];
-        if (e2 == null)
-          continue;
-        const title = typeof e2["title"] === "string" ? e2["title"].slice(0, 32) : "";
-        if (e2["machine_enforced"] === true) {
-          machineCount++;
-          const tests = Array.isArray(e2["tests"]) ? e2["tests"] : [];
-          if (tests.length === 0) {
-            emit({ severity: "fail", msg: `  ✗ §${n2} machine_enforced but lists no tests` });
-          } else {
-            const missingTests = tests.filter((t2) => !existsSync19(resolve15(root4, t2)));
-            if (missingTests.length) {
-              emit({
-                severity: "fail",
-                msg: `  ✗ §${n2} cites missing test file(s): ${missingTests.join(", ")}`
-              });
-            } else {
-              emit({ severity: "ok", msg: `  ✓ §${n2} ${title} (${tests.length} test file(s))` });
-            }
-          }
-        } else {
-          emit({ severity: "ok", msg: `  ✓ §${n2} ${title} (procedural)` });
-        }
-      }
-      emit({ severity: "ok", msg: `  · machine-enforced invariants: ${machineCount}/13` });
-    }
-  }
-  const SLASH_EXEMPT = new Set(["canary", "watch-ci-failure", "land"]);
-  log("");
-  log("=== slash commands ↔ CLI subcommands ===");
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ slash↔CLI parity skipped (no source checkout — dev/CI-only check)" });
-  } else {
-    const sgcSrcPath = resolve15(root4, "src/sgc.ts");
-    const commandsDir = resolve15(root4, "plugins/sgc/commands");
-    if (!existsSync19(sgcSrcPath) || !existsSync19(commandsDir)) {
-      emit({
-        severity: "warn",
-        msg: "  ⚠ src/sgc.ts or plugins/sgc/commands/ not found — slash parity unchecked (npm-install layout?)"
-      });
-    } else {
-      const cliNames = extractCliSubcommands(readFileSync17(sgcSrcPath, "utf8"));
-      const slashNames = new Set(readdirSync7(commandsDir).filter((f3) => f3.endsWith(".md")).map((f3) => f3.slice(0, -3)));
-      if (cliNames.length === 0) {
-        emit({ severity: "warn", msg: "  ⚠ could not parse subCommands block in src/sgc.ts" });
-      }
-      for (const name of cliNames) {
-        if (slashNames.has(name)) {
-          emit({ severity: "ok", msg: `  ✓ ${name} (CLI + slash command)` });
-        } else if (SLASH_EXEMPT.has(name)) {
-          emit({ severity: "ok", msg: `  ✓ ${name} (CLI-only, slash-exempt)` });
-        } else {
-          emit({
-            severity: "fail",
-            msg: `  ✗ ${name} (CLI subcommand has no slash command — add plugins/sgc/commands/${name}.md or add to SLASH_EXEMPT)`
-          });
-        }
-      }
-      const cliSet = new Set(cliNames);
-      for (const slash of [...slashNames].sort()) {
-        if (!cliSet.has(slash)) {
-          emit({
-            severity: "warn",
-            msg: `  ⚠ ${slash}.md (orphan slash command — no matching CLI subcommand)`
-          });
-        }
-      }
-    }
-  }
-  log("");
-  log("=== invariant sources aligned (§ count) ===");
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ invariant-source parity skipped (no source checkout — dev/CI-only check)" });
-  } else {
-    const invMdPath = resolve15(root4, "contracts/sgc-invariants.md");
-    if (!existsSync19(invMdPath) || !existsSync19(iePath)) {
-      emit({
-        severity: "warn",
-        msg: "  ⚠ sgc-invariants.md or invariant-enforcement.yaml missing — § parity unchecked"
-      });
-    } else {
-      const mdNums = new Set;
-      const secRe = /^##\s*§(\d+)\./gm;
-      let sm;
-      const mdText = readFileSync17(invMdPath, "utf8");
-      while ((sm = secRe.exec(mdText)) !== null)
-        mdNums.add(Number(sm[1]));
-      const yamlNums = new Set;
-      try {
-        const doc = load(readFileSync17(iePath, "utf8"));
-        if (doc?.invariants)
-          for (const k2 of Object.keys(doc.invariants))
-            yamlNums.add(Number(k2));
-      } catch {}
-      const onlyMd = [...mdNums].filter((n2) => !yamlNums.has(n2)).sort((a2, b2) => a2 - b2);
-      const onlyYaml = [...yamlNums].filter((n2) => !mdNums.has(n2)).sort((a2, b2) => a2 - b2);
-      if (mdNums.size > 0 && onlyMd.length === 0 && onlyYaml.length === 0) {
-        emit({
-          severity: "ok",
-          msg: `  ✓ both sources define §1–§${Math.max(...mdNums)} (${mdNums.size} invariants)`
-        });
-      } else {
-        emit({
-          severity: "fail",
-          msg: `  ✗ invariant sources disagree — only in .md: [${onlyMd.join(",") || "—"}], only in .yaml: [${onlyYaml.join(",") || "—"}]`
-        });
-      }
-    }
-  }
-  log("");
-  log("=== bundle parity ===");
-  emit(await bundleParityCheck(root4));
-  const ok = rows.filter((r3) => r3.severity === "ok").length;
-  const warn = rows.filter((r3) => r3.severity === "warn").length;
-  const fail = rows.filter((r3) => r3.severity === "fail").length;
-  log("");
-  log(`=== Summary ===`);
-  log(`${ok} OK · ${warn} warn · ${fail} fail`);
-  return { ok, warn, fail, rows };
-}
-var moduleDir2, repoRoot;
-var init_doctor = __esm(() => {
-  init_subprocess();
-  init_js_yaml();
-  init_schema();
-  init_embedded_data();
-  moduleDir2 = dirname5(fileURLToPath2(import.meta.url));
-  repoRoot = resolve15(moduleDir2, "..", "..");
-});
-
-// src/dispatcher/reflect.ts
-import { readFile as readFile3, readdir as readdir3, mkdir as mkdir4, writeFile as writeFile2 } from "node:fs/promises";
-import { resolve as resolve16 } from "node:path";
-function slicePreMortem(raw) {
-  const idx = raw.indexOf(PRE_MORTEM_HEADER);
-  if (idx < 0)
-    return "";
-  const tail = raw.slice(idx + PRE_MORTEM_HEADER.length);
-  const endRel = tail.search(/\n## (?!#)/);
-  return endRel < 0 ? raw.slice(idx) : raw.slice(idx, idx + PRE_MORTEM_HEADER.length + endRel);
-}
-function extractEarlySignals(preMortem) {
-  const out = [];
-  for (const line of preMortem.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith(EARLY_SIGNAL_PREFIX)) {
-      out.push(trimmed.slice(EARLY_SIGNAL_PREFIX.length).trim());
-    }
-  }
-  return out;
-}
-function detectDiscussion(preMortem, solutionRef, preventionText, earlySignals) {
-  if (preMortem.includes(solutionRef)) {
-    return {
-      discussed: true,
-      evidence: `solution_ref direct match: ${solutionRef}`
-    };
-  }
-  const firstSentence = preventionText.split(/[.!?]/)[0] ?? "";
-  const previewTokens = tokenize(firstSentence);
-  if (previewTokens.size === 0 || earlySignals.length === 0) {
-    return { discussed: false, evidence: null };
-  }
-  for (const signal of earlySignals) {
-    const signalTokens = tokenize(signal);
-    let overlap = 0;
-    for (const t2 of previewTokens) {
-      if (signalTokens.has(t2))
-        overlap++;
-    }
-    if (overlap >= MIN_SIGNAL_OVERLAP) {
-      return {
-        discussed: true,
-        evidence: `signal-token overlap (${overlap}): ${signal.slice(0, 80)}`
-      };
-    }
-  }
-  return { discussed: false, evidence: null };
-}
-async function auditDecision(taskId, stateRoot2, _opts = {}) {
-  const root4 = resolveStateRoot(stateRoot2);
-  const decisionPath = resolve16(root4, "decisions", taskId, "intent.md");
-  let raw;
-  try {
-    raw = await readFile3(decisionPath, "utf8");
-  } catch {
-    return { task_id: taskId, decision_path: decisionPath, candidates: [] };
-  }
-  let frontmatter;
-  try {
-    frontmatter = parseFrontmatter(raw).data;
-  } catch {
-    return { task_id: taskId, decision_path: decisionPath, candidates: [] };
-  }
-  const keywordSource = `${frontmatter.motivation ?? ""}
-${frontmatter.title ?? ""}`;
-  const keywords = extractKeywords(keywordSource);
-  if (keywords.length === 0) {
-    return { task_id: taskId, decision_path: decisionPath, candidates: [] };
-  }
-  const scans = await walkSolutionsCorpus(root4, keywords);
-  const preMortem = slicePreMortem(raw);
-  const earlySignals = extractEarlySignals(preMortem);
-  const candidates = [];
-  for (const scan of scans) {
-    let solutionFrontmatter;
-    try {
-      solutionFrontmatter = parseFrontmatter(scan.text).data;
-    } catch {
-      continue;
-    }
-    const preventionText = solutionFrontmatter.prevention?.trim() ?? "";
-    if (preventionText === "")
-      continue;
-    const solutionRef = `${scan.category}/${scan.slug}`;
-    const { discussed, evidence } = detectDiscussion(preMortem, solutionRef, preventionText, earlySignals);
-    candidates.push({
-      solution_ref: solutionRef,
-      category: scan.category,
-      prevention_text: preventionText,
-      keyword_overlap: scan.hits,
-      discussed,
-      discussed_evidence: evidence,
-      applied_count: Array.isArray(solutionFrontmatter.applied_in) ? solutionFrontmatter.applied_in.length : 0,
-      surfaced_count: Array.isArray(solutionFrontmatter.surfaced_in) ? solutionFrontmatter.surfaced_in.length : 0
-    });
-  }
-  candidates.sort((a2, b2) => {
-    if (a2.discussed !== b2.discussed)
-      return a2.discussed ? 1 : -1;
-    return b2.keyword_overlap - a2.keyword_overlap;
-  });
-  return { task_id: taskId, decision_path: decisionPath, candidates };
-}
-async function auditAllDecisions(stateRoot2, opts = {}) {
-  const root4 = resolveStateRoot(stateRoot2);
-  const decisionsDir = resolve16(root4, "decisions");
-  let entries;
-  try {
-    entries = await readdir3(decisionsDir, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-  const sinceMs = opts.since ? Date.parse(opts.since) : null;
-  if (sinceMs !== null && Number.isNaN(sinceMs)) {
-    throw new Error(`--since: not a parseable date: ${opts.since}`);
-  }
-  const pending = [];
-  for (const entry of entries) {
-    if (!entry.isDirectory())
-      continue;
-    const intentPath3 = resolve16(decisionsDir, entry.name, "intent.md");
-    let raw;
-    try {
-      raw = await readFile3(intentPath3, "utf8");
-    } catch {
-      continue;
-    }
-    let frontmatter;
-    try {
-      frontmatter = parseFrontmatter(raw).data;
-    } catch {
-      continue;
-    }
-    const createdAtMs = frontmatter.created_at ? Date.parse(frontmatter.created_at) : 0;
-    if (sinceMs !== null && createdAtMs < sinceMs)
-      continue;
-    pending.push({ taskId: entry.name, createdAtMs });
-  }
-  pending.sort((a2, b2) => b2.createdAtMs - a2.createdAtMs);
-  const reports = [];
-  for (const p of pending) {
-    reports.push(await auditDecision(p.taskId, root4));
-  }
-  return reports;
-}
-function formatReport(report) {
-  const lines = [];
-  lines.push(`# Reflect: ${report.task_id}`);
-  lines.push("");
-  lines.push(`Decision: ${report.decision_path}`);
-  lines.push("");
-  if (report.candidates.length === 0) {
-    lines.push("No matched preventions.");
-    return lines.join(`
-`);
-  }
-  lines.push(`Matched preventions: ${report.candidates.length}`);
-  lines.push("Legend: overlap=recall match · applied=L3-validated reuse · surfaced=L2 meaningful surfacing · [discussed]=engaged in this pre-mortem");
-  for (const c3 of report.candidates) {
-    const tag = c3.discussed ? "[discussed]" : "[silent]    ";
-    lines.push(`  - ${tag} ${c3.solution_ref} (overlap: ${c3.keyword_overlap}, applied: ${c3.applied_count}, surfaced: ${c3.surfaced_count})`);
-    if (c3.discussed && c3.discussed_evidence) {
-      lines.push(`    evidence: ${c3.discussed_evidence}`);
-    }
-    if (!c3.discussed && c3.prevention_text) {
-      const preview = c3.prevention_text.split(/[.!?]/)[0]?.trim().slice(0, 80) ?? "";
-      lines.push(`    prevention: ${preview}`);
-    }
-  }
-  return lines.join(`
-`);
-}
-async function writeReflectionFile(report, stateRoot2) {
-  const root4 = resolveStateRoot(stateRoot2);
-  const dir = resolve16(root4, "reflections");
-  await mkdir4(dir, { recursive: true });
-  const path2 = resolve16(dir, `${report.task_id}.md`);
-  await writeFile2(path2, formatReport(report), "utf8");
-  return path2;
-}
-var MIN_SIGNAL_OVERLAP = 3, PRE_MORTEM_HEADER = "## Pre-mortem", EARLY_SIGNAL_PREFIX = "Early signal:";
-var init_reflect = __esm(() => {
-  init_researcher_history();
-  init_state();
-  init_dedup();
-});
-
-// src/commands/reflect.ts
-var exports_reflect = {};
-__export(exports_reflect, {
-  runReflect: () => runReflect
-});
-async function runReflect(opts = {}) {
-  let reports;
-  if (opts.task) {
-    reports = [await auditDecision(opts.task, undefined, { since: opts.since })];
-  } else {
-    reports = await auditAllDecisions(undefined, { since: opts.since });
-  }
-  if (opts.json) {
-    console.log(JSON.stringify(reports, null, 2));
-  } else {
-    if (reports.length === 0) {
-      console.log("No decisions audited.");
-    } else {
-      console.log(reports.map(formatReport).join(`
-
-`));
-    }
-  }
-  if (opts.save) {
-    for (const r3 of reports) {
-      const path2 = await writeReflectionFile(r3);
-      console.error(`saved: ${path2}`);
-    }
-  }
-}
-var init_reflect2 = __esm(() => {
-  init_reflect();
-});
-
-// src/dispatcher/ship-failure.ts
-import { mkdir as mkdir5, stat as stat2, writeFile as writeFile3 } from "node:fs/promises";
-import { resolve as resolve17 } from "node:path";
-function clamp2(n2, lo, hi) {
-  return Math.max(lo, Math.min(hi, n2));
-}
-function shortSha3(sha) {
-  return sha.slice(0, 7);
-}
-function todayUtcDate(now) {
-  return new Date(now()).toISOString().slice(0, 10);
-}
-async function defaultRunCommand(args) {
-  return spawnCapture(args);
-}
-async function defaultSleep2(ms) {
-  await new Promise((r3) => setTimeout(r3, ms));
-}
-async function watchPublishWorkflow(opts = {}) {
-  const runCommand2 = opts.runCommand ?? defaultRunCommand;
-  const now = opts.now ?? Date.now;
-  const sleep2 = opts.sleep ?? defaultSleep2;
-  const intervalSec = clamp2(opts.intervalSec ?? DEFAULT_INTERVAL_SEC, MIN_INTERVAL_SEC, MAX_INTERVAL_SEC);
-  const timeoutSec = clamp2(opts.timeoutSec ?? DEFAULT_TIMEOUT_SEC, MIN_TIMEOUT_SEC, MAX_TIMEOUT_SEC);
-  const workflowName = opts.workflowName ?? "publish-npm";
-  const expectedSha = opts.expectedSha ?? null;
-  const startMs = now();
-  const timeoutMs = timeoutSec * 1000;
-  const intervalMs = intervalSec * 1000;
-  const remaining = () => timeoutMs - (now() - startMs);
-  let runId = opts.runId ?? null;
-  let cachedRun = null;
-  while (runId === null) {
-    if (remaining() <= 0)
-      return { status: "timeout" };
-    const args = [
-      "gh",
-      "run",
-      "list",
-      "--workflow",
-      workflowName,
-      "--limit",
-      "10",
-      "--json",
-      "databaseId,status,conclusion,name,headSha,headBranch,url"
-    ];
-    const res = await runCommand2(args);
-    if (res.exitCode === 0 && res.stdout.trim().length > 0) {
-      try {
-        const rows = JSON.parse(res.stdout);
-        const matched = expectedSha ? rows.find((r3) => r3.headSha.startsWith(expectedSha)) : rows[0];
-        if (matched) {
-          runId = String(matched.databaseId);
-          cachedRun = {
-            id: runId,
-            url: matched.url,
-            name: matched.name,
-            headSha: matched.headSha,
-            headBranch: matched.headBranch
-          };
-          if (matched.status === "completed") {
-            if (matched.conclusion === "success") {
-              return { status: "success", run: cachedRun };
-            }
-            const excerpt = await fetchFailingLog(runCommand2, runId);
-            return { status: "failure", run: cachedRun, summaryExcerpt: excerpt };
-          }
-          break;
-        }
-      } catch {}
-    }
-    await sleep2(intervalMs);
-  }
-  while (true) {
-    if (remaining() <= 0)
-      return { status: "timeout", ...cachedRun ? { run: cachedRun } : {} };
-    const args = [
-      "gh",
-      "run",
-      "view",
-      runId,
-      "--json",
-      "databaseId,status,conclusion,name,headSha,headBranch,url"
-    ];
-    const res = await runCommand2(args);
-    if (res.exitCode === 0 && res.stdout.trim().length > 0) {
-      try {
-        const row = JSON.parse(res.stdout);
-        cachedRun = {
-          id: String(row.databaseId),
-          url: row.url,
-          name: row.name,
-          headSha: row.headSha,
-          headBranch: row.headBranch
-        };
-        if (row.status === "completed") {
-          if (row.conclusion === "success") {
-            return { status: "success", run: cachedRun };
-          }
-          const excerpt = await fetchFailingLog(runCommand2, runId);
-          return { status: "failure", run: cachedRun, summaryExcerpt: excerpt };
-        }
-      } catch {}
-    }
-    await sleep2(intervalMs);
-  }
-}
-async function fetchFailingLog(runCommand2, runId) {
-  const res = await runCommand2(["gh", "run", "view", runId, "--log-failed"]);
-  if (res.exitCode !== 0 || res.stdout.trim().length === 0)
-    return "";
-  return res.stdout;
-}
-function renderBody(failure) {
-  let excerpt = failure.summaryExcerpt;
-  if (excerpt.length === 0) {
-    excerpt = EMPTY_SUMMARY_FALLBACK;
-  } else if (excerpt.length > SUMMARY_MAX_CHARS) {
-    excerpt = excerpt.slice(0, SUMMARY_MAX_CHARS) + TRUNCATION_SENTINEL;
-  }
-  return [
-    "## Failure context",
-    "",
-    `- workflow: ${failure.workflowName}`,
-    `- run id:   ${failure.workflowRunId}`,
-    `- run url:  ${failure.workflowRunUrl}`,
-    `- commit:   ${failure.commitSha}`,
-    `- tag:      ${failure.tag ?? "(none)"}`,
-    "",
-    "## $GITHUB_STEP_SUMMARY excerpt",
-    "",
-    excerpt,
-    "",
-    "## Next steps for operator",
-    "",
-    "- Investigate the failing step in the run url above.",
-    "- Once root cause is known, edit `prevention_seed:` in the frontmatter with the safeguard to apply.",
-    "- Promote to a finished prevention via `sgc compound` (manual today; auto-promotion is future scope).",
-    ""
-  ].join(`
-`);
-}
-async function captureShipFailure(failure, stateRoot2, opts = {}) {
-  const now = opts.now ?? Date.now;
-  const root4 = resolveStateRoot(stateRoot2);
-  const dir = resolve17(root4, "ship-failures");
-  await mkdir5(dir, { recursive: true });
-  const slug = `${todayUtcDate(now)}-${shortSha3(failure.commitSha)}`;
-  const path2 = resolve17(dir, `${slug}.md`);
-  try {
-    await stat2(path2);
-    return { action: "deduped", path: path2 };
-  } catch {}
-  const preventionSeed = `TODO: operator-fill; captured failure of ${failure.workflowName} ` + `at ${shortSha3(failure.commitSha)}. Convert via \`sgc compound\`.`;
-  const frontmatter = {
-    kind: "ship-failure",
-    captured_at: new Date(now()).toISOString(),
-    commit_sha: failure.commitSha,
-    tag: failure.tag ?? "(none)",
-    workflow_run_id: failure.workflowRunId,
-    workflow_run_url: failure.workflowRunUrl,
-    workflow_name: failure.workflowName,
-    conclusion: "failure",
-    prevention_seed: preventionSeed
-  };
-  const content = serializeFrontmatter(frontmatter, renderBody(failure));
-  await writeFile3(path2, content, "utf8");
-  return { action: "captured", path: path2 };
-}
-var DEFAULT_INTERVAL_SEC = 15, DEFAULT_TIMEOUT_SEC = 600, MIN_INTERVAL_SEC = 5, MAX_INTERVAL_SEC = 60, MIN_TIMEOUT_SEC = 60, MAX_TIMEOUT_SEC = 1800, SUMMARY_MAX_CHARS = 2000, TRUNCATION_SENTINEL = "...", EMPTY_SUMMARY_FALLBACK = "(empty — workflow did not write $GITHUB_STEP_SUMMARY)";
-var init_ship_failure = __esm(() => {
-  init_state();
-  init_subprocess();
-});
-
-// src/commands/watch-ci-failure.ts
-var exports_watch_ci_failure = {};
-__export(exports_watch_ci_failure, {
-  runWatchCiFailure: () => runWatchCiFailure
-});
-async function gitOutput2(args) {
-  const { stdout: stdout2, exitCode } = await spawnCapture(["git", ...args]);
-  if (exitCode !== 0)
-    return null;
-  const trimmed = stdout2.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-async function runWatchCiFailure(opts = {}) {
-  const branch = opts.branch ?? await gitOutput2(["rev-parse", "--abbrev-ref", "HEAD"]);
-  const headSha = await gitOutput2(["rev-parse", "HEAD"]);
-  const tag = await gitOutput2(["describe", "--tags", "--abbrev=0"]);
-  const workflow = opts.workflow ?? "publish.yml";
-  const result = await watchPublishWorkflow({
-    branch: branch ?? undefined,
-    expectedSha: headSha ?? undefined,
-    runId: opts.runId,
-    intervalSec: opts.intervalSec,
-    timeoutSec: opts.timeoutSec,
-    workflowName: workflow
-  });
-  if (result.status === "success") {
-    const sha = result.run?.headSha ?? headSha ?? "(unknown)";
-    console.error(`CI green for ${sha.slice(0, 7)}; no capture.`);
-    return;
-  }
-  if (result.status === "timeout") {
-    const t2 = opts.timeoutSec ?? "default";
-    console.error(`[PARTIAL: watch timed out after ${t2}s; CI still in progress; no capture written]`);
-    return;
-  }
-  if (!result.run) {
-    console.error(`[PARTIAL: failure detected but no run metadata available; no capture written]`);
-    return;
-  }
-  const failure = {
-    commitSha: result.run.headSha,
-    tag,
-    workflowName: workflow,
-    workflowRunId: result.run.id,
-    workflowRunUrl: result.run.url,
-    summaryExcerpt: result.summaryExcerpt ?? ""
-  };
-  const captured = await captureShipFailure(failure);
-  if (captured.action === "captured") {
-    console.error(`captured: ${captured.path}`);
-  } else {
-    console.error(`deduped: ${captured.path} (same SHA already recorded)`);
-  }
-}
-var init_watch_ci_failure = __esm(() => {
-  init_ship_failure();
-  init_subprocess();
-});
-
-// src/dispatcher/canary.ts
-import { mkdir as mkdir6, mkdtemp, rm, stat as stat3, writeFile as writeFile4 } from "node:fs/promises";
-import { tmpdir as osTmpdir } from "node:os";
-import { join as join5, resolve as resolve18 } from "node:path";
-function clamp3(n2, lo, hi) {
-  return Math.max(lo, Math.min(hi, n2));
-}
-function shortSha4(sha) {
-  return sha.slice(0, 7);
-}
-function todayUtcDate2(now) {
-  return new Date(now()).toISOString().slice(0, 10);
-}
-function truncate(s2, max) {
-  return s2.length > max ? s2.slice(0, max) + TRUNCATION_SENTINEL2 : s2;
-}
-function isSafeUrl(url) {
-  try {
-    const u3 = new URL(url);
-    return u3.protocol === "http:" || u3.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-async function defaultNpmView(pkg) {
-  const { stdout: stdout2 } = await spawnCapture(["npm", "view", pkg, "dist-tags.latest", "--json"]);
-  return stdout2;
-}
-function deriveBinName(pkg) {
-  if (pkg.startsWith("@")) {
-    const tail = pkg.split("/")[1];
-    return tail ?? pkg;
-  }
-  return pkg;
-}
-async function defaultNpxSmoke(pkg, ver, bin) {
-  const dir = await mkdtemp(join5(osTmpdir(), "sgc-canary-smoke-"));
-  try {
-    const {
-      stdout: installStdout,
-      stderr: installStderr,
-      exitCode: installExit
-    } = await spawnCapture(["npm", "install", "--prefix", dir, "--no-save", "--silent", `${pkg}@${ver}`], { env: { ...process.env, PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1" } });
-    if (installExit !== 0) {
-      return {
-        exitCode: installExit,
-        stdout: installStdout,
-        stderr: `npm install ${pkg}@${ver} failed: ${installStderr}`
-      };
-    }
-    const binName = bin ?? deriveBinName(pkg);
-    const binPath = resolve18(dir, "node_modules", ".bin", binName);
-    const { stdout: stdout2, stderr, exitCode } = await spawnCapture([binPath, "--version"]);
-    return { stdout: stdout2, stderr, exitCode };
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-}
-async function defaultHttpFetch(url) {
-  const controller = new AbortController;
-  const timer = setTimeout(() => controller.abort(), HEALTH_FETCH_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    const body = await res.text();
-    return { status: res.status, body };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-async function defaultSleep3(ms) {
-  await new Promise((r3) => setTimeout(r3, ms));
-}
-async function runCanaryChecks(opts) {
-  const phases = opts.phases ?? DEFAULT_PHASES;
-  const npmView = opts.npmView ?? defaultNpmView;
-  const npxSmoke = opts.npxSmoke ?? defaultNpxSmoke;
-  const httpFetch = opts.httpFetch ?? defaultHttpFetch;
-  const now = opts.now ?? Date.now;
-  const sleep2 = opts.sleep ?? defaultSleep3;
-  const intervalSec = clamp3(opts.intervalSec ?? DEFAULT_INTERVAL_SEC2, MIN_INTERVAL_SEC2, MAX_INTERVAL_SEC2);
-  const timeoutSec = clamp3(opts.timeoutSec ?? DEFAULT_TIMEOUT_SEC2, MIN_TIMEOUT_SEC2, MAX_TIMEOUT_SEC2);
-  const intervalMs = intervalSec * 1000;
-  const timeoutMs = timeoutSec * 1000;
-  if (phases.includes("health_url")) {
-    if (!opts.healthUrl) {
-      throw new Error("health_url phase requires healthUrl option");
-    }
-    if (!isSafeUrl(opts.healthUrl)) {
-      throw new UnsafeUrlScheme(opts.healthUrl);
-    }
-  }
-  const phaseOutputs = {};
-  for (const phase of phases) {
-    if (phase === "npm_propagation") {
-      const startMs = now();
-      let propagated = false;
-      while (!propagated) {
-        if (now() - startMs >= timeoutMs) {
-          return { status: "timeout", phaseOutputs };
-        }
-        try {
-          const raw = await npmView(opts.packageName);
-          const parsed = JSON.parse(raw);
-          if (typeof parsed === "string" && parsed === opts.expectedVersion) {
-            propagated = true;
-            break;
-          }
-        } catch {}
-        await sleep2(intervalMs);
-      }
-    } else if (phase === "smoke_install") {
-      const res = await npxSmoke(opts.packageName, opts.expectedVersion, opts.binName);
-      if (res.exitCode !== 0) {
-        const out = truncate(res.stderr || res.stdout || `npx exited ${res.exitCode}`, PHASE_OUTPUT_MAX_CHARS);
-        phaseOutputs.smoke_install = out;
-        return { status: "failure", failedPhase: "smoke_install", phaseOutputs };
-      }
-      if (!res.stdout.includes(opts.expectedVersion)) {
-        const out = truncate(`exitCode=0 but stdout missing ${opts.expectedVersion}; stdout=${res.stdout}`, PHASE_OUTPUT_MAX_CHARS);
-        phaseOutputs.smoke_install = out;
-        return { status: "failure", failedPhase: "smoke_install", phaseOutputs };
-      }
-    } else if (phase === "health_url") {
-      const url = opts.healthUrl;
-      const regex2 = opts.healthRegex ? new RegExp(opts.healthRegex) : null;
-      let lastResult = null;
-      let lastError = null;
-      let ok = false;
-      for (let attempt = 0;attempt < HEALTH_RETRY_COUNT; attempt++) {
-        try {
-          const res = await httpFetch(url);
-          lastResult = res;
-          if (res.status >= 200 && res.status < 300) {
-            if (!regex2 || regex2.test(res.body)) {
-              ok = true;
-              break;
-            }
-            lastError = `body regex mismatch; body excerpt: ${res.body.slice(0, 500)}`;
-          } else {
-            lastError = `non-2xx status: ${res.status}; body excerpt: ${res.body.slice(0, 500)}`;
-          }
-        } catch (err) {
-          lastError = `fetch error: ${err instanceof Error ? err.message : String(err)}`;
-        }
-        if (attempt < HEALTH_RETRY_COUNT - 1) {
-          await sleep2(HEALTH_RETRY_INTERVAL_SEC * 1000);
-        }
-      }
-      if (!ok) {
-        phaseOutputs.health_url = truncate(lastError ?? "health_url failed with no captured error", PHASE_OUTPUT_MAX_CHARS);
-        return { status: "failure", failedPhase: "health_url", phaseOutputs };
-      }
-    }
-  }
-  return { status: "success", phaseOutputs };
-}
-function renderBody2(failure) {
-  const raw = failure.phaseOutputs[failure.failedPhase] ?? "";
-  const excerpt = raw.length === 0 ? "(empty — phase produced no output)" : raw.length > PHASE_OUTPUT_MAX_CHARS ? raw.slice(0, PHASE_OUTPUT_MAX_CHARS) + TRUNCATION_SENTINEL2 : raw;
-  return [
-    "## Failure context",
-    "",
-    `- package:    ${failure.packageName}`,
-    `- version:    ${failure.expectedVersion}`,
-    `- phase:      ${failure.failedPhase}`,
-    `- commit:     ${failure.commitSha}`,
-    `- tag:        ${failure.tag ?? "(none)"}`,
-    `- health url: ${failure.healthUrl ?? "(none)"}`,
-    "",
-    "## Phase output excerpt",
-    "",
-    excerpt,
-    "",
-    "## Next steps for operator",
-    "",
-    "- Reproduce the failing phase locally with the same arguments.",
-    "- Once root cause is known, edit `regression_seed:` in the frontmatter with the safeguard to apply.",
-    "- Promote to a finished prevention via `sgc compound --from-canary <slug>` (pending GS-1.1; manual `sgc compound` works today).",
-    ""
-  ].join(`
-`);
-}
-async function captureCanaryFailure(failure, stateRoot2, opts = {}) {
-  const now = opts.now ?? Date.now;
-  const root4 = resolveStateRoot(stateRoot2);
-  const dir = resolve18(root4, "canaries");
-  await mkdir6(dir, { recursive: true });
-  const slug = `${todayUtcDate2(now)}-${shortSha4(failure.commitSha)}-${failure.failedPhase}`;
-  const path2 = resolve18(dir, `${slug}.md`);
-  try {
-    await stat3(path2);
-    return { action: "deduped", path: path2 };
-  } catch {}
-  const regressionSeed = `TODO: operator-fill; canary failed at ${failure.failedPhase} ` + `for ${failure.packageName}@${failure.expectedVersion} on ${shortSha4(failure.commitSha)}. ` + `Convert via \`sgc compound --from-canary ${slug}\` (pending GS-1.1).`;
-  const frontmatter = {
-    kind: "canary-failure",
-    captured_at: new Date(now()).toISOString(),
-    commit_sha: failure.commitSha,
-    tag: failure.tag ?? "(none)",
-    package_name: failure.packageName,
-    expected_version: failure.expectedVersion,
-    failed_phase: failure.failedPhase,
-    health_url: failure.healthUrl ?? "(none)",
-    regression_seed: regressionSeed
-  };
-  const content = serializeFrontmatter(frontmatter, renderBody2(failure));
-  await writeFile4(path2, content, "utf8");
-  return { action: "captured", path: path2 };
-}
-var DEFAULT_INTERVAL_SEC2 = 15, DEFAULT_TIMEOUT_SEC2 = 300, MIN_INTERVAL_SEC2 = 5, MAX_INTERVAL_SEC2 = 60, MIN_TIMEOUT_SEC2 = 60, MAX_TIMEOUT_SEC2 = 1800, PHASE_OUTPUT_MAX_CHARS = 2000, TRUNCATION_SENTINEL2 = "...", DEFAULT_PHASES, HEALTH_RETRY_COUNT = 3, HEALTH_RETRY_INTERVAL_SEC = 5, HEALTH_FETCH_TIMEOUT_MS = 1e4, UnsafeUrlScheme;
-var init_canary = __esm(() => {
-  init_state();
-  init_subprocess();
-  DEFAULT_PHASES = ["npm_propagation", "smoke_install"];
-  UnsafeUrlScheme = class UnsafeUrlScheme extends Error {
-    constructor(url) {
-      super(`UnsafeUrlScheme: ${url} (only http:// and https:// allowed)`);
-      this.name = "UnsafeUrlScheme";
-    }
-  };
-});
-
-// src/commands/canary.ts
-var exports_canary = {};
-__export(exports_canary, {
-  runCanary: () => runCanary,
-  parsePhases: () => parsePhases,
-  VALID_PHASES: () => VALID_PHASES
-});
-import { readFile as readFile4 } from "node:fs/promises";
-import { resolve as resolve19 } from "node:path";
-async function gitOutput3(args) {
-  const { stdout: stdout2, exitCode } = await spawnCapture(["git", ...args]);
-  if (exitCode !== 0)
-    return null;
-  const trimmed = stdout2.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-async function readPackageJson() {
-  try {
-    const raw = await readFile4(resolve19(process.cwd(), "package.json"), "utf8");
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-function parsePhases(csv) {
-  if (!csv)
-    return DEFAULT_PHASES;
-  const tokens = csv.split(",").map((s2) => s2.trim()).filter((s2) => s2.length > 0);
-  const invalid = tokens.filter((t2) => !VALID_PHASES.includes(t2));
-  if (invalid.length > 0) {
-    throw new Error(`unknown canary phase(s): ${invalid.join(", ")}; valid: ${VALID_PHASES.join(", ")}`);
-  }
-  return tokens;
-}
-async function runCanary(opts = {}) {
-  const pkgJson = await readPackageJson();
-  const packageName = opts.packageName ?? pkgJson?.name;
-  if (!packageName) {
-    console.error("sgc canary: cannot resolve package name — pass --package <name> or run from a directory with package.json");
-    process.exitCode = 2;
-    return;
-  }
-  const tagFromGit = await gitOutput3(["describe", "--tags", "--exact-match", "HEAD"]);
-  const expectedVersion = opts.expectedVersion ?? pkgJson?.version ?? tagFromGit?.replace(/^v/, "");
-  if (!expectedVersion) {
-    console.error("sgc canary: cannot resolve expected version — pass --version <ver>, run from a directory with package.json, or tag HEAD");
-    process.exitCode = 2;
-    return;
-  }
-  const commitSha = await gitOutput3(["rev-parse", "HEAD"]) ?? "(unknown)";
-  const tag = (await gitOutput3(["tag", "--points-at", "HEAD"]))?.split(`
-`)[0] ?? null;
-  const phases = opts.phases ?? DEFAULT_PHASES;
-  const result = await runCanaryChecks({
-    packageName,
-    expectedVersion,
-    phases,
-    healthUrl: opts.healthUrl,
-    healthRegex: opts.healthRegex,
-    binName: opts.binName,
-    intervalSec: opts.intervalSec,
-    timeoutSec: opts.timeoutSec
-  });
-  if (result.status === "success") {
-    console.error(`canary green for ${packageName}@${expectedVersion}; no capture.`);
-    return;
-  }
-  if (result.status === "timeout") {
-    const t2 = opts.timeoutSec ?? "default";
-    console.error(`[PARTIAL: canary timed out after ${t2}s; ${packageName}@${expectedVersion} not yet propagated to npm; no capture written]`);
-    return;
-  }
-  if (!result.failedPhase) {
-    console.error(`[PARTIAL: failure detected but no failedPhase recorded; no capture written]`);
-    process.exitCode = 1;
-    return;
-  }
-  const failure = {
-    commitSha,
-    tag,
-    packageName,
-    expectedVersion,
-    failedPhase: result.failedPhase,
-    healthUrl: opts.healthUrl ?? null,
-    phaseOutputs: result.phaseOutputs
-  };
-  const captured = await captureCanaryFailure(failure);
-  if (captured.action === "captured") {
-    console.error(`canary failure: phase ${result.failedPhase} for ${packageName}@${expectedVersion}; captured: ${captured.path}`);
-  } else {
-    console.error(`canary failure: phase ${result.failedPhase} for ${packageName}@${expectedVersion}; deduped: ${captured.path} (same (sha, phase) already recorded)`);
-  }
-  process.exitCode = 1;
-}
-var VALID_PHASES;
-var init_canary2 = __esm(() => {
-  init_canary();
-  init_subprocess();
-  VALID_PHASES = [
-    "npm_propagation",
-    "smoke_install",
-    "health_url"
-  ];
-});
-
 // src/commands/plan.ts
 var exports_plan2 = {};
 __export(exports_plan2, {
@@ -19184,7 +18010,7 @@ function nowIso10() {
 }
 async function readLineSync2() {
   const stdin2 = process.stdin;
-  return new Promise((resolve20) => {
+  return new Promise((resolve15) => {
     stdin2.resume();
     stdin2.setEncoding("utf8");
     let buf = "";
@@ -19195,7 +18021,7 @@ async function readLineSync2() {
       if (nl !== -1) {
         stdin2.removeListener("data", onData);
         stdin2.pause();
-        resolve20(buf.slice(0, nl).trim());
+        resolve15(buf.slice(0, nl).trim());
       }
     };
     stdin2.on("data", onData);
@@ -19931,23 +18757,23 @@ var init_qa2 = __esm(() => {
 });
 
 // src/dispatcher/loop.ts
-import { existsSync as existsSync20, readdirSync as readdirSync8, readFileSync as readFileSync18 } from "node:fs";
-import { mkdir as mkdir7 } from "node:fs/promises";
-import { resolve as resolve20 } from "node:path";
+import { existsSync as existsSync19, readdirSync as readdirSync7, readFileSync as readFileSync17 } from "node:fs";
+import { mkdir as mkdir4 } from "node:fs/promises";
+import { resolve as resolve15 } from "node:path";
 function generateUlid8() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
 function loopRunsDir(stateRoot2) {
-  return resolve20(resolveStateRoot(stateRoot2), "loop-runs");
+  return resolve15(resolveStateRoot(stateRoot2), "loop-runs");
 }
 function runPath(stateRoot2, runId) {
-  return resolve20(loopRunsDir(stateRoot2), `${runId}.md`);
+  return resolve15(loopRunsDir(stateRoot2), `${runId}.md`);
 }
 function loopClaimLockPath(stateRoot2) {
-  return resolve20(loopRunsDir(stateRoot2), ".claim.lock");
+  return resolve15(loopRunsDir(stateRoot2), ".claim.lock");
 }
 function readRun(path2) {
-  const text = readFileSync18(path2, "utf8");
+  const text = readFileSync17(path2, "utf8");
   try {
     const { data } = parseFrontmatter(text);
     return data;
@@ -20003,12 +18829,12 @@ async function runLoop(task, opts) {
   const stateRoot2 = opts.stateRoot;
   const now = opts.now ?? Date.now;
   const ulid = opts.ulid ?? generateUlid8;
-  await mkdir7(loopRunsDir(stateRoot2), { recursive: true });
+  await mkdir4(loopRunsDir(stateRoot2), { recursive: true });
   let run;
   let runFilePath;
   if (opts.resume) {
     runFilePath = runPath(stateRoot2, opts.resume);
-    if (!existsSync20(runFilePath)) {
+    if (!existsSync19(runFilePath)) {
       throw new LoopError("RunNotFound", `loop-runs/${opts.resume}.md does not exist under ${resolveStateRoot(stateRoot2)}`, { run_id: opts.resume });
     }
     run = readRun(runFilePath);
@@ -20143,14 +18969,14 @@ async function runLoop(task, opts) {
 }
 function listRunsRaw(stateRoot2) {
   const dir = loopRunsDir(stateRoot2);
-  if (!existsSync20(dir))
+  if (!existsSync19(dir))
     return [];
   const out = [];
-  for (const fn of readdirSync8(dir)) {
+  for (const fn of readdirSync7(dir)) {
     if (!fn.endsWith(".md"))
       continue;
     try {
-      out.push(readRun(resolve20(dir, fn)));
+      out.push(readRun(resolve15(dir, fn)));
     } catch {}
   }
   return out;
@@ -20162,7 +18988,7 @@ async function listLoopRuns(opts = {}) {
 }
 async function showLoopRun(runId, opts = {}) {
   const path2 = runPath(opts.stateRoot, runId);
-  if (!existsSync20(path2)) {
+  if (!existsSync19(path2)) {
     throw new LoopError("RunNotFound", `loop-runs/${runId}.md not found under ${resolveStateRoot(opts.stateRoot)}`, { run_id: runId });
   }
   return readRun(path2);
@@ -20190,6 +19016,1429 @@ var init_loop = __esm(() => {
       this.detail = detail;
     }
   };
+});
+
+// package.json
+var package_default2;
+var init_package = __esm(() => {
+  package_default2 = {
+    name: "@sdsrs/sgc",
+    version: "1.27.0",
+    description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
+    type: "module",
+    bin: {
+      sgc: "./plugins/sgc/bin/sgc.mjs"
+    },
+    files: [
+      "plugins/sgc/bin/sgc.mjs",
+      "src/",
+      "contracts/",
+      "prompts/",
+      "README.md",
+      "LICENSE",
+      "CHANGELOG.md"
+    ],
+    engines: {
+      node: ">=18"
+    },
+    publishConfig: {
+      access: "public",
+      provenance: true
+    },
+    repository: {
+      type: "git",
+      url: "git+https://github.com/sdsrss/sgc.git"
+    },
+    bugs: {
+      url: "https://github.com/sdsrss/sgc/issues"
+    },
+    homepage: "https://github.com/sdsrss/sgc#readme",
+    keywords: [
+      "claude-code",
+      "ai-coding",
+      "task-classifier",
+      "invariants",
+      "knowledge-engine",
+      "dispatcher",
+      "dedup"
+    ],
+    scripts: {
+      "build:browse": "bun build ./plugins/sgc/browse/src/cli.ts --compile --outfile ./plugins/sgc/browse/dist/browse",
+      "build:cli": "node scripts/build-cli.mjs",
+      typecheck: "tsc --noEmit",
+      test: "SGC_FORCE_INLINE=1 bun test tests/dispatcher",
+      "test:eval": "bun test tests/eval",
+      "test:all": "SGC_FORCE_INLINE=1 bun test tests/"
+    },
+    author: {
+      name: "SDS"
+    },
+    license: "MIT",
+    devDependencies: {
+      "@types/bun": "latest",
+      "@types/js-yaml": "^4.0.9",
+      typescript: "^6.0.3"
+    },
+    dependencies: {
+      "@anthropic-ai/sdk": "^0.91.1",
+      citty: "^0.1.6",
+      "js-yaml": "^4.1.1",
+      playwright: "^1.52.0"
+    }
+  };
+});
+
+// src/dispatcher/metrics.ts
+import { readFileSync as readFileSync18, statSync as statSync4 } from "node:fs";
+import { resolve as resolve16 } from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
+function computeStandardization(invariantYaml) {
+  const doc = load(invariantYaml);
+  const entries = Object.values(doc?.invariants ?? {});
+  return {
+    machine_enforced: entries.filter((e2) => e2 != null && e2.machine_enforced === true).length,
+    total: entries.length
+  };
+}
+function computeIntelligence(capabilitiesYaml) {
+  const spec = loadSpec(capabilitiesYaml);
+  const subs = Object.values(spec.subagents ?? {});
+  return {
+    llm_invokable: subs.filter((m2) => typeof m2.prompt_path === "string" && m2.prompt_path.length > 0).length,
+    total_subagents: subs.length
+  };
+}
+function computeAutomation() {
+  return {
+    automated_steps: STEPS.filter((s2) => !MANUAL_GATES.has(s2)).length,
+    total_steps: STEPS.length
+  };
+}
+function computeFromInputs(inputs) {
+  return {
+    standardization: computeStandardization(inputs.invariantYaml),
+    intelligence: computeIntelligence(inputs.capabilitiesYaml),
+    automation: computeAutomation(),
+    efficiency: { install_steps: 1, runtime_node: inputs.runtimeNode, bundle_bytes: inputs.bundleBytes }
+  };
+}
+function computeMetricsLive(root4) {
+  const pkg = JSON.parse(readFileSync18(resolve16(root4, "package.json"), "utf8"));
+  let bundleBytes = 0;
+  try {
+    bundleBytes = statSync4(resolve16(root4, "plugins/sgc/bin/sgc.mjs")).size;
+  } catch {
+    bundleBytes = 0;
+  }
+  return computeFromInputs({
+    invariantYaml: readFileSync18(resolve16(root4, "contracts/invariant-enforcement.yaml"), "utf8"),
+    capabilitiesYaml: readFileSync18(resolve16(root4, "contracts/sgc-capabilities.yaml"), "utf8"),
+    runtimeNode: pkg.engines?.node ?? "unknown",
+    bundleBytes
+  });
+}
+function computeRuntimeMetrics() {
+  let bundleBytes = 0;
+  try {
+    bundleBytes = statSync4(fileURLToPath2(import.meta.url)).size;
+  } catch {
+    bundleBytes = 0;
+  }
+  const engines = package_default2.engines;
+  return computeFromInputs({
+    invariantYaml: readContract("invariant-enforcement.yaml"),
+    capabilitiesYaml: readContract("sgc-capabilities.yaml"),
+    runtimeNode: engines?.node ?? "unknown",
+    bundleBytes
+  });
+}
+function serializeBaseline(m2) {
+  const s2 = m2.standardization;
+  const i3 = m2.intelligence;
+  const a2 = m2.automation;
+  const e2 = m2.efficiency;
+  return BASELINE_BANNER + `schema_version: "1"
+` + `standardization: { machine_enforced: ${s2.machine_enforced}, total: ${s2.total} }
+` + `intelligence: { llm_invokable: ${i3.llm_invokable}, total_subagents: ${i3.total_subagents} }
+` + `automation: { automated_steps: ${a2.automated_steps}, total_steps: ${a2.total_steps} }
+` + `efficiency: { install_steps: ${e2.install_steps}, runtime_node: "${e2.runtime_node}", bundle_bytes: ${e2.bundle_bytes} }
+`;
+}
+function parseBaseline(text) {
+  const d2 = load(text);
+  return {
+    standardization: d2.standardization,
+    intelligence: d2.intelligence,
+    automation: d2.automation,
+    efficiency: d2.efficiency
+  };
+}
+function diffMetrics(live, baseline) {
+  const out = [];
+  const cmp = (label, x2, y3) => {
+    if (x2 !== y3)
+      out.push(`${label}: live=${x2} baseline=${y3}`);
+  };
+  cmp("standardization.machine_enforced", live.standardization.machine_enforced, baseline.standardization.machine_enforced);
+  cmp("standardization.total", live.standardization.total, baseline.standardization.total);
+  cmp("intelligence.llm_invokable", live.intelligence.llm_invokable, baseline.intelligence.llm_invokable);
+  cmp("intelligence.total_subagents", live.intelligence.total_subagents, baseline.intelligence.total_subagents);
+  cmp("automation.automated_steps", live.automation.automated_steps, baseline.automation.automated_steps);
+  cmp("automation.total_steps", live.automation.total_steps, baseline.automation.total_steps);
+  cmp("efficiency.install_steps", live.efficiency.install_steps, baseline.efficiency.install_steps);
+  cmp("efficiency.runtime_node", live.efficiency.runtime_node, baseline.efficiency.runtime_node);
+  return out;
+}
+function formatScorecard(m2) {
+  const kb = Math.round(m2.efficiency.bundle_bytes / 1024);
+  return [
+    "sgc four-化 scorecard",
+    "",
+    `  规范化 standardization  ${m2.standardization.machine_enforced}/${m2.standardization.total} machine-enforced invariants`,
+    `  智能化 intelligence     ${m2.intelligence.llm_invokable}/${m2.intelligence.total_subagents} LLM-invokable subagents (capacity, not quality)`,
+    `  自动化 automation       ${m2.automation.automated_steps}/${m2.automation.total_steps} automated loop steps (2 intentional manual gates: work, ship)`,
+    `  高效化 efficiency       ${m2.efficiency.install_steps} install step · node ${m2.efficiency.runtime_node} · ~${kb} KB bundle`
+  ].join(`
+`);
+}
+var BASELINE_BANNER = `# metrics/metrics-baseline.yaml
+# GENERATED by \`sgc metrics --write-baseline\` — do not hand-edit.
+# Dev/CI drift reference for the Phase-3 four-化 scorecard + README source.
+# Regenerate after a drift-gated 化 changes (规范化 / 智能化 / 自动化 /
+# 高效化 install_steps|runtime_node). efficiency.bundle_bytes is display-only.
+`;
+var init_metrics = __esm(() => {
+  init_preprocessor();
+  init_js_yaml();
+  init_loop();
+  init_embedded_data();
+  init_package();
+});
+
+// src/commands/doctor.ts
+var exports_doctor = {};
+__export(exports_doctor, {
+  runDoctor: () => runDoctor,
+  extractCliSubcommands: () => extractCliSubcommands,
+  bundleParityCheck: () => bundleParityCheck
+});
+import { createHash as createHash4 } from "node:crypto";
+import { existsSync as existsSync20, mkdtempSync, readdirSync as readdirSync8, readFileSync as readFileSync19, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname as dirname5, resolve as resolve17 } from "node:path";
+import { fileURLToPath as fileURLToPath3 } from "node:url";
+function extractCliSubcommands(src2) {
+  const marker = "subCommands: {";
+  const start = src2.indexOf(marker);
+  if (start === -1)
+    return [];
+  const rest = src2.slice(start + marker.length);
+  const end = rest.indexOf(`
+  }`);
+  const block = end === -1 ? rest : rest.slice(0, end);
+  const names = [];
+  const re = /["']?([a-z][a-z0-9-]*)["']?\s*:\s*\(\)\s*=>/g;
+  let m2;
+  while ((m2 = re.exec(block)) !== null)
+    names.push(m2[1]);
+  return names;
+}
+async function bundleParityCheck(root4) {
+  const srcEntry = resolve17(root4, "src", "sgc.ts");
+  const committed = resolve17(root4, "plugins", "sgc", "bin", "sgc.mjs");
+  const buildScript = resolve17(root4, "scripts", "build-cli.mjs");
+  if (!existsSync20(srcEntry) || !existsSync20(committed) || !existsSync20(buildScript)) {
+    return { severity: "ok", msg: "  ⓘ bundle-hash parity skipped (no source checkout — dev/CI-only check)" };
+  }
+  const tmp = mkdtempSync(resolve17(tmpdir(), "sgc-bundle-"));
+  const out = resolve17(tmp, "sgc.mjs");
+  try {
+    const r3 = await spawnCapture(["node", buildScript, "--outfile", out], { cwd: root4 });
+    if (r3.exitCode !== 0)
+      return { severity: "warn", msg: `  ⚠ bundle-hash parity: rebuild failed (${r3.stderr.slice(0, 120)})` };
+    const sha = (buf) => createHash4("sha256").update(buf).digest("hex");
+    const strip2 = (b3) => Buffer.from(b3.toString("utf8").replace(/^#![^\n]*\n/, ""));
+    const a2 = sha(strip2(readFileSync19(out)));
+    const b2 = sha(strip2(readFileSync19(committed)));
+    return a2 === b2 ? { severity: "ok", msg: "  ✓ committed bundle matches source rebuild" } : { severity: "fail", msg: "  ✗ committed bundle STALE — run `npm run build:cli` and commit" };
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+}
+async function runDoctor(opts = {}) {
+  const log = opts.log ?? ((m2) => console.log(m2));
+  const root4 = opts.repoRoot ?? repoRoot;
+  const rows = [];
+  const emit = (row) => {
+    rows.push(row);
+    log(row.msg);
+  };
+  const caps = getCapabilities();
+  const manifests = Object.entries(caps.subagents);
+  const hasSource = existsSync20(resolve17(root4, "src", "sgc.ts"));
+  log("=== Manifest prompt_path ↔ prompts/ ===");
+  for (const [name, m2] of manifests) {
+    if (m2.prompt_path == null)
+      continue;
+    const present = EMBEDDED_PROMPTS[m2.prompt_path] !== undefined;
+    if (present) {
+      emit({ severity: "ok", msg: `  ✓ ${name} → ${m2.prompt_path}` });
+    } else {
+      emit({
+        severity: "fail",
+        msg: `  ✗ ${name} → ${m2.prompt_path} (NOT EMBEDDED)`
+      });
+    }
+  }
+  log("");
+  log("=== prompts/ ↔ manifest ===");
+  const declaredPrompts = new Set;
+  for (const [, m2] of manifests) {
+    if (m2.prompt_path)
+      declaredPrompts.add(m2.prompt_path);
+  }
+  for (const rel of listEmbeddedPromptKeys().sort()) {
+    if (declaredPrompts.has(rel)) {
+      emit({ severity: "ok", msg: `  ✓ ${rel}` });
+    } else {
+      emit({
+        severity: "warn",
+        msg: `  ⚠ ${rel} (orphan — embedded but unreferenced)`
+      });
+    }
+  }
+  log("");
+  log("=== status: slot-only ↔ prompt_path: null ===");
+  for (const [name, m2] of manifests) {
+    if (m2.status !== "slot-only")
+      continue;
+    if (m2.prompt_path == null) {
+      emit({
+        severity: "ok",
+        msg: `  ✓ ${name} (slot-only, no prompt_path)`
+      });
+    } else {
+      emit({
+        severity: "fail",
+        msg: `  ✗ ${name} (slot-only but declares prompt_path: ${m2.prompt_path})`
+      });
+    }
+  }
+  log("");
+  log("=== bunfig.toml [test] root ===");
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ bunfig.toml root skipped (no source checkout — dev/CI-only check)" });
+  } else {
+    const bunfigPath = resolve17(root4, "bunfig.toml");
+    if (!existsSync20(bunfigPath)) {
+      emit({
+        severity: "warn",
+        msg: "  ⚠ bunfig.toml not found — bare `bun test` may sweep vendored suites (R0)"
+      });
+    } else if (/root\s*=\s*["']tests["']/.test(readFileSync19(bunfigPath, "utf8"))) {
+      emit({ severity: "ok", msg: '  ✓ bunfig.toml [test] root="tests"' });
+    } else {
+      emit({
+        severity: "fail",
+        msg: '  ✗ bunfig.toml present but [test] root!="tests" — bare `bun test` may sweep plugins/sgc/browse (R0 regression)'
+      });
+    }
+  }
+  log("");
+  log("=== package.json files ↔ no vendored plugins/ ===");
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ package.json files skipped (no source checkout — dev/CI-only check)" });
+  } else {
+    const pkgPath = resolve17(root4, "package.json");
+    if (!existsSync20(pkgPath)) {
+      emit({ severity: "warn", msg: "  ⚠ package.json not found" });
+    } else {
+      let files = [];
+      try {
+        const pkg = JSON.parse(readFileSync19(pkgPath, "utf8"));
+        files = Array.isArray(pkg.files) ? pkg.files : [];
+      } catch (e2) {
+        emit({
+          severity: "fail",
+          msg: `  ✗ package.json parse error: ${e2.message.slice(0, 80)}`
+        });
+        files = [];
+      }
+      const leaks = files.filter((f3) => {
+        const norm = f3.replace(/^\.?\//, "");
+        if (!norm.startsWith("plugins"))
+          return false;
+        const last = norm.split("/").at(-1) ?? "";
+        if (last === "" || !last.includes("."))
+          return true;
+        return !norm.startsWith("plugins/sgc/bin/");
+      });
+      if (files.length === 0) {
+        emit({
+          severity: "warn",
+          msg: '  ⚠ package.json has no "files" allowlist — npm would publish vendored browse'
+        });
+      } else if (leaks.length) {
+        emit({
+          severity: "fail",
+          msg: `  ✗ package.json files includes vendored path(s): ${leaks.join(", ")}`
+        });
+      } else {
+        emit({
+          severity: "ok",
+          msg: "  ✓ package.json files excludes plugins/ (vendored browse not npm-published)"
+        });
+      }
+    }
+  }
+  log("");
+  log("=== vendored-components.yaml provenance ===");
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ vendored-components.yaml skipped (no source checkout — dev/CI-only check)" });
+  } else {
+    const vcPath = resolve17(root4, "contracts/vendored-components.yaml");
+    if (!existsSync20(vcPath)) {
+      emit({
+        severity: "warn",
+        msg: "  ⚠ contracts/vendored-components.yaml not found — vendored source unregistered (R0/Rec4)"
+      });
+    } else {
+      let comps = [];
+      try {
+        const doc = load(readFileSync19(vcPath, "utf8"));
+        comps = Array.isArray(doc?.components) ? doc.components : [];
+      } catch (e2) {
+        emit({
+          severity: "fail",
+          msg: `  ✗ vendored-components.yaml parse error: ${e2.message.slice(0, 80)}`
+        });
+        comps = null;
+      }
+      if (comps && comps.length === 0) {
+        emit({ severity: "warn", msg: "  ⚠ vendored-components.yaml lists no components" });
+      } else if (comps) {
+        const required = ["path", "upstream", "upstream_ref", "vendored_at"];
+        for (const c3 of comps) {
+          const missing = required.filter((k2) => c3[k2] == null || String(c3[k2]).trim() === "");
+          const cpath = c3["path"] ?? "<no path>";
+          if (missing.length) {
+            emit({
+              severity: "fail",
+              msg: `  ✗ vendored ${cpath}: missing field(s) ${missing.join(", ")}`
+            });
+          } else if (!existsSync20(resolve17(root4, cpath))) {
+            emit({
+              severity: "fail",
+              msg: `  ✗ vendored ${cpath}: registered path missing on disk`
+            });
+          } else {
+            emit({
+              severity: "ok",
+              msg: `  ✓ vendored ${cpath} (upstream_ref: ${String(c3["upstream_ref"])})`
+            });
+          }
+        }
+      }
+    }
+  }
+  log("");
+  log("=== invariant-enforcement.yaml coverage ===");
+  const iePath = resolve17(root4, "contracts/invariant-enforcement.yaml");
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ invariant-enforcement.yaml skipped (no source checkout — dev/CI-only check)" });
+  } else if (!existsSync20(iePath)) {
+    emit({
+      severity: "warn",
+      msg: "  ⚠ contracts/invariant-enforcement.yaml not found — invariant→test map unverified"
+    });
+  } else {
+    let inv = {};
+    try {
+      const doc = load(readFileSync19(iePath, "utf8"));
+      inv = doc?.invariants && typeof doc.invariants === "object" ? doc.invariants : {};
+    } catch (e2) {
+      emit({
+        severity: "fail",
+        msg: `  ✗ invariant-enforcement.yaml parse error: ${e2.message.slice(0, 80)}`
+      });
+      inv = null;
+    }
+    if (inv) {
+      const missingSections = [];
+      for (let n2 = 1;n2 <= 13; n2++)
+        if (inv[String(n2)] == null)
+          missingSections.push(`§${n2}`);
+      if (missingSections.length) {
+        emit({
+          severity: "fail",
+          msg: `  ✗ invariant map missing: ${missingSections.join(", ")}`
+        });
+      }
+      let machineCount = 0;
+      for (let n2 = 1;n2 <= 13; n2++) {
+        const e2 = inv[String(n2)];
+        if (e2 == null)
+          continue;
+        const title = typeof e2["title"] === "string" ? e2["title"].slice(0, 32) : "";
+        if (e2["machine_enforced"] === true) {
+          machineCount++;
+          const tests = Array.isArray(e2["tests"]) ? e2["tests"] : [];
+          if (tests.length === 0) {
+            emit({ severity: "fail", msg: `  ✗ §${n2} machine_enforced but lists no tests` });
+          } else {
+            const missingTests = tests.filter((t2) => !existsSync20(resolve17(root4, t2)));
+            if (missingTests.length) {
+              emit({
+                severity: "fail",
+                msg: `  ✗ §${n2} cites missing test file(s): ${missingTests.join(", ")}`
+              });
+            } else {
+              emit({ severity: "ok", msg: `  ✓ §${n2} ${title} (${tests.length} test file(s))` });
+            }
+          }
+        } else {
+          emit({ severity: "ok", msg: `  ✓ §${n2} ${title} (procedural)` });
+        }
+      }
+      emit({ severity: "ok", msg: `  · machine-enforced invariants: ${machineCount}/13` });
+    }
+  }
+  const SLASH_EXEMPT = new Set(["canary", "watch-ci-failure", "land"]);
+  log("");
+  log("=== slash commands ↔ CLI subcommands ===");
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ slash↔CLI parity skipped (no source checkout — dev/CI-only check)" });
+  } else {
+    const sgcSrcPath = resolve17(root4, "src/sgc.ts");
+    const commandsDir = resolve17(root4, "plugins/sgc/commands");
+    if (!existsSync20(sgcSrcPath) || !existsSync20(commandsDir)) {
+      emit({
+        severity: "warn",
+        msg: "  ⚠ src/sgc.ts or plugins/sgc/commands/ not found — slash parity unchecked (npm-install layout?)"
+      });
+    } else {
+      const cliNames = extractCliSubcommands(readFileSync19(sgcSrcPath, "utf8"));
+      const slashNames = new Set(readdirSync8(commandsDir).filter((f3) => f3.endsWith(".md")).map((f3) => f3.slice(0, -3)));
+      if (cliNames.length === 0) {
+        emit({ severity: "warn", msg: "  ⚠ could not parse subCommands block in src/sgc.ts" });
+      }
+      for (const name of cliNames) {
+        if (slashNames.has(name)) {
+          emit({ severity: "ok", msg: `  ✓ ${name} (CLI + slash command)` });
+        } else if (SLASH_EXEMPT.has(name)) {
+          emit({ severity: "ok", msg: `  ✓ ${name} (CLI-only, slash-exempt)` });
+        } else {
+          emit({
+            severity: "fail",
+            msg: `  ✗ ${name} (CLI subcommand has no slash command — add plugins/sgc/commands/${name}.md or add to SLASH_EXEMPT)`
+          });
+        }
+      }
+      const cliSet = new Set(cliNames);
+      for (const slash of [...slashNames].sort()) {
+        if (!cliSet.has(slash)) {
+          emit({
+            severity: "warn",
+            msg: `  ⚠ ${slash}.md (orphan slash command — no matching CLI subcommand)`
+          });
+        }
+      }
+    }
+  }
+  log("");
+  log("=== invariant sources aligned (§ count) ===");
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ invariant-source parity skipped (no source checkout — dev/CI-only check)" });
+  } else {
+    const invMdPath = resolve17(root4, "contracts/sgc-invariants.md");
+    if (!existsSync20(invMdPath) || !existsSync20(iePath)) {
+      emit({
+        severity: "warn",
+        msg: "  ⚠ sgc-invariants.md or invariant-enforcement.yaml missing — § parity unchecked"
+      });
+    } else {
+      const mdNums = new Set;
+      const secRe = /^##\s*§(\d+)\./gm;
+      let sm;
+      const mdText = readFileSync19(invMdPath, "utf8");
+      while ((sm = secRe.exec(mdText)) !== null)
+        mdNums.add(Number(sm[1]));
+      const yamlNums = new Set;
+      try {
+        const doc = load(readFileSync19(iePath, "utf8"));
+        if (doc?.invariants)
+          for (const k2 of Object.keys(doc.invariants))
+            yamlNums.add(Number(k2));
+      } catch {}
+      const onlyMd = [...mdNums].filter((n2) => !yamlNums.has(n2)).sort((a2, b2) => a2 - b2);
+      const onlyYaml = [...yamlNums].filter((n2) => !mdNums.has(n2)).sort((a2, b2) => a2 - b2);
+      if (mdNums.size > 0 && onlyMd.length === 0 && onlyYaml.length === 0) {
+        emit({
+          severity: "ok",
+          msg: `  ✓ both sources define §1–§${Math.max(...mdNums)} (${mdNums.size} invariants)`
+        });
+      } else {
+        emit({
+          severity: "fail",
+          msg: `  ✗ invariant sources disagree — only in .md: [${onlyMd.join(",") || "—"}], only in .yaml: [${onlyYaml.join(",") || "—"}]`
+        });
+      }
+    }
+  }
+  log("");
+  log("=== bundle parity ===");
+  emit(await bundleParityCheck(root4));
+  log("");
+  log("=== metrics baseline drift ===");
+  const baselinePath = resolve17(root4, "metrics", "metrics-baseline.yaml");
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ metrics baseline skipped (no source checkout — dev/CI-only check)" });
+  } else if (!existsSync20(baselinePath)) {
+    emit({ severity: "fail", msg: "  ✗ metrics/metrics-baseline.yaml missing — run `sgc metrics --write-baseline`" });
+  } else {
+    try {
+      const live = computeMetricsLive(root4);
+      const baseline = parseBaseline(readFileSync19(baselinePath, "utf8"));
+      const drifts = diffMetrics(live, baseline);
+      if (drifts.length === 0) {
+        emit({ severity: "ok", msg: "  ✓ metrics baseline in sync (live == baseline; bundle_bytes excluded)" });
+      } else {
+        for (const d2 of drifts)
+          emit({ severity: "fail", msg: `  ✗ metrics drift — ${d2}` });
+        emit({ severity: "fail", msg: "  ✗ regenerate: `sgc metrics --write-baseline`" });
+      }
+    } catch (e2) {
+      emit({ severity: "fail", msg: `  ✗ metrics baseline check error: ${e2.message.slice(0, 80)}` });
+    }
+  }
+  const ok = rows.filter((r3) => r3.severity === "ok").length;
+  const warn = rows.filter((r3) => r3.severity === "warn").length;
+  const fail = rows.filter((r3) => r3.severity === "fail").length;
+  log("");
+  log(`=== Summary ===`);
+  log(`${ok} OK · ${warn} warn · ${fail} fail`);
+  return { ok, warn, fail, rows };
+}
+var moduleDir2, repoRoot;
+var init_doctor = __esm(() => {
+  init_subprocess();
+  init_js_yaml();
+  init_schema();
+  init_embedded_data();
+  init_metrics();
+  moduleDir2 = dirname5(fileURLToPath3(import.meta.url));
+  repoRoot = resolve17(moduleDir2, "..", "..");
+});
+
+// src/dispatcher/reflect.ts
+import { readFile as readFile3, readdir as readdir3, mkdir as mkdir5, writeFile as writeFile2 } from "node:fs/promises";
+import { resolve as resolve18 } from "node:path";
+function slicePreMortem(raw) {
+  const idx = raw.indexOf(PRE_MORTEM_HEADER);
+  if (idx < 0)
+    return "";
+  const tail = raw.slice(idx + PRE_MORTEM_HEADER.length);
+  const endRel = tail.search(/\n## (?!#)/);
+  return endRel < 0 ? raw.slice(idx) : raw.slice(idx, idx + PRE_MORTEM_HEADER.length + endRel);
+}
+function extractEarlySignals(preMortem) {
+  const out = [];
+  for (const line of preMortem.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith(EARLY_SIGNAL_PREFIX)) {
+      out.push(trimmed.slice(EARLY_SIGNAL_PREFIX.length).trim());
+    }
+  }
+  return out;
+}
+function detectDiscussion(preMortem, solutionRef, preventionText, earlySignals) {
+  if (preMortem.includes(solutionRef)) {
+    return {
+      discussed: true,
+      evidence: `solution_ref direct match: ${solutionRef}`
+    };
+  }
+  const firstSentence = preventionText.split(/[.!?]/)[0] ?? "";
+  const previewTokens = tokenize(firstSentence);
+  if (previewTokens.size === 0 || earlySignals.length === 0) {
+    return { discussed: false, evidence: null };
+  }
+  for (const signal of earlySignals) {
+    const signalTokens = tokenize(signal);
+    let overlap = 0;
+    for (const t2 of previewTokens) {
+      if (signalTokens.has(t2))
+        overlap++;
+    }
+    if (overlap >= MIN_SIGNAL_OVERLAP) {
+      return {
+        discussed: true,
+        evidence: `signal-token overlap (${overlap}): ${signal.slice(0, 80)}`
+      };
+    }
+  }
+  return { discussed: false, evidence: null };
+}
+async function auditDecision(taskId, stateRoot2, _opts = {}) {
+  const root4 = resolveStateRoot(stateRoot2);
+  const decisionPath = resolve18(root4, "decisions", taskId, "intent.md");
+  let raw;
+  try {
+    raw = await readFile3(decisionPath, "utf8");
+  } catch {
+    return { task_id: taskId, decision_path: decisionPath, candidates: [] };
+  }
+  let frontmatter;
+  try {
+    frontmatter = parseFrontmatter(raw).data;
+  } catch {
+    return { task_id: taskId, decision_path: decisionPath, candidates: [] };
+  }
+  const keywordSource = `${frontmatter.motivation ?? ""}
+${frontmatter.title ?? ""}`;
+  const keywords = extractKeywords(keywordSource);
+  if (keywords.length === 0) {
+    return { task_id: taskId, decision_path: decisionPath, candidates: [] };
+  }
+  const scans = await walkSolutionsCorpus(root4, keywords);
+  const preMortem = slicePreMortem(raw);
+  const earlySignals = extractEarlySignals(preMortem);
+  const candidates = [];
+  for (const scan of scans) {
+    let solutionFrontmatter;
+    try {
+      solutionFrontmatter = parseFrontmatter(scan.text).data;
+    } catch {
+      continue;
+    }
+    const preventionText = solutionFrontmatter.prevention?.trim() ?? "";
+    if (preventionText === "")
+      continue;
+    const solutionRef = `${scan.category}/${scan.slug}`;
+    const { discussed, evidence } = detectDiscussion(preMortem, solutionRef, preventionText, earlySignals);
+    candidates.push({
+      solution_ref: solutionRef,
+      category: scan.category,
+      prevention_text: preventionText,
+      keyword_overlap: scan.hits,
+      discussed,
+      discussed_evidence: evidence,
+      applied_count: Array.isArray(solutionFrontmatter.applied_in) ? solutionFrontmatter.applied_in.length : 0,
+      surfaced_count: Array.isArray(solutionFrontmatter.surfaced_in) ? solutionFrontmatter.surfaced_in.length : 0
+    });
+  }
+  candidates.sort((a2, b2) => {
+    if (a2.discussed !== b2.discussed)
+      return a2.discussed ? 1 : -1;
+    return b2.keyword_overlap - a2.keyword_overlap;
+  });
+  return { task_id: taskId, decision_path: decisionPath, candidates };
+}
+async function auditAllDecisions(stateRoot2, opts = {}) {
+  const root4 = resolveStateRoot(stateRoot2);
+  const decisionsDir = resolve18(root4, "decisions");
+  let entries;
+  try {
+    entries = await readdir3(decisionsDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const sinceMs = opts.since ? Date.parse(opts.since) : null;
+  if (sinceMs !== null && Number.isNaN(sinceMs)) {
+    throw new Error(`--since: not a parseable date: ${opts.since}`);
+  }
+  const pending = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory())
+      continue;
+    const intentPath3 = resolve18(decisionsDir, entry.name, "intent.md");
+    let raw;
+    try {
+      raw = await readFile3(intentPath3, "utf8");
+    } catch {
+      continue;
+    }
+    let frontmatter;
+    try {
+      frontmatter = parseFrontmatter(raw).data;
+    } catch {
+      continue;
+    }
+    const createdAtMs = frontmatter.created_at ? Date.parse(frontmatter.created_at) : 0;
+    if (sinceMs !== null && createdAtMs < sinceMs)
+      continue;
+    pending.push({ taskId: entry.name, createdAtMs });
+  }
+  pending.sort((a2, b2) => b2.createdAtMs - a2.createdAtMs);
+  const reports = [];
+  for (const p of pending) {
+    reports.push(await auditDecision(p.taskId, root4));
+  }
+  return reports;
+}
+function formatReport(report) {
+  const lines = [];
+  lines.push(`# Reflect: ${report.task_id}`);
+  lines.push("");
+  lines.push(`Decision: ${report.decision_path}`);
+  lines.push("");
+  if (report.candidates.length === 0) {
+    lines.push("No matched preventions.");
+    return lines.join(`
+`);
+  }
+  lines.push(`Matched preventions: ${report.candidates.length}`);
+  lines.push("Legend: overlap=recall match · applied=L3-validated reuse · surfaced=L2 meaningful surfacing · [discussed]=engaged in this pre-mortem");
+  for (const c3 of report.candidates) {
+    const tag = c3.discussed ? "[discussed]" : "[silent]    ";
+    lines.push(`  - ${tag} ${c3.solution_ref} (overlap: ${c3.keyword_overlap}, applied: ${c3.applied_count}, surfaced: ${c3.surfaced_count})`);
+    if (c3.discussed && c3.discussed_evidence) {
+      lines.push(`    evidence: ${c3.discussed_evidence}`);
+    }
+    if (!c3.discussed && c3.prevention_text) {
+      const preview = c3.prevention_text.split(/[.!?]/)[0]?.trim().slice(0, 80) ?? "";
+      lines.push(`    prevention: ${preview}`);
+    }
+  }
+  return lines.join(`
+`);
+}
+async function writeReflectionFile(report, stateRoot2) {
+  const root4 = resolveStateRoot(stateRoot2);
+  const dir = resolve18(root4, "reflections");
+  await mkdir5(dir, { recursive: true });
+  const path2 = resolve18(dir, `${report.task_id}.md`);
+  await writeFile2(path2, formatReport(report), "utf8");
+  return path2;
+}
+var MIN_SIGNAL_OVERLAP = 3, PRE_MORTEM_HEADER = "## Pre-mortem", EARLY_SIGNAL_PREFIX = "Early signal:";
+var init_reflect = __esm(() => {
+  init_researcher_history();
+  init_state();
+  init_dedup();
+});
+
+// src/commands/reflect.ts
+var exports_reflect = {};
+__export(exports_reflect, {
+  runReflect: () => runReflect
+});
+async function runReflect(opts = {}) {
+  let reports;
+  if (opts.task) {
+    reports = [await auditDecision(opts.task, undefined, { since: opts.since })];
+  } else {
+    reports = await auditAllDecisions(undefined, { since: opts.since });
+  }
+  if (opts.json) {
+    console.log(JSON.stringify(reports, null, 2));
+  } else {
+    if (reports.length === 0) {
+      console.log("No decisions audited.");
+    } else {
+      console.log(reports.map(formatReport).join(`
+
+`));
+    }
+  }
+  if (opts.save) {
+    for (const r3 of reports) {
+      const path2 = await writeReflectionFile(r3);
+      console.error(`saved: ${path2}`);
+    }
+  }
+}
+var init_reflect2 = __esm(() => {
+  init_reflect();
+});
+
+// src/commands/metrics.ts
+var exports_metrics = {};
+__export(exports_metrics, {
+  runMetrics: () => runMetrics
+});
+import { mkdirSync as mkdirSync4, writeFileSync as writeFileSync7 } from "node:fs";
+import { dirname as dirname6, resolve as resolve19 } from "node:path";
+import { fileURLToPath as fileURLToPath4 } from "node:url";
+async function runMetrics(opts = {}) {
+  const root4 = opts.repoRoot ?? defaultRoot;
+  if (opts.writeBaseline) {
+    const live = computeMetricsLive(root4);
+    const path2 = resolve19(root4, "metrics", "metrics-baseline.yaml");
+    mkdirSync4(dirname6(path2), { recursive: true });
+    writeFileSync7(path2, serializeBaseline(live), "utf8");
+    console.error(`wrote: ${path2}`);
+    return;
+  }
+  const m2 = opts.repoRoot ? computeMetricsLive(root4) : computeRuntimeMetrics();
+  console.log(opts.json ? JSON.stringify(m2, null, 2) : formatScorecard(m2));
+}
+var moduleDir3, defaultRoot;
+var init_metrics2 = __esm(() => {
+  init_metrics();
+  moduleDir3 = dirname6(fileURLToPath4(import.meta.url));
+  defaultRoot = resolve19(moduleDir3, "..", "..");
+});
+
+// src/dispatcher/ship-failure.ts
+import { mkdir as mkdir6, stat as stat2, writeFile as writeFile3 } from "node:fs/promises";
+import { resolve as resolve20 } from "node:path";
+function clamp2(n2, lo, hi) {
+  return Math.max(lo, Math.min(hi, n2));
+}
+function shortSha3(sha) {
+  return sha.slice(0, 7);
+}
+function todayUtcDate(now) {
+  return new Date(now()).toISOString().slice(0, 10);
+}
+async function defaultRunCommand(args) {
+  return spawnCapture(args);
+}
+async function defaultSleep2(ms) {
+  await new Promise((r3) => setTimeout(r3, ms));
+}
+async function watchPublishWorkflow(opts = {}) {
+  const runCommand2 = opts.runCommand ?? defaultRunCommand;
+  const now = opts.now ?? Date.now;
+  const sleep2 = opts.sleep ?? defaultSleep2;
+  const intervalSec = clamp2(opts.intervalSec ?? DEFAULT_INTERVAL_SEC, MIN_INTERVAL_SEC, MAX_INTERVAL_SEC);
+  const timeoutSec = clamp2(opts.timeoutSec ?? DEFAULT_TIMEOUT_SEC, MIN_TIMEOUT_SEC, MAX_TIMEOUT_SEC);
+  const workflowName = opts.workflowName ?? "publish-npm";
+  const expectedSha = opts.expectedSha ?? null;
+  const startMs = now();
+  const timeoutMs = timeoutSec * 1000;
+  const intervalMs = intervalSec * 1000;
+  const remaining = () => timeoutMs - (now() - startMs);
+  let runId = opts.runId ?? null;
+  let cachedRun = null;
+  while (runId === null) {
+    if (remaining() <= 0)
+      return { status: "timeout" };
+    const args = [
+      "gh",
+      "run",
+      "list",
+      "--workflow",
+      workflowName,
+      "--limit",
+      "10",
+      "--json",
+      "databaseId,status,conclusion,name,headSha,headBranch,url"
+    ];
+    const res = await runCommand2(args);
+    if (res.exitCode === 0 && res.stdout.trim().length > 0) {
+      try {
+        const rows = JSON.parse(res.stdout);
+        const matched = expectedSha ? rows.find((r3) => r3.headSha.startsWith(expectedSha)) : rows[0];
+        if (matched) {
+          runId = String(matched.databaseId);
+          cachedRun = {
+            id: runId,
+            url: matched.url,
+            name: matched.name,
+            headSha: matched.headSha,
+            headBranch: matched.headBranch
+          };
+          if (matched.status === "completed") {
+            if (matched.conclusion === "success") {
+              return { status: "success", run: cachedRun };
+            }
+            const excerpt = await fetchFailingLog(runCommand2, runId);
+            return { status: "failure", run: cachedRun, summaryExcerpt: excerpt };
+          }
+          break;
+        }
+      } catch {}
+    }
+    await sleep2(intervalMs);
+  }
+  while (true) {
+    if (remaining() <= 0)
+      return { status: "timeout", ...cachedRun ? { run: cachedRun } : {} };
+    const args = [
+      "gh",
+      "run",
+      "view",
+      runId,
+      "--json",
+      "databaseId,status,conclusion,name,headSha,headBranch,url"
+    ];
+    const res = await runCommand2(args);
+    if (res.exitCode === 0 && res.stdout.trim().length > 0) {
+      try {
+        const row = JSON.parse(res.stdout);
+        cachedRun = {
+          id: String(row.databaseId),
+          url: row.url,
+          name: row.name,
+          headSha: row.headSha,
+          headBranch: row.headBranch
+        };
+        if (row.status === "completed") {
+          if (row.conclusion === "success") {
+            return { status: "success", run: cachedRun };
+          }
+          const excerpt = await fetchFailingLog(runCommand2, runId);
+          return { status: "failure", run: cachedRun, summaryExcerpt: excerpt };
+        }
+      } catch {}
+    }
+    await sleep2(intervalMs);
+  }
+}
+async function fetchFailingLog(runCommand2, runId) {
+  const res = await runCommand2(["gh", "run", "view", runId, "--log-failed"]);
+  if (res.exitCode !== 0 || res.stdout.trim().length === 0)
+    return "";
+  return res.stdout;
+}
+function renderBody(failure) {
+  let excerpt = failure.summaryExcerpt;
+  if (excerpt.length === 0) {
+    excerpt = EMPTY_SUMMARY_FALLBACK;
+  } else if (excerpt.length > SUMMARY_MAX_CHARS) {
+    excerpt = excerpt.slice(0, SUMMARY_MAX_CHARS) + TRUNCATION_SENTINEL;
+  }
+  return [
+    "## Failure context",
+    "",
+    `- workflow: ${failure.workflowName}`,
+    `- run id:   ${failure.workflowRunId}`,
+    `- run url:  ${failure.workflowRunUrl}`,
+    `- commit:   ${failure.commitSha}`,
+    `- tag:      ${failure.tag ?? "(none)"}`,
+    "",
+    "## $GITHUB_STEP_SUMMARY excerpt",
+    "",
+    excerpt,
+    "",
+    "## Next steps for operator",
+    "",
+    "- Investigate the failing step in the run url above.",
+    "- Once root cause is known, edit `prevention_seed:` in the frontmatter with the safeguard to apply.",
+    "- Promote to a finished prevention via `sgc compound` (manual today; auto-promotion is future scope).",
+    ""
+  ].join(`
+`);
+}
+async function captureShipFailure(failure, stateRoot2, opts = {}) {
+  const now = opts.now ?? Date.now;
+  const root4 = resolveStateRoot(stateRoot2);
+  const dir = resolve20(root4, "ship-failures");
+  await mkdir6(dir, { recursive: true });
+  const slug = `${todayUtcDate(now)}-${shortSha3(failure.commitSha)}`;
+  const path2 = resolve20(dir, `${slug}.md`);
+  try {
+    await stat2(path2);
+    return { action: "deduped", path: path2 };
+  } catch {}
+  const preventionSeed = `TODO: operator-fill; captured failure of ${failure.workflowName} ` + `at ${shortSha3(failure.commitSha)}. Convert via \`sgc compound\`.`;
+  const frontmatter = {
+    kind: "ship-failure",
+    captured_at: new Date(now()).toISOString(),
+    commit_sha: failure.commitSha,
+    tag: failure.tag ?? "(none)",
+    workflow_run_id: failure.workflowRunId,
+    workflow_run_url: failure.workflowRunUrl,
+    workflow_name: failure.workflowName,
+    conclusion: "failure",
+    prevention_seed: preventionSeed
+  };
+  const content = serializeFrontmatter(frontmatter, renderBody(failure));
+  await writeFile3(path2, content, "utf8");
+  return { action: "captured", path: path2 };
+}
+var DEFAULT_INTERVAL_SEC = 15, DEFAULT_TIMEOUT_SEC = 600, MIN_INTERVAL_SEC = 5, MAX_INTERVAL_SEC = 60, MIN_TIMEOUT_SEC = 60, MAX_TIMEOUT_SEC = 1800, SUMMARY_MAX_CHARS = 2000, TRUNCATION_SENTINEL = "...", EMPTY_SUMMARY_FALLBACK = "(empty — workflow did not write $GITHUB_STEP_SUMMARY)";
+var init_ship_failure = __esm(() => {
+  init_state();
+  init_subprocess();
+});
+
+// src/commands/watch-ci-failure.ts
+var exports_watch_ci_failure = {};
+__export(exports_watch_ci_failure, {
+  runWatchCiFailure: () => runWatchCiFailure
+});
+async function gitOutput2(args) {
+  const { stdout: stdout2, exitCode } = await spawnCapture(["git", ...args]);
+  if (exitCode !== 0)
+    return null;
+  const trimmed = stdout2.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+async function runWatchCiFailure(opts = {}) {
+  const branch = opts.branch ?? await gitOutput2(["rev-parse", "--abbrev-ref", "HEAD"]);
+  const headSha = await gitOutput2(["rev-parse", "HEAD"]);
+  const tag = await gitOutput2(["describe", "--tags", "--abbrev=0"]);
+  const workflow = opts.workflow ?? "publish.yml";
+  const result = await watchPublishWorkflow({
+    branch: branch ?? undefined,
+    expectedSha: headSha ?? undefined,
+    runId: opts.runId,
+    intervalSec: opts.intervalSec,
+    timeoutSec: opts.timeoutSec,
+    workflowName: workflow
+  });
+  if (result.status === "success") {
+    const sha = result.run?.headSha ?? headSha ?? "(unknown)";
+    console.error(`CI green for ${sha.slice(0, 7)}; no capture.`);
+    return;
+  }
+  if (result.status === "timeout") {
+    const t2 = opts.timeoutSec ?? "default";
+    console.error(`[PARTIAL: watch timed out after ${t2}s; CI still in progress; no capture written]`);
+    return;
+  }
+  if (!result.run) {
+    console.error(`[PARTIAL: failure detected but no run metadata available; no capture written]`);
+    return;
+  }
+  const failure = {
+    commitSha: result.run.headSha,
+    tag,
+    workflowName: workflow,
+    workflowRunId: result.run.id,
+    workflowRunUrl: result.run.url,
+    summaryExcerpt: result.summaryExcerpt ?? ""
+  };
+  const captured = await captureShipFailure(failure);
+  if (captured.action === "captured") {
+    console.error(`captured: ${captured.path}`);
+  } else {
+    console.error(`deduped: ${captured.path} (same SHA already recorded)`);
+  }
+}
+var init_watch_ci_failure = __esm(() => {
+  init_ship_failure();
+  init_subprocess();
+});
+
+// src/dispatcher/canary.ts
+import { mkdir as mkdir7, mkdtemp, rm, stat as stat3, writeFile as writeFile4 } from "node:fs/promises";
+import { tmpdir as osTmpdir } from "node:os";
+import { join as join5, resolve as resolve21 } from "node:path";
+function clamp3(n2, lo, hi) {
+  return Math.max(lo, Math.min(hi, n2));
+}
+function shortSha4(sha) {
+  return sha.slice(0, 7);
+}
+function todayUtcDate2(now) {
+  return new Date(now()).toISOString().slice(0, 10);
+}
+function truncate(s2, max) {
+  return s2.length > max ? s2.slice(0, max) + TRUNCATION_SENTINEL2 : s2;
+}
+function isSafeUrl(url) {
+  try {
+    const u3 = new URL(url);
+    return u3.protocol === "http:" || u3.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+async function defaultNpmView(pkg) {
+  const { stdout: stdout2 } = await spawnCapture(["npm", "view", pkg, "dist-tags.latest", "--json"]);
+  return stdout2;
+}
+function deriveBinName(pkg) {
+  if (pkg.startsWith("@")) {
+    const tail = pkg.split("/")[1];
+    return tail ?? pkg;
+  }
+  return pkg;
+}
+async function defaultNpxSmoke(pkg, ver, bin) {
+  const dir = await mkdtemp(join5(osTmpdir(), "sgc-canary-smoke-"));
+  try {
+    const {
+      stdout: installStdout,
+      stderr: installStderr,
+      exitCode: installExit
+    } = await spawnCapture(["npm", "install", "--prefix", dir, "--no-save", "--silent", `${pkg}@${ver}`], { env: { ...process.env, PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1" } });
+    if (installExit !== 0) {
+      return {
+        exitCode: installExit,
+        stdout: installStdout,
+        stderr: `npm install ${pkg}@${ver} failed: ${installStderr}`
+      };
+    }
+    const binName = bin ?? deriveBinName(pkg);
+    const binPath = resolve21(dir, "node_modules", ".bin", binName);
+    const { stdout: stdout2, stderr, exitCode } = await spawnCapture([binPath, "--version"]);
+    return { stdout: stdout2, stderr, exitCode };
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+async function defaultHttpFetch(url) {
+  const controller = new AbortController;
+  const timer = setTimeout(() => controller.abort(), HEALTH_FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    const body = await res.text();
+    return { status: res.status, body };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function defaultSleep3(ms) {
+  await new Promise((r3) => setTimeout(r3, ms));
+}
+async function runCanaryChecks(opts) {
+  const phases = opts.phases ?? DEFAULT_PHASES;
+  const npmView = opts.npmView ?? defaultNpmView;
+  const npxSmoke = opts.npxSmoke ?? defaultNpxSmoke;
+  const httpFetch = opts.httpFetch ?? defaultHttpFetch;
+  const now = opts.now ?? Date.now;
+  const sleep2 = opts.sleep ?? defaultSleep3;
+  const intervalSec = clamp3(opts.intervalSec ?? DEFAULT_INTERVAL_SEC2, MIN_INTERVAL_SEC2, MAX_INTERVAL_SEC2);
+  const timeoutSec = clamp3(opts.timeoutSec ?? DEFAULT_TIMEOUT_SEC2, MIN_TIMEOUT_SEC2, MAX_TIMEOUT_SEC2);
+  const intervalMs = intervalSec * 1000;
+  const timeoutMs = timeoutSec * 1000;
+  if (phases.includes("health_url")) {
+    if (!opts.healthUrl) {
+      throw new Error("health_url phase requires healthUrl option");
+    }
+    if (!isSafeUrl(opts.healthUrl)) {
+      throw new UnsafeUrlScheme(opts.healthUrl);
+    }
+  }
+  const phaseOutputs = {};
+  for (const phase of phases) {
+    if (phase === "npm_propagation") {
+      const startMs = now();
+      let propagated = false;
+      while (!propagated) {
+        if (now() - startMs >= timeoutMs) {
+          return { status: "timeout", phaseOutputs };
+        }
+        try {
+          const raw = await npmView(opts.packageName);
+          const parsed = JSON.parse(raw);
+          if (typeof parsed === "string" && parsed === opts.expectedVersion) {
+            propagated = true;
+            break;
+          }
+        } catch {}
+        await sleep2(intervalMs);
+      }
+    } else if (phase === "smoke_install") {
+      const res = await npxSmoke(opts.packageName, opts.expectedVersion, opts.binName);
+      if (res.exitCode !== 0) {
+        const out = truncate(res.stderr || res.stdout || `npx exited ${res.exitCode}`, PHASE_OUTPUT_MAX_CHARS);
+        phaseOutputs.smoke_install = out;
+        return { status: "failure", failedPhase: "smoke_install", phaseOutputs };
+      }
+      if (!res.stdout.includes(opts.expectedVersion)) {
+        const out = truncate(`exitCode=0 but stdout missing ${opts.expectedVersion}; stdout=${res.stdout}`, PHASE_OUTPUT_MAX_CHARS);
+        phaseOutputs.smoke_install = out;
+        return { status: "failure", failedPhase: "smoke_install", phaseOutputs };
+      }
+    } else if (phase === "health_url") {
+      const url = opts.healthUrl;
+      const regex2 = opts.healthRegex ? new RegExp(opts.healthRegex) : null;
+      let lastResult = null;
+      let lastError = null;
+      let ok = false;
+      for (let attempt = 0;attempt < HEALTH_RETRY_COUNT; attempt++) {
+        try {
+          const res = await httpFetch(url);
+          lastResult = res;
+          if (res.status >= 200 && res.status < 300) {
+            if (!regex2 || regex2.test(res.body)) {
+              ok = true;
+              break;
+            }
+            lastError = `body regex mismatch; body excerpt: ${res.body.slice(0, 500)}`;
+          } else {
+            lastError = `non-2xx status: ${res.status}; body excerpt: ${res.body.slice(0, 500)}`;
+          }
+        } catch (err) {
+          lastError = `fetch error: ${err instanceof Error ? err.message : String(err)}`;
+        }
+        if (attempt < HEALTH_RETRY_COUNT - 1) {
+          await sleep2(HEALTH_RETRY_INTERVAL_SEC * 1000);
+        }
+      }
+      if (!ok) {
+        phaseOutputs.health_url = truncate(lastError ?? "health_url failed with no captured error", PHASE_OUTPUT_MAX_CHARS);
+        return { status: "failure", failedPhase: "health_url", phaseOutputs };
+      }
+    }
+  }
+  return { status: "success", phaseOutputs };
+}
+function renderBody2(failure) {
+  const raw = failure.phaseOutputs[failure.failedPhase] ?? "";
+  const excerpt = raw.length === 0 ? "(empty — phase produced no output)" : raw.length > PHASE_OUTPUT_MAX_CHARS ? raw.slice(0, PHASE_OUTPUT_MAX_CHARS) + TRUNCATION_SENTINEL2 : raw;
+  return [
+    "## Failure context",
+    "",
+    `- package:    ${failure.packageName}`,
+    `- version:    ${failure.expectedVersion}`,
+    `- phase:      ${failure.failedPhase}`,
+    `- commit:     ${failure.commitSha}`,
+    `- tag:        ${failure.tag ?? "(none)"}`,
+    `- health url: ${failure.healthUrl ?? "(none)"}`,
+    "",
+    "## Phase output excerpt",
+    "",
+    excerpt,
+    "",
+    "## Next steps for operator",
+    "",
+    "- Reproduce the failing phase locally with the same arguments.",
+    "- Once root cause is known, edit `regression_seed:` in the frontmatter with the safeguard to apply.",
+    "- Promote to a finished prevention via `sgc compound --from-canary <slug>` (pending GS-1.1; manual `sgc compound` works today).",
+    ""
+  ].join(`
+`);
+}
+async function captureCanaryFailure(failure, stateRoot2, opts = {}) {
+  const now = opts.now ?? Date.now;
+  const root4 = resolveStateRoot(stateRoot2);
+  const dir = resolve21(root4, "canaries");
+  await mkdir7(dir, { recursive: true });
+  const slug = `${todayUtcDate2(now)}-${shortSha4(failure.commitSha)}-${failure.failedPhase}`;
+  const path2 = resolve21(dir, `${slug}.md`);
+  try {
+    await stat3(path2);
+    return { action: "deduped", path: path2 };
+  } catch {}
+  const regressionSeed = `TODO: operator-fill; canary failed at ${failure.failedPhase} ` + `for ${failure.packageName}@${failure.expectedVersion} on ${shortSha4(failure.commitSha)}. ` + `Convert via \`sgc compound --from-canary ${slug}\` (pending GS-1.1).`;
+  const frontmatter = {
+    kind: "canary-failure",
+    captured_at: new Date(now()).toISOString(),
+    commit_sha: failure.commitSha,
+    tag: failure.tag ?? "(none)",
+    package_name: failure.packageName,
+    expected_version: failure.expectedVersion,
+    failed_phase: failure.failedPhase,
+    health_url: failure.healthUrl ?? "(none)",
+    regression_seed: regressionSeed
+  };
+  const content = serializeFrontmatter(frontmatter, renderBody2(failure));
+  await writeFile4(path2, content, "utf8");
+  return { action: "captured", path: path2 };
+}
+var DEFAULT_INTERVAL_SEC2 = 15, DEFAULT_TIMEOUT_SEC2 = 300, MIN_INTERVAL_SEC2 = 5, MAX_INTERVAL_SEC2 = 60, MIN_TIMEOUT_SEC2 = 60, MAX_TIMEOUT_SEC2 = 1800, PHASE_OUTPUT_MAX_CHARS = 2000, TRUNCATION_SENTINEL2 = "...", DEFAULT_PHASES, HEALTH_RETRY_COUNT = 3, HEALTH_RETRY_INTERVAL_SEC = 5, HEALTH_FETCH_TIMEOUT_MS = 1e4, UnsafeUrlScheme;
+var init_canary = __esm(() => {
+  init_state();
+  init_subprocess();
+  DEFAULT_PHASES = ["npm_propagation", "smoke_install"];
+  UnsafeUrlScheme = class UnsafeUrlScheme extends Error {
+    constructor(url) {
+      super(`UnsafeUrlScheme: ${url} (only http:// and https:// allowed)`);
+      this.name = "UnsafeUrlScheme";
+    }
+  };
+});
+
+// src/commands/canary.ts
+var exports_canary = {};
+__export(exports_canary, {
+  runCanary: () => runCanary,
+  parsePhases: () => parsePhases,
+  VALID_PHASES: () => VALID_PHASES
+});
+import { readFile as readFile4 } from "node:fs/promises";
+import { resolve as resolve22 } from "node:path";
+async function gitOutput3(args) {
+  const { stdout: stdout2, exitCode } = await spawnCapture(["git", ...args]);
+  if (exitCode !== 0)
+    return null;
+  const trimmed = stdout2.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+async function readPackageJson() {
+  try {
+    const raw = await readFile4(resolve22(process.cwd(), "package.json"), "utf8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+function parsePhases(csv) {
+  if (!csv)
+    return DEFAULT_PHASES;
+  const tokens = csv.split(",").map((s2) => s2.trim()).filter((s2) => s2.length > 0);
+  const invalid = tokens.filter((t2) => !VALID_PHASES.includes(t2));
+  if (invalid.length > 0) {
+    throw new Error(`unknown canary phase(s): ${invalid.join(", ")}; valid: ${VALID_PHASES.join(", ")}`);
+  }
+  return tokens;
+}
+async function runCanary(opts = {}) {
+  const pkgJson = await readPackageJson();
+  const packageName = opts.packageName ?? pkgJson?.name;
+  if (!packageName) {
+    console.error("sgc canary: cannot resolve package name — pass --package <name> or run from a directory with package.json");
+    process.exitCode = 2;
+    return;
+  }
+  const tagFromGit = await gitOutput3(["describe", "--tags", "--exact-match", "HEAD"]);
+  const expectedVersion = opts.expectedVersion ?? pkgJson?.version ?? tagFromGit?.replace(/^v/, "");
+  if (!expectedVersion) {
+    console.error("sgc canary: cannot resolve expected version — pass --version <ver>, run from a directory with package.json, or tag HEAD");
+    process.exitCode = 2;
+    return;
+  }
+  const commitSha = await gitOutput3(["rev-parse", "HEAD"]) ?? "(unknown)";
+  const tag = (await gitOutput3(["tag", "--points-at", "HEAD"]))?.split(`
+`)[0] ?? null;
+  const phases = opts.phases ?? DEFAULT_PHASES;
+  const result = await runCanaryChecks({
+    packageName,
+    expectedVersion,
+    phases,
+    healthUrl: opts.healthUrl,
+    healthRegex: opts.healthRegex,
+    binName: opts.binName,
+    intervalSec: opts.intervalSec,
+    timeoutSec: opts.timeoutSec
+  });
+  if (result.status === "success") {
+    console.error(`canary green for ${packageName}@${expectedVersion}; no capture.`);
+    return;
+  }
+  if (result.status === "timeout") {
+    const t2 = opts.timeoutSec ?? "default";
+    console.error(`[PARTIAL: canary timed out after ${t2}s; ${packageName}@${expectedVersion} not yet propagated to npm; no capture written]`);
+    return;
+  }
+  if (!result.failedPhase) {
+    console.error(`[PARTIAL: failure detected but no failedPhase recorded; no capture written]`);
+    process.exitCode = 1;
+    return;
+  }
+  const failure = {
+    commitSha,
+    tag,
+    packageName,
+    expectedVersion,
+    failedPhase: result.failedPhase,
+    healthUrl: opts.healthUrl ?? null,
+    phaseOutputs: result.phaseOutputs
+  };
+  const captured = await captureCanaryFailure(failure);
+  if (captured.action === "captured") {
+    console.error(`canary failure: phase ${result.failedPhase} for ${packageName}@${expectedVersion}; captured: ${captured.path}`);
+  } else {
+    console.error(`canary failure: phase ${result.failedPhase} for ${packageName}@${expectedVersion}; deduped: ${captured.path} (same (sha, phase) already recorded)`);
+  }
+  process.exitCode = 1;
+}
+var VALID_PHASES;
+var init_canary2 = __esm(() => {
+  init_canary();
+  init_subprocess();
+  VALID_PHASES = [
+    "npm_propagation",
+    "smoke_install",
+    "health_url"
+  ];
 });
 
 // src/dispatcher/handoff.ts
@@ -20410,7 +20659,7 @@ async function gatherUnclosedSpawns(stateRoot2, tailLines) {
   }
 }
 async function runGit(args, cwd = process.cwd()) {
-  return new Promise((resolve21, reject) => {
+  return new Promise((resolve23, reject) => {
     const child = nodeSpawn3("git", args, { cwd });
     let stdout2 = "";
     let stderr = "";
@@ -20419,7 +20668,7 @@ async function runGit(args, cwd = process.cwd()) {
     child.on("error", (err) => reject(err));
     child.on("close", (code) => {
       if (code === 0)
-        resolve21(stdout2);
+        resolve23(stdout2);
       else
         reject(new Error(`git ${args.join(" ")} exited ${code}: ${stderr}`));
     });
@@ -20668,7 +20917,7 @@ var init_handoff2 = __esm(() => {
 
 // src/dispatcher/land.ts
 import { readFile as readFile7 } from "node:fs/promises";
-import { resolve as resolve21 } from "node:path";
+import { resolve as resolve23 } from "node:path";
 async function deriveLandInputs(opts) {
   const repoRoot2 = opts.repoRoot ?? process.cwd();
   let pkgName = opts.package;
@@ -20676,7 +20925,7 @@ async function deriveLandInputs(opts) {
   if (!pkgName || !pkgVersion) {
     let parsed = null;
     try {
-      const raw = await readFile7(resolve21(repoRoot2, "package.json"), "utf8");
+      const raw = await readFile7(resolve23(repoRoot2, "package.json"), "utf8");
       parsed = JSON.parse(raw);
     } catch {
       parsed = null;
@@ -20706,7 +20955,7 @@ function emitLandEvent(logger, event_type, level, payload) {
 }
 async function runLand(opts = {}) {
   const repoRoot2 = opts.repoRoot ?? process.cwd();
-  const stateRoot2 = opts.stateRoot ?? resolve21(repoRoot2, ".sgc");
+  const stateRoot2 = opts.stateRoot ?? resolve23(repoRoot2, ".sgc");
   const stdoutWrite = opts.stdoutWrite ?? ((c3) => {
     process.stdout.write(c3);
   });
@@ -21049,8 +21298,8 @@ __export(exports_cso, {
   aggregateVerdict: () => aggregateVerdict
 });
 import { execSync as execSync4 } from "node:child_process";
-import { existsSync as existsSync23, mkdirSync as mkdirSync4, readFileSync as readFileSync19, statSync as statSync4 } from "node:fs";
-import { resolve as resolve22 } from "node:path";
+import { existsSync as existsSync23, mkdirSync as mkdirSync5, readFileSync as readFileSync20, statSync as statSync5 } from "node:fs";
+import { resolve as resolve24 } from "node:path";
 function isoStamp() {
   const d2 = new Date;
   const iso = d2.toISOString();
@@ -21069,8 +21318,8 @@ function aggregateVerdict(checks) {
 }
 function ensureCsoDir(stateRoot2) {
   const root4 = resolveStateRoot(stateRoot2);
-  const dir = resolve22(root4, "cso");
-  mkdirSync4(dir, { recursive: true });
+  const dir = resolve24(root4, "cso");
+  mkdirSync5(dir, { recursive: true });
   return dir;
 }
 function renderReportBody(report) {
@@ -21134,12 +21383,12 @@ function scanSecrets(repoRoot2) {
   const { files, warnings } = listScanFiles(repoRoot2);
   const findings = [];
   for (const rel of files) {
-    const abs = resolve22(repoRoot2, rel);
+    const abs = resolve24(repoRoot2, rel);
     if (!existsSync23(abs))
       continue;
     let stat5;
     try {
-      stat5 = statSync4(abs);
+      stat5 = statSync5(abs);
     } catch {
       continue;
     }
@@ -21151,7 +21400,7 @@ function scanSecrets(repoRoot2) {
     }
     let content;
     try {
-      content = readFileSync19(abs, "utf8");
+      content = readFileSync20(abs, "utf8");
     } catch {
       continue;
     }
@@ -21282,12 +21531,12 @@ function readEventsTail2(eventsPath2) {
   }
   let raw;
   try {
-    const st = statSync4(eventsPath2);
+    const st = statSync5(eventsPath2);
     if (st.size === 0) {
       warnings.push("events.ndjson is empty; anomaly check skipped");
       return { lines: [], warnings };
     }
-    raw = readFileSync19(eventsPath2, "utf8");
+    raw = readFileSync20(eventsPath2, "utf8");
     if (raw.length > ANOMALY_TAIL_BYTES) {
       const tail = raw.slice(-ANOMALY_TAIL_BYTES);
       const firstNl = tail.indexOf(`
@@ -21319,7 +21568,7 @@ function parseEventLine(line) {
 }
 function detectAnomalies(stateRoot2) {
   const root4 = resolveStateRoot(stateRoot2);
-  const eventsPath2 = resolve22(root4, "progress/events.ndjson");
+  const eventsPath2 = resolve24(root4, "progress/events.ndjson");
   const findings = [];
   const { lines, warnings } = readEventsTail2(eventsPath2);
   if (lines.length === 0) {
@@ -21369,10 +21618,10 @@ async function runCso(opts = {}) {
     checks
   };
   const slug = reportSlug(stamp);
-  const mdPath = resolve22(dir, `${slug}.md`);
+  const mdPath = resolve24(dir, `${slug}.md`);
   const md = serializeFrontmatter({ generated_at: stamp.iso, verdict: report.verdict, slug }, renderReportBody(report));
   writeAtomic(mdPath, md);
-  const lastReportPath = resolve22(dir, "last-report.json");
+  const lastReportPath = resolve24(dir, "last-report.json");
   writeAtomic(lastReportPath, JSON.stringify(report, null, 2) + `
 `);
   log(`cso verdict: ${report.verdict}`);
@@ -23540,6 +23789,31 @@ var reflect = defineCommand({
     });
   }
 });
+var metrics = defineCommand({
+  meta: {
+    name: "metrics",
+    description: "Four-\u5316 product self-scorecard (\u89C4\u8303\u5316/\u667A\u80FD\u5316/\u81EA\u52A8\u5316/\u9AD8\u6548\u5316), git-tracked, read-only"
+  },
+  args: {
+    json: {
+      type: "boolean",
+      required: false,
+      description: "Emit JSON FourHuaMetrics (default: human-readable scorecard)"
+    },
+    "write-baseline": {
+      type: "boolean",
+      required: false,
+      description: "Recompute from sources and rewrite metrics/metrics-baseline.yaml (dev)"
+    }
+  },
+  async run({ args }) {
+    const { runMetrics: runMetrics2 } = await Promise.resolve().then(() => (init_metrics2(), exports_metrics));
+    await runMetrics2({
+      json: args.json,
+      writeBaseline: args["write-baseline"]
+    });
+  }
+});
 var watchCiFailure = defineCommand({
   meta: {
     name: "watch-ci-failure",
@@ -23807,6 +24081,7 @@ var main = defineCommand({
     status: () => status,
     "agent-loop": () => agentLoop,
     tail: () => tail,
+    metrics: () => metrics,
     doctor: () => doctor
   }
 });

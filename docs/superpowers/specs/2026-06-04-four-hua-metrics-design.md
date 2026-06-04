@@ -201,7 +201,7 @@ not hardcoded.
 | Command registration | `src/sgc.ts` (edit) | `defineCommand` block (mirror the `reflect` block, `sgc.ts:581-617`) + `subCommands` entry (`sgc.ts:895-915`, 19→20). |
 | Automation source | `src/dispatcher/loop.ts` (edit) | **Export `MANUAL_GATES`** (`loop.ts:56`) so 自动化 can derive without hardcoding. |
 | Slash parity | `plugins/sgc/commands/metrics.md` (new) | doctor check H slash↔CLI parity (mirror `reflect.md`). |
-| Drift gate | `src/commands/doctor.ts` (edit) | New `!hasSource`-gated metrics-parity check (J), after check I, before the tally (`doctor.ts:476`). |
+| Drift gate | `src/commands/doctor.ts` (edit) | New `!hasSource`-gated metrics-parity check **(K)** — `(J)` is the existing bundle-parity check; insert after `emit(await bundleParityCheck(root))` (`doctor.ts:474`), before the tally (`doctor.ts:476`). |
 | Baseline | `metrics/metrics-baseline.yaml` (new, tracked) | Dev/CI drift reference + README source. Generated banner. **Not** embedded, **not** in npm `files`, **not** read at runtime. |
 
 ## Anti-drift mechanism (B 档 core)
@@ -259,7 +259,8 @@ warrant an explicit list:
 3. **`src/dispatcher/metrics.ts`** — compute logic (new).
 4. **`plugins/sgc/commands/metrics.md`** — slash parity (doctor H; 16→17). No
    `SLASH_EXEMPT` entry needed (the `.md` exists).
-5. **`src/commands/doctor.ts`** — register the metrics-parity check inline (J).
+5. **`src/commands/doctor.ts`** — register the metrics-parity check inline as
+   **(K)** (after the existing `(J)` bundle-parity check).
 6. **`metrics/metrics-baseline.yaml`** — new tracked artifact (dev/CI reference).
 7. **(code edit) `src/dispatcher/loop.ts`** — export `MANUAL_GATES` for 自动化.
 

@@ -250,7 +250,7 @@ const review = defineCommand({
 const qa = defineCommand({
   meta: {
     name: "qa",
-    description: "Real-browser end-to-end QA via the browse module",
+    description: "End-to-end QA gate (L2+ ship). Real-browser runner deferred — stub by default, returns concern, never rubber-stamps",
   },
   args: {
     target: {

@@ -40,7 +40,9 @@ export interface BrowseRunner {
 }
 
 export interface QaBrowserOptions {
-  /** Injected by opt-in / SGC_QA_REAL=1 to shell out to browse binary. */
+  /** Programmatic seam to shell out to the browse binary. The SGC_QA_REAL /
+   * --browse opt-in named in the comments above is reserved but not yet wired —
+   * today only tests inject this; production `runQa` never constructs one. */
   browseRunner?: BrowseRunner
 }
 
@@ -82,7 +84,11 @@ export async function qaBrowser(
       {
         flow: "(all)",
         step: "runner",
-        observed: "no browser runner — QA skipped (stub mode)",
+        observed:
+          "no browser runner — real-browser QA is not yet wired (the " +
+          "SGC_QA_REAL / --browse opt-in is reserved, not active). Use " +
+          "gs:/browse for real-browser QA. Running stub mode " +
+          "(verdict: concern — gate not rubber-stamped).",
       },
     ],
   }

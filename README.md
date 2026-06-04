@@ -100,7 +100,7 @@ State lives under `.sgc/` in the project (override via `SGC_STATE_ROOT`); it's `
 | `sgc plan <task> [--motivation\|--signed-by\|--level\|--async]` | Classify L0–L3; run the planner cluster (L2 adds ceo+researcher, L3 adds adversarial + human signature); write immutable `decisions/{id}/intent.md` |
 | `sgc work [--add\|--done <id> --verify-command <s> [--evidence <s>]]` | Track `feature-list.md`; `--done` **requires** a verify command (verification close-gate) |
 | `sgc review [--base <ref>]` | Independent review on your git diff → append-only report(s); correctness at L1, full cluster at L2+ |
-| `sgc qa [<target>] [--flows a,b,c]` | Real-browser end-to-end QA; required before an L2+ ship |
+| `sgc qa [<target>] [--flows a,b,c]` | End-to-end QA gate (required before an L2+ ship). **Stub by default** — returns `concern`, never rubber-stamps. Native real-browser wiring is deferred (reserved `SGC_QA_REAL` / `--browse` opt-in, not yet active); use `gs:/browse` for real-browser QA today |
 | `sgc ship [--auto\|--pr\|--no-janitor\|--force-compound]` | 8-gate ship; optional `gh pr create`; auto-invokes the compound janitor |
 | `sgc compound [--from-ship-failure\|--from-canary\|--force\|--slug …]` | Extract + dedup-gate (0.85) + write reusable `solutions/{cat}/{slug}.md` |
 | `sgc reflect [--task\|--since\|--save\|--json]` | Audit which stored solutions/preventions actually surfaced in your decisions |
@@ -115,7 +115,7 @@ State lives under `.sgc/` in the project (override via `SGC_STATE_ROOT`); it's `
 | `sgc metrics [--json\|--write-baseline]` | Four-化 product self-scorecard (read-only); numbers below are reproduced by this command |
 | `sgc doctor` | Self-check: contracts ↔ prompts ↔ command parity ↔ bundle freshness |
 
-20 commands total — 17 are also exposed as `/sgc:*` slash commands inside Claude Code; `canary`, `watch-ci-failure`, and `land` are CLI-only. A vendored `browse` headless-browser binary backs `sgc qa`.
+20 commands total — 17 are also exposed as `/sgc:*` slash commands inside Claude Code; `canary`, `watch-ci-failure`, and `land` are CLI-only. A vendored `browse` headless-browser binary ships in the plugin payload (not the npm package; see [docs/POSITIONING.md](docs/POSITIONING.md) "Vendored components"); wiring `sgc qa` to drive it is deferred, so `sgc qa` defaults to a non-rubber-stamping stub on **both** channels — use `gs:/browse` for real-browser QA today.
 
 **Four-化 scorecard** (run `sgc metrics` to reproduce): 规范化 12/13 · 智能化 11/23 LLM-invokable · 自动化 4/6 · 高效化 1 step·node≥18. These numbers are produced by `sgc metrics`; see `metrics/metrics-baseline.yaml` — they are not hand-maintained.
 

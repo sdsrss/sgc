@@ -1,5 +1,47 @@
 # Changelog
 
+## v1.28.1 — 2026-06-04 — Phase 2d: browse on npm (document the degradation as intended)
+
+Closes the last open roadmap item (`docs/ROADMAP.md` Phase 2d) and brings the
+browser-QA framing in line with what actually ships. No capability or contract
+change — an honesty pass plus a roadmap-status sync.
+
+### Decision
+
+We deliberately **do not** ship the vendored `browse` binary (~100 MB compiled
+gstack) on the npm channel. Bundling it would bloat the ~1.7 MB package ~60× for
+a runner that is not yet wired; `sgc doctor` check `E` already keeps `plugins/`
+out of the npm `files` allowlist. Wiring `sgc qa` to drive the binary is deferred
+on **both** channels — the `SGC_QA_REAL` / `--browse` opt-in named in the source
+is reserved (read by no code), and the real path is reachable today only via a
+programmatic injected `browseRunner` (a test seam) — so `sgc qa` runs a
+non-rubber-stamping stub by default everywhere. For real-browser QA today, use
+`gs:/browse` (optional interop). Actually wiring the runner remains future work.
+
+### What changed
+
+- **Honest framing** for `sgc qa` across every user- and LLM-facing surface that
+  previously implied real-browser QA is the default/native/standalone behavior:
+  `docs/POSITIONING.md` (delegate-table row + a new "Channel reality" paragraph
+  under *Vendored components*), `README.md` (command table + architecture note),
+  `src/sgc.ts` (qa command description, bundled), `plugins/sgc/CLAUDE.md`,
+  `plugins/sgc/commands/qa.md`, `plugins/sgc/skills/qa/SKILL.md`, and the
+  `plugins/sgc/agents/qa/browser.md` dispatch prompt. By default `sgc qa` runs a
+  stub that returns `concern` (never `pass`), so the L2+ QA gate is never
+  silently rubber-stamped.
+- **Runtime hint**: the `qa.browser` stub's no-runner message now states that
+  real-browser QA is deferred/not yet wired (the `SGC_QA_REAL` / `--browse`
+  opt-in is reserved) and points to `gs:/browse`, instead of just "QA skipped".
+- **Roadmap sync**: `docs/ROADMAP.md` Status block was stale (only through 2a) —
+  now records Phase 1 (runtime) + 2b (v1.26.0) + 2c (v1.27.0) + Phase 3 (v1.28.0)
+  + 2d (this release). Phases 0–3 and every Phase-2 item are now complete; only
+  optional 2e + cross-cutting debt remain.
+
+### Tests
+
+Dispatcher gate 1113 pass / 0 fail; `qa.browser` stub tests 16/16;
+`tests/eval/qa-browser.test.ts` 5/5.
+
 ## v1.28.0 — 2026-06-04 — four-化 metrics scorecard (Phase 3)
 
 `sgc metrics` reports the product's four 化 (规范化 / 智能化 / 自动化 / 高效化)

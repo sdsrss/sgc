@@ -16042,7 +16042,7 @@ async function qaBrowser(input, opts = {}) {
       {
         flow: "(all)",
         step: "runner",
-        observed: "no browser runner — QA skipped (stub mode)"
+        observed: "no browser runner — real-browser QA is not yet wired (the " + "SGC_QA_REAL / --browse opt-in is reserved, not active). Use " + "gs:/browse for real-browser QA. Running stub mode " + "(verdict: concern — gate not rubber-stamped)."
       }
     ]
   };
@@ -19023,7 +19023,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.28.0",
+    version: "1.28.1",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -23068,7 +23068,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.28.0",
+  version: "1.28.1",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {
@@ -23462,7 +23462,7 @@ var review = defineCommand({
 var qa = defineCommand({
   meta: {
     name: "qa",
-    description: "Real-browser end-to-end QA via the browse module"
+    description: "End-to-end QA gate (L2+ ship). Real-browser runner deferred \u2014 stub by default, returns concern, never rubber-stamps"
   },
   args: {
     target: {

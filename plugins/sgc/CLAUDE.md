@@ -6,7 +6,7 @@ A single engineering workflow combining process discipline, real-world QA, and k
 
 sgc is a **self-contained engineering super-plugin + knowledge engine** for Claude Code — one-command install, runs standalone (Node ≥ 18, no bun), no other plugins required. See [docs/POSITIONING.md](../../docs/POSITIONING.md) for the full picture.
 
-- **sgc owns + runs natively**: L0-L3 classification, 13 invariants, `.sgc/` state layer, dedup, the compound knowledge loop, review, QA (vendored browse), security review (cso), systematic debugging, ship + canary
+- **sgc owns + runs natively**: L0-L3 classification, 13 invariants, `.sgc/` state layer, dedup, the compound knowledge loop, review, QA (`qa.browser`; stub by default — returns `concern`, never rubber-stamps; real-browser wiring deferred, use `gs:/browse`), security review (cso), systematic debugging, ship + canary
 - **Optional interop** (richer path if sp/gs installed, never required): deepest plan authoring + full TDD discipline → sp; comprehensive review / browser / deploy → gs
 - **Standalone by default**: every command has a working inline implementation; sp/gs are power-ups, not prerequisites
 
@@ -21,7 +21,7 @@ The full L0→L3 pipeline is executable end-to-end via `bun src/sgc.ts <cmd>`. A
 | `/plan` | ✅ L0-L3 + planner cluster (eng/ceo/adversarial) + researcher.history + CE-4 `--async` | `sgc plan <task> [--motivation\|--signed-by\|--level\|--async]` |
 | `/work` | ✅ feature-list tracker + verification close-gate (v1.19.0) + TDD-ledger prior-RED gate (v1.25.0) | `sgc work [--add\|--done <id> --verify-command <s> [--evidence <s>] (--prior-red <s> --red-output <s> \| --waive-red <s>)]` |
 | `/review` | ✅ reviewer.correctness on git diff | `sgc review [--base <ref>]` |
-| `/qa` | ✅ qa.browser stub; real browse binary opt-in | `sgc qa [<target>] [--flows a,b,c]` |
+| `/qa` | ✅ qa.browser stub by default (returns `concern`, never rubber-stamps); real-browser runner deferred (SGC_QA_REAL/--browse opt-in reserved, not wired) — use gs:/browse | `sgc qa [<target>] [--flows a,b,c]` |
 | `/ship` | ✅ 8-gate ship + writeShip + optional `gh pr create` + auto-janitor | `sgc ship [--auto\|--pr\|--no-janitor\|--force-compound]` |
 | `/compound` | ✅ 4-agent cluster + dedup + writeSolution; CE-3 `--from-ship-failure` + GS-1.1 `--from-canary` + TDD-ledger `--from-red-green` promote bridges | `sgc compound [--force\|--slug\|--from-ship-failure <s>\|--from-canary <s>\|--from-red-green <s>\|--solution-slug <s>]` |
 | `/status` | ✅ active task + level + last_activity | `sgc status` |
@@ -52,7 +52,7 @@ Agent modes (auto-detected per priority):
 | `/plan <task>` | Classify task level, run appropriate reviewers, produce intent (CE-4 `--async` forks detached) |
 | `/work` | Execute plan with task tracking, TDD, worktree isolation |
 | `/review` | Independent static review with reviewer cluster |
-| `/qa <target>` | Real browser end-to-end testing |
+| `/qa <target>` | Browser QA gate — stub by default (returns `concern`, never rubber-stamps); real-browser runner deferred, use `gs:/browse` for real-browser QA |
 | `/ship` | Ship gate: verify evidence, deploy, trigger compound decision |
 | `/compound` | Extract and store knowledge; CE-3 `--from-ship-failure` + GS-1.1 `--from-canary` promote captured failures |
 | `/status` | Show current task state, decisions history, knowledge stats |

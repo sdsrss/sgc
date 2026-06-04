@@ -26,7 +26,7 @@ sgc runs every capability below natively and standalone; nothing breaks when sp/
 | Completion verification gate | `sgc work --done` close-gate (Tier-1 sp absorb, v1.19.0) | `sp:verification-before-completion` |
 | Systematic debugging | `sgc debug` 4-phase walker (GS-4) | `sp:systematic-debugging` |
 | Independent review | `sgc review` (native L2+ cluster: correctness + tests + maintainability + conditional specialists) | `gs:/review` |
-| Browser QA | `sgc qa` (vendored `browse` binary) | `gs:/browse` |
+| Browser QA | `sgc qa` — **stub by default on both channels** (returns `concern`, never rubber-stamps). Native real-browser wiring is **deferred** (the `SGC_QA_REAL` / `--browse` opt-in is reserved, read by no code yet); use the `gs:/browse` delegate for real-browser QA today (see "Vendored components"). | `gs:/browse` |
 | Security review | `sgc cso` (GS-5) | — |
 | Ship + post-publish chain | `sgc ship` / `sgc land` / `sgc canary` (GS-1/7) | `gs:/ship` + `gs:/land-and-deploy` |
 | Intent framing / brainstorm | `sgc discover --template` (GS-6) | `sp:brainstorming` |
@@ -83,6 +83,21 @@ a build input, not a heuristic absorption and not a runtime gs dependency.
 - The `gs:/browse` delegate (see delegate table) remains the richer path when
   gstack is installed; the vendored binary is the zero-dep fallback for
   `sgc qa`.
+- **Channel reality — npm vs plugin (Phase 2d decision: document the degradation
+  as intended).** The compiled `browse` binary (~100 MB) ships **only in the
+  plugin payload**; it is intentionally excluded from the npm package's `files`
+  allowlist (`sgc doctor` check `E` enforces this), keeping the npm tarball
+  ~1.7 MB. We deliberately **do not** ship `browse` on npm — bundling a 100 MB
+  binary would bloat the package ~60× for a runner that is not yet wired. Wiring
+  `sgc qa` to drive the binary is **deferred on both channels**: `runQa` never
+  constructs a browse runner, the `SGC_QA_REAL` / `--browse` opt-in named in the
+  source comments is reserved (read by no code), and the real path is reachable
+  today only via a programmatic injected `browseRunner` (a test seam). On the
+  plugin channel the binary is present but not auto-wired; on the npm channel it
+  is absent entirely. So on **every** channel `sgc qa` runs a stub by default
+  that returns `concern` (never `pass`) — the L2+ QA gate is never silently
+  rubber-stamped. For real-browser QA today, use the `gs:/browse` delegate
+  (optional interop).
 
 ### Non-goals
 

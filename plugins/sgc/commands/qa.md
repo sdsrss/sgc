@@ -1,11 +1,11 @@
 ---
 name: qa
-description: "Real-browser end-to-end QA via the browse module. Required gate for L2+ ship. Writes review report to reviews/{task}/qa/."
+description: "End-to-end QA gate for L2+ ship. Stub by default (returns concern, never rubber-stamps); real-browser runner deferred — use gs:/browse for real-browser QA. Writes review report to reviews/{task}/qa/."
 ---
 
 # /sgc:qa
 
-Drive a real Chromium browser through user flows. Like `/review`, qa.browser is AMNESIAC (no `read:solutions`).
+Run the L2+ QA gate. Real-browser mode (driving a Chromium browser through user flows via the vendored `browse` binary) is **deferred** — by default `qa.browser` returns a non-rubber-stamping stub (`concern`); for real-browser QA use `gs:/browse`. Like `/review`, qa.browser is AMNESIAC (no `read:solutions`).
 
 ## Invocation
 

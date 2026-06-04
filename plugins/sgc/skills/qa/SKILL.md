@@ -1,13 +1,15 @@
 ---
 name: qa
-description: "Use when real browser testing is needed - launches headless browser, executes user flows, captures screenshots, reports findings"
+description: "Use for the L2+ browser-QA gate. Real-browser mode (headless chromium) is deferred/opt-in; by default runs a stub returning concern (never rubber-stamps). Writes verdict + findings to reviews/{task}/qa/."
 ---
 
 # QA
 
-Spawn `qa.browser`, drive flows through the `browse` binary, write verdict + screenshot refs to `reviews/{task_id}/qa/qa.browser.md`. `hasQaEvidence` becomes true, unblocking the L2+ ship gate.
+Spawn `qa.browser` to run the QA gate; when the real-browser runner is wired it drives flows through the `browse` binary and writes verdict + screenshot refs to `reviews/{task_id}/qa/qa.browser.md`, flipping `hasQaEvidence` true to unblock the L2+ ship gate.
 
-**Core principle:** "looks correct" is not evidence. Open the browser, run the flow, capture the proof.
+> **Real-browser mode is deferred.** By default `qa.browser` runs a stub that returns `concern` (never `pass`), so the gate is never silently rubber-stamped. The vendored `browse` binary ships only in the plugin payload (not the npm package — see `docs/POSITIONING.md` "Vendored components"), but wiring `sgc qa` to drive it is not yet done: the `SGC_QA_REAL` / `--browse` opt-in named in the source is reserved (read by no code), and the real path is reachable today only via a programmatic injected `browseRunner`. For real-browser QA, use `gs:/browse`.
+
+**Core principle:** "looks correct" is not evidence — when the real-browser runner is wired, open the browser, run the flow, capture the proof; until then `qa.browser` returns `concern` rather than rubber-stamping.
 
 ## When to Use
 

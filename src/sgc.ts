@@ -7,8 +7,8 @@
 // natively. Installed plugins (sp / gs / code-graph) are optional richer paths,
 // surfaced as non-binding hints — never required (see dispatcher/delegation.ts).
 //
-// 19 subcommands spanning the L0→L3 pipeline + GS-N + the CE knowledge loop
-// (16 mirrored as /sgc:* slash commands + 3 CLI-only: canary, watch-ci-failure,
+// 20 subcommands spanning the L0→L3 pipeline + GS-N + the CE knowledge loop
+// (17 mirrored as /sgc:* slash commands + 3 CLI-only: canary, watch-ci-failure,
 // land). README.md is the authoritative command table; `sgc doctor` enforces
 // slash↔CLI parity so this count stays honest.
 //
@@ -616,6 +616,34 @@ const reflect = defineCommand({
   },
 })
 
+// ── metrics (Phase 3 four-化) ──────────────────────────────────────────────
+
+const metrics = defineCommand({
+  meta: {
+    name: "metrics",
+    description: "Four-化 product self-scorecard (规范化/智能化/自动化/高效化), git-tracked, read-only",
+  },
+  args: {
+    json: {
+      type: "boolean",
+      required: false,
+      description: "Emit JSON FourHuaMetrics (default: human-readable scorecard)",
+    },
+    "write-baseline": {
+      type: "boolean",
+      required: false,
+      description: "Recompute from sources and rewrite metrics/metrics-baseline.yaml (dev)",
+    },
+  },
+  async run({ args }) {
+    const { runMetrics } = await import("./commands/metrics")
+    await runMetrics({
+      json: args.json as boolean | undefined,
+      writeBaseline: args["write-baseline"] as boolean | undefined,
+    })
+  },
+})
+
 // ── watch-ci-failure (CE-3 f4) ─────────────────────────────────────────────
 
 const watchCiFailure = defineCommand({
@@ -911,6 +939,7 @@ const main = defineCommand({
     status: () => status,
     "agent-loop": () => agentLoop,
     tail: () => tail,
+    metrics: () => metrics,
     doctor: () => doctor,
   },
 })

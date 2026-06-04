@@ -145,3 +145,37 @@ test("formatScorecard renders all four 化 with rounded KB", () => {
   expect(s).toContain("4/6")
   expect(s).toContain("~886 KB") // Math.round(907657/1024) = 886
 })
+
+import { runMetrics } from "../../src/commands/metrics"
+
+test("runMetrics --json prints the four 化 from a repoRoot", async () => {
+  const root = makeRoot()
+  const lines: string[] = []
+  const orig = console.log
+  console.log = (m?: unknown) => lines.push(String(m))
+  try {
+    await runMetrics({ json: true, repoRoot: root })
+  } finally {
+    console.log = orig
+    rmSync(root, { recursive: true, force: true })
+  }
+  const parsed = JSON.parse(lines.join("\n"))
+  expect(parsed.standardization).toEqual({ machine_enforced: 2, total: 3 })
+  expect(parsed.automation).toEqual({ automated_steps: 4, total_steps: 6 })
+})
+
+test("runMetrics --write-baseline writes a parseable baseline", async () => {
+  const root = makeRoot()
+  const origErr = console.error
+  console.error = () => {}
+  try {
+    await runMetrics({ writeBaseline: true, repoRoot: root })
+    const text = readFileSync(resolve(root, "metrics/metrics-baseline.yaml"), "utf8")
+    expect(text).toContain("do not hand-edit")
+    const parsed = parseBaseline(text)
+    expect(parsed.intelligence).toEqual({ llm_invokable: 2, total_subagents: 6 })
+  } finally {
+    console.error = origErr
+    rmSync(root, { recursive: true, force: true })
+  }
+})

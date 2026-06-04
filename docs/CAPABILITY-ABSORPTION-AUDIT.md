@@ -119,7 +119,7 @@ sgc discover → sgc plan (L0-L3 分级) → sgc work → sgc land → sgc compo
 | 维度 | 数量 | 来源 |
 |---|---|---|
 | dispatcher CLI 命令 | 20（`src/commands/*.ts`；17 同步为 `/sgc:*` slash + 3 CLI-only） | 实测 `ls` / README:118 |
-| LLM 后端 agents | 10（`prompt_path` 模板 + cache_control 切分） | README |
+| LLM-invokable agents | 11 / 23 manifested（有真实 `prompt_path` → LLM 后端，详见 §5.3；`sgc metrics` 机器度量） | `sgc metrics` |
 | 刻意保持启发式的 agent | 1（`compound.related`，其 dedup_stamp 授权 §3 写入，必须确定性） | README + 记忆 |
 | runtime invariants | 13（§1–§13） | `contracts/sgc-invariants.md` |
 | CE 能力点 | 6/6 NATIVE | CHANGELOG |

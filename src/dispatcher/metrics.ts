@@ -7,6 +7,11 @@
 import { loadSpec } from "./preprocessor"
 import { load as yamlLoad } from "js-yaml"
 import { STEPS, MANUAL_GATES } from "./loop"
+import { readFileSync, statSync } from "node:fs"
+import { resolve } from "node:path"
+import { fileURLToPath } from "node:url"
+import { readContract } from "./embedded-data"
+import packageJson from "../../package.json"
 
 export interface FourHuaMetrics {
   standardization: { machine_enforced: number; total: number }
@@ -64,4 +69,43 @@ export function computeFromInputs(inputs: {
     automation: computeAutomation(),
     efficiency: { install_steps: 1, runtime_node: inputs.runtimeNode, bundle_bytes: inputs.bundleBytes },
   }
+}
+
+/** Dev/CI: read on-disk sources fresh under `root` (for --write-baseline + the
+ *  doctor drift check). Fresh reads — not the embedded/frozen readContract — so
+ *  a test/edit to the on-disk file is seen. */
+export function computeMetricsLive(root: string): FourHuaMetrics {
+  const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8")) as {
+    engines?: { node?: string }
+  }
+  let bundleBytes = 0
+  try {
+    bundleBytes = statSync(resolve(root, "plugins/sgc/bin/sgc.mjs")).size
+  } catch {
+    bundleBytes = 0
+  }
+  return computeFromInputs({
+    invariantYaml: readFileSync(resolve(root, "contracts/invariant-enforcement.yaml"), "utf8"),
+    capabilitiesYaml: readFileSync(resolve(root, "contracts/sgc-capabilities.yaml"), "utf8"),
+    runtimeNode: pkg.engines?.node ?? "unknown",
+    bundleBytes,
+  })
+}
+
+/** Runtime: compute from embedded contracts + compiled symbols + the bundle's
+ *  own size. Cross-layout (data travels inside the bundle); no baseline needed. */
+export function computeRuntimeMetrics(): FourHuaMetrics {
+  let bundleBytes = 0
+  try {
+    bundleBytes = statSync(fileURLToPath(import.meta.url)).size
+  } catch {
+    bundleBytes = 0
+  }
+  const engines = (packageJson as { engines?: { node?: string } }).engines
+  return computeFromInputs({
+    invariantYaml: readContract("invariant-enforcement.yaml"),
+    capabilitiesYaml: readContract("sgc-capabilities.yaml"),
+    runtimeNode: engines?.node ?? "unknown",
+    bundleBytes,
+  })
 }

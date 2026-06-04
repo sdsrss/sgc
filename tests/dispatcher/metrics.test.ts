@@ -52,3 +52,49 @@ test("computeFromInputs assembles all four 化", () => {
   expect(m.automation).toEqual({ automated_steps: 4, total_steps: 6 })
   expect(m.efficiency).toEqual({ install_steps: 1, runtime_node: ">=18", bundle_bytes: 12345 })
 })
+
+import { computeMetricsLive, computeRuntimeMetrics } from "../../src/dispatcher/metrics"
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { resolve } from "node:path"
+
+function makeRoot(): string {
+  const root = mkdtempSync(resolve(tmpdir(), "sgc-metrics-"))
+  mkdirSync(resolve(root, "contracts"), { recursive: true })
+  mkdirSync(resolve(root, "plugins/sgc/bin"), { recursive: true })
+  writeFileSync(resolve(root, "contracts/invariant-enforcement.yaml"), IE_FIXTURE)
+  writeFileSync(resolve(root, "contracts/sgc-capabilities.yaml"), CAPS_FIXTURE)
+  writeFileSync(resolve(root, "package.json"), JSON.stringify({ engines: { node: ">=18" } }))
+  writeFileSync(resolve(root, "plugins/sgc/bin/sgc.mjs"), "// stub bundle\n")
+  return root
+}
+
+test("computeMetricsLive reads on-disk sources under a root", () => {
+  const root = makeRoot()
+  try {
+    const m = computeMetricsLive(root)
+    expect(m.standardization).toEqual({ machine_enforced: 2, total: 3 })
+    expect(m.intelligence).toEqual({ llm_invokable: 2, total_subagents: 6 })
+    expect(m.automation).toEqual({ automated_steps: 4, total_steps: 6 })
+    expect(m.efficiency.install_steps).toBe(1)
+    expect(m.efficiency.runtime_node).toBe(">=18")
+    expect(m.efficiency.bundle_bytes).toBeGreaterThan(0)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test("computeRuntimeMetrics computes the real product four 化 (structural)", () => {
+  const m = computeRuntimeMetrics()
+  // Exact product numbers (12/13, 11/23) are enforced by the baseline + doctor
+  // (Task 6). Here assert only structural invariants that survive roster growth,
+  // so adding an agent/invariant later does not break this unit test.
+  expect(m.standardization.total).toBeGreaterThanOrEqual(13)
+  expect(m.standardization.machine_enforced).toBeLessThanOrEqual(m.standardization.total)
+  expect(m.standardization.machine_enforced).toBeGreaterThanOrEqual(12)
+  expect(m.intelligence.total_subagents).toBeGreaterThanOrEqual(m.intelligence.llm_invokable)
+  expect(m.intelligence.llm_invokable).toBeGreaterThanOrEqual(11)
+  expect(m.automation).toEqual({ automated_steps: 4, total_steps: 6 })
+  expect(m.efficiency.runtime_node).toBe(">=18")
+  expect(typeof m.efficiency.bundle_bytes).toBe("number")
+})

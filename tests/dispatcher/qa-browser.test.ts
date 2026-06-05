@@ -138,6 +138,26 @@ describe("runQa — integration", () => {
     expect(pinnedBlock).not.toContain("read:solutions")
     expect(text).toMatch(/FORBIDDEN from:.*read:solutions/)
   })
+
+  test("opt-in via --browse uses an injected browseRunner (not the stub)", async () => {
+    const plan = await freshTask()
+    const r = await runQa({
+      stateRoot: tmp,
+      target: "http://localhost:3000",
+      flows: ["/home"],
+      browse: true,
+      browseRunner: async () => ({
+        verdict: "pass",
+        evidence_refs: ["/tmp/qa-home.png"],
+        failed_flows: [],
+      }),
+      log: () => {},
+    })
+    expect(r.verdict).toBe("pass")
+    const stored = readReview(plan.taskId, "qa", "qa.browser", tmp)
+    expect(stored?.report.verdict).toBe("pass")
+    expect(stored?.report.evidence_refs).toEqual(["/tmp/qa-home.png"])
+  })
 })
 
 describe("hasQaEvidence", () => {

@@ -15,12 +15,19 @@
 // environment requires chromium that may need --no-sandbox on Ubuntu
 // 23.10+).
 
+import { mkdirSync } from "node:fs"
+import { join } from "node:path"
 import { spawn } from "../dispatcher/spawn"
 import {
   qaBrowser,
+  type BrowseRunner,
   type QaBrowserOutput,
   type QaVerdict,
 } from "../dispatcher/agents/qa-browser"
+import {
+  makeBrowseRunner,
+  launchPlaywrightSession,
+} from "../dispatcher/agents/playwright-runner"
 import { appendReview, readCurrentTask } from "../dispatcher/state"
 import type { ReviewReport, Severity, TaskId } from "../dispatcher/types"
 import { createLogger, type Logger } from "../dispatcher/logger"
@@ -29,6 +36,10 @@ export interface QaOptions {
   stateRoot?: string
   target?: string
   flows?: string[]
+  /** Opt in to the real-browser smoke (Playwright). Also enabled by SGC_QA_REAL=1. */
+  browse?: boolean
+  /** Test/explicit injection; used verbatim instead of building a Playwright runner. */
+  browseRunner?: BrowseRunner
   log?: (msg: string) => void
   logger?: Logger
 }
@@ -63,13 +74,25 @@ export async function runQa(opts: QaOptions = {}): Promise<{
   const target = opts.target ?? ""
   const flows = opts.flows ?? []
 
+  // Opt-in real-browser smoke (Playwright). Default stays the stub (concern).
+  const optIn = opts.browse === true || process.env["SGC_QA_REAL"] === "1"
+  let browseRunner = opts.browseRunner
+  if (!browseRunner && optIn) {
+    const shotDir = join(stateRoot ?? process.cwd(), "reviews", String(taskId), "qa")
+    mkdirSync(shotDir, { recursive: true })
+    browseRunner = makeBrowseRunner({ launch: launchPlaywrightSession, screenshotDir: shotDir })
+  }
+
   const r = await spawn<unknown, QaBrowserOutput>(
     "qa.browser",
     { target_url: target, user_flows: flows },
     {
       stateRoot,
       inlineStub: (i) =>
-        qaBrowser(i as { target_url: string; user_flows: string[] }),
+        qaBrowser(
+          i as { target_url: string; user_flows: string[] },
+          browseRunner ? { browseRunner } : {},
+        ),
       logger,
       taskId,
     },

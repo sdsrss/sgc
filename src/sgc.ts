@@ -264,6 +264,12 @@ const qa = defineCommand({
       description:
         "Comma-separated user flow descriptions (e.g. 'login,dashboard-load,logout')",
     },
+    browse: {
+      type: "boolean",
+      required: false,
+      description:
+        "Opt in to the real-browser smoke (Playwright); default is the non-rubber-stamping stub",
+    },
   },
   async run({ args }) {
     const { runQa } = await import("./commands/qa")
@@ -275,6 +281,7 @@ const qa = defineCommand({
             .map((s) => s.trim())
             .filter(Boolean)
         : undefined,
+      browse: args.browse === true,
     })
   },
 })

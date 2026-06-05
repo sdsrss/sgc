@@ -1,11 +1,11 @@
 ---
 name: qa
-description: "End-to-end QA gate for L2+ ship. Stub by default (returns concern, never rubber-stamps); real-browser runner deferred — use gs:/browse for real-browser QA. Writes review report to reviews/{task}/qa/."
+description: "End-to-end QA gate for L2+ ship. Playwright real-browser smoke is opt-in (--browse / SGC_QA_REAL=1); stub by default (returns concern, never rubber-stamps). Writes review report to reviews/{task}/qa/."
 ---
 
 # /sgc:qa
 
-Run the L2+ QA gate. Real-browser mode (driving a Chromium browser through user flows via the vendored `browse` binary) is **deferred** — by default `qa.browser` returns a non-rubber-stamping stub (`concern`); for real-browser QA use `gs:/browse`. Like `/review`, qa.browser is AMNESIAC (no `read:solutions`).
+Run the L2+ QA gate. Real-browser mode (a Playwright Chromium smoke: `goto` + console/page errors + screenshot → verdict) is **opt-in** via `--browse` / `SGC_QA_REAL=1`; by default `qa.browser` returns a non-rubber-stamping stub (`concern`). Like `/review`, qa.browser is AMNESIAC (no `read:solutions`).
 
 ## Invocation
 
@@ -16,9 +16,9 @@ elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
 else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
 fi
 
-$SGC qa                                                    # use defaults / stub
-$SGC qa http://localhost:3000                              # target URL
-$SGC qa http://localhost:3000 --flows login,dashboard,logout
+$SGC qa                                                    # default: stub (concern)
+$SGC qa http://localhost:3000 --browse                     # real Playwright smoke
+$SGC qa http://localhost:3000 --flows /dashboard,/settings --browse   # smoke extra paths
 ```
 
 ## What you should do
@@ -30,5 +30,5 @@ $SGC qa http://localhost:3000 --flows login,dashboard,logout
 
 ## Notes
 
-- `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` on first install — bring your own Chromium.
-- `plugins/sgc/browse/dist/browse` is the compiled binary; `bun run build:browse` rebuilds.
+- Real-browser mode needs a browser: `npx playwright install chromium`, or set `SGC_QA_BROWSER=chrome` to use system Chrome.
+- Playwright is already a dependency; the real runner is `src/dispatcher/agents/playwright-runner.ts`. (The in-tree `plugins/sgc/browse/` vendored binary is legacy/unused.)

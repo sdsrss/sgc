@@ -250,7 +250,7 @@ const review = defineCommand({
 const qa = defineCommand({
   meta: {
     name: "qa",
-    description: "End-to-end QA gate (L2+ ship). Real-browser runner deferred — stub by default, returns concern, never rubber-stamps",
+    description: "End-to-end QA gate (L2+ ship). Real-browser smoke (Playwright) is opt-in via --browse / SGC_QA_REAL=1; stub by default — returns concern, never rubber-stamps",
   },
   args: {
     target: {

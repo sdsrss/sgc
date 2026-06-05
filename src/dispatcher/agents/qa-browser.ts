@@ -1,20 +1,18 @@
-// qa.browser — real-browser e2e stub.
+// qa.browser — real-browser e2e stub + opt-in seam.
 //
-// Real qa.browser drives `plugins/sgc/browse/dist/browse` against a target
-// URL, executes user flows, captures screenshots + console errors + page
-// timings. MVP ships the stub (matches manifest contract) + injectable
-// runner so production path can shell out to the browse binary via env.
+// The default qa.browser is a stub (matches the manifest contract) that never
+// rubber-stamps the L2+ QA gate. The real-browser path is opt-in
+// (--browse / SGC_QA_REAL=1) and backed by Playwright — see playwright-runner.ts
+// (makeBrowseRunner + launchPlaywrightSession); runQa injects it as
+// opts.browseRunner. Tests inject a fake browseRunner.
 //
 // Stub verdicts:
 //   - no user_flows given → concern (can't validate nothing)
 //   - target_url empty → fail (setup broken)
 //   - otherwise → concern (stub mode — prevents L2+ QA gate rubber-stamp)
 //
-// Real binary bridge: inject opts.browseRunner that spawns
-// plugins/sgc/browse/dist/browse with JSON flow input and returns the
-// parsed QA result. Not wired by default because chromium launch is
-// environment-dependent (see plugins/sgc/browse/test failures on
-// Ubuntu 23.10+ AppArmor restrictions).
+// (The legacy plugins/sgc/browse/ vendored binary is unused — it was
+// non-functional in-repo; the Playwright runner superseded it.)
 
 export interface QaBrowserInput {
   target_url: string
@@ -40,9 +38,8 @@ export interface BrowseRunner {
 }
 
 export interface QaBrowserOptions {
-  /** Programmatic seam to shell out to the browse binary. The SGC_QA_REAL /
-   * --browse opt-in named in the comments above is reserved but not yet wired —
-   * today only tests inject this; production `runQa` never constructs one. */
+  /** Real-browser runner injected on the opt-in path (--browse / SGC_QA_REAL=1)
+   *  with a Playwright runner (see playwright-runner.ts); tests inject a fake. */
   browseRunner?: BrowseRunner
 }
 
@@ -85,9 +82,9 @@ export async function qaBrowser(
         flow: "(all)",
         step: "runner",
         observed:
-          "no browser runner — real-browser QA is not yet wired (the " +
-          "SGC_QA_REAL / --browse opt-in is reserved, not active). Use " +
-          "gs:/browse for real-browser QA. Running stub mode " +
+          "no browser runner — real-browser QA is opt-in: pass --browse or " +
+          "set SGC_QA_REAL=1 (Playwright; install a browser with " +
+          "`npx playwright install chromium`). Running stub mode " +
           "(verdict: concern — gate not rubber-stamped).",
       },
     ],

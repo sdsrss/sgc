@@ -1,15 +1,15 @@
 ---
 name: qa
-description: "Use for the L2+ browser-QA gate. Real-browser mode (headless chromium) is deferred/opt-in; by default runs a stub returning concern (never rubber-stamps). Writes verdict + findings to reviews/{task}/qa/."
+description: "Use for the L2+ browser-QA gate. Real-browser mode (Playwright Chromium) is opt-in (--browse / SGC_QA_REAL=1); by default runs a stub returning concern (never rubber-stamps). Writes verdict + findings to reviews/{task}/qa/."
 ---
 
 # QA
 
-Spawn `qa.browser` to run the QA gate; when the real-browser runner is wired it drives flows through the `browse` binary and writes verdict + screenshot refs to `reviews/{task_id}/qa/qa.browser.md`, flipping `hasQaEvidence` true to unblock the L2+ ship gate.
+Spawn `qa.browser` to run the QA gate; with the real-browser opt-in (`--browse` / `SGC_QA_REAL=1`) it drives a Playwright Chromium and writes verdict + screenshot refs to `reviews/{task_id}/qa/qa.browser.md`, flipping `hasQaEvidence` true to unblock the L2+ ship gate.
 
-> **Real-browser mode is deferred.** By default `qa.browser` runs a stub that returns `concern` (never `pass`), so the gate is never silently rubber-stamped. The vendored `browse` binary ships only in the plugin payload (not the npm package — see `docs/POSITIONING.md` "Vendored components"), but wiring `sgc qa` to drive it is not yet done: the `SGC_QA_REAL` / `--browse` opt-in named in the source is reserved (read by no code), and the real path is reachable today only via a programmatic injected `browseRunner`. For real-browser QA, use `gs:/browse`.
+> **Real-browser mode is opt-in (Playwright).** By default `qa.browser` runs a stub that returns `concern` (never `pass`), so the gate is never silently rubber-stamped. Enable it with `--browse` or `SGC_QA_REAL=1` — it launches a Playwright Chromium (`goto` → console/page errors → screenshot → verdict). Needs a browser: `npx playwright install chromium`, or `SGC_QA_BROWSER=chrome` for system Chrome. (The in-tree vendored `browse/` is legacy/unused — superseded by the Playwright runner.)
 
-**Core principle:** "looks correct" is not evidence — when the real-browser runner is wired, open the browser, run the flow, capture the proof; until then `qa.browser` returns `concern` rather than rubber-stamping.
+**Core principle:** "looks correct" is not evidence — with `--browse` / `SGC_QA_REAL=1`, open the browser (Playwright), run the flow, capture the proof; by default `qa.browser` returns `concern` rather than rubber-stamping.
 
 ## When to Use
 
@@ -32,7 +32,7 @@ Plus `exec:browser` for the headless chromium launch.
 
 - **Behavior**: [`src/commands/qa.ts`](../../../../src/commands/qa.ts) (`runQa`)
 - **Agent**: [`src/dispatcher/agents/qa-browser.ts`](../../../../src/dispatcher/agents/qa-browser.ts) — injectable `browseRunner` for hermetic tests
-- **Production browser**: [`plugins/sgc/browse/`](../../browse/) Bun-compiled single binary (Playwright-driven)
+- **Real-browser runner**: [`src/dispatcher/agents/playwright-runner.ts`](../../../../src/dispatcher/agents/playwright-runner.ts) — Playwright Chromium smoke (opt-in via `--browse` / `SGC_QA_REAL=1`)
 - **Evidence helper**: `hasQaEvidence` in [`src/dispatcher/state.ts`](../../../../src/dispatcher/state.ts)
 - **Invariants**: §1 qa no-solutions · §6 append-only (one qa review per task)
 
@@ -46,11 +46,11 @@ bun src/sgc.ts qa $ARGUMENTS
 
 ## Console classification (reference)
 
-`qa.browser` should fail the verdict on `pageerror` / `unhandledrejection` / app-specific error patterns in the browser console. Warnings note but don't fail. Third-party noise is filtered upstream in the browse binary.
+`qa.browser` fails the verdict on `pageerror` / `console.error` captured via Playwright (`page.on("pageerror")` / `page.on("console")`). Screenshot-capture misses are surfaced as a note but don't fail the verdict.
 
 ## Environmental note
 
-If chromium sandbox is broken (Ubuntu 23.10+ AppArmor user-namespace restriction, RHEL SELinux), the binary still launches with `--no-sandbox` fallback. Tests that must stay hermetic use the injectable `browseRunner` rather than the binary — see `tests/eval/qa-browser.test.ts`.
+If the chromium sandbox is broken (Ubuntu 23.10+ AppArmor user-namespace restriction, RHEL SELinux), the Playwright launch uses `chromiumSandbox: false`. Hermetic tests inject a fake `launch`/`browseRunner` instead of a real browser — see `tests/dispatcher/playwright-runner.test.ts`; the gated real-browser test is `tests/eval/qa-browse-real.test.ts`.
 
 ## Delegation hint
 

@@ -1,5 +1,39 @@
 # Changelog
 
+## v1.29.0 — 2026-06-04 — real-browser QA runner, wired via Playwright (opt-in)
+
+`sgc qa` can now run a real browser. Opt-in (`--browse` / `SGC_QA_REAL=1`); the
+default stays the non-rubber-stamping stub (`concern`), so this is additive — no
+default behavior change.
+
+### What changed
+
+- **New `src/dispatcher/agents/playwright-runner.ts`** — `makeBrowseRunner` +
+  `launchPlaywrightSession`. On opt-in, `sgc qa` drives a **Playwright Chromium**
+  smoke per target: `goto` → console/`pageerror` → screenshot → verdict. nav
+  failure / HTTP ≥ 400 → `fail`; console/page errors → `fail`; clean → `pass`;
+  Playwright/browser unavailable → `concern` (never false-passes). Path/URL-like
+  flows are navigated individually; prose flows are recorded as labels.
+  Screenshot is best-effort evidence (one retry; a miss is noted, not counted).
+- **`runQa`** builds the runner on opt-in (`opts.browse` / `SGC_QA_REAL=1`);
+  default path is unchanged (stub). New **`--browse`** flag on `sgc qa`.
+- **Backend = Playwright** (already a dependency, `--external` in the bundle), not
+  the vendored `browse` binary — which proved non-functional in-repo (no
+  package.json; server needs diff+playwright+bun:sqlite) and is now legacy/unused.
+- Docs across POSITIONING / README / ROADMAP / plugin CLAUDE.md / qa.md / SKILL.md
+  / browser.md flipped from "deferred" to "opt-in (wired via Playwright)".
+
+### Using it
+
+`sgc qa <url> --browse` (or `SGC_QA_REAL=1 sgc qa <url>`). A browser is needed:
+`npx playwright install chromium`, or `SGC_QA_BROWSER=chrome` to use system Chrome.
+
+### Tests
+
+Unit `tests/dispatcher/playwright-runner.test.ts` 9/9 (injected fake browser).
+Gated real-chromium `tests/eval/qa-browse-real.test.ts` verified 3× (clean→pass,
+thrown-error→fail). Full dispatcher gate 1122/0; typecheck 0.
+
 ## v1.28.1 — 2026-06-04 — Phase 2d: browse on npm (document the degradation as intended)
 
 Closes the last open roadmap item (`docs/ROADMAP.md` Phase 2d) and brings the

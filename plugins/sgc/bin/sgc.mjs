@@ -1,6 +1,22 @@
 #!/usr/bin/env node
 // @bun
+import { createRequire } from "node:module";
+var __create = Object.create;
+var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __toESM = (mod, isNodeMode, target) => {
+  target = mod != null ? __create(__getProtoOf(mod)) : {};
+  const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
+  for (let key of __getOwnPropNames(mod))
+    if (!__hasOwnProp.call(to, key))
+      __defProp(to, key, {
+        get: () => mod[key],
+        enumerable: true
+      });
+  return to;
+};
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, {
@@ -11,6 +27,7 @@ var __export = (target, all) => {
     });
 };
 var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
+var __require = /* @__PURE__ */ createRequire(import.meta.url);
 
 // node_modules/consola/dist/chunks/prompt.mjs
 var exports_prompt = {};
@@ -16042,17 +16059,172 @@ async function qaBrowser(input, opts = {}) {
       {
         flow: "(all)",
         step: "runner",
-        observed: "no browser runner — real-browser QA is not yet wired (the " + "SGC_QA_REAL / --browse opt-in is reserved, not active). Use " + "gs:/browse for real-browser QA. Running stub mode " + "(verdict: concern — gate not rubber-stamped)."
+        observed: "no browser runner — real-browser QA is opt-in: pass --browse or " + "set SGC_QA_REAL=1 (Playwright; install a browser with " + "`npx playwright install chromium`). Running stub mode " + "(verdict: concern — gate not rubber-stamped)."
       }
     ]
   };
 }
+
+// src/dispatcher/agents/playwright-runner.ts
+import { join as join4 } from "node:path";
+function firstLine(s2) {
+  return (s2.split(`
+`).find((l2) => l2.trim().length > 0) ?? "").trim();
+}
+function safeLabel(label) {
+  return label.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "") || "target";
+}
+function joinUrl(base, path2) {
+  try {
+    return new URL(path2, base).toString();
+  } catch {
+    return base.replace(/\/+$/, "") + "/" + path2.replace(/^\/+/, "");
+  }
+}
+function planTargets(input) {
+  const targets = [{ label: "(target)", url: input.target_url }];
+  const prose = [];
+  for (const f3 of input.user_flows) {
+    if (/^https?:\/\//i.test(f3))
+      targets.push({ label: f3, url: f3 });
+    else if (f3.startsWith("/"))
+      targets.push({ label: f3, url: joinUrl(input.target_url, f3) });
+    else
+      prose.push(f3);
+  }
+  return { targets, prose };
+}
+function makeBrowseRunner(opts) {
+  const { launch, screenshotDir } = opts;
+  return async (input) => {
+    if (!input.target_url || input.target_url.trim() === "") {
+      return {
+        verdict: "fail",
+        evidence_refs: [],
+        failed_flows: [{ flow: "(all)", step: "setup", observed: "target_url is empty" }]
+      };
+    }
+    let session;
+    try {
+      session = await launch();
+    } catch (e2) {
+      return {
+        verdict: "concern",
+        evidence_refs: [],
+        failed_flows: [
+          {
+            flow: "(all)",
+            step: "launch",
+            observed: `browser unavailable: ${firstLine(e2?.message ?? String(e2))}`
+          }
+        ]
+      };
+    }
+    const { targets, prose } = planTargets(input);
+    const evidence_refs = [];
+    const failed_flows = [];
+    let navOk = 0;
+    try {
+      for (let i3 = 0;i3 < targets.length; i3++) {
+        const t2 = targets[i3];
+        const shot = join4(screenshotDir, `qa-${i3}-${safeLabel(t2.label)}.png`);
+        const r3 = await session.smoke(t2.url, shot);
+        if (r3.screenshot)
+          evidence_refs.push(r3.screenshot);
+        if (!r3.navOk) {
+          failed_flows.push({
+            flow: t2.label,
+            step: "goto",
+            observed: `navigation failed: ${firstLine(r3.navError ?? "unknown")}`
+          });
+          continue;
+        }
+        navOk++;
+        for (const e2 of r3.consoleErrors) {
+          failed_flows.push({ flow: t2.label, step: "console", observed: e2 });
+        }
+        if (!r3.screenshot) {
+          failed_flows.push({
+            flow: t2.label,
+            step: "screenshot",
+            observed: "screenshot capture failed (evidence omitted)"
+          });
+        }
+      }
+    } finally {
+      try {
+        await session.close();
+      } catch {}
+    }
+    const notes = prose.map((f3) => ({
+      flow: f3,
+      step: "note",
+      observed: "recorded as label; not individually navigated (no path/URL)"
+    }));
+    const realFailures = failed_flows.filter((f3) => f3.step === "goto" || f3.step === "console");
+    const verdict = navOk === 0 || realFailures.length > 0 ? "fail" : "pass";
+    return { verdict, evidence_refs, failed_flows: [...failed_flows, ...notes] };
+  };
+}
+async function launchPlaywrightSession(env2 = process.env) {
+  const pw = await import("playwright");
+  const channel = env2["SGC_QA_BROWSER"] === "chrome" ? "chrome" : undefined;
+  const browser = await pw.chromium.launch({
+    headless: true,
+    chromiumSandbox: false,
+    ...channel ? { channel } : {}
+  });
+  const context = await browser.newContext();
+  return {
+    async smoke(url, screenshotPath) {
+      const page = await context.newPage();
+      const consoleErrors = [];
+      page.on("pageerror", (e2) => consoleErrors.push(`pageerror: ${e2.message}`));
+      page.on("console", (m2) => {
+        if (m2.type() === "error")
+          consoleErrors.push(`console.error: ${m2.text()}`);
+      });
+      let navOk = true;
+      let navError;
+      try {
+        const resp = await page.goto(url, { waitUntil: "load", timeout: 30000 });
+        if (resp && resp.status() >= 400) {
+          navOk = false;
+          navError = `HTTP ${resp.status()}`;
+        }
+      } catch (e2) {
+        navOk = false;
+        navError = e2?.message ?? String(e2);
+      }
+      await page.waitForTimeout(150);
+      let screenshot;
+      for (let attempt = 0;attempt < 2 && !screenshot; attempt++) {
+        if (attempt > 0)
+          await page.waitForTimeout(200);
+        try {
+          await page.screenshot({ path: screenshotPath });
+          screenshot = screenshotPath;
+        } catch {}
+      }
+      await page.close();
+      return { navOk, navError, consoleErrors, screenshot };
+    },
+    async close() {
+      try {
+        await browser.close();
+      } catch {}
+    }
+  };
+}
+var init_playwright_runner = () => {};
 
 // src/commands/qa.ts
 var exports_qa = {};
 __export(exports_qa, {
   runQa: () => runQa
 });
+import { mkdirSync as mkdirSync3 } from "node:fs";
+import { join as join5 } from "node:path";
 function generateReportId2() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
@@ -16076,9 +16248,16 @@ async function runQa(opts = {}) {
   const taskId = ct.task.task_id;
   const target = opts.target ?? "";
   const flows = opts.flows ?? [];
+  const optIn = opts.browse === true || process.env["SGC_QA_REAL"] === "1";
+  let browseRunner = opts.browseRunner;
+  if (!browseRunner && optIn) {
+    const shotDir = join5(stateRoot ?? process.cwd(), "reviews", String(taskId), "qa");
+    mkdirSync3(shotDir, { recursive: true });
+    browseRunner = makeBrowseRunner({ launch: launchPlaywrightSession, screenshotDir: shotDir });
+  }
   const r3 = await spawn3("qa.browser", { target_url: target, user_flows: flows }, {
     stateRoot,
-    inlineStub: (i3) => qaBrowser(i3),
+    inlineStub: (i3) => qaBrowser(i3, browseRunner ? { browseRunner } : {}),
     logger,
     taskId
   });
@@ -16107,6 +16286,7 @@ async function runQa(opts = {}) {
 }
 var init_qa = __esm(() => {
   init_spawn();
+  init_playwright_runner();
   init_state();
   init_logger();
 });
@@ -17253,7 +17433,7 @@ __export(exports_state, {
 });
 import {
   existsSync as existsSync16,
-  mkdirSync as mkdirSync3,
+  mkdirSync as mkdirSync4,
   readFileSync as readFileSync15,
   readdirSync as readdirSync6,
   renameSync as renameSync2,
@@ -17261,14 +17441,14 @@ import {
   writeFileSync as writeFileSync6
 } from "node:fs";
 import { randomBytes as randomBytes2 } from "node:crypto";
-import { dirname as dirname4, join as join4, resolve as resolve13 } from "node:path";
+import { dirname as dirname4, join as join6, resolve as resolve13 } from "node:path";
 function resolveStateRoot2(custom) {
   return resolve13(custom ?? process.env["SGC_STATE_ROOT"] ?? DEFAULT_STATE_DIR2);
 }
 function ensureSgcStructure2(stateRoot) {
   const r3 = root3(stateRoot);
   for (const layer of LAYERS2) {
-    mkdirSync3(resolve13(r3, layer), { recursive: true });
+    mkdirSync4(resolve13(r3, layer), { recursive: true });
   }
   return r3;
 }
@@ -17290,7 +17470,7 @@ ${yaml}
 ${trimmedBody}`;
 }
 function writeAtomic2(path2, content) {
-  mkdirSync3(dirname4(path2), { recursive: true });
+  mkdirSync4(dirname4(path2), { recursive: true });
   const tmp = `${path2}.tmp.${process.pid}.${Date.now()}.${atomicWriteSeq2++}.${randomBytes2(4).toString("hex")}`;
   writeFileSync6(tmp, content, "utf8");
   try {
@@ -17308,7 +17488,7 @@ function redGreenSlug2(title, taskId) {
 }
 function writeRedGreenCapture2(fm, stateRoot) {
   const dir = resolve13(root3(stateRoot), "red-green");
-  mkdirSync3(dir, { recursive: true });
+  mkdirSync4(dir, { recursive: true });
   const baseSlug = redGreenSlug2(fm.title, fm.task_id);
   let slug = baseSlug;
   let n2 = 1;
@@ -17443,9 +17623,9 @@ function writeFeatureList2(list, body = "", stateRoot) {
   return path2;
 }
 function writePlanDoc2(slug, dateIso, content, base) {
-  const dir = join4(base ?? process.cwd(), "docs", "superpowers", "plans");
-  mkdirSync3(dir, { recursive: true });
-  const path2 = join4(dir, `${dateIso}-${slug}.md`);
+  const dir = join6(base ?? process.cwd(), "docs", "superpowers", "plans");
+  mkdirSync4(dir, { recursive: true });
+  const path2 = join6(dir, `${dateIso}-${slug}.md`);
   writeAtomic2(path2, content);
   return path2;
 }
@@ -18698,6 +18878,8 @@ var exports_qa2 = {};
 __export(exports_qa2, {
   runQa: () => runQa2
 });
+import { mkdirSync as mkdirSync5 } from "node:fs";
+import { join as join7 } from "node:path";
 function generateReportId4() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
@@ -18721,9 +18903,16 @@ async function runQa2(opts = {}) {
   const taskId = ct.task.task_id;
   const target = opts.target ?? "";
   const flows = opts.flows ?? [];
+  const optIn = opts.browse === true || process.env["SGC_QA_REAL"] === "1";
+  let browseRunner = opts.browseRunner;
+  if (!browseRunner && optIn) {
+    const shotDir = join7(stateRoot2 ?? process.cwd(), "reviews", String(taskId), "qa");
+    mkdirSync5(shotDir, { recursive: true });
+    browseRunner = makeBrowseRunner({ launch: launchPlaywrightSession, screenshotDir: shotDir });
+  }
   const r3 = await spawn3("qa.browser", { target_url: target, user_flows: flows }, {
     stateRoot: stateRoot2,
-    inlineStub: (i3) => qaBrowser(i3),
+    inlineStub: (i3) => qaBrowser(i3, browseRunner ? { browseRunner } : {}),
     logger,
     taskId
   });
@@ -18752,6 +18941,7 @@ async function runQa2(opts = {}) {
 }
 var init_qa2 = __esm(() => {
   init_spawn();
+  init_playwright_runner();
   init_state();
   init_logger();
 });
@@ -19023,7 +19213,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.28.1",
+    version: "1.29.0",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -19857,7 +20047,7 @@ var exports_metrics = {};
 __export(exports_metrics, {
   runMetrics: () => runMetrics
 });
-import { mkdirSync as mkdirSync4, writeFileSync as writeFileSync7 } from "node:fs";
+import { mkdirSync as mkdirSync6, writeFileSync as writeFileSync7 } from "node:fs";
 import { dirname as dirname6, resolve as resolve19 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 async function runMetrics(opts = {}) {
@@ -19865,7 +20055,7 @@ async function runMetrics(opts = {}) {
   if (opts.writeBaseline) {
     const live = computeMetricsLive(root4);
     const path2 = resolve19(root4, "metrics", "metrics-baseline.yaml");
-    mkdirSync4(dirname6(path2), { recursive: true });
+    mkdirSync6(dirname6(path2), { recursive: true });
     writeFileSync7(path2, serializeBaseline(live), "utf8");
     console.error(`wrote: ${path2}`);
     return;
@@ -20117,7 +20307,7 @@ var init_watch_ci_failure = __esm(() => {
 // src/dispatcher/canary.ts
 import { mkdir as mkdir7, mkdtemp, rm, stat as stat3, writeFile as writeFile4 } from "node:fs/promises";
 import { tmpdir as osTmpdir } from "node:os";
-import { join as join5, resolve as resolve21 } from "node:path";
+import { join as join8, resolve as resolve21 } from "node:path";
 function clamp3(n2, lo, hi) {
   return Math.max(lo, Math.min(hi, n2));
 }
@@ -20150,7 +20340,7 @@ function deriveBinName(pkg) {
   return pkg;
 }
 async function defaultNpxSmoke(pkg, ver, bin) {
-  const dir = await mkdtemp(join5(osTmpdir(), "sgc-canary-smoke-"));
+  const dir = await mkdtemp(join8(osTmpdir(), "sgc-canary-smoke-"));
   try {
     const {
       stdout: installStdout,
@@ -20444,7 +20634,7 @@ var init_canary2 = __esm(() => {
 // src/dispatcher/handoff.ts
 import { existsSync as existsSync21 } from "node:fs";
 import * as fs from "node:fs/promises";
-import { join as join6 } from "node:path";
+import { join as join9 } from "node:path";
 import { spawn as nodeSpawn3 } from "node:child_process";
 function kebabize(s2) {
   return s2.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -20455,7 +20645,7 @@ function timestampFallback(now) {
 }
 async function deriveSlug(stateRoot2, now) {
   const dateStr = now.toISOString().slice(0, 10);
-  const decisionsDir = join6(stateRoot2, "decisions");
+  const decisionsDir = join9(stateRoot2, "decisions");
   if (!existsSync21(decisionsDir))
     return timestampFallback(now);
   const entries = await fs.readdir(decisionsDir, { withFileTypes: true });
@@ -20463,7 +20653,7 @@ async function deriveSlug(stateRoot2, now) {
   for (const e2 of entries) {
     if (!e2.isDirectory())
       continue;
-    const intentPath3 = join6(decisionsDir, e2.name, "intent.md");
+    const intentPath3 = join9(decisionsDir, e2.name, "intent.md");
     try {
       const stat5 = await fs.stat(intentPath3);
       intents.push({ path: intentPath3, mtime: stat5.mtimeMs, id: e2.name });
@@ -20519,7 +20709,7 @@ function inferVerifyCommand(snapshot) {
   };
 }
 async function gatherActiveIntent(stateRoot2) {
-  const decisionsDir = join6(stateRoot2, "decisions");
+  const decisionsDir = join9(stateRoot2, "decisions");
   if (!existsSync21(decisionsDir))
     return;
   try {
@@ -20528,7 +20718,7 @@ async function gatherActiveIntent(stateRoot2) {
     for (const e2 of entries) {
       if (!e2.isDirectory())
         continue;
-      const p = join6(decisionsDir, e2.name, "intent.md");
+      const p = join9(decisionsDir, e2.name, "intent.md");
       try {
         const stat5 = await fs.stat(p);
         refs.push({ path: p, mtime: stat5.mtimeMs, id: e2.name });
@@ -20593,7 +20783,7 @@ async function scanCaptureDir(dir, kind, seedField) {
         continue;
       const slug = name.slice(0, -3);
       try {
-        const text = await fs.readFile(join6(dir, name), "utf-8");
+        const text = await fs.readFile(join9(dir, name), "utf-8");
         const fm = parseFrontmatter(text).data;
         if (typeof fm.promoted_to === "string" && fm.promoted_to.length > 0)
           continue;
@@ -20609,13 +20799,13 @@ async function scanCaptureDir(dir, kind, seedField) {
 }
 async function gatherUnpromotedCaptures(stateRoot2) {
   const [ships, canaries] = await Promise.all([
-    scanCaptureDir(join6(stateRoot2, "ship-failures"), "ship-failure", "prevention_seed"),
-    scanCaptureDir(join6(stateRoot2, "canaries"), "canary", "regression_seed")
+    scanCaptureDir(join9(stateRoot2, "ship-failures"), "ship-failure", "prevention_seed"),
+    scanCaptureDir(join9(stateRoot2, "canaries"), "canary", "regression_seed")
   ]);
   return [...ships, ...canaries];
 }
 async function gatherUnclosedSpawns(stateRoot2, tailLines) {
-  const eventsPath2 = join6(stateRoot2, "progress", "events.ndjson");
+  const eventsPath2 = join9(stateRoot2, "progress", "events.ndjson");
   if (!existsSync21(eventsPath2))
     return [];
   try {
@@ -20849,10 +21039,10 @@ function renderHandoffMarkdown(snap) {
 `);
 }
 async function writeHandoffMarkdown(repoRoot2, slug, content) {
-  const tasksDir = join6(repoRoot2, "tasks");
+  const tasksDir = join9(repoRoot2, "tasks");
   await fs.mkdir(tasksDir, { recursive: true });
-  const target = join6(tasksDir, `${slug}-paused.md`);
-  const tmp = join6(tasksDir, `.${slug}-paused.md.tmp.${process.pid}.${Date.now()}`);
+  const target = join9(tasksDir, `${slug}-paused.md`);
+  const tmp = join9(tasksDir, `.${slug}-paused.md.tmp.${process.pid}.${Date.now()}`);
   await fs.writeFile(tmp, content, "utf-8");
   await fs.rename(tmp, target);
   return target;
@@ -20871,10 +21061,10 @@ __export(exports_handoff, {
 });
 import { existsSync as existsSync22 } from "node:fs";
 import * as fs2 from "node:fs/promises";
-import { join as join7 } from "node:path";
+import { join as join10 } from "node:path";
 async function runHandoff(opts) {
   const repoRoot2 = opts.repoRoot ?? process.cwd();
-  const stateRoot2 = opts.stateRoot ?? join7(repoRoot2, ".sgc");
+  const stateRoot2 = opts.stateRoot ?? join10(repoRoot2, ".sgc");
   const stdout2 = opts.stdoutWrite ?? ((s2) => process.stdout.write(s2));
   const stderr = opts.stderrWrite ?? ((s2) => process.stderr.write(s2));
   if (opts.auto) {
@@ -20897,7 +21087,7 @@ async function runHandoff(opts) {
     }
   }
   if (typeof opts.print === "string" && opts.print.length > 0) {
-    const target = join7(repoRoot2, "tasks", `${opts.print}-paused.md`);
+    const target = join10(repoRoot2, "tasks", `${opts.print}-paused.md`);
     if (!existsSync22(target)) {
       stderr(`no paused.md for slug ${opts.print}
 `);
@@ -21298,7 +21488,7 @@ __export(exports_cso, {
   aggregateVerdict: () => aggregateVerdict
 });
 import { execSync as execSync4 } from "node:child_process";
-import { existsSync as existsSync23, mkdirSync as mkdirSync5, readFileSync as readFileSync20, statSync as statSync5 } from "node:fs";
+import { existsSync as existsSync23, mkdirSync as mkdirSync7, readFileSync as readFileSync20, statSync as statSync5 } from "node:fs";
 import { resolve as resolve24 } from "node:path";
 function isoStamp() {
   const d2 = new Date;
@@ -21319,7 +21509,7 @@ function aggregateVerdict(checks) {
 function ensureCsoDir(stateRoot2) {
   const root4 = resolveStateRoot(stateRoot2);
   const dir = resolve24(root4, "cso");
-  mkdirSync5(dir, { recursive: true });
+  mkdirSync7(dir, { recursive: true });
   return dir;
 }
 function renderReportBody(report) {
@@ -23068,7 +23258,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.28.1",
+  version: "1.29.0",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {
@@ -23462,7 +23652,7 @@ var review = defineCommand({
 var qa = defineCommand({
   meta: {
     name: "qa",
-    description: "End-to-end QA gate (L2+ ship). Real-browser runner deferred \u2014 stub by default, returns concern, never rubber-stamps"
+    description: "End-to-end QA gate (L2+ ship). Real-browser smoke (Playwright) is opt-in via --browse / SGC_QA_REAL=1; stub by default \u2014 returns concern, never rubber-stamps"
   },
   args: {
     target: {
@@ -23474,13 +23664,19 @@ var qa = defineCommand({
       type: "string",
       required: false,
       description: "Comma-separated user flow descriptions (e.g. 'login,dashboard-load,logout')"
+    },
+    browse: {
+      type: "boolean",
+      required: false,
+      description: "Opt in to the real-browser smoke (Playwright); default is the non-rubber-stamping stub"
     }
   },
   async run({ args }) {
     const { runQa: runQa3 } = await Promise.resolve().then(() => (init_qa(), exports_qa));
     await runQa3({
       target: args.target,
-      flows: args.flows ? String(args.flows).split(",").map((s2) => s2.trim()).filter(Boolean) : undefined
+      flows: args.flows ? String(args.flows).split(",").map((s2) => s2.trim()).filter(Boolean) : undefined,
+      browse: args.browse === true
     });
   }
 });

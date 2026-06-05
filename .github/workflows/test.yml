@@ -15,10 +15,10 @@ jobs:
       # the binary is ~100MB from the MS CDN (adds ~9 min on a clean cache).
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Node (for npm ci)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "24"
           # Cache npm's ~/.npm using the lockfile as the key.

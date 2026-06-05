@@ -165,7 +165,10 @@ wrote /tmp/sgc-e-demo/reviews/FBC97523F1BE4F96BA62DD4BF1/qa/qa.browser.md
 ```
 
 Real browser run (sandbox permitting) captures screenshots + console
-errors into `evidence_refs`. See [`plugins/sgc/browse/`](../plugins/sgc/browse/).
+errors into `evidence_refs`, driven by the Playwright runner at
+[`src/dispatcher/agents/playwright-runner.ts`](../src/dispatcher/agents/playwright-runner.ts)
+(opt-in via `--browse` / `SGC_QA_REAL=1`). The vendored `browse/` binary this
+demo originally referenced was removed in v1.29.1.
 
 ## Step 6 — Ship
 

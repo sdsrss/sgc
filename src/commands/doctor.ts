@@ -60,6 +60,30 @@ interface CheckRow {
   msg: string
 }
 
+/**
+ * Parse the git-recorded file mode for the committed bundle from
+ * `git ls-files --stage <path>` output and decide whether the exec bit is set.
+ *
+ * Content-hash parity is mode-blind: a committed bundle can match the source
+ * rebuild byte-for-byte yet still carry git mode 100644 (no exec bit). On a
+ * fresh checkout that file lands non-executable, and CI's `git diff --exit-code`
+ * staleness gate flags the mode drift while a local content-only sha check
+ * passes — exactly the v1.24.0 release snag. We read the *git-recorded* mode
+ * (not the working-tree FS mode, which build:cli may have already chmod'd to
+ * 0o755 locally, masking the drift) to replicate the CI gate's semantics.
+ *
+ * Returns true if recorded mode is 100755, false if it lacks the exec bit,
+ * null when the path is untracked / not a git repo (mode is indeterminate →
+ * caller skips the check rather than failing).
+ */
+export function bundleExecBitOk(lsFilesStdout: string): boolean | null {
+  const line = lsFilesStdout.trim()
+  if (!line) return null
+  const mode = line.split(/\s+/)[0] ?? "" // e.g. "100755" from "100755 <sha> 0\t<path>"
+  if (!/^\d{6}$/.test(mode)) return null
+  return (parseInt(mode, 8) & 0o111) !== 0
+}
+
 export async function bundleParityCheck(root: string): Promise<CheckRow> {
   const srcEntry = resolve(root, "src", "sgc.ts")
   const committed = resolve(root, "plugins", "sgc", "bin", "sgc.mjs")
@@ -82,9 +106,21 @@ export async function bundleParityCheck(root: string): Promise<CheckRow> {
     const strip = (b: Buffer) => Buffer.from(b.toString("utf8").replace(/^#![^\n]*\n/, ""))
     const a = sha(strip(readFileSync(out)))
     const b = sha(strip(readFileSync(committed)))
-    return a === b
-      ? { severity: "ok", msg: "  ✓ committed bundle matches source rebuild" }
-      : { severity: "fail", msg: "  ✗ committed bundle STALE — run `npm run build:cli` and commit" }
+    if (a !== b) {
+      return { severity: "fail", msg: "  ✗ committed bundle STALE — run `npm run build:cli` and commit" }
+    }
+    // Content matches; now guard the git-recorded exec bit (build:cli emits
+    // 0o755 → must be committed 100755). Best-effort: a non-repo/untracked
+    // checkout returns null and we skip rather than fail.
+    const ls = await spawnCapture(["git", "ls-files", "--stage", "plugins/sgc/bin/sgc.mjs"], { cwd: root })
+    const execOk = ls.exitCode === 0 ? bundleExecBitOk(ls.stdout) : null
+    if (execOk === false) {
+      return {
+        severity: "fail",
+        msg: "  ✗ committed bundle missing git exec bit (100644) — run `git add --chmod=+x plugins/sgc/bin/sgc.mjs` and commit",
+      }
+    }
+    return { severity: "ok", msg: "  ✓ committed bundle matches source rebuild (content + exec bit)" }
   } finally {
     rmSync(tmp, { recursive: true, force: true })
   }

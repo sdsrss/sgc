@@ -19367,7 +19367,8 @@ var exports_doctor = {};
 __export(exports_doctor, {
   runDoctor: () => runDoctor,
   extractCliSubcommands: () => extractCliSubcommands,
-  bundleParityCheck: () => bundleParityCheck
+  bundleParityCheck: () => bundleParityCheck,
+  bundleExecBitOk: () => bundleExecBitOk
 });
 import { createHash as createHash4 } from "node:crypto";
 import { existsSync as existsSync20, mkdtempSync, readdirSync as readdirSync8, readFileSync as readFileSync19, rmSync } from "node:fs";
@@ -19390,6 +19391,15 @@ function extractCliSubcommands(src2) {
     names.push(m2[1]);
   return names;
 }
+function bundleExecBitOk(lsFilesStdout) {
+  const line = lsFilesStdout.trim();
+  if (!line)
+    return null;
+  const mode = line.split(/\s+/)[0] ?? "";
+  if (!/^\d{6}$/.test(mode))
+    return null;
+  return (parseInt(mode, 8) & 73) !== 0;
+}
 async function bundleParityCheck(root4) {
   const srcEntry = resolve17(root4, "src", "sgc.ts");
   const committed = resolve17(root4, "plugins", "sgc", "bin", "sgc.mjs");
@@ -19407,7 +19417,18 @@ async function bundleParityCheck(root4) {
     const strip2 = (b3) => Buffer.from(b3.toString("utf8").replace(/^#![^\n]*\n/, ""));
     const a2 = sha(strip2(readFileSync19(out)));
     const b2 = sha(strip2(readFileSync19(committed)));
-    return a2 === b2 ? { severity: "ok", msg: "  ✓ committed bundle matches source rebuild" } : { severity: "fail", msg: "  ✗ committed bundle STALE — run `npm run build:cli` and commit" };
+    if (a2 !== b2) {
+      return { severity: "fail", msg: "  ✗ committed bundle STALE — run `npm run build:cli` and commit" };
+    }
+    const ls = await spawnCapture(["git", "ls-files", "--stage", "plugins/sgc/bin/sgc.mjs"], { cwd: root4 });
+    const execOk = ls.exitCode === 0 ? bundleExecBitOk(ls.stdout) : null;
+    if (execOk === false) {
+      return {
+        severity: "fail",
+        msg: "  ✗ committed bundle missing git exec bit (100644) — run `git add --chmod=+x plugins/sgc/bin/sgc.mjs` and commit"
+      };
+    }
+    return { severity: "ok", msg: "  ✓ committed bundle matches source rebuild (content + exec bit)" };
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

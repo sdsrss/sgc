@@ -46,7 +46,7 @@ implementation isn't a forced dependency for sgc users. Absorptions are
 sgc-native — **for the GS-N dispatcher commands listed below, no gstack
 source is copied, no gstack binary is called, and no gstack dependency is
 introduced** (this scope is the *absorb arc*; it does NOT cover the
-separately-vendored `browse` tool — see "Vendored components" below). The
+separately-vendored `browse` tool — see "Real-browser QA (Playwright) + legacy vendored browse" below). The
 gs delegate stays the recommended path when
 gs is installed (see delegate table); the sgc-native version is the
 zero-dep fallback. Shipped: **GS-1 `sgc canary`** (post-publish health

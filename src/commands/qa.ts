@@ -10,10 +10,11 @@
 //      append-only per task/stage/reviewer triple)
 //   4. Print verdict + failed flows
 //
-// MVP stub returns pass for non-empty inputs. Real browse binary bridge
-// is opt-in via --browse or SGC_QA_REAL=1 (deferred — browse test
-// environment requires chromium that may need --no-sandbox on Ubuntu
-// 23.10+).
+// Default is a non-rubber-stamping stub (verdict `concern`). The real-browser
+// smoke is opt-in via --browse or SGC_QA_REAL=1: runQa builds the Playwright
+// runner (see ../dispatcher/agents/playwright-runner.ts) and injects it as
+// opts.browseRunner. A browser is needed at runtime (`npx playwright install
+// chromium`, or SGC_QA_BROWSER=chrome).
 
 import { mkdirSync } from "node:fs"
 import { join } from "node:path"

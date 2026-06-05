@@ -1,16 +1,7 @@
 # Scope `bun test` discovery to sgc's own gate (dispatcher + eval).
 #
-# Why: `plugins/sgc/browse/` is a VENDORED gstack-derived browser CLI (the
-# compiled binary that backs `sgc qa`'s browser checks — see README "browse").
-# Its `test/` directory is upstream gstack's own suite; sgc vendored the tool
-# but not every fixture it needs (e.g. `bin/gstack-learnings-search`), so a
-# subset of those upstream tests cannot pass here. They are NOT part of sgc's
-# CI gate — both .github/workflows/{test,publish}.yml run only
-# `bun test tests/dispatcher [tests/eval]`. Without this scope, a bare
-# `bun test` would sweep the vendored suite and report false failures.
-#
-# Effect: `bun test` (no path) now discovers only `tests/` — identical scope to
-# CI. To run the vendored browse suite intentionally, target it from inside
-# that package (it is upstream-maintained, not an sgc quality gate).
+# CI runs `bun test tests/dispatcher [tests/eval]` explicitly; this makes a bare
+# local `bun test` (no path) match that scope — discovering only `tests/` rather
+# than scanning the whole repo.
 [test]
 root = "tests"

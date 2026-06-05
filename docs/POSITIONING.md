@@ -45,8 +45,7 @@ natural fit for sgc's capture → promote → CE-1 loop, and (b) the gstack
 implementation isn't a forced dependency for sgc users. Absorptions are
 sgc-native — **for the GS-N dispatcher commands listed below, no gstack
 source is copied, no gstack binary is called, and no gstack dependency is
-introduced** (this scope is the *absorb arc*; it does NOT cover the
-separately-vendored `browse` tool — see "Real-browser QA (Playwright) + legacy vendored browse" below). The
+introduced** (this scope is the *absorb arc*). The
 gs delegate stays the recommended path when
 gs is installed (see delegate table); the sgc-native version is the
 zero-dep fallback. Shipped: **GS-1 `sgc canary`** (post-publish health
@@ -66,11 +65,10 @@ multi-perspective fusion of `planner.{ceo,eng,adversarial}` → single
 cross-evaluator back-channel, Invariant §1 untouched; advisory at the L3
 human gate). **GS-N absorb arc complete (7/7).**
 
-### Real-browser QA (Playwright) + legacy vendored browse
+### Real-browser QA (Playwright)
 
-**Real-browser QA uses Playwright.** `sgc qa`'s real-browser smoke is opt-in
-(`--browse` / `SGC_QA_REAL=1`): it drives a Playwright chromium through
-`goto → console/page errors → screenshot → verdict`
+`sgc qa`'s real-browser smoke is opt-in (`--browse` / `SGC_QA_REAL=1`): it drives
+a Playwright chromium through `goto → console/page errors → screenshot → verdict`
 (`src/dispatcher/agents/playwright-runner.ts`). By default `sgc qa` runs a stub
 that returns `concern` (never `pass`), so the L2+ QA gate is never silently
 rubber-stamped. Playwright is already a dependency (and `--external` in the
@@ -78,27 +76,18 @@ bundle); a browser is needed at runtime — `npx playwright install chromium`, o
 `SGC_QA_BROWSER=chrome` to use system Chrome. This works on **both** the npm and
 plugin channels.
 
-`plugins/sgc/browse/` is **vendored** gstack-derived headless-browser source,
-carried in-tree historically as the intended `sgc qa` backend. It is now
-**legacy/unused**: the compiled binary proved non-functional in-repo (its server
-needs `diff` + `playwright` + the `bun:sqlite` runtime, none shipped), so the
-real-browser smoke was re-implemented on Playwright instead. Nothing wires to the
-vendored tree anymore; it is kept in-tree pending removal.
-
-- We deliberately do **not** ship the ~100 MB vendored `browse` binary on npm
-  (`sgc doctor` check `E` keeps `plugins/` out of the npm `files` allowlist) —
-  moot now that Playwright is the backend.
-- The legacy `browse/test/` directory is upstream gstack's own suite and is
-  **not part of sgc's CI gate** — `.github/workflows/{test,publish}.yml` run only
-  `bun test tests/dispatcher [tests/eval]`, and `bunfig.toml` scopes a bare
-  `bun test` to `tests/`.
+- `sgc doctor` check `E` keeps `plugins/` out of the npm `files` allowlist (the
+  plugin markdown payload is plugin-channel-only, not npm-published).
+- A non-functional gstack-derived `browse` binary was previously vendored under
+  `plugins/sgc/browse/` as the intended backend; it was **removed** once the
+  Playwright runner replaced it.
 - `gs:/browse` remains an optional external browser tool when gstack is installed.
 
 ### Non-goals
 
 - sgc is **not a CI/CD platform** — it orchestrates ship, post-publish canary, and CI-failure capture, but it is not a build runner or deploy target
 - sgc does **not** manage IDE integration or agent-orchestration UIs
-- sgc does **not** require, bundle, or re-host sp/gs source — interop with them is optional (see above); the only vendored upstream code is the legacy `browse` tree (unused — see "Real-browser QA (Playwright) + legacy vendored browse")
+- sgc does **not** require, bundle, or re-host sp/gs source — interop with them is optional (see above); there is no vendored upstream source (real-browser QA uses Playwright, a normal dependency — see "Real-browser QA (Playwright)")
 
 ## User mental model
 

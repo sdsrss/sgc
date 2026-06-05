@@ -172,9 +172,9 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
     }
   }
 
-  // ── (D) bunfig.toml [test] root="tests" — guards R0 regression ─────────
-  // A bare `bun test` must stay scoped to sgc's gate; otherwise the vendored
-  // plugins/sgc/browse/ upstream suite gets swept and reports false failures.
+  // ── (D) bunfig.toml [test] root="tests" — keeps `bun test` scoped ──────
+  // A bare `bun test` must stay scoped to sgc's gate (tests/); otherwise it
+  // would scan the whole repo instead of the dispatcher + eval suites.
   log("")
   log("=== bunfig.toml [test] root ===")
   if (!hasSource) {
@@ -191,7 +191,7 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
     } else {
       emit({
         severity: "fail",
-        msg: '  ✗ bunfig.toml present but [test] root!="tests" — bare `bun test` may sweep plugins/sgc/browse (R0 regression)',
+        msg: '  ✗ bunfig.toml present but [test] root!="tests" — bare `bun test` would scan the whole repo, not just tests/',
       })
     }
   }
@@ -217,11 +217,11 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
         })
         files = []
       }
-      // Flag any entry under "plugins" that would publish the vendored browse
-      // tree. Only files under the committed bundle dir "plugins/sgc/bin/"
-      // (e.g. "plugins/sgc/bin/sgc.mjs") are intentional npm artifacts — every
-      // other plugins path (directory-style OR explicit browse files like
-      // "plugins/sgc/browse/src/cli.ts") is a leak.
+      // Flag any entry under "plugins" that would publish the plugin payload
+      // (markdown, skills, etc.) to npm. Only files under the committed bundle
+      // dir "plugins/sgc/bin/" (e.g. "plugins/sgc/bin/sgc.mjs") are intentional
+      // npm artifacts — every other plugins path (directory-style OR an explicit
+      // non-bin file like "plugins/sgc/skills/qa/SKILL.md") is a leak.
       const leaks = files.filter((f) => {
         const norm = f.replace(/^\.?\//, "")
         if (!norm.startsWith("plugins")) return false
@@ -232,7 +232,7 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
       if (files.length === 0) {
         emit({
           severity: "warn",
-          msg: '  ⚠ package.json has no "files" allowlist — npm would publish vendored browse',
+          msg: '  ⚠ package.json has no "files" allowlist — npm would publish the plugin payload',
         })
       } else if (leaks.length) {
         emit({
@@ -242,64 +242,8 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
       } else {
         emit({
           severity: "ok",
-          msg: "  ✓ package.json files excludes plugins/ (vendored browse not npm-published)",
+          msg: "  ✓ package.json files excludes plugins/ (plugin payload not npm-published)",
         })
-      }
-    }
-  }
-
-  // ── (F) vendored-components.yaml provenance ────────────────────────────
-  log("")
-  log("=== vendored-components.yaml provenance ===")
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ vendored-components.yaml skipped (no source checkout — dev/CI-only check)" })
-  } else {
-    const vcPath = resolve(root, "contracts/vendored-components.yaml")
-    if (!existsSync(vcPath)) {
-      emit({
-        severity: "warn",
-        msg: "  ⚠ contracts/vendored-components.yaml not found — vendored source unregistered (R0/Rec4)",
-      })
-    } else {
-      let comps: Record<string, unknown>[] | null = []
-      try {
-        const doc = yamlLoad(readFileSync(vcPath, "utf8")) as { components?: unknown }
-        comps = Array.isArray(doc?.components)
-          ? (doc.components as Record<string, unknown>[])
-          : []
-      } catch (e) {
-        emit({
-          severity: "fail",
-          msg: `  ✗ vendored-components.yaml parse error: ${(e as Error).message.slice(0, 80)}`,
-        })
-        comps = null
-      }
-      if (comps && comps.length === 0) {
-        emit({ severity: "warn", msg: "  ⚠ vendored-components.yaml lists no components" })
-      } else if (comps) {
-        const required = ["path", "upstream", "upstream_ref", "vendored_at"]
-        for (const c of comps) {
-          const missing = required.filter(
-            (k) => c[k] == null || String(c[k]).trim() === "",
-          )
-          const cpath = (c["path"] as string) ?? "<no path>"
-          if (missing.length) {
-            emit({
-              severity: "fail",
-              msg: `  ✗ vendored ${cpath}: missing field(s) ${missing.join(", ")}`,
-            })
-          } else if (!existsSync(resolve(root, cpath))) {
-            emit({
-              severity: "fail",
-              msg: `  ✗ vendored ${cpath}: registered path missing on disk`,
-            })
-          } else {
-            emit({
-              severity: "ok",
-              msg: `  ✓ vendored ${cpath} (upstream_ref: ${String(c["upstream_ref"])})`,
-            })
-          }
-        }
       }
     }
   }

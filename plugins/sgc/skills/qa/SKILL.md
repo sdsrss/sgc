@@ -7,7 +7,7 @@ description: "Use for the L2+ browser-QA gate. Real-browser mode (Playwright Chr
 
 Spawn `qa.browser` to run the QA gate; with the real-browser opt-in (`--browse` / `SGC_QA_REAL=1`) it drives a Playwright Chromium and writes verdict + screenshot refs to `reviews/{task_id}/qa/qa.browser.md`, flipping `hasQaEvidence` true to unblock the L2+ ship gate.
 
-> **Real-browser mode is opt-in (Playwright).** By default `qa.browser` runs a stub that returns `concern` (never `pass`), so the gate is never silently rubber-stamped. Enable it with `--browse` or `SGC_QA_REAL=1` — it launches a Playwright Chromium (`goto` → console/page errors → screenshot → verdict). Needs a browser: `npx playwright install chromium`, or `SGC_QA_BROWSER=chrome` for system Chrome. (The in-tree vendored `browse/` is legacy/unused — superseded by the Playwright runner.)
+> **Real-browser mode is opt-in (Playwright).** By default `qa.browser` runs a stub that returns `concern` (never `pass`), so the gate is never silently rubber-stamped. Enable it with `--browse` or `SGC_QA_REAL=1` — it launches a Playwright Chromium (`goto` → console/page errors → screenshot → verdict). Needs a browser: `npx playwright install chromium`, or `SGC_QA_BROWSER=chrome` for system Chrome.
 
 **Core principle:** "looks correct" is not evidence — with `--browse` / `SGC_QA_REAL=1`, open the browser (Playwright), run the flow, capture the proof; by default `qa.browser` returns `concern` rather than rubber-stamping.
 

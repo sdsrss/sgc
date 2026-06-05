@@ -284,7 +284,6 @@ describe("sgc doctor", () => {
     expect(r.fail).toBe(0)
     expect(r.rows.some((row) => row.severity === "ok" && row.msg.includes('root="tests"'))).toBe(true)
     expect(r.rows.some((row) => row.severity === "ok" && row.msg.includes("machine-enforced invariants: 12/13"))).toBe(true)
-    expect(r.rows.some((row) => row.severity === "ok" && row.msg.includes("vendored vendored-x"))).toBe(true)
     expect(r.rows.some((row) => row.severity === "ok" && row.msg.includes("both sources define"))).toBe(true)
   })
 
@@ -312,28 +311,17 @@ describe("sgc doctor", () => {
     expect(r.rows.some((row) => row.severity === "ok" && row.msg.includes("excludes plugins/"))).toBe(true)
   })
 
-  test("E-fail: explicit browse file (extension, non-bin) plugins/sgc/browse/src/cli.ts → fail", async () => {
+  test("E-fail: explicit non-bin plugins file (extension) → fail", async () => {
     seed(baseManifest)
-    // Only plugins/sgc/bin/ files are whitelisted; an extensioned browse file
-    // must still be flagged (the entire vendored browse tree has extensions).
-    seedHygiene({ files: ["plugins/sgc/bin/sgc.mjs", "plugins/sgc/browse/src/cli.ts", "src/"] })
+    // Only plugins/sgc/bin/ files are whitelisted; any other explicit plugins
+    // file (the plugin markdown payload) must still be flagged as an npm leak.
+    seedHygiene({ files: ["plugins/sgc/bin/sgc.mjs", "plugins/sgc/skills/qa/SKILL.md", "src/"] })
     const r = await runDoctor({ log: () => {}, repoRoot: tmp })
     expect(r.fail).toBeGreaterThanOrEqual(1)
     const leakRow = r.rows.find((row) => row.severity === "fail" && row.msg.includes("vendored path"))
     expect(leakRow).toBeDefined()
-    expect(leakRow!.msg).toContain("plugins/sgc/browse/src/cli.ts")
+    expect(leakRow!.msg).toContain("plugins/sgc/skills/qa/SKILL.md")
     expect(leakRow!.msg).not.toContain("plugins/sgc/bin/sgc.mjs")
-  })
-
-  test("F-fail: vendored component missing required field → fail", async () => {
-    seed(baseManifest)
-    seedHygiene({
-      vendored:
-        'schema_version: "0.1"\ncomponents:\n  - path: vendored-x\n    upstream: up\n',
-    })
-    const r = await runDoctor({ log: () => {}, repoRoot: tmp })
-    expect(r.fail).toBeGreaterThanOrEqual(1)
-    expect(r.rows.some((row) => row.severity === "fail" && row.msg.includes("missing field"))).toBe(true)
   })
 
   test("G-fail: invariant map missing a section → fail", async () => {
@@ -451,15 +439,14 @@ test("doctor (B) prompts check uses embedded keys, not readdirSync", async () =>
     lines.some((l) => l.includes(snippet) && /skipped \(no source checkout/.test(l))
   expect(skipRow("bunfig.toml root")).toBe(true) // (D)
   expect(skipRow("package.json files")).toBe(true) // (E)
-  expect(skipRow("vendored-components.yaml")).toBe(true) // (F)
   expect(skipRow("invariant-enforcement.yaml")).toBe(true) // (G)
   expect(skipRow("slash↔CLI parity")).toBe(true) // (H)
   expect(skipRow("invariant-source parity")).toBe(true) // (I)
   expect(skipRow("bundle-hash parity")).toBe(true) // (J)
   expect(skipRow("metrics baseline")).toBe(true) // (K)
 
-  // All eight skips land as `ok` rows, never warn/fail — so the bogus root yields
+  // All seven skips land as `ok` rows, never warn/fail — so the bogus root yields
   // zero warnings beyond embedded-prompt orphans and zero hard failures.
   const skipRowCount = lines.filter((l) => /skipped \(no source checkout/.test(l)).length
-  expect(skipRowCount).toBe(8)
+  expect(skipRowCount).toBe(7)
 })

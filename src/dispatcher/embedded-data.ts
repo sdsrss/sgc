@@ -17,7 +17,6 @@ import { fileURLToPath } from "node:url"
 import capabilities from "../../contracts/sgc-capabilities.yaml" with { type: "text" }
 import stateSchema from "../../contracts/sgc-state.schema.yaml" with { type: "text" }
 import invariantEnforcement from "../../contracts/invariant-enforcement.yaml" with { type: "text" }
-import vendoredComponents from "../../contracts/vendored-components.yaml" with { type: "text" }
 import invariantsMd from "../../contracts/sgc-invariants.md" with { type: "text" }
 
 import clarifierDiscover from "../../prompts/clarifier-discover.md" with { type: "text" }
@@ -36,7 +35,6 @@ export const EMBEDDED_CONTRACTS: Record<string, string> = {
   "sgc-capabilities.yaml": capabilities,
   "sgc-state.schema.yaml": stateSchema,
   "invariant-enforcement.yaml": invariantEnforcement,
-  "vendored-components.yaml": vendoredComponents,
   "sgc-invariants.md": invariantsMd,
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "@sdsrs/sgc",
-  "version": "1.29.0",
+  "version": "1.29.1",
   "description": "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   "type": "module",
   "bin": {
@@ -40,7 +40,6 @@
     "dedup"
   ],
   "scripts": {
-    "build:browse": "bun build ./plugins/sgc/browse/src/cli.ts --compile --outfile ./plugins/sgc/browse/dist/browse",
     "build:cli": "node scripts/build-cli.mjs",
     "typecheck": "tsc --noEmit",
     "test": "SGC_FORCE_INLINE=1 bun test tests/dispatcher",

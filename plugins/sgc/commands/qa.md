@@ -31,4 +31,4 @@ $SGC qa http://localhost:3000 --flows /dashboard,/settings --browse   # smoke ex
 ## Notes
 
 - Real-browser mode needs a browser: `npx playwright install chromium`, or set `SGC_QA_BROWSER=chrome` to use system Chrome.
-- Playwright is already a dependency; the real runner is `src/dispatcher/agents/playwright-runner.ts`. (The in-tree `plugins/sgc/browse/` vendored binary is legacy/unused.)
+- Playwright is already a dependency; the real runner is `src/dispatcher/agents/playwright-runner.ts`.

@@ -11,8 +11,8 @@
 //   - target_url empty → fail (setup broken)
 //   - otherwise → concern (stub mode — prevents L2+ QA gate rubber-stamp)
 //
-// (The legacy plugins/sgc/browse/ vendored binary is unused — it was
-// non-functional in-repo; the Playwright runner superseded it.)
+// (A non-functional gstack-derived browse binary was previously vendored under
+// plugins/sgc/browse/; removed once the Playwright runner replaced it.)
 
 export interface QaBrowserInput {
   target_url: string

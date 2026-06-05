@@ -1,5 +1,33 @@
 # Changelog
 
+## v1.29.1 — 2026-06-04 — remove the legacy vendored browse tree
+
+Cleanup, no functional change. The vendored gstack `browse/` source (now
+superseded by the Playwright real-browser runner shipped in v1.29.0) is removed.
+
+### What changed
+
+- **Deleted `plugins/sgc/browse/`** (~100 MB / 85 files, incl. the compiled,
+  non-functional `dist/browse` binary) — it was dead weight in the plugin-install
+  payload and a cso dependency-audit blind spot (no `package.json`). `/plugin
+  install sgc` is now ~100 MB lighter.
+- Removed `contracts/vendored-components.yaml` + its bundle import
+  (`embedded-data.ts`), the `build:browse` npm script, and the `tsconfig` exclude.
+- `sgc doctor`: removed check **F** (vendored-components provenance — no vendored
+  components remain); check **E** (npm `files` excludes `plugins/`) and **D**
+  (`bun test` scoping) kept, reworded to drop browse-specific rationale. Doctor
+  is now 63 checks (was 64).
+- Docs (POSITIONING / README / ROADMAP / qa.md / SKILL.md) updated; ROADMAP 2e
+  (native parallel-subagents) marked **won't-do** (the only parallelism need —
+  the reviewer cluster — already runs via `Promise.all`).
+
+Real-browser QA is unaffected — it runs on Playwright (`--browse` /
+`SGC_QA_REAL=1`); `git` history retains the old browse tree if ever needed.
+
+### Tests
+
+Dispatcher gate green; `sgc doctor` 63/0/0; typecheck 0.
+
 ## v1.29.0 — 2026-06-04 — real-browser QA runner, wired via Playwright (opt-in)
 
 `sgc qa` can now run a real browser. Opt-in (`--browse` / `SGC_QA_REAL=1`); the

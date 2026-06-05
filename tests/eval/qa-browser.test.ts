@@ -1,9 +1,9 @@
 // Eval scenario: qa.browser with injected subprocess runner.
 //
-// Exercises the L2+ QA gate: sgc qa spawns qa.browser agent, which in
-// production shells out to `plugins/sgc/browse/dist/browse`. Eval uses
-// the injectable browseRunner to avoid launching chromium — keeps CI
-// hermetic (Invariant §12 authoritative).
+// Exercises the L2+ QA gate: sgc qa spawns qa.browser agent, which in the
+// real-browser opt-in path drives Playwright (src/dispatcher/agents/
+// playwright-runner.ts). Eval uses the injectable browseRunner to avoid
+// launching chromium — keeps CI hermetic (Invariant §12 authoritative).
 //
 // Invariants exercised: §1 (qa.browser no read:solutions), §6 (review
 // append-only + janitor logged), §8 (scope pin), §12 (this)

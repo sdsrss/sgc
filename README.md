@@ -115,7 +115,7 @@ State lives under `.sgc/` in the project (override via `SGC_STATE_ROOT`); it's `
 | `sgc metrics [--json\|--write-baseline]` | Four-化 product self-scorecard (read-only); numbers below are reproduced by this command |
 | `sgc doctor` | Self-check: contracts ↔ prompts ↔ command parity ↔ bundle freshness |
 
-20 commands total — 17 are also exposed as `/sgc:*` slash commands inside Claude Code; `canary`, `watch-ci-failure`, and `land` are CLI-only. Real-browser QA uses **Playwright** (opt-in via `--browse` / `SGC_QA_REAL=1`; needs a browser — `npx playwright install chromium`, or `SGC_QA_BROWSER=chrome` for system Chrome); `sgc qa` defaults to a non-rubber-stamping stub. (The in-tree `plugins/sgc/browse/` vendored source is legacy/unused — superseded by the Playwright runner.)
+20 commands total — 17 are also exposed as `/sgc:*` slash commands inside Claude Code; `canary`, `watch-ci-failure`, and `land` are CLI-only. Real-browser QA uses **Playwright** (opt-in via `--browse` / `SGC_QA_REAL=1`; needs a browser — `npx playwright install chromium`, or `SGC_QA_BROWSER=chrome` for system Chrome); `sgc qa` defaults to a non-rubber-stamping stub.
 
 **Four-化 scorecard** (run `sgc metrics` to reproduce): 规范化 12/13 · 智能化 11/23 LLM-invokable · 自动化 4/6 · 高效化 1 step·node≥18. These numbers are produced by `sgc metrics`; see `metrics/metrics-baseline.yaml` — they are not hand-maintained.
 
@@ -167,7 +167,6 @@ src/
 plugins/sgc/
   bin/sgc.mjs     self-contained Node bundle shipped to /plugin install (contracts+prompts inlined)
   {skills,commands,hooks}/   markdown prompt layer + slash commands + SessionStart hook
-  browse/         vendored headless-browser source — legacy/unused (superseded by the Playwright qa runner)
 tests/dispatcher/ deterministic unit + integration suite (bun test)
 tests/eval/       end-to-end LLM scenarios (Invariant §12)
 ```

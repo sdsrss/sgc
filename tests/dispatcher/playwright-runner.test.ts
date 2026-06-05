@@ -129,6 +129,22 @@ describe("playwright makeBrowseRunner", () => {
     expect(r.evidence_refs.length).toBeGreaterThanOrEqual(1) // first target produced a screenshot
   })
 
+  test("screenshot capture failure → surfaced as note, verdict still pass", async () => {
+    const run = makeBrowseRunner({
+      launch: async () => ({
+        async smoke() {
+          return { navOk: true, consoleErrors: [], screenshot: undefined }
+        },
+        async close() {},
+      }),
+      screenshotDir: shots(),
+    })
+    const r = await run({ target_url: "http://x/", user_flows: [] })
+    expect(r.verdict).toBe("pass")
+    expect(r.evidence_refs.length).toBe(0)
+    expect(r.failed_flows.some((f) => f.step === "screenshot")).toBe(true)
+  })
+
   test("session.close() is always called", async () => {
     let closed = false
     const run = makeBrowseRunner({

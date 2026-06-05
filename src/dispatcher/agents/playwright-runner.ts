@@ -125,6 +125,13 @@ export function makeBrowseRunner(opts: {
         for (const e of r.consoleErrors) {
           failed_flows.push({ flow: t.label, step: "console", observed: e })
         }
+        if (!r.screenshot) {
+          failed_flows.push({
+            flow: t.label,
+            step: "screenshot",
+            observed: "screenshot capture failed (evidence omitted)",
+          })
+        }
       }
     } finally {
       try {
@@ -183,14 +190,18 @@ export async function launchPlaywrightSession(
         navOk = false
         navError = (e as Error)?.message ?? String(e)
       }
+      await page.waitForTimeout(150) // settle + let late console errors flush
+      // Screenshot is best-effort evidence; retry once to absorb cold-start flake.
       let screenshot: string | undefined
-      try {
-        await page.screenshot({ path: screenshotPath })
-        screenshot = screenshotPath
-      } catch {
-        // evidence capture is best-effort
+      for (let attempt = 0; attempt < 2 && !screenshot; attempt++) {
+        if (attempt > 0) await page.waitForTimeout(200)
+        try {
+          await page.screenshot({ path: screenshotPath })
+          screenshot = screenshotPath
+        } catch {
+          // best-effort; retried once, then give up (verdict still stands)
+        }
       }
-      await page.waitForTimeout(150) // let late console errors flush
       await page.close()
       return { navOk, navError, consoleErrors, screenshot }
     },

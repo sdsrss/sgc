@@ -12,7 +12,9 @@ import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { mkdir } from "node:fs/promises"
 import { resolve } from "node:path"
 import {
+  intentPath,
   parseFrontmatter,
+  readCurrentTask,
   resolveStateRoot,
   serializeFrontmatter,
   writeAtomic,
@@ -224,18 +226,44 @@ async function getDefaultRunners(): Promise<Required<StepRunners>> {
   const { runCompound } = await import("../commands/compound")
   return {
     plan: async (state, opts) => {
-      const r = await runPlan(state.task, {
-        stateRoot: opts.stateRoot,
-        motivation: opts.motivation,
-        userSignature: opts.userSignature,
-        forceLevel: opts.forceLevel,
-      })
-      return {
-        task_id: r.taskId,
-        // The loop never forks async, so runPlan always returns a real level
-        // here (the optional level is only absent on the async-parent path).
-        level: r.level!,
-        intent_path: r.intentPath,
+      try {
+        const r = await runPlan(state.task, {
+          stateRoot: opts.stateRoot,
+          motivation: opts.motivation,
+          userSignature: opts.userSignature,
+          forceLevel: opts.forceLevel,
+        })
+        return {
+          task_id: r.taskId,
+          // The loop never forks async, so runPlan always returns a real level
+          // here (the optional level is only absent on the async-parent path).
+          level: r.level!,
+          intent_path: r.intentPath,
+        }
+      } catch (e) {
+        // runPlan refuses when a task is already active (the operator ran
+        // `sgc plan` manually before `sgc loop`, or a prior loop attempt
+        // planned). Without adoption the loop's plan step dead-ends: `--resume`
+        // retries plan and hits the same guard forever. Adopt the active task
+        // instead so `discover → plan → loop` and a retried loop both proceed.
+        // Only intercept the active-task refusal — other plan failures (LLM
+        // errors, schema gates) still propagate. The loop pauses at the work
+        // gate next, so the operator sees the adopted task_id and can abort.
+        const msg = e instanceof Error ? e.message : String(e)
+        const existing = /active task/i.test(msg) ? readCurrentTask(opts.stateRoot) : null
+        if (!existing) throw e
+        const t = existing.task
+        console.error(
+          `loop: adopting active task ${t.task_id} (level ${t.level}) — already planned, not re-planning`,
+        )
+        return {
+          task_id: t.task_id,
+          level: String(t.level),
+          intent_path:
+            t.level === "L0"
+              ? "(L0 — no intent.md)"
+              : intentPath(t.task_id, opts.stateRoot),
+        }
       }
     },
     review: async (_state, opts) => {
@@ -295,19 +323,25 @@ export async function runLoop(
       throw err
     }
     try {
-      // Concurrency guard: same-task non-terminal run blocks fresh start.
+      // Concurrency guard: ANY non-terminal run blocks a fresh start — not just
+      // a same-task one. Only one loop (one active task) can be in flight, and
+      // the plan step now ADOPTS the active task, so a fresh loop for a
+      // DIFFERENT task would otherwise silently adopt the in-flight task (wrong
+      // task). Same task → resume; different task → finish/abandon it first.
       for (const prior of listRunsRaw(stateRoot)) {
         if (
-          prior.task === task &&
-          (prior.status === "running" ||
-            prior.status === "paused" ||
-            prior.status === "failed")
+          prior.status === "running" ||
+          prior.status === "paused" ||
+          prior.status === "failed"
         ) {
-          throw new LoopError(
-            "ConcurrentRunActive",
-            `another loop run for task "${task}" is ${prior.status} (run_id=${prior.run_id}). Continue with: sgc loop --resume ${prior.run_id} (or delete the run file to start over).`,
-            { active_run_id: prior.run_id, active_status: prior.status },
-          )
+          const sameTask = prior.task === task
+          const detail = sameTask
+            ? `another loop run for task "${task}" is ${prior.status} (run_id=${prior.run_id}). Continue with: sgc loop --resume ${prior.run_id} (or delete the run file to start over).`
+            : `a different loop run is ${prior.status} (run_id=${prior.run_id}, task="${prior.task}"). Finish it with: sgc loop --resume ${prior.run_id} (or delete the run file) before starting a new loop.`
+          throw new LoopError("ConcurrentRunActive", detail, {
+            active_run_id: prior.run_id,
+            active_status: prior.status,
+          })
         }
       }
       const run_id = ulid()

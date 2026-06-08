@@ -19097,17 +19097,31 @@ async function getDefaultRunners() {
   const { runCompound: runCompound3 } = await Promise.resolve().then(() => (init_compound2(), exports_compound));
   return {
     plan: async (state, opts) => {
-      const r3 = await runPlan3(state.task, {
-        stateRoot: opts.stateRoot,
-        motivation: opts.motivation,
-        userSignature: opts.userSignature,
-        forceLevel: opts.forceLevel
-      });
-      return {
-        task_id: r3.taskId,
-        level: r3.level,
-        intent_path: r3.intentPath
-      };
+      try {
+        const r3 = await runPlan3(state.task, {
+          stateRoot: opts.stateRoot,
+          motivation: opts.motivation,
+          userSignature: opts.userSignature,
+          forceLevel: opts.forceLevel
+        });
+        return {
+          task_id: r3.taskId,
+          level: r3.level,
+          intent_path: r3.intentPath
+        };
+      } catch (e2) {
+        const msg = e2 instanceof Error ? e2.message : String(e2);
+        const existing = /active task/i.test(msg) ? readCurrentTask(opts.stateRoot) : null;
+        if (!existing)
+          throw e2;
+        const t2 = existing.task;
+        console.error(`loop: adopting active task ${t2.task_id} (level ${t2.level}) — already planned, not re-planning`);
+        return {
+          task_id: t2.task_id,
+          level: String(t2.level),
+          intent_path: t2.level === "L0" ? "(L0 — no intent.md)" : intentPath(t2.task_id, opts.stateRoot)
+        };
+      }
     },
     review: async (_state, opts) => {
       await runReview3({ stateRoot: opts.stateRoot });
@@ -19148,8 +19162,13 @@ async function runLoop(task, opts) {
     }
     try {
       for (const prior of listRunsRaw(stateRoot2)) {
-        if (prior.task === task && (prior.status === "running" || prior.status === "paused" || prior.status === "failed")) {
-          throw new LoopError("ConcurrentRunActive", `another loop run for task "${task}" is ${prior.status} (run_id=${prior.run_id}). Continue with: sgc loop --resume ${prior.run_id} (or delete the run file to start over).`, { active_run_id: prior.run_id, active_status: prior.status });
+        if (prior.status === "running" || prior.status === "paused" || prior.status === "failed") {
+          const sameTask = prior.task === task;
+          const detail = sameTask ? `another loop run for task "${task}" is ${prior.status} (run_id=${prior.run_id}). Continue with: sgc loop --resume ${prior.run_id} (or delete the run file to start over).` : `a different loop run is ${prior.status} (run_id=${prior.run_id}, task="${prior.task}"). Finish it with: sgc loop --resume ${prior.run_id} (or delete the run file) before starting a new loop.`;
+          throw new LoopError("ConcurrentRunActive", detail, {
+            active_run_id: prior.run_id,
+            active_status: prior.status
+          });
         }
       }
       const run_id = ulid();
@@ -19316,7 +19335,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.31.2",
+    version: "1.31.3",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -23408,7 +23427,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.31.2",
+  version: "1.31.3",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {

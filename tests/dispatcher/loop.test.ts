@@ -29,6 +29,7 @@ import {
   parseFrontmatter,
   serializeFrontmatter,
 } from "../../src/dispatcher/state"
+import { runPlan } from "../../src/commands/plan"
 
 let stateRoot: string
 
@@ -378,6 +379,25 @@ describe("runLoop — concurrency guard", () => {
       }),
     ).rejects.toMatchObject({ code: "ConcurrentRunActive" })
   })
+
+  it("refuses fresh runLoop for a DIFFERENT task while one is in flight", async () => {
+    // A paused run for task A must block a fresh loop for task B — otherwise
+    // the plan step would adopt A's active task under B's run (wrong task).
+    const first = await runLoop("task A — the in-flight one", {
+      stateRoot,
+      steps: allFakes(),
+      ulid: () => "01HRUNAAAA00000000000000",
+    })
+    expect(first.terminal_reason).toBe("paused_work")
+
+    await expect(
+      runLoop("task B — a totally different one", {
+        stateRoot,
+        steps: allFakes(),
+        ulid: () => "01HRUNBBBB00000000000000",
+      }),
+    ).rejects.toMatchObject({ code: "ConcurrentRunActive" })
+  })
 })
 
 describe("L0 carve-out", () => {
@@ -463,6 +483,30 @@ describe("LoopError shape", () => {
       expect(err).toBeInstanceOf(Error)
       expect((err as LoopError).code).toBe("RunNotFound")
     }
+  })
+})
+
+describe("runLoop — adopts an already-active task (plan → loop)", () => {
+  const LONG_MOTIVATION =
+    "Users miss important updates because there is no in-app notification surface, and the absence forces manual page refreshes to discover changes, which measurably hurts engagement and retention."
+
+  it("default plan runner adopts an existing active task instead of dead-ending", async () => {
+    // Operator ran `sgc plan` manually first (or a prior loop attempt planned).
+    const planned = await runPlan("add an in-app notification bell to the header", {
+      stateRoot,
+      motivation: LONG_MOTIVATION,
+      log: () => {},
+    })
+    // Now `sgc loop` on the same work. The default plan runner must adopt the
+    // active task — without adoption runPlan throws "active task in handoff"
+    // and the loop dead-ends (resume retries plan forever).
+    const r = await runLoop("add an in-app notification bell to the header", {
+      stateRoot,
+    })
+    expect(r.terminal_reason).toBe("paused_work")
+    expect(r.run.task_id).toBe(planned.taskId)
+    const planStep = r.run.steps.find((s) => s.step === "plan")!
+    expect(planStep.status).toBe("done") // adopted (done), not failed
   })
 })
 

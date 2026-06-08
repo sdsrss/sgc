@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.31.3 — 2026-06-08 — loop adopts an active task (discover→plan→loop no longer dead-ends)
+
+A fifth dogfood pass walked the full `discover → plan → loop` chain and found a
+dead-end trap, fixed with regression tests.
+
+### What changed
+
+- **`sgc loop` adopts an already-planned task instead of dead-ending.** If you
+  ran `sgc plan X` manually (or a prior loop attempt planned) and then
+  `sgc loop X`, the loop's plan step called `runPlan`, which refuses with
+  "active task in handoff", so the loop marked plan *failed* and told you to
+  `sgc loop --resume` — but resume retried the plan step, hit the same refusal,
+  and failed again, forever. The plan step now **adopts** the active task
+  (logging `loop: adopting active task <id>`) and proceeds to the work gate.
+  Only the active-task refusal is intercepted; other plan failures still
+  propagate.
+- **The loop concurrency guard now blocks *any* in-flight run, not just a
+  same-task one.** Previously a fresh loop for a different task while one was
+  paused slipped past the guard and (with adoption) would have run under the
+  wrong task. A different-task loop is now refused with guidance to resume or
+  abandon the in-flight run first; a completed/shipped loop still lets a new
+  loop plan fresh.
+
 ## v1.31.2 — 2026-06-08 — dogfood fixes (tail spawn id · watch-ci-failure/land fast-fail)
 
 A fourth dogfood pass over `plan` / `status` / `tail` / `agent-loop` / `land` /

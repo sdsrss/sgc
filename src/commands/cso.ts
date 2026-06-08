@@ -300,6 +300,33 @@ export function parseBunAudit(stdout: string): AuditCounts | null {
   return counts
 }
 
+// npm audit emits a JSON *error envelope* when it cannot run — most commonly
+// `{ "error": { "code": "ENOLOCK", "summary": "...requires an existing
+// lockfile" } }` in a repo with no committed lockfile. This is valid JSON that
+// both count parsers correctly reject (it carries no vulnerability data), but
+// it is NOT "unparseable" — surfacing the actionable cause (and the fix for
+// ENOLOCK) beats a misleading "non-JSON or unparseable output" warning that
+// hides why a security review silently skipped the dependency audit.
+export function parseAuditErrorEnvelope(
+  stdout: string,
+): { code: string; summary: string } | null {
+  let j: unknown
+  try {
+    j = JSON.parse(stdout)
+  } catch {
+    return null
+  }
+  if (typeof j !== "object" || j === null) return null
+  const e = (j as { error?: unknown }).error
+  if (typeof e !== "object" || e === null) return null
+  const code = (e as { code?: unknown }).code
+  const summary = (e as { summary?: unknown }).summary
+  return {
+    code: typeof code === "string" ? code : "unknown",
+    summary: typeof summary === "string" ? summary : "",
+  }
+}
+
 function parseAuditByTool(tool: string, stdout: string): AuditCounts | null {
   // Schema-aware dispatch: try the tool-specific parser first; if it returns
   // null (schema drift), fall back to the other parser. This makes us robust
@@ -323,7 +350,20 @@ export function auditDependencies(repoRoot: string): CsoCheckResult {
   }
   const counts = parseAuditByTool(result.tool, result.stdout)
   if (!counts) {
-    warnings.push(`${result.tool} audit returned non-JSON or unparseable output; dep audit skipped`)
+    const envelope = parseAuditErrorEnvelope(result.stdout)
+    if (envelope) {
+      const fixHint =
+        envelope.code === "ENOLOCK"
+          ? " — create a lockfile (`npm i --package-lock-only`) and re-run `sgc cso`"
+          : ""
+      warnings.push(
+        `dep audit could not run: ${result.tool} reported ${envelope.code}` +
+          (envelope.summary ? ` (${envelope.summary})` : "") +
+          `${fixHint}; dep audit skipped`,
+      )
+    } else {
+      warnings.push(`${result.tool} audit returned non-JSON or unparseable output; dep audit skipped`)
+    }
     return { name: "dependency-audit", verdict: "warn", findings, warnings }
   }
   if (counts.critical > 0) findings.push(`${counts.critical} critical vulnerability(ies) via ${result.tool}`)

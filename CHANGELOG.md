@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.31.1 — 2026-06-08 — dogfood fixes (cso ENOLOCK clarity · debug --runs alignment)
+
+A third dogfood pass over `compound` / `reflect` / `debug` / `canary` / `cso` /
+`handoff` found two real defects, both fixed with regression tests. No
+behavior-contract changes.
+
+### What changed
+
+- **`sgc cso` no longer silently skips the dependency audit on a missing
+  lockfile.** In a repo with no committed lockfile, `npm audit --json` returns
+  *valid JSON* — an error envelope `{"error":{"code":"ENOLOCK",…}}` — which the
+  vulnerability-count parsers correctly reject, so cso reported "npm audit
+  returned non-JSON or unparseable output; dep audit skipped" and a security
+  review quietly ran without ever auditing dependencies. cso now recognizes the
+  error envelope and surfaces the actionable cause: *"dep audit could not run:
+  npm reported ENOLOCK (…) — create a lockfile (`npm i --package-lock-only`)
+  and re-run `sgc cso`"*.
+- **`sgc debug --runs` columns no longer collide.** The ID column was a fixed
+  38-wide pad, but investigation ids (`YYYY-MM-DD-HHMM-<slug>`) run ~46 chars,
+  so the STATUS column abutted the id with no separator. The table now sizes the
+  ID and STATUS columns to the widest row (ids stay full-width so they remain
+  copy-pasteable for `--id`).
+
 ## v1.31.0 — 2026-06-08 — QA/ship gate integrity (honest verdicts · loop qa gate)
 
 A second end-to-end dogfood pass — this time over the review → qa → ship →

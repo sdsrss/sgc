@@ -5020,10 +5020,12 @@ async function runDebugList(opts) {
     return { exitCode: 0 };
   }
   records.sort((a2, b2) => b2.started_at.localeCompare(a2.started_at));
-  stdoutWrite(`ID                                    STATUS       SYMPTOM
+  const idWidth = Math.max(2, ...records.map((r3) => r3.id.length)) + 2;
+  const statusWidth = Math.max(6, ...records.map((r3) => r3.status.length)) + 2;
+  stdoutWrite(`${"ID".padEnd(idWidth)}${"STATUS".padEnd(statusWidth)}SYMPTOM
 `);
   for (const r3 of records) {
-    stdoutWrite(`${r3.id.padEnd(38)}${r3.status.padEnd(13)}${r3.symptom}
+    stdoutWrite(`${r3.id.padEnd(idWidth)}${r3.status.padEnd(statusWidth)}${r3.symptom}
 `);
   }
   return { exitCode: 0 };
@@ -19314,7 +19316,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.31.0",
+    version: "1.31.1",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -21592,6 +21594,7 @@ __export(exports_cso, {
   runCso: () => runCso,
   parseNpmAudit: () => parseNpmAudit,
   parseBunAudit: () => parseBunAudit,
+  parseAuditErrorEnvelope: () => parseAuditErrorEnvelope,
   ensureCsoDir: () => ensureCsoDir,
   detectAnomalies: () => detectAnomalies,
   auditDependencies: () => auditDependencies,
@@ -21788,6 +21791,25 @@ function parseBunAudit(stdout2) {
     return null;
   return counts;
 }
+function parseAuditErrorEnvelope(stdout2) {
+  let j;
+  try {
+    j = JSON.parse(stdout2);
+  } catch {
+    return null;
+  }
+  if (typeof j !== "object" || j === null)
+    return null;
+  const e2 = j.error;
+  if (typeof e2 !== "object" || e2 === null)
+    return null;
+  const code = e2.code;
+  const summary = e2.summary;
+  return {
+    code: typeof code === "string" ? code : "unknown",
+    summary: typeof summary === "string" ? summary : ""
+  };
+}
 function parseAuditByTool(tool, stdout2) {
   if (tool === "bun")
     return parseBunAudit(stdout2) ?? parseNpmAudit(stdout2);
@@ -21809,7 +21831,13 @@ function auditDependencies(repoRoot2) {
   }
   const counts = parseAuditByTool(result.tool, result.stdout);
   if (!counts) {
-    warnings.push(`${result.tool} audit returned non-JSON or unparseable output; dep audit skipped`);
+    const envelope = parseAuditErrorEnvelope(result.stdout);
+    if (envelope) {
+      const fixHint = envelope.code === "ENOLOCK" ? " — create a lockfile (`npm i --package-lock-only`) and re-run `sgc cso`" : "";
+      warnings.push(`dep audit could not run: ${result.tool} reported ${envelope.code}` + (envelope.summary ? ` (${envelope.summary})` : "") + `${fixHint}; dep audit skipped`);
+    } else {
+      warnings.push(`${result.tool} audit returned non-JSON or unparseable output; dep audit skipped`);
+    }
     return { name: "dependency-audit", verdict: "warn", findings, warnings };
   }
   if (counts.critical > 0)
@@ -23368,7 +23396,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.31.0",
+  version: "1.31.1",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {

@@ -664,9 +664,15 @@ export async function runDebugList(opts: DebugListOptions): Promise<DebugResult>
   }
 
   records.sort((a, b) => b.started_at.localeCompare(a.started_at))
-  stdoutWrite("ID                                    STATUS       SYMPTOM\n")
+  // Size the ID column to the widest id so STATUS never abuts it. Investigation
+  // ids are `YYYY-MM-DD-HHMM-<slug>` (slug truncated but still ~46 chars), which
+  // a fixed 38-wide column overflowed — the id must stay copy-pasteable for
+  // `--id`, so widen the column rather than truncate the id.
+  const idWidth = Math.max(2, ...records.map((r) => r.id.length)) + 2
+  const statusWidth = Math.max(6, ...records.map((r) => r.status.length)) + 2
+  stdoutWrite(`${"ID".padEnd(idWidth)}${"STATUS".padEnd(statusWidth)}SYMPTOM\n`)
   for (const r of records) {
-    stdoutWrite(`${r.id.padEnd(38)}${r.status.padEnd(13)}${r.symptom}\n`)
+    stdoutWrite(`${r.id.padEnd(idWidth)}${r.status.padEnd(statusWidth)}${r.symptom}\n`)
   }
   return { exitCode: 0 }
 }

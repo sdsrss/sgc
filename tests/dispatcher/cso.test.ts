@@ -16,6 +16,7 @@ import {
   auditDependencies,
   detectAnomalies,
   ensureCsoDir,
+  parseAuditErrorEnvelope,
   parseBunAudit,
   parseNpmAudit,
   runCso,
@@ -301,6 +302,59 @@ describe("cso — parseNpmAudit (npm metadata shape) unchanged", () => {
   test("bun-shaped JSON (wrong schema) → null", () => {
     const bunShape = JSON.stringify({ pkg: [{ severity: "high" }] })
     expect(parseNpmAudit(bunShape)).toBe(null)
+  })
+})
+
+describe("cso — parseAuditErrorEnvelope (npm error JSON, not unparseable)", () => {
+  test("ENOLOCK error envelope → {code, summary}", () => {
+    const enolock = JSON.stringify({
+      error: {
+        code: "ENOLOCK",
+        summary: "This command requires an existing lockfile.",
+        detail: "Try creating one first with: npm i --package-lock-only",
+      },
+    })
+    // Both count parsers correctly reject it (no vuln data)...
+    expect(parseNpmAudit(enolock)).toBe(null)
+    expect(parseBunAudit(enolock)).toBe(null)
+    // ...but it is valid JSON expressing an actionable cause, not "unparseable".
+    expect(parseAuditErrorEnvelope(enolock)).toEqual({
+      code: "ENOLOCK",
+      summary: "This command requires an existing lockfile.",
+    })
+  })
+
+  test("vuln-count JSON (no error key) → null", () => {
+    const npmShape = JSON.stringify({
+      metadata: { vulnerabilities: { critical: 0, high: 0, moderate: 0, low: 0, total: 0 } },
+    })
+    expect(parseAuditErrorEnvelope(npmShape)).toBe(null)
+  })
+
+  test("non-JSON → null", () => {
+    expect(parseAuditErrorEnvelope("npm warn ...not json")).toBe(null)
+  })
+
+  test("auditDependencies surfaces ENOLOCK actionably (no lockfile repo)", () => {
+    // Fresh repo, package.json but no lockfile → npm audit returns ENOLOCK.
+    const repo = mkdtempSync(join(tmpdir(), "sgc-cso-enolock-"))
+    try {
+      writeFileSync(
+        resolve(repo, "package.json"),
+        JSON.stringify({ name: "t", version: "1.0.0", dependencies: {} }),
+      )
+      const r = auditDependencies(repo)
+      expect(r.verdict).toBe("warn")
+      // Either a tool ran cleanly (0 vulns) or it hit ENOLOCK — if the latter,
+      // the message must name the cause, not "unparseable".
+      const skipped = r.warnings.find((w) => w.includes("dep audit skipped"))
+      if (skipped) {
+        expect(skipped).not.toContain("non-JSON or unparseable")
+        expect(skipped.toLowerCase()).toContain("lockfile")
+      }
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
   })
 })
 

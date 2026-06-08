@@ -48,11 +48,26 @@ export function computeIntelligence(capabilitiesYaml: string): FourHuaMetrics["i
   }
 }
 
-/** 自动化 — from the compiled loop symbols (layout-independent). */
+// 自动化 — human-gate count across the FULL plan→ship→compound→reuse lifecycle,
+// NOT just the loop orchestrator's slots. The prior metric counted only the 6
+// loop STEPS and so missed the CE knowledge-arc reality the audit flagged
+// (P2-5, docs/COMPREHENSIVE-AUDIT-v1.29.1.md §4.2): capture is automatic, but
+// PROMOTE is a deliberate human gate — the operator hand-fills prevention_seed
+// (compound-promote.ts) — and reuse (recordApplied / recordSurfaced inside
+// `sgc plan`) is automatic again. Human gates total 3: work (operator
+// implements) + ship (L3 human signature, Invariant §4) + promote. The loop's
+// own `compound` step is the post-ship janitor decision (automatic) and is
+// distinct from this failure-capture → manual-promote → reuse arc.
+const CE_ARC_STAGES = ["capture", "promote", "reuse"] as const
+const CE_ARC_HUMAN_GATES = new Set<(typeof CE_ARC_STAGES)[number]>(["promote"])
+
+/** 自动化 — from compiled loop symbols + the CE knowledge arc (layout-independent). */
 export function computeAutomation(): FourHuaMetrics["automation"] {
+  const loopAuto = STEPS.filter((s) => !MANUAL_GATES.has(s)).length
+  const ceAuto = CE_ARC_STAGES.filter((s) => !CE_ARC_HUMAN_GATES.has(s)).length
   return {
-    automated_steps: STEPS.filter((s) => !MANUAL_GATES.has(s)).length,
-    total_steps: STEPS.length,
+    automated_steps: loopAuto + ceAuto,
+    total_steps: STEPS.length + CE_ARC_STAGES.length,
   }
 }
 
@@ -171,7 +186,7 @@ export function formatScorecard(m: FourHuaMetrics): string {
     "",
     `  规范化 standardization  ${m.standardization.machine_enforced}/${m.standardization.total} machine-enforced invariants`,
     `  智能化 intelligence     ${m.intelligence.llm_invokable}/${m.intelligence.total_subagents} LLM-invokable subagents (capacity, not quality)`,
-    `  自动化 automation       ${m.automation.automated_steps}/${m.automation.total_steps} automated loop steps (2 intentional manual gates: work, ship)`,
+    `  自动化 automation       ${m.automation.automated_steps}/${m.automation.total_steps} automated lifecycle stages (3 human gates: work, ship, compound-promote)`,
     `  高效化 efficiency       ${m.efficiency.install_steps} install step · node ${m.efficiency.runtime_node} · ~${kb} KB bundle`,
   ].join("\n")
 }

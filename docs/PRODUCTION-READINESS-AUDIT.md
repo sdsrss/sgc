@@ -6,6 +6,18 @@
 
 ---
 
+> ## ✅ 回填：§8 全部已闭合（back-annotated 2026-06-08）
+>
+> 本文是 **v1.21.0 时点快照**，§8 的 P0/P1/P2 当时为 open；现已**全部 ship 修复**，下文 §8 表格保留原样作历史记录。当前状态：
+>
+> - **P0（6 项）→ SHIPPED v1.22.0**：ALG-1 (`dedup.ts` featureOverlap 空集=0) · CE-1 (`times_referenced` relabel) · CE-4 (`SURFACED_RELEVANCE_FLOOR=0.5`) · CE-2 (`preventions.ts` sanitizePreventionText) · STAB-1 (`file-lock.ts` O_EXCL) · CE-3 (e2e 闭环契约测试)。
+> - **P1（多项）→ SHIPPED v1.23.0**：ALG-2/4/5 · STAB-2/3/4/5/6（信号 drain 收割子进程、writeAtomic 随机后缀、共享 retryWithBackoff）· CE-5/6。
+> - **P2 → SHIPPED v1.23.1**：ARCH-1/2 · UX-3 · ALG-3（文档化接受范围）。
+>
+> 独立复核（`docs/COMPREHENSIVE-AUDIT-v1.29.1.md` 四化验证）已 spot-check **6/6 P0 在 v1.29.x 现码确为已修**（`dedup.ts:99` · `file-lock.ts:67` · `preventions.ts:106` · `state.ts:649` 等）。最新审核见 `docs/COMPREHENSIVE-AUDIT-v1.29.1.md`。
+
+---
+
 ## 0. 执行摘要 (Executive Summary)
 
 **当前健康基线（实测）**：

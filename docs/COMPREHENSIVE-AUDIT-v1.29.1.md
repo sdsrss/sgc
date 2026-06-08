@@ -146,7 +146,7 @@ metrics 自标 "(capacity, not quality)" 诚实。**严谨重构应报 `11 LLM-b
 
 `metrics.ts:60-71`：`install_steps` 是**硬编码字面量 `1`**（非度量）；`runtime_node` 读 `package.json engines`（真）；`bundle_bytes` stat bundle（真，921,369 字节）`[实测]`。
 - 单步安装**可辩护**（`/plugin install` 自带 bundle，bundle 确能独立 `node` 运行 `[实测]`），但是**常量、非指标**。
-- **TTHW（time-to-hello-world，唯一有意义的效率信号）明确未度量**——grep 确认它只作为 aspiration 出现在 ROADMAP/设计 spec，设计文档自陈 "documented but not an auto-computed metric"。`src/`、`scripts/`、CI 中无任何效率基准。
+- ~~**TTHW（time-to-hello-world，唯一有意义的效率信号）明确未度量**~~ → **✅ 已度量（P2-4，2026-06-08）**：新增 `scripts/measure-tthw.sh`（npm pack → 净环境 install → 首命令计时）。实测 **TTHW ≈ 6.0s**（install 5.99s + 首命令 0.058s，playwright 浏览器下载 skip——浏览器是 `sgc qa --browse` 的 opt-in、非 hello-world 必需）。非 CI 门（净环境计时受环境影响），手动 `bash scripts/measure-tthw.sh`。原批评成立但已闭合。
 
 ---
 
@@ -236,9 +236,13 @@ metrics 自标 "(capacity, not quality)" 诚实。**严谨重构应报 `11 LLM-b
 | **P1-2** | ✅ RESOLVED | manifest reviewer cluster 加诚实注释：`prompt_path:null`=启发式/keyword 匹配、`status:implemented`=functional 而非 LLM-backed（保留 status 语义、不破 6 个 capabilities 测试） | `sgc-capabilities.yaml:368-377` |
 | **P1-3** | ✅ 已诚实，无需改 | 核验 README 无 fusion 过度措辞、`POSITIONING.md:62-64` 已写 GS-3 "deterministic … no LLM"；"融汇贯通"是刻意愿景（§2.1 认同产品级融合真实），不误伤 | `POSITIONING.md:62-64` |
 | **P2-1** | ✅ RESOLVED | banned-vocab post-spawn 强制：纯函数 `detectBannedVocab()`（letter-boundary，"robust"≠"robustness"；CJK 子串）+ spawn.ts **非阻塞 warn 事件** `output.banned_vocab`（绝不 reject，避免假阳性破坏有效 plan/review） | `banned-vocab.test.ts` 6/6；`validation.ts` + `spawn.ts:816` |
-| **P2-3** | ⏸ DEFERRED | 启发式-vs-LLM 对齐测试：LLM 侧非确定性、不适合确定性 CI 门，属 opt-in eval lane 的手动练习。不造投机测试基建 | — |
-| **P2-4** | ⏸ DEFERRED | TTHW 计时需 clean-container CI 改动、本环境无法验证其绿；不加未验证的 CI/e2e 代码。口径已在 §4.4 文档化 | — |
-| P2-2/5/6/7/8 | OPEN | OpenRouter 解析恢复 / 自动化真实步数指标 / 旧审核文档回填 / fingerprint embedded 失效钩子 / `--async` 合成 L0 — 未动（增量增强） | 见 §6 |
+| **P2-2** | ✅ RESOLVED | OpenRouter `extractYamlBlock` 加分层恢复：tagged yaml fence → 裸 ``` fence（丢 language tag，最常见）→ 未闭合 fence 剥离 stray 行。导出可测 | `openrouter-extract-yaml.test.ts` 5/5 |
+| **P2-4** | ✅ RESOLVED | TTHW 计时脚本 `scripts/measure-tthw.sh`（本地实跑验证）；实测 TTHW ≈ **6.0s** | 见 §4.4 |
+| **P2-6** | ✅ RESOLVED | `PRODUCTION-READINESS-AUDIT.md` 顶部加回填横幅：v1.21.0 的 P0/P1/P2 全部 SHIPPED（v1.22/1.23/1.23.1），保留原 §8 作历史 | 该文档顶部 |
+| **P2-7** | ✅ RESOLVED | fingerprint 缓存：`writeSolution`（§3 写入门）写后调 `clearFingerprintCache()`，in-process 复用不再 leak-check 陈旧语料；+ 导出 `invalidateFingerprintCache()` 精确 hook | `fingerprint-invalidate.test.ts` 2/2 |
+| **P2-8** | ✅ RESOLVED | `runPlan` 返回 `level?` 改可选，async-parent 分支省略（不再谎报 `L0`）；loop.ts 消费点加注（sync 路径必有 level） | tsc + plan/loop 套件绿 |
+| **P2-3** | ⏸ DEFERRED | 启发式-vs-LLM 语义对齐：高价值形态（语义一致）天然非确定性、不适合确定性 CI 门。注：schema 兼容性已被 inline-stub 测试 + `validateOutputShape`（spawn.ts:793 所有模式）覆盖 | — |
+| **P2-5** | ⏸ DEFERRED | 自动化指标重设为"每闭合任务真实人工步数"：属 **LLM-visible 四化 metric 的定义变更（L3 敏感）**，不单方面改产品自评数字；局限已在 §4.2 文档化，留作 deliberate 决策 | — |
 
 **未 ship**：以上为实现 + 验证，未 commit / tag / publish（sgc 走 main-direct + `v*` tag → publish.yml）。改 `src/` 已 `npm run build:cli` 重建并提交 bundle 至工作树（parity 绿）。
 

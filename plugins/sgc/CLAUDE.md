@@ -12,7 +12,7 @@ sgc is a **self-contained engineering super-plugin + knowledge engine** for Clau
 
 User mental model: sgc is the engineering layer — classifies the task, enforces the protocol, runs review/QA/security/ship, and compounds the knowledge, standalone and from one install. sp/gs are optional power-ups.
 
-## Implementation Status (v1.31.6 — GS-N arc 7/7 + Tier-1 sp absorb + L2 reviewer cluster wired + four-化 metrics + CLI UX hardening + QA/ship gate integrity)
+## Implementation Status (v1.31.7 — GS-N arc 7/7 + Tier-1 sp absorb + L2 reviewer cluster wired + four-化 metrics + CLI UX hardening + QA/ship gate integrity)
 
 The full L0→L3 pipeline is executable end-to-end via `bun src/sgc.ts <cmd>` (or the bundled `sgc`). All 13 invariants enforced at runtime. The **CE compound-engineering loop is closed end-to-end** (CE-1 prevention injection → CE-2 reflect audit → CE-3 ship-failure capture/promote → CE-4 async plan → CE-5 loop orchestrator → CE-6 `applied_in` L3 + `surfaced_in` L2 score feedback) plus the **GS-N absorb arc complete (7/7)**: canary (GS-1) · handoff (GS-2) · plan fused decision (GS-3) · debug (GS-4) · cso (GS-5) · discover --template (GS-6) · land (GS-7), the **Tier-1 Superpowers absorb** — `sgc work --done` verification close-gate — and the **L2+ reviewer cluster wired** (Phase 2c, v1.27.0): `/review` runs correctness + tests + maintainability + diff-conditional specialists at L2+, not just correctness. See [README.md](../../README.md) for the authoritative 20-command CLI table (17 `/sgc:*` slash commands + 3 CLI-only: `canary` · `watch-ci-failure` · `land`); `sgc doctor` enforces slash↔CLI parity.
 

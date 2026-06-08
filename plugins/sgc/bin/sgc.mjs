@@ -3872,7 +3872,16 @@ function writeShip(ship, body = "", stateRoot) {
 function progressPath(file, stateRoot) {
   return resolve3(root(stateRoot), "progress", `${file}.md`);
 }
+function validateCurrentTask(task) {
+  for (const f3 of REQUIRED_CURRENT_TASK_FIELDS) {
+    const v2 = task[f3];
+    if (v2 === undefined || v2 === null) {
+      throw new StateError("SchemaViolation", `current-task missing required field: ${f3}`);
+    }
+  }
+}
 function writeCurrentTask(task, body = "", stateRoot) {
+  validateCurrentTask(task);
   const path = progressPath("current-task", stateRoot);
   writeAtomic(path, serializeFrontmatter(task, body));
   return path;
@@ -3884,7 +3893,24 @@ function readCurrentTask(stateRoot) {
   const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"), path);
   return { task: data, body };
 }
+function validateFeatureList(list) {
+  if (!Array.isArray(list?.features)) {
+    throw new StateError("SchemaViolation", "feature-list missing required field: features (array)");
+  }
+  for (let i3 = 0;i3 < list.features.length; i3++) {
+    const ft = list.features[i3];
+    if (ft === null || typeof ft !== "object") {
+      throw new StateError("SchemaViolation", `feature-list.features[${i3}] is not an object`);
+    }
+    for (const f3 of REQUIRED_FEATURE_FIELDS) {
+      if (ft[f3] === undefined || ft[f3] === null) {
+        throw new StateError("SchemaViolation", `feature-list.features[${i3}] missing required field: ${f3}`);
+      }
+    }
+  }
+}
 function writeFeatureList(list, body = "", stateRoot) {
+  validateFeatureList(list);
   const path = progressPath("feature-list", stateRoot);
   writeAtomic(path, serializeFrontmatter(list, body));
   return path;
@@ -3903,7 +3929,19 @@ function readFeatureList(stateRoot) {
   const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"), path);
   return { list: data, body };
 }
+function validateHandoff(handoff) {
+  for (const f3 of REQUIRED_HANDOFF_FIELDS) {
+    const v2 = handoff[f3];
+    if (v2 === undefined || v2 === null) {
+      throw new StateError("SchemaViolation", `handoff missing required field: ${f3}`);
+    }
+  }
+  if (!Array.isArray(handoff?.open_questions)) {
+    throw new StateError("SchemaViolation", "handoff.open_questions must be an array");
+  }
+}
 function writeHandoff(handoff, body = "", stateRoot) {
+  validateHandoff(handoff);
   const path = progressPath("handoff", stateRoot);
   writeAtomic(path, serializeFrontmatter(handoff, body));
   return path;
@@ -4092,7 +4130,7 @@ function listReviewsForStage(taskId, stage, stateRoot) {
   }
   return reports;
 }
-var StateError, DEFAULT_STATE_DIR = ".sgc", root, LAYERS, FRONTMATTER_RE, atomicWriteSeq = 0, RED_GREEN_PLACEHOLDER = "TODO: operator-fill the reusable prevention", REQUIRED_INTENT_FIELDS, WORD_SEGMENTER, REQUIRED_SHIP_FIELDS, REQUIRED_REVIEW_FIELDS, REVIEW_SUFFIX_RE, SOLUTION_CATEGORIES, REQUIRED_SOLUTION_FIELDS, REQUIRED_JANITOR_FIELDS;
+var StateError, DEFAULT_STATE_DIR = ".sgc", root, LAYERS, FRONTMATTER_RE, atomicWriteSeq = 0, RED_GREEN_PLACEHOLDER = "TODO: operator-fill the reusable prevention", REQUIRED_INTENT_FIELDS, WORD_SEGMENTER, REQUIRED_SHIP_FIELDS, REQUIRED_CURRENT_TASK_FIELDS, REQUIRED_FEATURE_FIELDS, REQUIRED_HANDOFF_FIELDS, REQUIRED_REVIEW_FIELDS, REVIEW_SUFFIX_RE, SOLUTION_CATEGORIES, REQUIRED_SOLUTION_FIELDS, REQUIRED_JANITOR_FIELDS;
 var init_state = __esm(() => {
   init_js_yaml();
   init_types();
@@ -4125,6 +4163,18 @@ var init_state = __esm(() => {
     "deviations",
     "residuals",
     "linked_reviews"
+  ];
+  REQUIRED_CURRENT_TASK_FIELDS = [
+    "task_id",
+    "level",
+    "session_start",
+    "last_activity"
+  ];
+  REQUIRED_FEATURE_FIELDS = ["id", "title", "status"];
+  REQUIRED_HANDOFF_FIELDS = [
+    "from_session",
+    "to_session_hint",
+    "summary"
   ];
   REQUIRED_REVIEW_FIELDS = [
     "report_id",
@@ -17744,7 +17794,16 @@ function readShip(taskId, stateRoot) {
 function progressPath2(file, stateRoot) {
   return resolve13(root3(stateRoot), "progress", `${file}.md`);
 }
+function validateCurrentTask2(task) {
+  for (const f3 of REQUIRED_CURRENT_TASK_FIELDS2) {
+    const v2 = task[f3];
+    if (v2 === undefined || v2 === null) {
+      throw new StateError2("SchemaViolation", `current-task missing required field: ${f3}`);
+    }
+  }
+}
 function writeCurrentTask2(task, body = "", stateRoot) {
+  validateCurrentTask2(task);
   const path2 = progressPath2("current-task", stateRoot);
   writeAtomic2(path2, serializeFrontmatter2(task, body));
   return path2;
@@ -17756,7 +17815,24 @@ function readCurrentTask2(stateRoot) {
   const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"), path2);
   return { task: data, body };
 }
+function validateFeatureList2(list) {
+  if (!Array.isArray(list?.features)) {
+    throw new StateError2("SchemaViolation", "feature-list missing required field: features (array)");
+  }
+  for (let i3 = 0;i3 < list.features.length; i3++) {
+    const ft = list.features[i3];
+    if (ft === null || typeof ft !== "object") {
+      throw new StateError2("SchemaViolation", `feature-list.features[${i3}] is not an object`);
+    }
+    for (const f3 of REQUIRED_FEATURE_FIELDS2) {
+      if (ft[f3] === undefined || ft[f3] === null) {
+        throw new StateError2("SchemaViolation", `feature-list.features[${i3}] missing required field: ${f3}`);
+      }
+    }
+  }
+}
 function writeFeatureList2(list, body = "", stateRoot) {
+  validateFeatureList2(list);
   const path2 = progressPath2("feature-list", stateRoot);
   writeAtomic2(path2, serializeFrontmatter2(list, body));
   return path2;
@@ -17775,7 +17851,19 @@ function readFeatureList2(stateRoot) {
   const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"), path2);
   return { list: data, body };
 }
+function validateHandoff2(handoff) {
+  for (const f3 of REQUIRED_HANDOFF_FIELDS2) {
+    const v2 = handoff[f3];
+    if (v2 === undefined || v2 === null) {
+      throw new StateError2("SchemaViolation", `handoff missing required field: ${f3}`);
+    }
+  }
+  if (!Array.isArray(handoff?.open_questions)) {
+    throw new StateError2("SchemaViolation", "handoff.open_questions must be an array");
+  }
+}
 function writeHandoff2(handoff, body = "", stateRoot) {
+  validateHandoff2(handoff);
   const path2 = progressPath2("handoff", stateRoot);
   writeAtomic2(path2, serializeFrontmatter2(handoff, body));
   return path2;
@@ -17998,7 +18086,7 @@ function listReviewsForStage2(taskId, stage, stateRoot) {
   }
   return reports;
 }
-var StateError2, DEFAULT_STATE_DIR2 = ".sgc", root3, LAYERS2, FRONTMATTER_RE2, atomicWriteSeq2 = 0, RED_GREEN_PLACEHOLDER2 = "TODO: operator-fill the reusable prevention", REQUIRED_INTENT_FIELDS2, WORD_SEGMENTER2, REQUIRED_SHIP_FIELDS2, REQUIRED_REVIEW_FIELDS2, REVIEW_SUFFIX_RE2, SOLUTION_CATEGORIES2, REQUIRED_SOLUTION_FIELDS2, REQUIRED_JANITOR_FIELDS2;
+var StateError2, DEFAULT_STATE_DIR2 = ".sgc", root3, LAYERS2, FRONTMATTER_RE2, atomicWriteSeq2 = 0, RED_GREEN_PLACEHOLDER2 = "TODO: operator-fill the reusable prevention", REQUIRED_INTENT_FIELDS2, WORD_SEGMENTER2, REQUIRED_SHIP_FIELDS2, REQUIRED_CURRENT_TASK_FIELDS2, REQUIRED_FEATURE_FIELDS2, REQUIRED_HANDOFF_FIELDS2, REQUIRED_REVIEW_FIELDS2, REVIEW_SUFFIX_RE2, SOLUTION_CATEGORIES2, REQUIRED_SOLUTION_FIELDS2, REQUIRED_JANITOR_FIELDS2;
 var init_state2 = __esm(() => {
   init_js_yaml();
   init_types();
@@ -18031,6 +18119,18 @@ var init_state2 = __esm(() => {
     "deviations",
     "residuals",
     "linked_reviews"
+  ];
+  REQUIRED_CURRENT_TASK_FIELDS2 = [
+    "task_id",
+    "level",
+    "session_start",
+    "last_activity"
+  ];
+  REQUIRED_FEATURE_FIELDS2 = ["id", "title", "status"];
+  REQUIRED_HANDOFF_FIELDS2 = [
+    "from_session",
+    "to_session_hint",
+    "summary"
   ];
   REQUIRED_REVIEW_FIELDS2 = [
     "report_id",
@@ -19373,7 +19473,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.31.6",
+    version: "1.31.7",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -23465,7 +23565,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.31.6",
+  version: "1.31.7",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {

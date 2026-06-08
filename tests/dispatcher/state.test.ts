@@ -23,6 +23,7 @@ import {
   writeAtomic,
   writeCurrentTask,
   writeFeatureList,
+  writeHandoff,
   writeIntent,
   writePlanDoc,
   writeShip,
@@ -204,6 +205,56 @@ describe("progress files (mutable)", () => {
   test("readCurrentTask returns null when missing", () => {
     ensureSgcStructure(tmp)
     expect(readCurrentTask(tmp)).toBeNull()
+  })
+
+  // Invariant §7 — progress/ docs validate required fields on write.
+  test("writeCurrentTask rejects each missing required field", () => {
+    ensureSgcStructure(tmp)
+    const ok = {
+      task_id: "01H",
+      level: "L1" as const,
+      session_start: "2026-04-15T10:00:00Z",
+      last_activity: "2026-04-15T10:00:00Z",
+    }
+    for (const f of ["task_id", "level", "session_start", "last_activity"] as const) {
+      const bad = { ...ok }
+      delete (bad as Record<string, unknown>)[f]
+      expect(() => writeCurrentTask(bad as never, "", tmp)).toThrow(/missing required field/)
+    }
+    // active_feature is optional (cleared when all features done).
+    expect(() => writeCurrentTask(ok as never, "", tmp)).not.toThrow()
+  })
+
+  test("writeFeatureList rejects a feature missing id/title/status; allows empty list", () => {
+    ensureSgcStructure(tmp)
+    expect(() => writeFeatureList({ features: [] } as never, "", tmp)).not.toThrow()
+    for (const f of ["id", "title", "status"] as const) {
+      const ft: Record<string, unknown> = { id: "f1", title: "t", status: "pending" }
+      delete ft[f]
+      expect(() =>
+        writeFeatureList({ features: [ft] } as never, "", tmp),
+      ).toThrow(/missing required field/)
+    }
+    expect(() => writeFeatureList({ features: "nope" } as never, "", tmp)).toThrow(/features/)
+  })
+
+  test("writeHandoff rejects missing required field + non-array open_questions", () => {
+    ensureSgcStructure(tmp)
+    const ok = {
+      from_session: "01H",
+      to_session_hint: "sgc work",
+      summary: "Plan created.",
+      open_questions: [],
+    }
+    for (const f of ["from_session", "to_session_hint", "summary"] as const) {
+      const bad = { ...ok }
+      delete (bad as Record<string, unknown>)[f]
+      expect(() => writeHandoff(bad as never, "", tmp)).toThrow(/missing required field/)
+    }
+    expect(() =>
+      writeHandoff({ ...ok, open_questions: "nope" } as never, "", tmp),
+    ).toThrow(/open_questions/)
+    expect(() => writeHandoff(ok as never, "", tmp)).not.toThrow()
   })
   test("feature-list round-trips", () => {
     ensureSgcStructure(tmp)

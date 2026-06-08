@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.31.7 — 2026-06-08 — schema validation on progress/ writes (Invariant §7 gap)
+
+A ninth and tenth dogfood pass probed the scope-token boundary (§1/§8/§9 —
+verified sound, no functional bug) and the schema-validation boundary (§7),
+which had a real gap.
+
+### What changed
+
+- **The `progress/` state docs are now validated on write, like every other
+  `.sgc/` doc.** `decisions/`, `reviews/`, and `solutions/` writes already
+  rejected a malformed object before it hit disk, but `current-task.md`,
+  `feature-list.md`, and `handoff.md` were written with no required-field check —
+  a malformed in-memory object produced a file that only failed (cryptically) at
+  read time. They now reject a missing required field at write with a clear
+  `current-task missing required field: <name>` (current-task: task_id / level /
+  session_start / last_activity — `active_feature` stays optional, cleared when
+  all features are done; feature-list: each feature's id / title / status;
+  handoff: from_session / to_session_hint / summary / open_questions).
+- **Comment fix**: the §1 output-leak comment now correctly says
+  `validateOutputShape` *rejects* (not "filters") undeclared fields (§9).
+
 ## v1.31.6 — 2026-06-08 — claude-cli mode retries transient rate-limit / overload
 
 An eighth dogfood pass walked the LLM-mode paths (anthropic-sdk / claude-cli /

@@ -4033,6 +4033,21 @@ var init_state = __esm(() => {
 });
 
 // src/dispatcher/validation.ts
+function detectBannedVocab(text) {
+  if (!text)
+    return [];
+  const hits = new Set;
+  for (const term of BANNED_VOCAB_EN) {
+    const esc = term.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+    if (new RegExp(`(^|[^a-z])${esc}([^a-z]|$)`, "i").test(text))
+      hits.add(term);
+  }
+  for (const term of BANNED_VOCAB_CJK) {
+    if (text.includes(term))
+      hits.add(term);
+  }
+  return [...hits];
+}
 function validateValueAgainstDecl(value, decl, fieldName) {
   if (typeof decl !== "string")
     return null;
@@ -4191,7 +4206,7 @@ function composeArrayObjectValidator(shape) {
     return { entries, warnings };
   };
 }
-var OutputShapeMismatch;
+var OutputShapeMismatch, BANNED_VOCAB_EN, BANNED_VOCAB_CJK;
 var init_validation = __esm(() => {
   OutputShapeMismatch = class OutputShapeMismatch extends Error {
     agent;
@@ -4203,6 +4218,18 @@ var init_validation = __esm(() => {
       this.name = "OutputShapeMismatch";
     }
   };
+  BANNED_VOCAB_EN = [
+    "robust",
+    "comprehensive",
+    "production-ready",
+    "production ready",
+    "seamless",
+    "cutting-edge",
+    "best-in-class",
+    "world-class",
+    "should just work"
+  ];
+  BANNED_VOCAB_CJK = ["显著", "大幅", "相当不错", "应该可以", "基本可用"];
 });
 
 // src/dispatcher/agents/researcher-history.ts
@@ -5493,8 +5520,13 @@ subagents:
     token_budget: 5000
     timeout_s: 180
 
-  # Derived reviewers: override prompt_path to null so they use synthesized
-  # prompts (the anchor carries prompt_path from reviewer.correctness).
+  # Derived reviewers: prompt_path overridden to null — these are HEURISTIC /
+  # keyword matchers, NOT LLM-backed (e.g. reviewer.security flags lines matching
+  # /(auth|jwt|token|secret|crypto)/i). \`status: implemented\` here means
+  # functional-and-wired (they run at L2+ and append real reports), NOT
+  # semantically intelligent. The honest LLM-backed signal across the whole
+  # manifest is \`prompt_path\` truthiness (what \`sgc metrics\` 智能化 counts) —
+  # only reviewer.correctness (above) is LLM-backed. See review.ts:222-280.
   reviewer.security:        { <<: *reviewer_base, prompt_path: null, status: implemented }
   reviewer.performance:     { <<: *reviewer_base, prompt_path: null, status: implemented }
   reviewer.tests:           { <<: *reviewer_base, prompt_path: null, status: implemented }
@@ -13305,6 +13337,17 @@ async function spawn3(agentName, input, opts = {}) {
     if (leak.hit) {
       throw new SpawnError(`Invariant §1 violation (output leak): agent ${agentName} output contains ${leak.count} line(s) matching solutions/ content. ` + `Sample(s): ${leak.samples.map((s2) => `"${s2}"`).join(", ")}. ` + `The LLM likely accessed solutions/ outside its pinned scope (§8). ` + `See sgc-invariants.md §1 + sgc-capabilities.yaml /review.solutions=[].`);
     }
+    const bannedTerms = detectBannedVocab(JSON.stringify(output));
+    if (bannedTerms.length > 0) {
+      logger.event({
+        task_id: opts.taskId ?? null,
+        spawn_id: spawnId,
+        agent: agentName,
+        event_type: "output.banned_vocab",
+        level: "warn",
+        payload: { terms: bannedTerms.slice(0, 10), count: bannedTerms.length }
+      });
+    }
     outcome = "success";
     return { spawnId, output, promptPath: promptPath2, resultPath: resultPath2 };
   } catch (e2) {
@@ -19365,6 +19408,7 @@ var init_metrics = __esm(() => {
 // src/commands/doctor.ts
 var exports_doctor = {};
 __export(exports_doctor, {
+  statusHeaderFreshness: () => statusHeaderFreshness,
   runDoctor: () => runDoctor,
   extractCliSubcommands: () => extractCliSubcommands,
   bundleParityCheck: () => bundleParityCheck,
@@ -19390,6 +19434,23 @@ function extractCliSubcommands(src2) {
   while ((m2 = re.exec(block)) !== null)
     names.push(m2[1]);
   return names;
+}
+function statusHeaderFreshness(claudeMd, pkgVersion) {
+  const h2 = /##\s+Implementation Status\s*\(v(\d+)\.(\d+)\.(\d+)/.exec(claudeMd);
+  const p = /^(\d+)\.(\d+)\.(\d+)/.exec(pkgVersion);
+  if (!h2)
+    return { severity: "warn", msg: 'no "## Implementation Status (vX.Y.Z" header in CLAUDE.md' };
+  if (!p)
+    return { severity: "warn", msg: `unparseable package.json version: ${pkgVersion}` };
+  const hMaj = Number(h2[1]), hMin = Number(h2[2]), hPat = Number(h2[3]);
+  const pMaj = Number(p[1]), pMin = Number(p[2]), pPat = Number(p[3]);
+  const behind = hMaj < pMaj || hMaj === pMaj && (hMin < pMin || hMin === pMin && hPat < pPat);
+  const hVer = `${hMaj}.${hMin}.${hPat}`;
+  const pVer = `${pMaj}.${pMin}.${pPat}`;
+  return behind ? {
+    severity: "warn",
+    msg: `CLAUDE.md status header v${hVer} trails package.json v${pVer} — refresh the status header`
+  } : { severity: "ok", msg: `CLAUDE.md status header v${hVer} ≥ package.json v${pVer}` };
 }
 function bundleExecBitOk(lsFilesStdout) {
   const line = lsFilesStdout.trim();
@@ -19727,6 +19788,25 @@ async function runDoctor(opts = {}) {
       }
     } catch (e2) {
       emit({ severity: "fail", msg: `  ✗ metrics baseline check error: ${e2.message.slice(0, 80)}` });
+    }
+  }
+  log("");
+  log("=== plugins/sgc/CLAUDE.md status header freshness ===");
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ CLAUDE.md freshness skipped (no source checkout — dev/CI-only check)" });
+  } else {
+    const claudeMdPath = resolve17(root4, "plugins", "sgc", "CLAUDE.md");
+    const pkgPath = resolve17(root4, "package.json");
+    if (!existsSync20(claudeMdPath) || !existsSync20(pkgPath)) {
+      emit({ severity: "warn", msg: "  ⚠ plugins/sgc/CLAUDE.md or package.json not found" });
+    } else {
+      try {
+        const pkgVer = JSON.parse(readFileSync19(pkgPath, "utf8")).version ?? "";
+        const r3 = statusHeaderFreshness(readFileSync19(claudeMdPath, "utf8"), pkgVer);
+        emit({ severity: r3.severity, msg: `  ${r3.severity === "ok" ? "✓" : "⚠"} ${r3.msg}` });
+      } catch (e2) {
+        emit({ severity: "warn", msg: `  ⚠ CLAUDE.md freshness check error: ${e2.message.slice(0, 80)}` });
+      }
     }
   }
   const ok = rows.filter((r3) => r3.severity === "ok").length;

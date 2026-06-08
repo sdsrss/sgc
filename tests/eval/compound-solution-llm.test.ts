@@ -22,8 +22,9 @@ import type {
 } from "../../src/dispatcher/agents/compound"
 import type { ReviewReport } from "../../src/dispatcher/types"
 
-const HAS_KEY =
-  !!process.env["ANTHROPIC_API_KEY"] || !!process.env["OPENROUTER_API_KEY"]
+import { hasLiveLlmKey } from "./eval-helpers"
+
+const HAS_KEY = hasLiveLlmKey()
 
 const ctxAuth: CompoundContextOutput = {
   category: "auth",

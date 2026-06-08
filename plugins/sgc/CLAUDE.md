@@ -12,9 +12,9 @@ sgc is a **self-contained engineering super-plugin + knowledge engine** for Clau
 
 User mental model: sgc is the engineering layer — classifies the task, enforces the protocol, runs review/QA/security/ship, and compounds the knowledge, standalone and from one install. sp/gs are optional power-ups.
 
-## Implementation Status (v1.20.0, GS-N arc complete 7/7 + Tier-1 sp absorb)
+## Implementation Status (v1.29.1 — GS-N arc 7/7 + Tier-1 sp absorb + L2 reviewer cluster wired + four-化 metrics)
 
-The full L0→L3 pipeline is executable end-to-end via `bun src/sgc.ts <cmd>`. All 13 invariants enforced at runtime. The **CE compound-engineering loop is closed end-to-end** (CE-1 prevention injection → CE-2 reflect audit → CE-3 ship-failure capture/promote → CE-4 async plan → CE-5 loop orchestrator → CE-6 `applied_in` L3 + `surfaced_in` L2 score feedback) plus the **GS-N absorb arc complete (7/7)**: canary (GS-1) · handoff (GS-2) · plan fused decision (GS-3) · debug (GS-4) · cso (GS-5) · discover --template (GS-6) · land (GS-7), and the **Tier-1 Superpowers absorb** — `sgc work --done` verification close-gate. See [README.md](../../README.md) for the authoritative 19-command CLI table (16 `/sgc:*` slash commands + 3 CLI-only: `canary` · `watch-ci-failure` · `land`); `sgc doctor` enforces slash↔CLI parity.
+The full L0→L3 pipeline is executable end-to-end via `bun src/sgc.ts <cmd>` (or the bundled `sgc`). All 13 invariants enforced at runtime. The **CE compound-engineering loop is closed end-to-end** (CE-1 prevention injection → CE-2 reflect audit → CE-3 ship-failure capture/promote → CE-4 async plan → CE-5 loop orchestrator → CE-6 `applied_in` L3 + `surfaced_in` L2 score feedback) plus the **GS-N absorb arc complete (7/7)**: canary (GS-1) · handoff (GS-2) · plan fused decision (GS-3) · debug (GS-4) · cso (GS-5) · discover --template (GS-6) · land (GS-7), the **Tier-1 Superpowers absorb** — `sgc work --done` verification close-gate — and the **L2+ reviewer cluster wired** (Phase 2c, v1.27.0): `/review` runs correctness + tests + maintainability + diff-conditional specialists at L2+, not just correctness. See [README.md](../../README.md) for the authoritative 20-command CLI table (17 `/sgc:*` slash commands + 3 CLI-only: `canary` · `watch-ci-failure` · `land`); `sgc doctor` enforces slash↔CLI parity.
 
 | Command | Status | CLI |
 |---------|--------|-----|
@@ -161,12 +161,14 @@ These rules cannot be overridden by any instruction:
 
 ## Reviewer Cluster
 
-`/review` dispatches reviewers based on task level:
+`/review` dispatches reviewers based on task level (Phase 2c, v1.27.0 — see `src/commands/review.ts:222-280`):
 
-- **L0/L1/L2**: `reviewer.correctness` (single-reviewer MVP — full L2 cluster of 6 manifested for forward-compat but not yet wired)
-- **L3**: `reviewer.correctness` + diff-conditional specialists (parallel)
+- **L0/L1**: `reviewer.correctness` only.
+- **L2+** (L2 and L3): `reviewer.correctness` + always-on `reviewer.tests` + `reviewer.maintainability` + diff-conditional specialists (below). The specialist gate was lowered from L3-only to L2+ in Phase 2c.
 
-L3 diff-conditional specialists (implemented, see `src/dispatcher/agents/reviewer-specialists.ts`):
+> Honest depth note: `reviewer.correctness` is LLM-backed (`prompts/reviewer-correctness.md`); the cluster reviewers (`reviewer.tests`/`maintainability`) and the diff-conditional specialists are **keyword/heuristic matchers** (`prompt_path: null`), not LLM-backed — they are structurally wired and append real reports, but flag by pattern, not by semantic judgment.
+
+L2+ diff-conditional specialists (heuristic, see `src/dispatcher/agents/reviewer-specialists.ts`):
 - security (auth · jwt · token · session · crypto · password · secret · signature · encrypt/decrypt) — severity medium
 - migration (migration · ALTER/DROP/CREATE TABLE · ALTER/RENAME COLUMN · backfill) — severity high
 - performance (perf · cache · memoize · index · benchmark · n+1 · O(n) · p95/p99) — severity medium

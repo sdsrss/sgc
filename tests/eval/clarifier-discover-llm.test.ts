@@ -20,8 +20,9 @@ import { join } from "node:path"
 import { spawn } from "../../src/dispatcher/spawn"
 import type { ClarifierDiscoverOutput } from "../../src/dispatcher/agents/clarifier-discover"
 
-const HAS_KEY =
-  !!process.env["ANTHROPIC_API_KEY"] || !!process.env["OPENROUTER_API_KEY"]
+import { hasLiveLlmKey } from "./eval-helpers"
+
+const HAS_KEY = hasLiveLlmKey()
 
 const FIXTURES = [
   {

@@ -29,8 +29,9 @@ import {
   type ResearcherHistoryOutput,
 } from "../../src/dispatcher/agents/researcher-history"
 
-const HAS_KEY =
-  !!process.env["ANTHROPIC_API_KEY"] || !!process.env["OPENROUTER_API_KEY"]
+import { hasLiveLlmKey } from "./eval-helpers"
+
+const HAS_KEY = hasLiveLlmKey()
 
 // H.1 #3: source-relative path (cwd-independent). tests/eval/ → tests/fixtures/
 const moduleDir = dirname(fileURLToPath(import.meta.url))

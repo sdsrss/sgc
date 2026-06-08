@@ -18,6 +18,43 @@ export class OutputShapeMismatch extends Error {
   }
 }
 
+// P2-1: post-spawn banned-vocab lint. Every agent prompt bans vacuous hedge
+// vocabulary in output strings ("robust", "comprehensive", 中文 "显著" …), but
+// nothing enforced it — an LLM that ignored the guardrail shipped hedges
+// silently. `detectBannedVocab` powers a NON-BLOCKING warn event in spawn.ts
+// (it never throws/rejects: a false positive must not break a valid plan or
+// review). Keep the list tight + high-signal to avoid noise.
+const BANNED_VOCAB_EN = [
+  "robust",
+  "comprehensive",
+  "production-ready",
+  "production ready",
+  "seamless",
+  "cutting-edge",
+  "best-in-class",
+  "world-class",
+  "should just work",
+] as const
+const BANNED_VOCAB_CJK = ["显著", "大幅", "相当不错", "应该可以", "基本可用"] as const
+
+/**
+ * Return the unique banned hedge terms present in `text` (case-insensitive for
+ * EN, with letter-boundary matching so "robust" does NOT flag "robustness").
+ * CJK terms match as substrings (no word boundaries in CJK). Empty array = clean.
+ */
+export function detectBannedVocab(text: string): string[] {
+  if (!text) return []
+  const hits = new Set<string>()
+  for (const term of BANNED_VOCAB_EN) {
+    const esc = term.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")
+    if (new RegExp(`(^|[^a-z])${esc}([^a-z]|$)`, "i").test(text)) hits.add(term)
+  }
+  for (const term of BANNED_VOCAB_CJK) {
+    if (text.includes(term)) hits.add(term)
+  }
+  return [...hits]
+}
+
 /**
  * Type-check one value against its declared DSL form. Returns an error string
  * or null on OK. Handles the post-preprocessor form: "enum[A, B]",

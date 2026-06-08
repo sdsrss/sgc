@@ -61,6 +61,35 @@ interface CheckRow {
 }
 
 /**
+ * Pure check (L): is the `## Implementation Status (vX.Y.Z …)` header in
+ * plugins/sgc/CLAUDE.md behind package.json? That header is LLM-visible
+ * metadata steering Claude Code; it once drifted to v1.20.0 while the package
+ * shipped v1.29.1 (and falsely claimed the L2 reviewer cluster "not yet
+ * wired"). Warn (not fail) so it surfaces drift without blocking ship.
+ */
+export function statusHeaderFreshness(
+  claudeMd: string,
+  pkgVersion: string,
+): { severity: Severity; msg: string } {
+  const h = /##\s+Implementation Status\s*\(v(\d+)\.(\d+)\.(\d+)/.exec(claudeMd)
+  const p = /^(\d+)\.(\d+)\.(\d+)/.exec(pkgVersion)
+  if (!h) return { severity: "warn", msg: 'no "## Implementation Status (vX.Y.Z" header in CLAUDE.md' }
+  if (!p) return { severity: "warn", msg: `unparseable package.json version: ${pkgVersion}` }
+  const hMaj = Number(h[1]), hMin = Number(h[2]), hPat = Number(h[3])
+  const pMaj = Number(p[1]), pMin = Number(p[2]), pPat = Number(p[3])
+  const behind =
+    hMaj < pMaj || (hMaj === pMaj && (hMin < pMin || (hMin === pMin && hPat < pPat)))
+  const hVer = `${hMaj}.${hMin}.${hPat}`
+  const pVer = `${pMaj}.${pMin}.${pPat}`
+  return behind
+    ? {
+        severity: "warn",
+        msg: `CLAUDE.md status header v${hVer} trails package.json v${pVer} — refresh the status header`,
+      }
+    : { severity: "ok", msg: `CLAUDE.md status header v${hVer} ≥ package.json v${pVer}` }
+}
+
+/**
  * Parse the git-recorded file mode for the committed bundle from
  * `git ls-files --stage <path>` output and decide whether the exec bit is set.
  *
@@ -475,6 +504,27 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
       }
     } catch (e) {
       emit({ severity: "fail", msg: `  ✗ metrics baseline check error: ${(e as Error).message.slice(0, 80)}` })
+    }
+  }
+
+  // ── (L) plugins/sgc/CLAUDE.md status header not behind package.json ──────
+  log("")
+  log("=== plugins/sgc/CLAUDE.md status header freshness ===")
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ CLAUDE.md freshness skipped (no source checkout — dev/CI-only check)" })
+  } else {
+    const claudeMdPath = resolve(root, "plugins", "sgc", "CLAUDE.md")
+    const pkgPath = resolve(root, "package.json")
+    if (!existsSync(claudeMdPath) || !existsSync(pkgPath)) {
+      emit({ severity: "warn", msg: "  ⚠ plugins/sgc/CLAUDE.md or package.json not found" })
+    } else {
+      try {
+        const pkgVer = (JSON.parse(readFileSync(pkgPath, "utf8")) as { version?: string }).version ?? ""
+        const r = statusHeaderFreshness(readFileSync(claudeMdPath, "utf8"), pkgVer)
+        emit({ severity: r.severity, msg: `  ${r.severity === "ok" ? "✓" : "⚠"} ${r.msg}` })
+      } catch (e) {
+        emit({ severity: "warn", msg: `  ⚠ CLAUDE.md freshness check error: ${(e as Error).message.slice(0, 80)}` })
+      }
     }
   }
 

@@ -32,7 +32,7 @@ import {
   writeAtomic,
 } from "./state"
 import { promptPath as getPromptPath, resultPath as getResultPath } from "./spawn-protocol"
-import { validateOutputShape } from "./validation"
+import { validateOutputShape, detectBannedVocab } from "./validation"
 import { getFingerprintsCached, scanOutputForLeak } from "./fingerprint"
 import { runClaudeCliAgent, type SubprocessRunner } from "./claude-cli-agent"
 import { whichSync } from "./subprocess"
@@ -812,6 +812,22 @@ export async function spawn<I = unknown, O = unknown>(
           `The LLM likely accessed solutions/ outside its pinned scope (§8). ` +
           `See sgc-invariants.md §1 + sgc-capabilities.yaml /review.solutions=[].`,
       )
+    }
+
+    // P2-1: non-blocking banned-vocab lint on output (warn-only, never rejects
+    // — a false positive must not break a valid plan/review). Surfaces in the
+    // §13 event stream (`sgc tail --event-type output.banned_vocab`) so a
+    // guardrail-ignoring LLM is visible without failing the spawn.
+    const bannedTerms = detectBannedVocab(JSON.stringify(output))
+    if (bannedTerms.length > 0) {
+      logger.event({
+        task_id: opts.taskId ?? null,
+        spawn_id: spawnId,
+        agent: agentName,
+        event_type: "output.banned_vocab",
+        level: "warn",
+        payload: { terms: bannedTerms.slice(0, 10), count: bannedTerms.length },
+      })
     }
 
     outcome = "success"

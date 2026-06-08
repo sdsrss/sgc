@@ -365,8 +365,13 @@ subagents:
     token_budget: 5000
     timeout_s: 180
 
-  # Derived reviewers: override prompt_path to null so they use synthesized
-  # prompts (the anchor carries prompt_path from reviewer.correctness).
+  # Derived reviewers: prompt_path overridden to null — these are HEURISTIC /
+  # keyword matchers, NOT LLM-backed (e.g. reviewer.security flags lines matching
+  # /(auth|jwt|token|secret|crypto)/i). `status: implemented` here means
+  # functional-and-wired (they run at L2+ and append real reports), NOT
+  # semantically intelligent. The honest LLM-backed signal across the whole
+  # manifest is `prompt_path` truthiness (what `sgc metrics` 智能化 counts) —
+  # only reviewer.correctness (above) is LLM-backed. See review.ts:222-280.
   reviewer.security:        { <<: *reviewer_base, prompt_path: null, status: implemented }
   reviewer.performance:     { <<: *reviewer_base, prompt_path: null, status: implemented }
   reviewer.tests:           { <<: *reviewer_base, prompt_path: null, status: implemented }

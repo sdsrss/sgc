@@ -23,8 +23,9 @@ import type {
   CompoundSolutionOutput,
 } from "../../src/dispatcher/agents/compound"
 
-const HAS_KEY =
-  !!process.env["ANTHROPIC_API_KEY"] || !!process.env["OPENROUTER_API_KEY"]
+import { hasLiveLlmKey } from "./eval-helpers"
+
+const HAS_KEY = hasLiveLlmKey()
 
 const ctxAuth: CompoundContextOutput = {
   category: "auth",

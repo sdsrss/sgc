@@ -14,6 +14,23 @@ import { join, resolve } from "node:path"
 import { serializeFrontmatter } from "../../src/dispatcher/state"
 import type { ReviewReport } from "../../src/dispatcher/types"
 
+/**
+ * True only when a live-LLM eval test should actually call a model: an API
+ * key is present AND no determinism override is forcing inline/file-agent
+ * mode. `SGC_FORCE_INLINE` is the documented determinism switch (mirrors
+ * `resolveMode` in src/dispatcher/spawn.ts); honoring it here keeps a plain
+ * `bun test` deterministic even when a key is exported in the dev shell —
+ * otherwise these `skipIf(!HAS_KEY)` gates fire live, slow, billable calls
+ * that flake on model drift. `SGC_USE_FILE_AGENTS` is the legacy equivalent.
+ */
+export function hasLiveLlmKey(): boolean {
+  if (process.env["SGC_FORCE_INLINE"] === "1") return false
+  if (process.env["SGC_USE_FILE_AGENTS"] === "1") return false
+  return (
+    !!process.env["ANTHROPIC_API_KEY"] || !!process.env["OPENROUTER_API_KEY"]
+  )
+}
+
 export function createEvalWorkspace(prefix = "sgc-eval-"): string {
   return mkdtempSync(join(tmpdir(), prefix))
 }

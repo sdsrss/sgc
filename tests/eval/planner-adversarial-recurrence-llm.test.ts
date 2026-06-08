@@ -47,8 +47,9 @@ import type {
 } from "../../src/dispatcher/agents/planner-adversarial"
 import type { PriorPrevention } from "../../src/dispatcher/preventions"
 
-const HAS_KEY =
-  !!process.env["ANTHROPIC_API_KEY"] || !!process.env["OPENROUTER_API_KEY"]
+import { hasLiveLlmKey } from "./eval-helpers"
+
+const HAS_KEY = hasLiveLlmKey()
 
 const MIGRATION_PREV: PriorPrevention = {
   solution_ref: "data/migration-lock-2026-04-12",

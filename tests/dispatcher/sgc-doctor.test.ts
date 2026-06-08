@@ -444,9 +444,10 @@ test("doctor (B) prompts check uses embedded keys, not readdirSync", async () =>
   expect(skipRow("invariant-source parity")).toBe(true) // (I)
   expect(skipRow("bundle-hash parity")).toBe(true) // (J)
   expect(skipRow("metrics baseline")).toBe(true) // (K)
+  expect(skipRow("CLAUDE.md freshness")).toBe(true) // (L)
 
-  // All seven skips land as `ok` rows, never warn/fail — so the bogus root yields
+  // All eight skips land as `ok` rows, never warn/fail — so the bogus root yields
   // zero warnings beyond embedded-prompt orphans and zero hard failures.
   const skipRowCount = lines.filter((l) => /skipped \(no source checkout/.test(l)).length
-  expect(skipRowCount).toBe(7)
+  expect(skipRowCount).toBe(8)
 })

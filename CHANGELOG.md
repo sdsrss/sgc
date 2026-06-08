@@ -1,5 +1,40 @@
 # Changelog
 
+## v1.29.3 — 2026-06-08 — audit P2 batch: parse recovery, cache invalidation, honest async level, TTHW
+
+Second fix-dominant release from the v1.29.1 audit
+(`docs/COMPREHENSIVE-AUDIT-v1.29.1.md` §6/§7.5). No breaking changes.
+
+### What changed
+
+- **P2-2 — OpenRouter parse recovery.** `extractYamlBlock` gains layered
+  recovery: explicit ` ```yaml ` fence → generic ` ``` ` fence (the model
+  dropped the language tag — the common real failure) → strip stray fence
+  lines on an unterminated body. A truncated/mis-fenced response no longer
+  hard-fails as unparseable.
+- **P2-7 — fingerprint cache invalidation.** `writeSolution` (the sole
+  Invariant-§3 corpus-write gate) now clears the leak-check fingerprint cache,
+  so an embedded / long-running process that compounds a solution and then
+  reviews in the **same** process no longer leak-checks against a stale corpus.
+  New exported `invalidateFingerprintCache()` for targeted per-stateRoot
+  invalidation. No-op in the CLI (one process per command).
+- **P2-8 — honest async plan level.** `runPlan`'s return `level` is now
+  optional; the async-parent path (which forks before classification) omits it
+  instead of synthesizing a misleading `"L0"`. The sync + async-child paths
+  always carry a real classified level.
+- **P2-4 — TTHW measurement.** `scripts/measure-tthw.sh` measures
+  time-to-hello-world (npm pack → clean install → first command). Measured
+  TTHW ≈ 6.0 s (install 5.99 s + first command 0.058 s; Playwright browser
+  download skipped — it is opt-in for real QA). Makes the 高效化 claim a real
+  number rather than a documented constant.
+- **Docs.** Back-annotated `PRODUCTION-READINESS-AUDIT.md` (v1.21.0 P0/P1/P2
+  all shipped) and `COMPREHENSIVE-AUDIT-v1.29.1.md` §4.4/§7.5.
+
+### Validation
+
+- 1215 pass / 38 skip / 0 fail (102 files); `tsc` clean; `sgc doctor` 64 OK
+  source / 0 fail; bundle parity green.
+
 ## v1.29.2 — 2026-06-08 — audit fixes: test determinism, doc honesty, output lint
 
 Fix-dominant release from the v1.29.1 comprehensive audit

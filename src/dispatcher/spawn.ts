@@ -136,7 +136,15 @@ export function isTransientLlmError(e: unknown): boolean {
   const name = (e as { name?: unknown } | null | undefined)?.name
   if (name === "AbortError") return true
   const msg = e instanceof Error ? e.message : ""
-  return /\b(timed out|exceeded \d+\s*ms|aborted)\b/i.test(msg)
+  // Transient signals that arrive as a MESSAGE, not a numeric `.status`. The
+  // claude-cli mode surfaces rate-limit / overload through is_error / exit-code
+  // / stderr text (it carries `.exitCode`, never `.status`), so without these
+  // keywords a subscription user's transient overload would fail the spawn with
+  // no retry. Hard caps ("usage limit", "quota exceeded") deliberately do NOT
+  // match — retrying a fixed-window cap only delays the failure by the backoff.
+  return /\b(timed out|exceeded \d+\s*ms|aborted|overloaded|too many requests|service unavailable|temporarily unavailable|rate[ _-]?limit(ed|ing)?)\b/i.test(
+    msg,
+  )
 }
 
 // ── Invariant §13 Tier 1 — SIGINT/SIGTERM drain registry ───────────────────

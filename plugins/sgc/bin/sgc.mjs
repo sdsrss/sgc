@@ -13145,7 +13145,7 @@ function isTransientLlmError(e2) {
   if (name === "AbortError")
     return true;
   const msg = e2 instanceof Error ? e2.message : "";
-  return /\b(timed out|exceeded \d+\s*ms|aborted)\b/i.test(msg);
+  return /\b(timed out|exceeded \d+\s*ms|aborted|overloaded|too many requests|service unavailable|temporarily unavailable|rate[ _-]?limit(ed|ing)?)\b/i.test(msg);
 }
 function installSignalHandlersOnce() {
   if (signalHandlersInstalled)
@@ -19373,7 +19373,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.31.5",
+    version: "1.31.6",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -23465,7 +23465,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.31.5",
+  version: "1.31.6",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {

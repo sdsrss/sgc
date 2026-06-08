@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.31.6 — 2026-06-08 — claude-cli mode retries transient rate-limit / overload
+
+An eighth dogfood pass walked the LLM-mode paths (anthropic-sdk / claude-cli /
+openrouter) for error recovery, retry, and signal interruption. One real gap
+fixed; the signal-drain registry and the status-based retry path verified sound.
+
+### What changed
+
+- **`claude-cli` mode now retries a transient rate-limit or overload.** The
+  retry classifier treated an error as transient by its numeric HTTP `.status`
+  (408/409/429/5xx) or a timeout message. anthropic-sdk and openrouter carry
+  `.status`, so their rate-limits (429) and overloads (529/5xx) already retried —
+  but `claude-cli` surfaces these as `is_error` / non-zero-exit / stderr *text*
+  and carries `.exitCode`, never `.status`, so they fell through to a fatal
+  no-retry. The classifier now also recognizes the message-only signals
+  *overloaded*, *too many requests*, *service unavailable*, *temporarily
+  unavailable*, and *rate-limited*. Fixed-window usage caps (*usage limit*,
+  *quota exceeded*) deliberately stay fatal — retrying them only burns the
+  backoff. Only the no-`.status` path changed; anthropic-sdk / openrouter
+  behavior is unchanged.
+
 ## v1.31.5 — 2026-06-08 — dedup no longer writes duplicates for untagged solutions
 
 A seventh dogfood pass deep-dived the compound knowledge loop

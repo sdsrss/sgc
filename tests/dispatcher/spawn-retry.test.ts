@@ -193,8 +193,27 @@ describe("isTransientLlmError (STAB-6)", () => {
     expect(isTransientLlmError(new Error("request was aborted"))).toBe(true)
   })
 
-  test("ordinary errors and non-errors are fatal", () => {
+  test("claude-cli message-only transient signals (no .status) are transient", () => {
+    // claude-cli surfaces rate-limit / overload via is_error/exit-code text and
+    // carries .exitCode, never .status — these must still retry.
+    for (const m of [
+      "claude CLI reported error for planner.eng: rate limited",
+      "claude CLI reported error for x: Overloaded",
+      "claude CLI exit 1 for x: 503 Service Unavailable",
+      "anthropic: too many requests, slow down",
+      "upstream temporarily unavailable",
+      "rate-limited after 3 attempts",
+      "rate_limit reached",
+    ]) {
+      expect(isTransientLlmError(new Error(m))).toBe(true)
+    }
+  })
+
+  test("hard caps and ordinary errors and non-errors are fatal", () => {
     expect(isTransientLlmError(new Error("bad request shape"))).toBe(false)
+    // Fixed-window usage caps must NOT retry (backoff only delays the failure).
+    expect(isTransientLlmError(new Error("you have reached your usage limit"))).toBe(false)
+    expect(isTransientLlmError(new Error("monthly quota exceeded"))).toBe(false)
     expect(isTransientLlmError(null)).toBe(false)
     expect(isTransientLlmError(undefined)).toBe(false)
     expect(isTransientLlmError("a string")).toBe(false)

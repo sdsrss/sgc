@@ -7,4 +7,4 @@ schema_version: "1"
 standardization: { machine_enforced: 12, total: 13 }
 intelligence: { llm_invokable: 11, total_subagents: 23 }
 automation: { automated_steps: 5, total_steps: 9 }
-efficiency: { install_steps: 1, runtime_node: ">=18", bundle_bytes: 933968 }
+efficiency: { install_steps: 1, runtime_node: ">=18", bundle_bytes: 934066 }

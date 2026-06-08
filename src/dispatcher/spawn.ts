@@ -802,9 +802,9 @@ export async function spawn<I = unknown, O = unknown>(
 
     // P2 — Invariant §1 OUTPUT-side leak check. §1 + §8 are advisory in
     // LLM modes (the LLM with shell-tool access can sidestep its pinned
-    // scope and `cat .sgc/solutions/*.md`). validateOutputShape filters
-    // undeclared fields but not VALUE content; this scan catches reviewer.*
-    // / qa.* output that quotes lines from the solutions corpus. The check
+    // scope and `cat .sgc/solutions/*.md`). validateOutputShape rejects
+    // undeclared fields (§9) but cannot inspect VALUE content; this scan
+    // catches reviewer.* / qa.* output that quotes lines from solutions. The check
     // runs in ALL modes (defense-in-depth — an inline stub regression that
     // started reading solutions would also trip here). Empty solutions/ or
     // non-reviewer/qa agent → no-op.

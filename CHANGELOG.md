@@ -1,5 +1,34 @@
 # Changelog
 
+## v1.29.4 — 2026-06-08 — audit P2-3/P2-5: lifecycle automation metric + heuristic↔LLM schema parity
+
+Closes the last two audit items (`docs/COMPREHENSIVE-AUDIT-v1.29.1.md` §6) —
+all P0/P1/P2 findings are now resolved. No breaking changes.
+
+### What changed
+
+- **P2-5 — automation metric measures the lifecycle, not loop slots.**
+  `computeAutomation` no longer counts only the 6 loop steps (a near-constant
+  that missed the CE knowledge arc the audit flagged). It now spans the full
+  plan → ship → compound → reuse lifecycle (6 loop stages + capture / promote /
+  reuse), counting the **compound-promote human gate** (the operator hand-fills
+  `prevention_seed`) alongside work + ship. Scorecard now reads **6/9 automated
+  lifecycle stages (3 human gates: work, ship, compound-promote)**. Label,
+  `metrics-baseline.yaml`, and `sgc doctor` check (K) are all synced.
+- **P2-3 — heuristic ↔ LLM schema-parity test (deterministic).** Semantic
+  agreement between the two modes is inherently non-deterministic, but schema
+  agreement is not: for four decision-critical LLM-backed agents
+  (`classifier.level`, `planner.ceo`, `planner.eng`, `reviewer.correctness`)
+  the heuristic output must pass the SAME `validateOutputShape` gate the LLM
+  output passes — so the modes are schema-aligned by construction. A heuristic
+  that drops / renames / mistypes a declared field now trips a test with no
+  live model.
+
+### Validation
+
+- 1220 pass / 38 skip / 0 fail (103 files); `tsc` clean; `sgc doctor` 64 OK
+  source / 0 fail (bundle parity + metrics baseline in sync).
+
 ## v1.29.3 — 2026-06-08 — audit P2 batch: parse recovery, cache invalidation, honest async level, TTHW
 
 Second fix-dominant release from the v1.29.1 audit

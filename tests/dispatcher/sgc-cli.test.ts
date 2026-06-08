@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { mkdtempSync, mkdirSync, rmSync } from "node:fs"
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
+import { execFileSync } from "node:child_process"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 
@@ -366,5 +374,108 @@ describe("sgc land CLI help (GS-7 T11)", () => {
     expect(exitCode).toBe(0)
     expect(stdout).toMatch(/--package/i)
     expect(stdout).toMatch(/--version/i)
+  })
+})
+
+// A V8 stack-frame line ("    at fn (file:line:col)") — the noise that citty's
+// default runMain dumps for every thrown error, making expected failures read
+// like crashes. The entrypoint now suppresses it unless SGC_DEBUG is set.
+const STACK_FRAME_RE = /\n\s+at\s/
+
+describe("sgc CLI error presentation", () => {
+  test("an expected thrown error prints a single clean 'error:' line, no stack", async () => {
+    // unknown --template is a plain thrown Error (not a citty CLIError).
+    const { stderr, exitCode } = await runSgc([
+      "discover",
+      "add OAuth refresh",
+      "--template",
+      "does-not-exist",
+    ])
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain("error:")
+    expect(stderr).toContain("unknown template")
+    expect(stderr).not.toMatch(STACK_FRAME_RE)
+  })
+
+  test("SGC_DEBUG=1 restores the full stack trace for diagnosis", async () => {
+    const { stderr, exitCode } = await runSgc(
+      ["discover", "add OAuth refresh", "--template", "does-not-exist"],
+      { SGC_DEBUG: "1" },
+    )
+    expect(exitCode).toBe(1)
+    expect(stderr).toMatch(STACK_FRAME_RE)
+  })
+})
+
+describe("sgc auto-gitignores its default .sgc/ state dir (README contract)", () => {
+  // Spawn with cwd=temp git repo and NO SGC_STATE_ROOT, so the default `.sgc`
+  // location is used and the gitignore guard fires. SGC_FORCE_INLINE avoids LLM.
+  function planInRepo(repo: string): void {
+    const env: Record<string, string | undefined> = {
+      ...process.env,
+      SGC_FORCE_INLINE: "1",
+    }
+    delete env["NODE_ENV"]
+    delete env["SGC_STATE_ROOT"]
+    execFileSync("bun", [cli, "plan", "fix typo in readme"], {
+      cwd: repo,
+      env,
+      stdio: "ignore",
+    })
+  }
+
+  test("creates .gitignore with .sgc/ when planning in a repo without one", () => {
+    const repo = mkdtempSync(join(tmpdir(), "sgc-gi-new-"))
+    try {
+      execFileSync("git", ["init", "-q"], { cwd: repo })
+      planInRepo(repo)
+      const gi = join(repo, ".gitignore")
+      expect(existsSync(gi)).toBe(true)
+      expect(readFileSync(gi, "utf8")).toContain(".sgc/")
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
+  })
+
+  test("appends without clobbering an existing .gitignore, and never duplicates", () => {
+    const repo = mkdtempSync(join(tmpdir(), "sgc-gi-append-"))
+    try {
+      execFileSync("git", ["init", "-q"], { cwd: repo })
+      writeFileSync(join(repo, ".gitignore"), "node_modules/\n")
+      planInRepo(repo)
+      // run a second time — must not add a second .sgc/ rule
+      execFileSync("git", ["init", "-q"], { cwd: repo })
+      const content = readFileSync(join(repo, ".gitignore"), "utf8")
+      expect(content).toContain("node_modules/")
+      const sgcRules = content
+        .split(/\r?\n/)
+        .filter((l) => l.trim() === ".sgc/").length
+      expect(sgcRules).toBe(1)
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
+  })
+
+  test("does not touch .gitignore when SGC_STATE_ROOT points elsewhere", () => {
+    const repo = mkdtempSync(join(tmpdir(), "sgc-gi-custom-"))
+    const stateRoot = mkdtempSync(join(tmpdir(), "sgc-gi-state-"))
+    try {
+      execFileSync("git", ["init", "-q"], { cwd: repo })
+      const env: Record<string, string | undefined> = {
+        ...process.env,
+        SGC_FORCE_INLINE: "1",
+        SGC_STATE_ROOT: stateRoot,
+      }
+      delete env["NODE_ENV"]
+      execFileSync("bun", [cli, "plan", "fix typo in readme"], {
+        cwd: repo,
+        env,
+        stdio: "ignore",
+      })
+      expect(existsSync(join(repo, ".gitignore"))).toBe(false)
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+      rmSync(stateRoot, { recursive: true, force: true })
+    }
   })
 })

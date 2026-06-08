@@ -80,18 +80,27 @@ export const debugCommand = defineCommand({
       const { runDebugStart } = await import("../dispatcher/debug")
       result = await runDebugStart({ symptom, stateRoot, repoRoot })
     } else if (subcommand === "close") {
-      const id = (args.id as string | undefined) ?? ""
+      let id = (args.id as string | undefined) ?? ""
       const rootCause = ((args as Record<string, unknown>)["root-cause"] as string | undefined) ?? ""
       const fixCommit = ((args as Record<string, unknown>)["fix-commit"] as string | undefined) ?? ""
       const verifyCommand =
         ((args as Record<string, unknown>)["verify-command"] as string | undefined) ?? ""
+      const { findSoleInProgressInvestigation, runDebugClose } = await import(
+        "../dispatcher/debug"
+      )
+      // Mirror `sgc work --done`: when --id is omitted but exactly one
+      // investigation is still open, infer it. Ambiguous (0 or >1) still
+      // requires an explicit --id.
+      if (id.length === 0) {
+        id = (await findSoleInProgressInvestigation(stateRoot)) ?? ""
+      }
       if (id.length === 0 || rootCause.length === 0 || fixCommit.length === 0 || verifyCommand.length === 0) {
         process.stderr.write(
-          `usage: sgc debug close --id <id> --root-cause "<text>" --fix-commit <sha> --verify-command "<cmd>"\n`,
+          `usage: sgc debug close [--id <id>] --root-cause "<text>" --fix-commit <sha> --verify-command "<cmd>"\n` +
+            `(--id is inferred when exactly one investigation is in_progress; pass it explicitly otherwise)\n`,
         )
         process.exit(1)
       }
-      const { runDebugClose } = await import("../dispatcher/debug")
       result = await runDebugClose({ id, rootCause, fixCommit, verifyCommand, stateRoot })
     } else {
       process.stderr.write(

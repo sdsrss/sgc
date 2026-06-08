@@ -1,5 +1,42 @@
 # Changelog
 
+## v1.30.0 — 2026-06-08 — CLI UX hardening (clean errors · auto-gitignore · ergonomic gates)
+
+End-to-end dogfood pass over the full `sgc` CLI surfaced four real
+user-facing issues — all fixed, each with regression tests. No breaking
+changes; existing flags and flows are unchanged.
+
+### What changed
+
+- **Errors no longer dump an internal stack trace.** citty's `runMain`
+  rendered every thrown `Error` as a full V8 stack trace — printed *twice* —
+  so an expected, user-actionable failure (`active task in handoff — pass
+  --force-new-task`, an LLM provider 403, the verification close-gate) read
+  like an internal crash. The entrypoint now routes `--help`/`--version`
+  through citty unchanged but runs commands itself, surfacing a single clean
+  `error: <message>` line on stderr (unknown/missing commands still print
+  usage). Set **`SGC_DEBUG=1`** to restore the full stack for diagnosis.
+- **`.sgc/` is now auto-gitignored.** The README has always described `.sgc/`
+  as runtime state (not source), but nothing enforced it — a fresh
+  `git add -A` would commit `decisions/`, the event stream, and agent
+  prompts, and `sgc review` would then flag sgc's own internal TODO markers.
+  `ensureSgcStructure` now appends `.sgc/` to the repo-root `.gitignore`
+  (idempotent; only for the implicit default location at a git repo root —
+  a custom `SGC_STATE_ROOT` stays the operator's responsibility).
+- **`sgc debug close` infers `--id`** when exactly one investigation is
+  `in_progress`, mirroring `sgc work --done` (which it documents itself as
+  mirroring). Ambiguous cases (0 or >1 open) still require an explicit `--id`.
+- **`sgc handoff` (bare) now runs the checkpoint**, matching the documented
+  `sgc handoff [--auto]` (`--auto` optional). `--print <slug>` remains the
+  explicit read mode.
+
+### Tests
+
+- +9 regression tests (`sgc-cli.test.ts`: clean-error / `SGC_DEBUG` /
+  auto-gitignore incl. `SGC_STATE_ROOT` isolation; `debug.test.ts`:
+  sole-in-progress inference) and 1 handoff test repurposed to assert
+  bare == checkpoint. Dispatcher suite 1151 → 1160 pass, 0 fail.
+
 ## v1.29.4 — 2026-06-08 — audit P2-3/P2-5: lifecycle automation metric + heuristic↔LLM schema parity
 
 Closes the last two audit items (`docs/COMPREHENSIVE-AUDIT-v1.29.1.md` §6) —

@@ -40,24 +40,9 @@ export async function runHandoff(opts: HandoffCliOptions): Promise<HandoffCliRes
   const stdout = opts.stdoutWrite ?? ((s: string) => process.stdout.write(s))
   const stderr = opts.stderrWrite ?? ((s: string) => process.stderr.write(s))
 
-  if (opts.auto) {
-    try {
-      const snap = await gatherHandoffState(stateRoot, repoRoot, {
-        now: opts.now,
-        git: opts.gitProbe,
-        sgcVersion: opts.sgcVersion,
-      })
-      const md = renderHandoffMarkdown(snap)
-      const writtenPath = await writeHandoffMarkdown(repoRoot, snap.slug, md)
-      stderr(`paused: ${writtenPath}\n`)
-      return { exitCode: 0, writtenPath }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      stderr(`handoff failed: ${msg}\n`)
-      return { exitCode: 1 }
-    }
-  }
-
+  // --print <slug> is the only alternate mode; bare `sgc handoff` (and the
+  // explicit --auto) both run the checkpoint, so --auto is optional as the
+  // README documents (`sgc handoff [--auto]`).
   if (typeof opts.print === "string" && opts.print.length > 0) {
     const target = join(repoRoot, "tasks", `${opts.print}-paused.md`)
     if (!existsSync(target)) {
@@ -69,6 +54,19 @@ export async function runHandoff(opts: HandoffCliOptions): Promise<HandoffCliRes
     return { exitCode: 0 }
   }
 
-  stderr("usage: sgc handoff --auto | --print <slug>\n")
-  return { exitCode: 1 }
+  try {
+    const snap = await gatherHandoffState(stateRoot, repoRoot, {
+      now: opts.now,
+      git: opts.gitProbe,
+      sgcVersion: opts.sgcVersion,
+    })
+    const md = renderHandoffMarkdown(snap)
+    const writtenPath = await writeHandoffMarkdown(repoRoot, snap.slug, md)
+    stderr(`paused: ${writtenPath}\n`)
+    return { exitCode: 0, writtenPath }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    stderr(`handoff failed: ${msg}\n`)
+    return { exitCode: 1 }
+  }
 }

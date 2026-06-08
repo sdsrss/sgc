@@ -3,8 +3,62 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { spawnSync } from "node:child_process"
-import { deriveInvestigationId, defaultHeuristic } from "../../src/dispatcher/debug"
+import {
+  deriveInvestigationId,
+  defaultHeuristic,
+  findSoleInProgressInvestigation,
+} from "../../src/dispatcher/debug"
 
+describe("findSoleInProgressInvestigation (debug close --id inference)", () => {
+  function seed(
+    investigations: Array<{ id: string; status: string }>,
+  ): string {
+    const root = mkdtempSync(join(tmpdir(), "sgc-debug-infer-"))
+    const dir = join(root, ".sgc", "investigations")
+    mkdirSync(dir, { recursive: true })
+    for (const inv of investigations) {
+      writeFileSync(
+        join(dir, `${inv.id}.md`),
+        `---\nid: ${inv.id}\nstatus: ${inv.status}\nsymptom: "x"\n---\nbody\n`,
+      )
+    }
+    return join(root, ".sgc")
+  }
+
+  test("returns the id when exactly one investigation is in_progress", async () => {
+    const stateRoot = seed([
+      { id: "2026-01-01-0000-a", status: "closed" },
+      { id: "2026-01-02-0000-b", status: "in_progress" },
+    ])
+    expect(await findSoleInProgressInvestigation(stateRoot)).toBe(
+      "2026-01-02-0000-b",
+    )
+    rmSync(join(stateRoot, ".."), { recursive: true, force: true })
+  })
+
+  test("returns null when none are open", async () => {
+    const stateRoot = seed([{ id: "2026-01-01-0000-a", status: "closed" }])
+    expect(await findSoleInProgressInvestigation(stateRoot)).toBeNull()
+    rmSync(join(stateRoot, ".."), { recursive: true, force: true })
+  })
+
+  test("returns null when more than one is open (ambiguous → require --id)", async () => {
+    const stateRoot = seed([
+      { id: "2026-01-01-0000-a", status: "in_progress" },
+      { id: "2026-01-02-0000-b", status: "in_progress" },
+    ])
+    expect(await findSoleInProgressInvestigation(stateRoot)).toBeNull()
+    rmSync(join(stateRoot, ".."), { recursive: true, force: true })
+  })
+
+  test("returns null when the investigations dir is absent", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sgc-debug-empty-"))
+    expect(
+      await findSoleInProgressInvestigation(join(root, ".sgc")),
+    ).toBeNull()
+    rmSync(root, { recursive: true, force: true })
+  })
+})
 
 describe("deriveInvestigationId", () => {
   test("kebabizes symptom + prefixes YYYY-MM-DD-HHMM", () => {

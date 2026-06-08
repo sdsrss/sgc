@@ -712,15 +712,28 @@ describe("runHandoff (GS-2 T14)", () => {
     expect(result.exitCode).toBe(1)
   })
 
-  it("no flag returns exit 1 with usage message", async () => {
-    let stderr = ""
-    const result = await runHandoff({
-      repoRoot,
-      stderrWrite: (s) => {
-        stderr += s
-      },
+  it("no flag (bare handoff) defaults to the checkpoint, same as --auto", async () => {
+    // README documents `sgc handoff [--auto]` — --auto is optional, so bare
+    // `sgc handoff` must run the checkpoint, not error with usage.
+    writeYaml(join(stateRoot, "decisions", "Y", "intent.md"), {
+      task_id: "Y",
+      level: "L1",
+      title: "Bare Handoff Test",
     })
-    expect(result.exitCode).toBe(1)
-    expect(stderr).toContain("usage")
+    const fakeProbe: GitProbe = {
+      branchAheadBehind: async () => ({ branch: "main" }),
+      statusPorcelain: async () => [],
+      recentCommits: async () => [],
+    }
+    const result = await runHandoff({
+      stateRoot,
+      repoRoot,
+      gitProbe: fakeProbe,
+      now: new Date("2026-05-26T18:00:00Z"),
+      sgcVersion: "1.13.0",
+    })
+    expect(result.exitCode).toBe(0)
+    expect(result.writtenPath).toMatch(/bare-handoff-test-paused\.md$/)
+    expect(existsSync(result.writtenPath!)).toBe(true)
   })
 })

@@ -16,7 +16,7 @@
 // SGC_STATE_ROOT). Contracts (capabilities, state schema) live at
 // <package>/contracts/ (override via SGC_CONTRACTS_DIR).
 
-import { defineCommand, runMain } from "citty"
+import { defineCommand, runCommand, runMain, showUsage } from "citty"
 import { existsSync } from "node:fs"
 import packageJson from "../package.json"
 import { debugCommand } from "./commands/debug"
@@ -951,4 +951,33 @@ const main = defineCommand({
   },
 })
 
-runMain(main)
+// ── entrypoint ────────────────────────────────────────────────────────────────
+//
+// citty's runMain renders every thrown Error through consola as a full stack
+// trace (printed twice — once via `consola.error(error)`, once via
+// `consola.error(error.message)`). For sgc that means an *expected*,
+// user-actionable failure ("active task in handoff — pass --force-new-task", an
+// LLM provider 403, the verification close-gate) reads like an internal crash.
+// Route --help/--version through citty unchanged (it handles those cleanly and
+// exits 0), but run commands ourselves so a thrown error surfaces as a single
+// clean `error: <message>` line on stderr. Set SGC_DEBUG=1 to restore the full
+// stack for diagnosis.
+const rawArgs = process.argv.slice(2)
+const wantsHelp = rawArgs.includes("--help") || rawArgs.includes("-h")
+const wantsVersion = rawArgs.length === 1 && rawArgs[0] === "--version"
+
+if (wantsHelp || wantsVersion) {
+  runMain(main)
+} else {
+  runCommand(main, { rawArgs }).catch(async (error: unknown) => {
+    const err = error as { name?: string; message?: string; stack?: string }
+    const message = err?.message ?? String(error)
+    // Unknown/missing (sub)command or arg → orient the user with usage, as citty does.
+    if (err?.name === "CLIError") await showUsage(main)
+    process.stderr.write(`\nerror: ${message}\n`)
+    if (process.env["SGC_DEBUG"] && err?.stack) {
+      process.stderr.write(`\n${err.stack}\n`)
+    }
+    process.exit(1)
+  })
+}

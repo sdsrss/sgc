@@ -3690,11 +3690,37 @@ import { dirname as dirname2, join as join2, resolve as resolve3 } from "node:pa
 function resolveStateRoot(custom) {
   return resolve3(custom ?? process.env["SGC_STATE_ROOT"] ?? DEFAULT_STATE_DIR);
 }
+function ensureDefaultStateGitignored(custom) {
+  if (custom !== undefined || process.env["SGC_STATE_ROOT"])
+    return;
+  if (!existsSync2(resolve3(".git")))
+    return;
+  const giPath = resolve3(".gitignore");
+  let content = "";
+  try {
+    content = readFileSync2(giPath, "utf8");
+  } catch {}
+  const alreadyIgnored = content.split(/\r?\n/).map((l2) => l2.trim()).some((l2) => l2 === ".sgc" || l2 === ".sgc/" || l2 === "/.sgc" || l2 === "/.sgc/");
+  if (alreadyIgnored)
+    return;
+  const lead = content.length === 0 ? "" : content.endsWith(`
+`) ? `
+` : `
+
+`;
+  const block = `${lead}# sgc runtime state (not source) — safe to delete; recreated on next run
+.sgc/
+`;
+  try {
+    writeFileSync(giPath, content + block);
+  } catch {}
+}
 function ensureSgcStructure(stateRoot) {
   const r3 = root(stateRoot);
   for (const layer of LAYERS) {
     mkdirSync2(resolve3(r3, layer), { recursive: true });
   }
+  ensureDefaultStateGitignored(stateRoot);
   return r3;
 }
 function parseFrontmatter(text) {
@@ -4534,6 +4560,7 @@ __export(exports_debug, {
   runDebugList: () => runDebugList,
   runDebugClose: () => runDebugClose,
   renderInvestigationBody: () => renderInvestigationBody,
+  findSoleInProgressInvestigation: () => findSoleInProgressInvestigation,
   deriveInvestigationId: () => deriveInvestigationId,
   defaultHeuristic: () => defaultHeuristic
 });
@@ -5010,6 +5037,30 @@ async function runDebugList(opts) {
 `);
   }
   return { exitCode: 0 };
+}
+async function findSoleInProgressInvestigation(stateRoot) {
+  const root2 = stateRoot ?? join3(process.cwd(), ".sgc");
+  const dir = join3(root2, "investigations");
+  let entries;
+  try {
+    entries = await readdir2(dir);
+  } catch {
+    return null;
+  }
+  const open = [];
+  for (const name of entries) {
+    if (!name.endsWith(".md"))
+      continue;
+    try {
+      const fm = parseFrontmatter(await readFile2(join3(dir, name), "utf8"));
+      if (String(fm.data.status ?? "") === "in_progress") {
+        open.push(String(fm.data.id ?? name.replace(/\.md$/, "")));
+      }
+    } catch {
+      continue;
+    }
+  }
+  return open.length === 1 ? open[0] : null;
 }
 async function runDebugStart(opts) {
   const stateRoot = opts.stateRoot ?? join3(opts.repoRoot ?? process.cwd(), ".sgc");
@@ -17455,11 +17506,37 @@ import { dirname as dirname4, join as join6, resolve as resolve13 } from "node:p
 function resolveStateRoot2(custom) {
   return resolve13(custom ?? process.env["SGC_STATE_ROOT"] ?? DEFAULT_STATE_DIR2);
 }
+function ensureDefaultStateGitignored2(custom) {
+  if (custom !== undefined || process.env["SGC_STATE_ROOT"])
+    return;
+  if (!existsSync16(resolve13(".git")))
+    return;
+  const giPath = resolve13(".gitignore");
+  let content = "";
+  try {
+    content = readFileSync15(giPath, "utf8");
+  } catch {}
+  const alreadyIgnored = content.split(/\r?\n/).map((l2) => l2.trim()).some((l2) => l2 === ".sgc" || l2 === ".sgc/" || l2 === "/.sgc" || l2 === "/.sgc/");
+  if (alreadyIgnored)
+    return;
+  const lead = content.length === 0 ? "" : content.endsWith(`
+`) ? `
+` : `
+
+`;
+  const block = `${lead}# sgc runtime state (not source) — safe to delete; recreated on next run
+.sgc/
+`;
+  try {
+    writeFileSync6(giPath, content + block);
+  } catch {}
+}
 function ensureSgcStructure2(stateRoot) {
   const r3 = root3(stateRoot);
   for (const layer of LAYERS2) {
     mkdirSync4(resolve13(r3, layer), { recursive: true });
   }
+  ensureDefaultStateGitignored2(stateRoot);
   return r3;
 }
 function parseFrontmatter2(text) {
@@ -19224,7 +19301,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.29.4",
+    version: "1.30.0",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -21089,25 +21166,6 @@ async function runHandoff(opts) {
   const stateRoot2 = opts.stateRoot ?? join10(repoRoot2, ".sgc");
   const stdout2 = opts.stdoutWrite ?? ((s2) => process.stdout.write(s2));
   const stderr = opts.stderrWrite ?? ((s2) => process.stderr.write(s2));
-  if (opts.auto) {
-    try {
-      const snap = await gatherHandoffState(stateRoot2, repoRoot2, {
-        now: opts.now,
-        git: opts.gitProbe,
-        sgcVersion: opts.sgcVersion
-      });
-      const md = renderHandoffMarkdown(snap);
-      const writtenPath = await writeHandoffMarkdown(repoRoot2, snap.slug, md);
-      stderr(`paused: ${writtenPath}
-`);
-      return { exitCode: 0, writtenPath };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      stderr(`handoff failed: ${msg}
-`);
-      return { exitCode: 1 };
-    }
-  }
   if (typeof opts.print === "string" && opts.print.length > 0) {
     const target = join10(repoRoot2, "tasks", `${opts.print}-paused.md`);
     if (!existsSync22(target)) {
@@ -21119,9 +21177,23 @@ async function runHandoff(opts) {
     stdout2(text);
     return { exitCode: 0 };
   }
-  stderr(`usage: sgc handoff --auto | --print <slug>
+  try {
+    const snap = await gatherHandoffState(stateRoot2, repoRoot2, {
+      now: opts.now,
+      git: opts.gitProbe,
+      sgcVersion: opts.sgcVersion
+    });
+    const md = renderHandoffMarkdown(snap);
+    const writtenPath = await writeHandoffMarkdown(repoRoot2, snap.slug, md);
+    stderr(`paused: ${writtenPath}
 `);
-  return { exitCode: 1 };
+    return { exitCode: 0, writtenPath };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    stderr(`handoff failed: ${msg}
+`);
+    return { exitCode: 1 };
+  }
 }
 var init_handoff2 = __esm(() => {
   init_handoff();
@@ -23280,7 +23352,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.29.4",
+  version: "1.30.0",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {
@@ -23420,16 +23492,20 @@ var debugCommand = defineCommand2({
       const { runDebugStart: runDebugStart2 } = await Promise.resolve().then(() => (init_debug(), exports_debug));
       result = await runDebugStart2({ symptom, stateRoot, repoRoot });
     } else if (subcommand === "close") {
-      const id = args.id ?? "";
+      let id = args.id ?? "";
       const rootCause = args["root-cause"] ?? "";
       const fixCommit = args["fix-commit"] ?? "";
       const verifyCommand = args["verify-command"] ?? "";
+      const { findSoleInProgressInvestigation: findSoleInProgressInvestigation2, runDebugClose: runDebugClose2 } = await Promise.resolve().then(() => (init_debug(), exports_debug));
+      if (id.length === 0) {
+        id = await findSoleInProgressInvestigation2(stateRoot) ?? "";
+      }
       if (id.length === 0 || rootCause.length === 0 || fixCommit.length === 0 || verifyCommand.length === 0) {
-        process.stderr.write(`usage: sgc debug close --id <id> --root-cause "<text>" --fix-commit <sha> --verify-command "<cmd>"
+        process.stderr.write(`usage: sgc debug close [--id <id>] --root-cause "<text>" --fix-commit <sha> --verify-command "<cmd>"
+(--id is inferred when exactly one investigation is in_progress; pass it explicitly otherwise)
 `);
         process.exit(1);
       }
-      const { runDebugClose: runDebugClose2 } = await Promise.resolve().then(() => (init_debug(), exports_debug));
       result = await runDebugClose2({ id, rootCause, fixCommit, verifyCommand, stateRoot });
     } else {
       process.stderr.write(`usage: sgc debug start "<symptom>" | close --id <id> --root-cause "<text>" --fix-commit <sha> --verify-command "<cmd>" | --runs | --status <id>
@@ -24302,4 +24378,25 @@ var main = defineCommand({
     doctor: () => doctor
   }
 });
-runMain(main);
+var rawArgs = process.argv.slice(2);
+var wantsHelp = rawArgs.includes("--help") || rawArgs.includes("-h");
+var wantsVersion = rawArgs.length === 1 && rawArgs[0] === "--version";
+if (wantsHelp || wantsVersion) {
+  runMain(main);
+} else {
+  runCommand(main, { rawArgs }).catch(async (error2) => {
+    const err = error2;
+    const message = err?.message ?? String(error2);
+    if (err?.name === "CLIError")
+      await showUsage(main);
+    process.stderr.write(`
+error: ${message}
+`);
+    if (process.env["SGC_DEBUG"] && err?.stack) {
+      process.stderr.write(`
+${err.stack}
+`);
+    }
+    process.exit(1);
+  });
+}

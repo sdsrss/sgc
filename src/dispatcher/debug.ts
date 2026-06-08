@@ -671,6 +671,41 @@ export async function runDebugList(opts: DebugListOptions): Promise<DebugResult>
   return { exitCode: 0 }
 }
 
+/**
+ * When `sgc debug close` is run without --id, infer the target if (and only if)
+ * exactly one investigation is still in_progress — mirroring `sgc work --done`,
+ * which closes the single active task. Returns null when zero or more than one
+ * are open, so the caller falls back to requiring an explicit --id rather than
+ * closing the wrong investigation silently.
+ */
+export async function findSoleInProgressInvestigation(
+  stateRoot?: string,
+): Promise<string | null> {
+  const root = stateRoot ?? join(process.cwd(), ".sgc")
+  const dir = join(root, "investigations")
+  let entries: string[]
+  try {
+    entries = await readdir(dir)
+  } catch {
+    return null
+  }
+  const open: string[] = []
+  for (const name of entries) {
+    if (!name.endsWith(".md")) continue
+    try {
+      const fm = parseFrontmatter<Partial<InvestigationFrontmatter>>(
+        await readFile(join(dir, name), "utf8"),
+      )
+      if (String(fm.data.status ?? "") === "in_progress") {
+        open.push(String(fm.data.id ?? name.replace(/\.md$/, "")))
+      }
+    } catch {
+      continue
+    }
+  }
+  return open.length === 1 ? (open[0] as string) : null
+}
+
 export async function runDebugStart(opts: DebugStartOptions): Promise<DebugResult> {
   const stateRoot = opts.stateRoot ?? join(opts.repoRoot ?? process.cwd(), ".sgc")
   const repoRoot = opts.repoRoot ?? process.cwd()

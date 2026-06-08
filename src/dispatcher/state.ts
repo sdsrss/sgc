@@ -84,11 +84,46 @@ const root = resolveStateRoot
 
 const LAYERS = ["decisions", "progress", "solutions", "reviews"] as const
 
+// When sgc creates its default `.sgc/` state dir inside a git repo, make sure
+// the repo ignores it. The README promises `.sgc/` is runtime state (not
+// source); without this a fresh `git add -A` commits decisions/, the event
+// stream, and agent prompts — and `sgc review` then flags sgc's own internal
+// TODO markers as findings. Idempotent (only appends when no matching rule
+// exists) and scoped to the implicit default location at a repo root: a custom
+// arg or SGC_STATE_ROOT may point outside the repo (e.g. a temp dir), so those
+// stay the operator's responsibility. Best-effort — never breaks a command.
+function ensureDefaultStateGitignored(custom: string | undefined): void {
+  if (custom !== undefined || process.env["SGC_STATE_ROOT"]) return
+  if (!existsSync(resolve(".git"))) return // only at a git repo root
+  const giPath = resolve(".gitignore")
+  let content = ""
+  try {
+    content = readFileSync(giPath, "utf8")
+  } catch {
+    // no .gitignore yet — we'll create one
+  }
+  const alreadyIgnored = content
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .some(
+      (l) => l === ".sgc" || l === ".sgc/" || l === "/.sgc" || l === "/.sgc/",
+    )
+  if (alreadyIgnored) return
+  const lead = content.length === 0 ? "" : content.endsWith("\n") ? "\n" : "\n\n"
+  const block = `${lead}# sgc runtime state (not source) — safe to delete; recreated on next run\n.sgc/\n`
+  try {
+    writeFileSync(giPath, content + block)
+  } catch {
+    // read-only .gitignore / FS — degrade silently rather than fail the command
+  }
+}
+
 export function ensureSgcStructure(stateRoot?: string): string {
   const r = root(stateRoot)
   for (const layer of LAYERS) {
     mkdirSync(resolve(r, layer), { recursive: true })
   }
+  ensureDefaultStateGitignored(stateRoot)
   return r
 }
 

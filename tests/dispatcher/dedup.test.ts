@@ -58,6 +58,32 @@ describe("similarity — empty-feature collision (ALG-1 audit fix)", () => {
     const b: SimilarityCandidate = { signature: "", tags: ["auth", "npe"], problem: "" }
     expect(similarity(a, b)).toBe(1)
   })
+
+  it('treats the "untagged" sentinel as no-signal (candidate [] vs stored [untagged])', () => {
+    // The compound write path stores ["untagged"] when no tags were produced,
+    // but the dedup candidate carries the raw (empty) context.tags. Comparing
+    // [] vs ["untagged"] must NOT score the tag component 0 and halve an
+    // identical-problem match — "untagged" is a placeholder, not a tag.
+    const candidate: SimilarityCandidate = {
+      signature: "candsig",
+      tags: [], // raw context.tags (no tags produced)
+      problem: "null pointer crash in the auth token refresh handler",
+    }
+    const stored: SimilarityCandidate = {
+      signature: "storedsig", // different signature → no exact-match shortcut
+      tags: ["untagged"], // write-path fallback
+      problem: "null pointer crash in the auth token refresh handler",
+    }
+    // Identical problem text + no real tags on either side → problem signal
+    // alone → 1.0 (was 0.5 under the [] vs [untagged] asymmetry).
+    expect(similarity(candidate, stored)).toBe(1)
+  })
+
+  it('"untagged" both sides also collapses to the problem signal', () => {
+    const a: SimilarityCandidate = { signature: "", tags: ["untagged"], problem: "race in websocket reconnect" }
+    const b: SimilarityCandidate = { signature: "", tags: ["untagged"], problem: "race in websocket reconnect" }
+    expect(similarity(a, b)).toBe(1)
+  })
 })
 
 describe("tokenize — defensive guards (GS-1.2 DOG-2 regression)", () => {

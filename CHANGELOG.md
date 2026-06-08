@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.31.5 — 2026-06-08 — dedup no longer writes duplicates for untagged solutions
+
+A seventh dogfood pass deep-dived the compound knowledge loop
+(`reflect` / `compound` / dedup). One real defect fixed; the threshold logic,
+applied/surfaced counting, and reflect audit verified correct.
+
+### What changed
+
+- **Two solutions about the same bug no longer escape dedup just because they
+  are untagged.** The compound write path stores `["untagged"]` when no tags
+  were produced, but the dedup *candidate* carried the raw (empty) tags, so
+  `similarity` compared `[]` against `["untagged"]`, scored the tag component
+  `0`, and halved the score — dragging genuine near-duplicates below the dedup
+  threshold and writing a polluting second solution (`related=0`). `similarity`
+  now strips the `"untagged"` placeholder from both sides, so an untagged pair
+  compares on its problem text alone (the same near-duplicate now links as
+  `related`, and merges via `update_existing` when the problem text is close
+  enough). The 0.85 dedup threshold and its boundary handling are unchanged.
+
 ## v1.31.4 — 2026-06-08 — state-layer hardening (concurrent-write lock · clearer corrupt-file errors)
 
 A sixth dogfood pass stress-tested the `.sgc/` state layer's concurrency and

@@ -871,8 +871,9 @@ function featureOverlap(a2, b2) {
 function similarity(candidate, existing) {
   if (candidate.signature && candidate.signature === existing.signature)
     return 1;
-  const candTags = Array.isArray(candidate.tags) ? candidate.tags : [];
-  const exTags = Array.isArray(existing.tags) ? existing.tags : [];
+  const stripSentinel = (t2) => t2.filter((x2) => x2.toLowerCase() !== "untagged");
+  const candTags = stripSentinel(Array.isArray(candidate.tags) ? candidate.tags : []);
+  const exTags = stripSentinel(Array.isArray(existing.tags) ? existing.tags : []);
   const candTagSet = new Set(candTags);
   const exTagSet = new Set(exTags);
   const candProb = tokenize(candidate.problem);
@@ -19372,7 +19373,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.31.4",
+    version: "1.31.5",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -23464,7 +23465,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.31.4",
+  version: "1.31.5",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {

@@ -122,8 +122,17 @@ export function similarity(
   // shape from minimal-frontmatter files yields undefined). tokenize()
   // already coerces undefined → empty Set for the `problem` field; do
   // the same shape for tags here.
-  const candTags = Array.isArray(candidate.tags) ? candidate.tags : []
-  const exTags = Array.isArray(existing.tags) ? existing.tags : []
+  // The compound write path stores `["untagged"]` when the context agent
+  // produced no tags (compound.ts), but the dedup *candidate* carries the raw
+  // (empty) context.tags. That asymmetry made jaccard([], ["untagged"]) = 0 for
+  // two genuinely-similar but heuristically-untagged solutions, halving their
+  // score and writing a polluting duplicate. Treat "untagged" as the no-signal
+  // sentinel it is: strip it so an untagged↔untagged pair compares on problem
+  // tokens alone (ALG-1 then excludes the now-empty tag component on both sides)
+  // and an untagged↔empty pair is symmetric.
+  const stripSentinel = (t: string[]) => t.filter((x) => x.toLowerCase() !== "untagged")
+  const candTags = stripSentinel(Array.isArray(candidate.tags) ? candidate.tags : [])
+  const exTags = stripSentinel(Array.isArray(existing.tags) ? existing.tags : [])
   const candTagSet = new Set(candTags)
   const exTagSet = new Set(exTags)
   const candProb = tokenize(candidate.problem)

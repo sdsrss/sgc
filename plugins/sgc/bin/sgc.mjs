@@ -18099,10 +18099,10 @@ function briefPayload(eventType, payload) {
 }
 function formatHuman(e2) {
   const time = e2.ts.slice(11, 23);
-  const spawnTail = (e2.spawn_id ?? "").slice(-12).padStart(12, " ");
+  const spawnHead = (e2.spawn_id ?? "").split("-")[0].slice(0, 12).padEnd(12, " ");
   const agent = (e2.agent ?? "").padEnd(18);
   const brief = briefPayload(e2.event_type, e2.payload);
-  return `${time}  ${e2.level.padEnd(5)}  ${e2.event_type.padEnd(18)}  ${spawnTail}  ${agent}  ${brief}`;
+  return `${time}  ${e2.level.padEnd(5)}  ${e2.event_type.padEnd(18)}  ${spawnHead}  ${agent}  ${brief}`;
 }
 async function runTail(opts = {}) {
   const say = opts.log ?? ((m2) => console.log(m2));
@@ -19316,7 +19316,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.31.1",
+    version: "1.31.2",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -20376,6 +20376,14 @@ async function runWatchCiFailure(opts = {}) {
   const headSha = await gitOutput2(["rev-parse", "HEAD"]);
   const tag = await gitOutput2(["describe", "--tags", "--abbrev=0"]);
   const workflow = opts.workflow ?? "publish.yml";
+  if (!opts.runId) {
+    const remotes = await gitOutput2(["remote"]);
+    if (!remotes) {
+      throw new Error("no git remote configured — `sgc watch-ci-failure` polls a GitHub Actions run that does not exist for a local-only repo. Add a remote (or pass --run-id <id> to attach directly).");
+    }
+  }
+  const announceTimeout = opts.timeoutSec ?? 600;
+  console.error(`watching ${workflow} for ${(headSha ?? "HEAD").slice(0, 7)} on ${branch ?? "(detached)"} — polling up to ${announceTimeout}s…`);
   const result = await watchPublishWorkflow({
     branch: branch ?? undefined,
     expectedSha: headSha ?? undefined,
@@ -21406,6 +21414,10 @@ async function gitOutput4(args) {
 function defaultStepRunners() {
   return {
     async watchCiFailure(_opts) {
+      const remotes = await gitOutput4(["remote"]);
+      if (!remotes) {
+        throw new Error("no git remote configured — `sgc land` watches a GitHub Actions run that does not exist for a local-only repo. Add a remote first.");
+      }
       const headSha = await gitOutput4(["rev-parse", "HEAD"]);
       const tag = await gitOutput4(["describe", "--tags", "--abbrev=0"]);
       const workflowName = "publish-npm";
@@ -23396,7 +23408,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.31.1",
+  version: "1.31.2",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {

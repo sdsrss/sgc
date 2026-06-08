@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.31.2 — 2026-06-08 — dogfood fixes (tail spawn id · watch-ci-failure/land fast-fail)
+
+A fourth dogfood pass over `plan` / `status` / `tail` / `agent-loop` / `land` /
+`watch-ci-failure` found three real defects, all fixed with verification. No
+behavior-contract changes.
+
+### What changed
+
+- **`sgc tail` shows the spawn's ULID, not a fragment of the agent name.** The
+  spawn column rendered `spawn_id.slice(-12)`, but `spawn_id` is
+  `<ULID>-<agent>`, so the last 12 chars were the *tail of the agent name*
+  (e.g. "sifier.level") — redundant with the agent column and reading like
+  corruption. It now shows the ULID head (`split("-")[0]`), the unique
+  discriminator that pairs a `spawn.start` with its `spawn.end`.
+- **`sgc watch-ci-failure` no longer hangs silently on a local-only repo.** With
+  no git remote there is no CI run to discover, so the poll loop ran silently to
+  its full timeout (default 600s). It now fails fast with an actionable message
+  (`--run-id` still attaches directly), and prints a starting
+  `watching <workflow> for <sha>…polling up to Ns` line so the wait is expected,
+  not a perceived hang.
+- **`sgc land` no longer hangs silently on a local-only repo.** `land`'s
+  watch-CI step called the poll primitive directly, bypassing the above guard;
+  it now applies the same no-remote fast-fail.
+
 ## v1.31.1 — 2026-06-08 — dogfood fixes (cso ENOLOCK clarity · debug --runs alignment)
 
 A third dogfood pass over `compound` / `reflect` / `debug` / `canary` / `cso` /

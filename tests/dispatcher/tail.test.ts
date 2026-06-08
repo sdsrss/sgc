@@ -53,6 +53,27 @@ describe("sgc tail — basic read (G.1.b)", () => {
     expect(lines[0]).toContain("classifier.level")
   })
 
+  test("spawn column shows the ULID head, not the agent-name tail", async () => {
+    // spawn_id is `<ULID>-<agent>`. The human row must surface the ULID head
+    // (the unique discriminator pairing start/end), not `slice(-12)` which
+    // returned the tail of the agent name ("...sifier.level").
+    writeEvent(tmp, {
+      schema_version: 1,
+      ts: "2026-04-24T14:32:17.123Z",
+      task_id: "t1",
+      spawn_id: "C56BBDFAA2F547E38EA930E81A-classifier.level",
+      agent: "classifier.level",
+      event_type: "spawn.start",
+      level: "info",
+      payload: { mode: "inline" },
+    })
+    const lines: string[] = []
+    await runTail({ stateRoot: tmp, log: (m) => lines.push(m) })
+    // The ULID head is present (it would be absent under the old slice(-12),
+    // which showed only the agent-name tail).
+    expect(lines[0]).toContain("C56BBDFAA2F5")
+  })
+
   test("multiple events → multiple lines in order", async () => {
     for (let i = 0; i < 3; i++) {
       writeEvent(tmp, {

@@ -311,6 +311,15 @@ async function gitOutput(args: string[]): Promise<string | null> {
 export function defaultStepRunners(): LandStepRunners {
   return {
     async watchCiFailure(_opts): Promise<WatchStepResult> {
+      // Fail fast on a local-only repo: with no git remote there is no CI run
+      // to find, so watchPublishWorkflow would poll silently to its full
+      // timeout (default 600s) before `land` could report anything.
+      const remotes = await gitOutput(["remote"])
+      if (!remotes) {
+        throw new Error(
+          "no git remote configured — `sgc land` watches a GitHub Actions run that does not exist for a local-only repo. Add a remote first.",
+        )
+      }
       const headSha = await gitOutput(["rev-parse", "HEAD"])
       const tag = await gitOutput(["describe", "--tags", "--abbrev=0"])
       const workflowName = "publish-npm"

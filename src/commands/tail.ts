@@ -78,10 +78,15 @@ function briefPayload(eventType: string, payload: Record<string, unknown>): stri
 
 function formatHuman(e: EventRecord): string {
   const time = e.ts.slice(11, 23)                             // HH:MM:SS.mmm
-  const spawnTail = (e.spawn_id ?? "").slice(-12).padStart(12, " ")
+  // spawn_id is `<ULID>-<agent>`; the ULID prefix is the unique discriminator
+  // that pairs a spawn.start with its spawn.end. Show its head — NOT the last
+  // 12 chars (`slice(-12)`), which returned the *tail of the agent name*
+  // (e.g. "sifier.level"): redundant with the agent column and reading like
+  // corruption.
+  const spawnHead = (e.spawn_id ?? "").split("-")[0]!.slice(0, 12).padEnd(12, " ")
   const agent = (e.agent ?? "").padEnd(18)
   const brief = briefPayload(e.event_type, e.payload)
-  return `${time}  ${e.level.padEnd(5)}  ${e.event_type.padEnd(18)}  ${spawnTail}  ${agent}  ${brief}`
+  return `${time}  ${e.level.padEnd(5)}  ${e.event_type.padEnd(18)}  ${spawnHead}  ${agent}  ${brief}`
 }
 
 export async function runTail(opts: TailOptions = {}): Promise<void> {

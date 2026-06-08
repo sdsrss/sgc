@@ -32,6 +32,25 @@ export async function runWatchCiFailure(opts: WatchCliOptions = {}): Promise<voi
   const tag = await gitOutput(["describe", "--tags", "--abbrev=0"])
   const workflow = opts.workflow ?? "publish.yml"
 
+  // Fail fast on a local-only repo: with no git remote there will never be a
+  // CI run to find, so the discovery loop would poll silently until its full
+  // timeout (default 600s). --run-id attaches directly, so skip the check then.
+  if (!opts.runId) {
+    const remotes = await gitOutput(["remote"])
+    if (!remotes) {
+      throw new Error(
+        "no git remote configured — `sgc watch-ci-failure` polls a GitHub Actions run that does not exist for a local-only repo. Add a remote (or pass --run-id <id> to attach directly).",
+      )
+    }
+  }
+
+  // The discovery + status poll is silent and can run up to `timeoutSec`
+  // (default 600s). Announce it so the wait is expected, not a perceived hang.
+  const announceTimeout = opts.timeoutSec ?? 600
+  console.error(
+    `watching ${workflow} for ${(headSha ?? "HEAD").slice(0, 7)} on ${branch ?? "(detached)"} — polling up to ${announceTimeout}s…`,
+  )
+
   const result = await watchPublishWorkflow({
     branch: branch ?? undefined,
     expectedSha: headSha ?? undefined,

@@ -136,7 +136,9 @@ discover → plan(L0-L3 分级 + fused_verdict) → work → review → qa → s
 ### 4.2 自动化 — B（达成但度量是近常量）
 
 `metrics.ts:52-57`：`STEPS.filter(s=>!MANUAL_GATES.has(s))` over `STEPS`，均来自 `loop.ts` 硬编码数组 `[plan,work,review,qa,ship,compound]` + `MANUAL_GATES={work,ship}` = **4/6** `[读证]`。两个门是有意的人签检查点（§4），框架诚实。**但这只测"6 个 loop 槽位有几个非手动"，只在改字面量时变化，不反映真实自动化程度。**
-**真实自动化故事 `[读证]`**：capture 全自动（ship-failure/red-green 文件副作用写入）；**promote 有意人工 + 多门**（`compound-promote.ts:147-156` 拒绝除非操作者手填 `prevention_seed`）；reuse 写回自动**但仅在操作者手跑 `sgc plan` 时**触发（`applied_in` 仅 L3、`surfaced_in` 仅 L2+）。`4/6` 未捕获任何这些 nuance。
+**真实自动化故事 `[读证]`**：capture 全自动（ship-failure/red-green 文件副作用写入）；**promote 有意人工 + 多门**（`compound-promote.ts:147-156` 拒绝除非操作者手填 `prevention_seed`）；reuse 写回自动**但仅在操作者手跑 `sgc plan` 时**触发（`applied_in` 仅 L3、`surfaced_in` 仅 L2+）。
+
+> **✅ 已重设（P2-5，2026-06-08）**：`computeAutomation` 不再只数 6 个 loop 槽，而是覆盖**完整 plan→ship→compound→reuse 生命周期**（loop 6 阶段 + CE 弧 capture/promote/reuse 3 阶段 = 9），把审核批评的 **promote 人工门**纳入计数 → **6/9 自动化，3 个人工门（work, ship, compound-promote）**。scorecard label 同步更新、baseline 重生成、doctor check K 同步。指标现在度量"生命周期人工门"而非"loop 槽"。
 
 ### 4.3 智能化 — B−（见 §3.2）
 
@@ -241,8 +243,8 @@ metrics 自标 "(capacity, not quality)" 诚实。**严谨重构应报 `11 LLM-b
 | **P2-6** | ✅ RESOLVED | `PRODUCTION-READINESS-AUDIT.md` 顶部加回填横幅：v1.21.0 的 P0/P1/P2 全部 SHIPPED（v1.22/1.23/1.23.1），保留原 §8 作历史 | 该文档顶部 |
 | **P2-7** | ✅ RESOLVED | fingerprint 缓存：`writeSolution`（§3 写入门）写后调 `clearFingerprintCache()`，in-process 复用不再 leak-check 陈旧语料；+ 导出 `invalidateFingerprintCache()` 精确 hook | `fingerprint-invalidate.test.ts` 2/2 |
 | **P2-8** | ✅ RESOLVED | `runPlan` 返回 `level?` 改可选，async-parent 分支省略（不再谎报 `L0`）；loop.ts 消费点加注（sync 路径必有 level） | tsc + plan/loop 套件绿 |
-| **P2-3** | ⏸ DEFERRED | 启发式-vs-LLM 语义对齐：高价值形态（语义一致）天然非确定性、不适合确定性 CI 门。注：schema 兼容性已被 inline-stub 测试 + `validateOutputShape`（spawn.ts:793 所有模式）覆盖 | — |
-| **P2-5** | ⏸ DEFERRED | 自动化指标重设为"每闭合任务真实人工步数"：属 **LLM-visible 四化 metric 的定义变更（L3 敏感）**，不单方面改产品自评数字；局限已在 §4.2 文档化，留作 deliberate 决策 | — |
+| **P2-3** | ✅ RESOLVED | 启发式-vs-LLM **schema 对齐**确定性测试：对 4 个决策关键 LLM-backed agent（classifier/planner.ceo/planner.eng/reviewer.correctness）断言启发式输出过同一 `validateOutputShape` 门（spawn.ts:793，LLM 输出亦须过）→ 两模式 schema 对齐 by construction。语义对齐天然非确定性、明确不做（属 opt-in eval lane） | `heuristic-llm-schema-parity.test.ts` 5/5（含非空洞 §9 守卫） |
+| **P2-5** | ✅ RESOLVED | 自动化指标重设：`computeAutomation` 覆盖 plan→ship→compound→reuse 全生命周期（9 阶段），纳入 CE promote 人工门 → **6/9，3 人工门**；scorecard label + baseline + doctor check K 同步 | `metrics.test.ts` 17/0 · doctor K in-sync |
 
 **未 ship**：以上为实现 + 验证，未 commit / tag / publish（sgc 走 main-direct + `v*` tag → publish.yml）。改 `src/` 已 `npm run build:cli` 重建并提交 bundle 至工作树（parity 绿）。
 

@@ -144,6 +144,15 @@ describe("runWork", () => {
     expect(logs.some((m) => m.includes("sgc review"))).toBe(true)
   })
 
+  test("L0 all-done does NOT prompt sgc review (no intent.md → review can't run)", async () => {
+    const logs: string[] = []
+    // L0 fast-path task: plan writes no intent.md, so review/qa/ship can't run.
+    await runPlan("fix a typo in the README", { stateRoot: tmp, log: () => {} })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "n/a", waiveRed: "L0 typo", log: (m) => logs.push(m) })
+    expect(logs.some((m) => m.includes("sgc review"))).toBe(false)
+    expect(logs.some((m) => m.includes("L0 task complete"))).toBe(true)
+  })
+
   // TDD-ledger close-gate (Phase 2a)
   test("--done without prior-red or waive-red is refused", async () => {
     await freshTask()

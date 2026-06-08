@@ -2,7 +2,7 @@
 //
 // Spec: tasks/specs/ce-5-loop-orchestrator.md.
 // Chains the 6-step task workflow plan → [pause work] → review →
-// qa → [pause ship] → compound, with checkpoint state at
+// [pause qa] → [pause ship] → compound, with checkpoint state at
 // <stateRoot>/loop-runs/<run-id>.md. Sync (no subprocess fork);
 // failure halts + writes state; --resume continues from checkpoint.
 //
@@ -53,7 +53,13 @@ export const STEPS: readonly LoopStepName[] = [
  * `status:paused` + exit so the operator can act; `--resume` marks
  * paused → done before continuing.
  */
-export const MANUAL_GATES = new Set<LoopStepName>(["work", "ship"])
+// Manual gates pause the chain for operator input. `qa` joins work + ship
+// because a real QA needs an operator-supplied target URL — the orchestrator
+// has none to pass. Auto-running qa with no target produced an immutable
+// (Invariant §6) verdict=fail report that both blocked ship (Invariant §5) and
+// could not be re-run with a real target, leaving loop-driven L2/L3 tasks
+// unshippable. Pausing lets the operator run `sgc qa <url> --flows ...`.
+export const MANUAL_GATES = new Set<LoopStepName>(["work", "qa", "ship"])
 
 export interface LoopStepEntry {
   step: LoopStepName
@@ -125,7 +131,12 @@ export interface LoopOptions {
 
 export interface LoopResult {
   run: LoopRun
-  terminal_reason: "complete" | "paused_work" | "paused_ship" | "failed"
+  terminal_reason:
+    | "complete"
+    | "paused_work"
+    | "paused_qa"
+    | "paused_ship"
+    | "failed"
 }
 
 function generateUlid(): string {
@@ -362,10 +373,13 @@ export async function runLoop(
       delete run.failed_step
       delete run.error
       writeRun(runFilePath, run)
-      return {
-        run,
-        terminal_reason: stepName === "work" ? "paused_work" : "paused_ship",
-      }
+      const pauseReason =
+        stepName === "work"
+          ? "paused_work"
+          : stepName === "qa"
+            ? "paused_qa"
+            : "paused_ship"
+      return { run, terminal_reason: pauseReason }
     }
 
     // Auto step: run via injected runner; catch + mark failed.

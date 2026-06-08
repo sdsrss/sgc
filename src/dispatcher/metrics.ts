@@ -54,10 +54,12 @@ export function computeIntelligence(capabilitiesYaml: string): FourHuaMetrics["i
 // (P2-5, docs/COMPREHENSIVE-AUDIT-v1.29.1.md §4.2): capture is automatic, but
 // PROMOTE is a deliberate human gate — the operator hand-fills prevention_seed
 // (compound-promote.ts) — and reuse (recordApplied / recordSurfaced inside
-// `sgc plan`) is automatic again. Human gates total 3: work (operator
-// implements) + ship (L3 human signature, Invariant §4) + promote. The loop's
-// own `compound` step is the post-ship janitor decision (automatic) and is
-// distinct from this failure-capture → manual-promote → reuse arc.
+// `sgc plan`) is automatic again. Human gates total 4: work (operator
+// implements) + qa (operator supplies the target URL + runs the smoke; the
+// orchestrator has none to pass) + ship (L3 human signature, Invariant §4) +
+// promote. The loop's own `compound` step is the post-ship janitor decision
+// (automatic) and is distinct from this failure-capture → manual-promote →
+// reuse arc.
 const CE_ARC_STAGES = ["capture", "promote", "reuse"] as const
 const CE_ARC_HUMAN_GATES = new Set<(typeof CE_ARC_STAGES)[number]>(["promote"])
 
@@ -186,7 +188,7 @@ export function formatScorecard(m: FourHuaMetrics): string {
     "",
     `  规范化 standardization  ${m.standardization.machine_enforced}/${m.standardization.total} machine-enforced invariants`,
     `  智能化 intelligence     ${m.intelligence.llm_invokable}/${m.intelligence.total_subagents} LLM-invokable subagents (capacity, not quality)`,
-    `  自动化 automation       ${m.automation.automated_steps}/${m.automation.total_steps} automated lifecycle stages (3 human gates: work, ship, compound-promote)`,
+    `  自动化 automation       ${m.automation.automated_steps}/${m.automation.total_steps} automated lifecycle stages (4 human gates: work, qa, ship, compound-promote)`,
     `  高效化 efficiency       ${m.efficiency.install_steps} install step · node ${m.efficiency.runtime_node} · ~${kb} KB bundle`,
   ].join("\n")
 }

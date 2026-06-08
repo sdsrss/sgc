@@ -273,7 +273,7 @@ const qa = defineCommand({
   },
   async run({ args }) {
     const { runQa } = await import("./commands/qa")
-    await runQa({
+    const result = await runQa({
       target: args.target as string | undefined,
       flows: args.flows
         ? String(args.flows)
@@ -283,6 +283,10 @@ const qa = defineCommand({
         : undefined,
       browse: args.browse === true,
     })
+    // Reflect the gate verdict in the exit code, mirroring `cso` and `review`:
+    // a failed QA must be scriptable (`sgc qa ... && sgc ship`) and visible to
+    // CI. `concern` stays exit 0 (advisory, never a rubber stamp).
+    if (result.verdict === "fail") process.exit(1)
   },
 })
 
@@ -849,7 +853,7 @@ const loop = defineCommand({
   meta: {
     name: "loop",
     description:
-      "CE-5: end-to-end orchestrator chaining plan → [pause work] → review → qa → [pause ship] → compound. Resume with --resume <run-id>.",
+      "CE-5: end-to-end orchestrator chaining plan → [pause work] → review → [pause qa] → [pause ship] → compound. Resume with --resume <run-id>.",
   },
   args: {
     task: {

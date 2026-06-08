@@ -3942,16 +3942,6 @@ function appendReview(report, body = "", stateRoot, suffix) {
   writeAtomic(path, serializeFrontmatter(report, body));
   return path;
 }
-function hasQaEvidence(taskId, stateRoot) {
-  const qaDir = resolve3(root(stateRoot), "reviews", taskId, "qa");
-  if (!existsSync2(qaDir))
-    return false;
-  try {
-    return readdirSync2(qaDir).some((f3) => f3.endsWith(".md"));
-  } catch {
-    return false;
-  }
-}
 function validateSolution(entry) {
   for (const f3 of REQUIRED_SOLUTION_FIELDS) {
     const v2 = entry[f3];
@@ -15718,7 +15708,11 @@ async function runWork(opts = {}) {
   printList(log, list, activeId);
   log("");
   if (allDone) {
-    log(`All features done. Run \`sgc review\` for independent code review.`);
+    if (ct.task.level === "L0") {
+      log(`L0 task complete (fast-path — review/qa/ship gates apply at L2+).`);
+    } else {
+      log(`All features done. Run \`sgc review\` for independent code review.`);
+    }
   } else if (activeId) {
     const active2 = list.features.find((f3) => f3.id === activeId);
     log(`Active: ${activeId} — ${active2.title}`);
@@ -15968,6 +15962,9 @@ async function runReview(opts = {}) {
     throw new Error("no active task — run `sgc plan <task>` first");
   const taskId = ct.task.task_id;
   const level = ct.task.level;
+  if (level === "L0") {
+    throw new Error("L0 tasks are fast-path: no intent.md is written and review/qa/ship are L2+ gates. Nothing to review.");
+  }
   for (const hint of delegationHintsFor("review.cluster"))
     log(formatHint(hint));
   const intent = readIntent(taskId, stateRoot);
@@ -16096,7 +16093,11 @@ async function qaBrowser(input, opts = {}) {
       verdict: "fail",
       evidence_refs: [],
       failed_flows: [
-        { flow: "(all)", step: "setup", observed: "target_url is empty" }
+        {
+          flow: "(all)",
+          step: "setup",
+          observed: "target_url is empty — pass the URL as a positional argument: " + "`sgc qa <url> --flows <a,b>` (it is positional, not `--target`)"
+        }
       ]
     };
   }
@@ -16162,7 +16163,13 @@ function makeBrowseRunner(opts) {
       return {
         verdict: "fail",
         evidence_refs: [],
-        failed_flows: [{ flow: "(all)", step: "setup", observed: "target_url is empty" }]
+        failed_flows: [
+          {
+            flow: "(all)",
+            step: "setup",
+            observed: "target_url is empty — pass the URL as a positional argument: " + "`sgc qa <url> --flows <a,b>` (it is positional, not `--target`)"
+          }
+        ]
       };
     }
     let session;
@@ -17139,8 +17146,13 @@ async function runShip(opts = {}) {
     throw new Error(`${failedWithoutOverride.length} review(s) with verdict=fail need an override with reason ≥40 chars (Invariant §5)`);
   }
   if (level === "L2" || level === "L3") {
-    if (!hasQaEvidence(taskId, stateRoot)) {
+    const qaReports = listReviewsForStage(taskId, "qa", stateRoot);
+    if (qaReports.length === 0) {
       throw new Error(`${level} ship requires qa evidence — run \`sgc qa <target> --flows ...\` first`);
+    }
+    const failedQaWithoutOverride = qaReports.filter((r3) => r3.verdict === "fail" && (!r3.override || (r3.override.reason ?? "").length < 40));
+    if (failedQaWithoutOverride.length > 0) {
+      throw new Error(`${failedQaWithoutOverride.length} qa report(s) with verdict=fail need an override with reason ≥40 chars (Invariant §5)`);
     }
   }
   if (opts.createPr && level !== "L0") {
@@ -17485,7 +17497,7 @@ __export(exports_state, {
   listReviewsForStage: () => listReviewsForStage2,
   janitorDecisionPath: () => janitorDecisionPath2,
   intentPath: () => intentPath2,
-  hasQaEvidence: () => hasQaEvidence2,
+  hasQaEvidence: () => hasQaEvidence,
   ensureSgcStructure: () => ensureSgcStructure2,
   deleteSolution: () => deleteSolution,
   appendReview: () => appendReview2,
@@ -17773,7 +17785,7 @@ function readReview(taskId, stage, reviewerId, stateRoot) {
   const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"));
   return { report: data, body };
 }
-function hasQaEvidence2(taskId, stateRoot) {
+function hasQaEvidence(taskId, stateRoot) {
   const qaDir = resolve13(root3(stateRoot), "reviews", taskId, "qa");
   if (!existsSync16(qaDir))
     return false;
@@ -18843,6 +18855,9 @@ async function runReview2(opts = {}) {
     throw new Error("no active task — run `sgc plan <task>` first");
   const taskId = ct.task.task_id;
   const level = ct.task.level;
+  if (level === "L0") {
+    throw new Error("L0 tasks are fast-path: no intent.md is written and review/qa/ship are L2+ gates. Nothing to review.");
+  }
   for (const hint of delegationHintsFor("review.cluster"))
     log(formatHint(hint));
   const intent = readIntent(taskId, stateRoot2);
@@ -19185,10 +19200,8 @@ async function runLoop(task, opts) {
       delete run.failed_step;
       delete run.error;
       writeRun(runFilePath, run);
-      return {
-        run,
-        terminal_reason: stepName === "work" ? "paused_work" : "paused_ship"
-      };
+      const pauseReason = stepName === "work" ? "paused_work" : stepName === "qa" ? "paused_qa" : "paused_ship";
+      return { run, terminal_reason: pauseReason };
     }
     entry.status = "in_progress";
     entry.started_at = new Date(now()).toISOString();
@@ -19283,7 +19296,7 @@ var init_loop = __esm(() => {
     "ship",
     "compound"
   ];
-  MANUAL_GATES = new Set(["work", "ship"]);
+  MANUAL_GATES = new Set(["work", "qa", "ship"]);
   LoopError = class LoopError extends Error {
     code;
     detail;
@@ -19301,7 +19314,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.30.0",
+    version: "1.31.0",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -19475,7 +19488,7 @@ function formatScorecard(m2) {
     "",
     `  规范化 standardization  ${m2.standardization.machine_enforced}/${m2.standardization.total} machine-enforced invariants`,
     `  智能化 intelligence     ${m2.intelligence.llm_invokable}/${m2.intelligence.total_subagents} LLM-invokable subagents (capacity, not quality)`,
-    `  自动化 automation       ${m2.automation.automated_steps}/${m2.automation.total_steps} automated lifecycle stages (3 human gates: work, ship, compound-promote)`,
+    `  自动化 automation       ${m2.automation.automated_steps}/${m2.automation.total_steps} automated lifecycle stages (4 human gates: work, qa, ship, compound-promote)`,
     `  高效化 efficiency       ${m2.efficiency.install_steps} install step · node ${m2.efficiency.runtime_node} · ~${kb} KB bundle`
   ].join(`
 `);
@@ -21508,6 +21521,9 @@ function renderTerminalHint(r3) {
     case "paused_work":
       return `
 next: implement the change, then \`sgc loop --resume ${id}\` to continue.`;
+    case "paused_qa":
+      return `
+next: run \`sgc qa <url> --flows <a,b>\` (or set SGC_QA_REAL=1 / --browse for a real-browser smoke), then \`sgc loop --resume ${id}\` to continue.`;
     case "paused_ship":
       return `
 next: run \`sgc ship${r3.run.level === "L3" ? " --signed-by <id>" : ""}\`, then \`sgc loop --resume ${id}\` to continue.`;
@@ -23352,7 +23368,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.30.0",
+  version: "1.31.0",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {
@@ -23770,11 +23786,13 @@ var qa = defineCommand({
   },
   async run({ args }) {
     const { runQa: runQa3 } = await Promise.resolve().then(() => (init_qa(), exports_qa));
-    await runQa3({
+    const result = await runQa3({
       target: args.target,
       flows: args.flows ? String(args.flows).split(",").map((s2) => s2.trim()).filter(Boolean) : undefined,
       browse: args.browse === true
     });
+    if (result.verdict === "fail")
+      process.exit(1);
   }
 });
 var ship = defineCommand({
@@ -24285,7 +24303,7 @@ var land = defineCommand({
 var loop = defineCommand({
   meta: {
     name: "loop",
-    description: "CE-5: end-to-end orchestrator chaining plan \u2192 [pause work] \u2192 review \u2192 qa \u2192 [pause ship] \u2192 compound. Resume with --resume <run-id>."
+    description: "CE-5: end-to-end orchestrator chaining plan \u2192 [pause work] \u2192 review \u2192 [pause qa] \u2192 [pause ship] \u2192 compound. Resume with --resume <run-id>."
   },
   args: {
     task: {

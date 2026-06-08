@@ -36,10 +36,11 @@ test("computeIntelligence counts prompt_path-truthy only", () => {
   expect(r).toEqual({ llm_invokable: 2, total_subagents: 6 })
 })
 
-test("computeAutomation derives 6/9 from loop + CE-arc symbols", () => {
-  // 4 auto loop steps (plan/review/qa/compound) + 2 auto CE-arc stages
-  // (capture/reuse); 3 human gates: work, ship, compound-promote.
-  expect(computeAutomation()).toEqual({ automated_steps: 6, total_steps: 9 })
+test("computeAutomation derives 5/9 from loop + CE-arc symbols", () => {
+  // 3 auto loop steps (plan/review/compound) + 2 auto CE-arc stages
+  // (capture/reuse); 4 human gates: work, qa, ship, compound-promote.
+  // (qa joined the manual gates — it needs an operator-supplied target.)
+  expect(computeAutomation()).toEqual({ automated_steps: 5, total_steps: 9 })
 })
 
 test("computeFromInputs assembles all four 化", () => {
@@ -51,7 +52,7 @@ test("computeFromInputs assembles all four 化", () => {
   })
   expect(m.standardization).toEqual({ machine_enforced: 2, total: 3 })
   expect(m.intelligence).toEqual({ llm_invokable: 2, total_subagents: 6 })
-  expect(m.automation).toEqual({ automated_steps: 6, total_steps: 9 })
+  expect(m.automation).toEqual({ automated_steps: 5, total_steps: 9 })
   expect(m.efficiency).toEqual({ install_steps: 1, runtime_node: ">=18", bundle_bytes: 12345 })
 })
 
@@ -77,7 +78,7 @@ test("computeMetricsLive reads on-disk sources under a root", () => {
     const m = computeMetricsLive(root)
     expect(m.standardization).toEqual({ machine_enforced: 2, total: 3 })
     expect(m.intelligence).toEqual({ llm_invokable: 2, total_subagents: 6 })
-    expect(m.automation).toEqual({ automated_steps: 6, total_steps: 9 })
+    expect(m.automation).toEqual({ automated_steps: 5, total_steps: 9 })
     expect(m.efficiency.install_steps).toBe(1)
     expect(m.efficiency.runtime_node).toBe(">=18")
     expect(m.efficiency.bundle_bytes).toBeGreaterThan(0)
@@ -96,7 +97,7 @@ test("computeRuntimeMetrics computes the real product four 化 (structural)", ()
   expect(m.standardization.machine_enforced).toBeGreaterThanOrEqual(12)
   expect(m.intelligence.total_subagents).toBeGreaterThanOrEqual(m.intelligence.llm_invokable)
   expect(m.intelligence.llm_invokable).toBeGreaterThanOrEqual(11)
-  expect(m.automation).toEqual({ automated_steps: 6, total_steps: 9 })
+  expect(m.automation).toEqual({ automated_steps: 5, total_steps: 9 })
   expect(m.efficiency.runtime_node).toBe(">=18")
   expect(typeof m.efficiency.bundle_bytes).toBe("number")
 })
@@ -163,7 +164,7 @@ test("runMetrics --json prints the four 化 from a repoRoot", async () => {
   }
   const parsed = JSON.parse(lines.join("\n"))
   expect(parsed.standardization).toEqual({ machine_enforced: 2, total: 3 })
-  expect(parsed.automation).toEqual({ automated_steps: 6, total_steps: 9 })
+  expect(parsed.automation).toEqual({ automated_steps: 5, total_steps: 9 })
 })
 
 test("runMetrics --write-baseline writes a parseable baseline", async () => {

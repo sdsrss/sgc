@@ -202,7 +202,13 @@ export async function runWork(opts: WorkOptions = {}): Promise<WorkResult> {
   printList(log, list, activeId)
   log("")
   if (allDone) {
-    log(`All features done. Run \`sgc review\` for independent code review.`)
+    if (ct.task.level === "L0") {
+      // L0 is fast-path: no intent.md is written, so review/qa/ship (which
+      // require intent.md) cannot run. Guide to the actual L0 end-state.
+      log(`L0 task complete (fast-path — review/qa/ship gates apply at L2+).`)
+    } else {
+      log(`All features done. Run \`sgc review\` for independent code review.`)
+    }
   } else if (activeId) {
     const active = list.features.find((f) => f.id === activeId)!
     log(`Active: ${activeId} — ${active.title}`)

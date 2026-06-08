@@ -173,6 +173,14 @@ export async function runReview(opts: ReviewOptions = {}): Promise<{
   if (!ct) throw new Error("no active task — run `sgc plan <task>` first")
   const taskId = ct.task.task_id
   const level = ct.task.level
+  // L0 is fast-path: no intent.md is written (Invariant §2 / schema), and
+  // review/qa/ship are L2+ gates. Refuse with a clear explanation rather than
+  // letting readIntent throw a cryptic "intent.md not found".
+  if (level === "L0") {
+    throw new Error(
+      "L0 tasks are fast-path: no intent.md is written and review/qa/ship are L2+ gates. Nothing to review.",
+    )
+  }
   // P1.6: surface delegation hints before reviewer cluster fires.
   for (const hint of delegationHintsFor("review.cluster")) log(formatHint(hint))
   const intent = readIntent(taskId, stateRoot)

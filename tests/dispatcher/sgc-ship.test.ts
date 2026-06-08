@@ -101,6 +101,23 @@ describe("runShip — gates (negative)", () => {
     )
   })
 
+  test("L2 with qa verdict=fail (no override) → throws", async () => {
+    // A failed QA must not satisfy the ship gate just by existing — it must
+    // block like a failed code review (Invariant §5). No-target qa → fail.
+    await runPlan("add a new field to the public API response", {
+      stateRoot: tmp,
+      motivation: LONG_MOTIVATION,
+      log: () => {},
+    })
+    await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
+    await runReview({ stateRoot: tmp, diffOverride: "+ok\n", log: () => {} })
+    const qa = await runQa({ stateRoot: tmp, log: () => {} }) // no target → verdict=fail
+    expect(qa.verdict).toBe("fail")
+    await expect(runShip({ stateRoot: tmp, log: () => {} })).rejects.toThrow(
+      /qa report\(s\) with verdict=fail/,
+    )
+  })
+
   test("L3 ship refuses --auto even with full evidence", async () => {
     await l3Ready()
     await expect(

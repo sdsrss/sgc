@@ -1,11 +1,11 @@
 ---
 name: loop
-description: "CE-5 end-to-end orchestrator: plan → [pause work] → review → qa → [pause ship] → compound. Manual gates at work + ship; --resume continues a paused/failed run."
+description: "CE-5 end-to-end orchestrator: plan → [pause work] → review → [pause qa] → [pause ship] → compound. Manual gates at work + qa + ship; --resume continues a paused/failed run."
 ---
 
 # /sgc:loop
 
-The full sgc pipeline in one command. Chains `plan → [pause work] → review → qa → [pause ship] → compound`, pausing at the two human-owned gates (`work` = operator implements; `ship` = Invariant §4 L3 signature). L0 auto-skips review/qa/ship/compound.
+The full sgc pipeline in one command. Chains `plan → [pause work] → review → [pause qa] → [pause ship] → compound`, pausing at the three human-owned gates (`work` = operator implements; `qa` = operator runs `sgc qa <url> --flows ...` with a real target the orchestrator can't supply; `ship` = Invariant §4 L3 signature). L0 auto-skips review/qa/ship/compound.
 
 ## Invocation
 

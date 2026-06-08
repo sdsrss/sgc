@@ -29,7 +29,6 @@ import {
   writeShip,
 } from "../dispatcher/state"
 import {
-  hasQaEvidence,
   intentPath,
   listReviewsForStage,
 } from "../dispatcher/state"
@@ -196,11 +195,27 @@ export async function runShip(opts: ShipOptions = {}): Promise<ShipResult> {
     )
   }
 
-  // 7. L2+ qa evidence
+  // 7. L2+ qa evidence — must exist AND not stand on a failed verdict.
+  // Mirrors the code-review fail-gate above (Invariant §5): a qa report with
+  // verdict=fail blocks ship unless an override with reason ≥40 chars is
+  // recorded. Previously only existence was checked, so a failed QA (e.g. a
+  // real-browser smoke that found console errors, or a stub run with no
+  // target) silently satisfied the gate.
   if (level === "L2" || level === "L3") {
-    if (!hasQaEvidence(taskId, stateRoot)) {
+    const qaReports = listReviewsForStage(taskId, "qa", stateRoot)
+    if (qaReports.length === 0) {
       throw new Error(
         `${level} ship requires qa evidence — run \`sgc qa <target> --flows ...\` first`,
+      )
+    }
+    const failedQaWithoutOverride = qaReports.filter(
+      (r) =>
+        r.verdict === "fail" &&
+        (!r.override || ((r.override.reason ?? "").length < 40)),
+    )
+    if (failedQaWithoutOverride.length > 0) {
+      throw new Error(
+        `${failedQaWithoutOverride.length} qa report(s) with verdict=fail need an override with reason ≥40 chars (Invariant §5)`,
       )
     }
   }

@@ -55,7 +55,13 @@ export async function qaBrowser(
       verdict: "fail",
       evidence_refs: [],
       failed_flows: [
-        { flow: "(all)", step: "setup", observed: "target_url is empty" },
+        {
+          flow: "(all)",
+          step: "setup",
+          observed:
+            "target_url is empty — pass the URL as a positional argument: " +
+            "`sgc qa <url> --flows <a,b>` (it is positional, not `--target`)",
+        },
       ],
     }
   }

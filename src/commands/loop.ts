@@ -49,6 +49,8 @@ function renderTerminalHint(r: LoopResult): string {
   switch (r.terminal_reason) {
     case "paused_work":
       return `\nnext: implement the change, then \`sgc loop --resume ${id}\` to continue.`
+    case "paused_qa":
+      return `\nnext: run \`sgc qa <url> --flows <a,b>\` (or set SGC_QA_REAL=1 / --browse for a real-browser smoke), then \`sgc loop --resume ${id}\` to continue.`
     case "paused_ship":
       return `\nnext: run \`sgc ship${r.run.level === "L3" ? " --signed-by <id>" : ""}\`, then \`sgc loop --resume ${id}\` to continue.`
     case "failed":

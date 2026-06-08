@@ -157,7 +157,7 @@ describe("runLoop — fresh start", () => {
 })
 
 describe("runLoop — resume past work", () => {
-  it("--resume after first pause: marks work done, runs review + qa, pauses at ship", async () => {
+  it("--resume after first pause: marks work done, runs review, pauses at qa gate", async () => {
     // First pass — pause at work.
     const first = await runLoop("two-step task", {
       stateRoot,
@@ -166,24 +166,39 @@ describe("runLoop — resume past work", () => {
     })
     expect(first.terminal_reason).toBe("paused_work")
 
-    // --resume — should mark work done, run review + qa, pause at ship.
+    // --resume — should mark work done, run review, pause at qa (qa is a
+    // manual gate: needs an operator-supplied target the loop can't provide).
     const second = await runLoop(null, {
       stateRoot,
       resume: first.run.run_id,
       steps: allFakes(),
     })
-    expect(second.terminal_reason).toBe("paused_ship")
+    expect(second.terminal_reason).toBe("paused_qa")
     expect(second.run.status).toBe("paused")
-    expect(second.run.current_step).toBe("ship")
+    expect(second.run.current_step).toBe("qa")
     const stepMap = Object.fromEntries(
       second.run.steps.map((s) => [s.step, s.status]),
     )
     expect(stepMap.plan).toBe("done")
     expect(stepMap.work).toBe("done")
     expect(stepMap.review).toBe("done")
-    expect(stepMap.qa).toBe("done")
-    expect(stepMap.ship).toBe("paused")
+    expect(stepMap.qa).toBe("paused")
+    expect(stepMap.ship).toBe("pending")
     expect(stepMap.compound).toBe("pending")
+
+    // --resume again — qa marked done (operator ran real qa), pause at ship.
+    const third = await runLoop(null, {
+      stateRoot,
+      resume: first.run.run_id,
+      steps: allFakes(),
+    })
+    expect(third.terminal_reason).toBe("paused_ship")
+    expect(third.run.current_step).toBe("ship")
+    const stepMap3 = Object.fromEntries(
+      third.run.steps.map((s) => [s.step, s.status]),
+    )
+    expect(stepMap3.qa).toBe("done")
+    expect(stepMap3.ship).toBe("paused")
   })
 })
 
@@ -196,24 +211,33 @@ describe("runLoop — resume past ship", () => {
       ulid: () => "01HRUNFULL00000000000000",
     })
     expect(first.terminal_reason).toBe("paused_work")
+    // resume past work → review auto-runs → pause at qa gate.
     const second = await runLoop(null, {
       stateRoot,
       resume: first.run.run_id,
       steps: allFakes(),
     })
-    expect(second.terminal_reason).toBe("paused_ship")
+    expect(second.terminal_reason).toBe("paused_qa")
 
-    // Resume past ship → compound runs → complete.
+    // resume past qa → pause at ship gate.
     const third = await runLoop(null, {
       stateRoot,
       resume: first.run.run_id,
       steps: allFakes(),
     })
-    expect(third.terminal_reason).toBe("complete")
-    expect(third.run.status).toBe("complete")
-    expect(third.run.current_step).toBe("done")
+    expect(third.terminal_reason).toBe("paused_ship")
+
+    // Resume past ship → compound runs → complete.
+    const fourth = await runLoop(null, {
+      stateRoot,
+      resume: first.run.run_id,
+      steps: allFakes(),
+    })
+    expect(fourth.terminal_reason).toBe("complete")
+    expect(fourth.run.status).toBe("complete")
+    expect(fourth.run.current_step).toBe("done")
     const stepMap = Object.fromEntries(
-      third.run.steps.map((s) => [s.step, s.status]),
+      fourth.run.steps.map((s) => [s.step, s.status]),
     )
     for (const s of ["plan", "work", "review", "qa", "ship", "compound"]) {
       expect(stepMap[s]).toBe("done")
@@ -228,11 +252,19 @@ describe("runLoop — resume past ship", () => {
       ulid: () => "01HRUNCOMPLETE00000000000",
     })
     let compoundCalls = 0
+    // resume past work → pause_qa
     await runLoop(null, {
       stateRoot,
       resume: r1.run.run_id,
       steps: allFakes(),
     })
+    // resume past qa → pause_ship
+    await runLoop(null, {
+      stateRoot,
+      resume: r1.run.run_id,
+      steps: allFakes(),
+    })
+    // resume past ship → compound runs once → complete
     await runLoop(null, {
       stateRoot,
       resume: r1.run.run_id,
@@ -434,10 +466,12 @@ describe("LoopError shape", () => {
   })
 })
 
-it("MANUAL_GATES is exported and holds exactly work + ship", () => {
+it("MANUAL_GATES is exported and holds exactly work + qa + ship", () => {
   expect(STEPS.length).toBe(6)
-  expect(MANUAL_GATES.size).toBe(2)
+  expect(MANUAL_GATES.size).toBe(3)
   expect(MANUAL_GATES.has("work")).toBe(true)
+  expect(MANUAL_GATES.has("qa")).toBe(true)
   expect(MANUAL_GATES.has("ship")).toBe(true)
-  expect(STEPS.filter((s) => !MANUAL_GATES.has(s)).length).toBe(4)
+  // Non-manual (auto) steps: plan, review, compound.
+  expect(STEPS.filter((s) => !MANUAL_GATES.has(s)).length).toBe(3)
 })

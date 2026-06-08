@@ -1,5 +1,45 @@
 # Changelog
 
+## v1.31.0 — 2026-06-08 — QA/ship gate integrity (honest verdicts · loop qa gate)
+
+A second end-to-end dogfood pass — this time over the review → qa → ship →
+loop chain — found a cluster of gate-integrity defects: the QA gate could be
+satisfied by a *failed* QA, and the `loop` orchestrator's own auto-QA produced
+an immutable failing report that then made loop-driven L2/L3 tasks
+unshippable. All fixed, each with regression tests.
+
+### What changed
+
+- **`sgc ship` now gates on the QA *verdict*, not just its existence.** The
+  L2+ ship gate previously checked only that a `qa.browser` report existed —
+  so a `verdict: fail` QA (a real-browser smoke that found console errors, or
+  a stub run with no target) silently satisfied the gate. It now mirrors the
+  code-review fail-gate (Invariant §5): a failed QA blocks ship unless an
+  override with reason ≥40 chars is recorded.
+- **`sgc qa` reflects its verdict in the exit code.** A `verdict: fail` QA now
+  exits 1 (consistent with `review` / `cso` / `doctor`), so `sgc qa <url>
+  --flows … && sgc ship` and CI gating work. `concern` stays exit 0 (advisory,
+  never a rubber stamp).
+- **`sgc loop` pauses at QA.** The orchestrator's auto-QA step ran with no
+  target → always `verdict: fail`, which the (now-fixed) ship gate blocks, and
+  append-only state (Invariant §6) prevented re-running QA with a real target —
+  leaving loop-driven L2/L3 tasks unshippable. `qa` is now a manual gate
+  alongside `work` and `ship`: the loop pauses so the operator runs `sgc qa
+  <url> --flows …` against a real target, then `--resume` reuses that report.
+  Flow is now `plan → [pause work] → review → [pause qa] → [pause ship] →
+  compound`. (Automation scorecard accordingly: 5/9 automated stages, 4 human
+  gates.)
+- **L0 tasks no longer point you at a command that crashes.** L0 is fast-path
+  and writes no `intent.md`, but `sgc work` (all features done) printed
+  "Run `sgc review`" for every level — and `sgc review` hard-required
+  `intent.md`, crashing with a cryptic `intent.md not found`. The completion
+  message is now level-aware, and `sgc review` refuses an L0 task with a clear
+  explanation (review/qa/ship are L2+ gates).
+- **Clearer empty-target QA error.** `sgc qa --target <url>` silently failed
+  ("target_url is empty") because `target` is a positional argument, not a
+  `--target` flag. The error now says so: pass the URL positionally
+  (`sgc qa <url> --flows <a,b>`).
+
 ## v1.30.0 — 2026-06-08 — CLI UX hardening (clean errors · auto-gitignore · ergonomic gates)
 
 End-to-end dogfood pass over the full `sgc` CLI surfaced four real

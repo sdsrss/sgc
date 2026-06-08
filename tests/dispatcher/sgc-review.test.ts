@@ -90,6 +90,14 @@ describe("runReview — full flow", () => {
     await expect(runReview({ stateRoot: tmp, log: () => {} })).rejects.toThrow(/sgc plan/)
   })
 
+  test("L0 task → clear refusal, not cryptic intent.md NotFound", async () => {
+    // L0 is fast-path: plan writes no intent.md. review must refuse with a
+    // human-readable explanation rather than throwing "intent.md not found".
+    await runPlan("fix a typo in the README", { stateRoot: tmp, log: () => {} })
+    await expect(runReview({ stateRoot: tmp, log: () => {} })).rejects.toThrow(/L0 tasks are fast-path/)
+    await expect(runReview({ stateRoot: tmp, log: () => {} })).rejects.not.toThrow(/intent\.md not found/)
+  })
+
   test("clean diff: writes pass report", async () => {
     const plan = await freshTask()
     const r = await runReview({

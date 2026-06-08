@@ -38,6 +38,23 @@ describe("runWork", () => {
     expect(r.active?.id).toBe("f1")
   })
 
+  test("concurrent --add: no lost update (read-modify-write is locked)", async () => {
+    await freshTask()
+    // Fire several --add in parallel. Without the file lock around the
+    // read→append→write, the writes clobber each other and features vanish.
+    const N = 8
+    await Promise.all(
+      Array.from({ length: N }, (_, i) =>
+        runWork({ stateRoot: tmp, add: `parallel feature ${i}`, log: () => {} }),
+      ),
+    )
+    const fl = readFeatureList(tmp)
+    expect(fl?.list.features.length).toBe(1 + N) // f1 + N added, none lost
+    // ids must be unique (no two adds computed the same fN under the race).
+    const ids = new Set(fl?.list.features.map((f) => f.id))
+    expect(ids.size).toBe(1 + N)
+  })
+
   test("--add appends a feature", async () => {
     await freshTask()
     await runWork({ stateRoot: tmp, add: "second feature", log: () => {} })

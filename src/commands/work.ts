@@ -12,12 +12,15 @@
 import {
   readCurrentTask,
   readFeatureList,
+  resolveStateRoot,
   writeCurrentTask,
   writeFeatureList,
   writeRedGreenCapture,
 } from "../dispatcher/state"
 import type { Feature, FeatureList } from "../dispatcher/types"
 import { createLogger, type Logger } from "../dispatcher/logger"
+import { withFileLock } from "../dispatcher/file-lock"
+import { join } from "node:path"
 
 export interface WorkOptions {
   stateRoot?: string
@@ -83,6 +86,19 @@ function printList(log: (m: string) => void, list: FeatureList, activeId: string
 }
 
 export async function runWork(opts: WorkOptions = {}): Promise<WorkResult> {
+  // Serialize the mutating paths (--add / --done): each is a read-modify-write
+  // of feature-list (and current-task), and writeAtomic only makes each
+  // individual write atomic — two concurrent `work --add` both read the same
+  // base list, append one feature each, and the second write clobbers the
+  // first (silent lost update). A read-only `sgc work` (listing) needs no lock.
+  if (opts.add || opts.done) {
+    const root = resolveStateRoot(opts.stateRoot)
+    return withFileLock(join(root, ".work.lock"), () => runWorkUnlocked(opts))
+  }
+  return runWorkUnlocked(opts)
+}
+
+async function runWorkUnlocked(opts: WorkOptions = {}): Promise<WorkResult> {
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log })
   const log = (m: string) => logger.say(m)
   const stateRoot = opts.stateRoot

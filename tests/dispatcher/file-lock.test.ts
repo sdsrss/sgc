@@ -5,7 +5,7 @@ import { describe, expect, it, beforeEach, afterEach } from "bun:test"
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { acquireFileLock, LockHeldError } from "../../src/dispatcher/file-lock"
+import { acquireFileLock, LockHeldError, withFileLock } from "../../src/dispatcher/file-lock"
 
 let dir: string
 let lockPath: string
@@ -37,6 +37,40 @@ describe("acquireFileLock", () => {
     const release2 = acquireFileLock(lockPath)
     expect(existsSync(lockPath)).toBe(true)
     release2()
+  })
+
+  it("withFileLock serializes contending critical sections (no interleave)", async () => {
+    const order: string[] = []
+    // Two tasks each: append "start", await a tick, append "end". Without the
+    // lock the two would interleave (start,start,end,end); with it they run
+    // strictly one-after-another (start,end,start,end).
+    const crit = (tag: string) => async () => {
+      order.push(`${tag}:start`)
+      await new Promise((r) => setTimeout(r, 10))
+      order.push(`${tag}:end`)
+    }
+    await Promise.all([
+      withFileLock(lockPath, crit("A"), { retryDelayMs: 2 }),
+      withFileLock(lockPath, crit("B"), { retryDelayMs: 2 }),
+    ])
+    // Whichever ran first, its start+end are adjacent (no interleave).
+    expect(order.length).toBe(4)
+    expect(order[0]!.endsWith(":start")).toBe(true)
+    expect(order[1]).toBe(`${order[0]!.split(":")[0]}:end`)
+  })
+
+  it("withFileLock always releases (lock file gone after success)", async () => {
+    await withFileLock(lockPath, () => 42, { retryDelayMs: 2 })
+    expect(existsSync(lockPath)).toBe(false)
+  })
+
+  it("withFileLock releases even when fn throws", async () => {
+    await expect(
+      withFileLock(lockPath, () => {
+        throw new Error("boom")
+      }, { retryDelayMs: 2 }),
+    ).rejects.toThrow("boom")
+    expect(existsSync(lockPath)).toBe(false)
   })
 
   it("reclaims a lock whose recorded holder pid is dead", () => {

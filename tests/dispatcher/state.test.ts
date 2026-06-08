@@ -6,6 +6,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -88,6 +89,19 @@ describe("frontmatter round-trip", () => {
   })
   test("parseFrontmatter throws on missing fence", () => {
     expect(() => parseFrontmatter("plain markdown")).toThrow(StateError)
+  })
+  test("parseFrontmatter with source names the file + recovery hint (crash recovery)", () => {
+    // A truncated/partially-written state file must produce an actionable
+    // error, not a context-free "file missing YAML frontmatter".
+    expect(() =>
+      parseFrontmatter("---\nhalf written no close", "/x/.sgc/progress/current-task.md"),
+    ).toThrow(/current-task\.md.*regenerable runtime state/s)
+  })
+  test("readCurrentTask on a corrupt file names the path", () => {
+    const ctPath = join(tmp, "progress", "current-task.md")
+    mkdirSync(join(tmp, "progress"), { recursive: true })
+    writeFileSync(ctPath, "---\ntruncated frontmatter no closing fence")
+    expect(() => readCurrentTask(tmp)).toThrow(/current-task\.md/)
   })
 })
 

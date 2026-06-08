@@ -3723,10 +3723,13 @@ function ensureSgcStructure(stateRoot) {
   ensureDefaultStateGitignored(stateRoot);
   return r3;
 }
-function parseFrontmatter(text) {
+function parseFrontmatter(text, source) {
   const match = FRONTMATTER_RE.exec(text);
-  if (!match)
-    throw new StateError("NoFrontmatter", "file missing YAML frontmatter");
+  if (!match) {
+    const where = source ? `${source}: ` : "";
+    const hint = source ? " — corrupt or partially written; .sgc/ is regenerable runtime state (delete it and re-run, or restore this file)" : "";
+    throw new StateError("NoFrontmatter", `${where}file missing YAML frontmatter${hint}`);
+  }
   const data = load(match[1]) ?? {};
   const body = (match[2] ?? "").replace(/^\n+/, "");
   return { data, body };
@@ -3839,7 +3842,7 @@ function readIntent(taskId, stateRoot) {
   if (!existsSync2(path)) {
     throw new StateError("NotFound", `intent.md not found for ${taskId}`);
   }
-  const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"));
+  const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"), path);
   return { ...data, body };
 }
 function validateShip(ship) {
@@ -3877,7 +3880,7 @@ function readCurrentTask(stateRoot) {
   const path = progressPath("current-task", stateRoot);
   if (!existsSync2(path))
     return null;
-  const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"));
+  const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"), path);
   return { task: data, body };
 }
 function writeFeatureList(list, body = "", stateRoot) {
@@ -3896,7 +3899,7 @@ function readFeatureList(stateRoot) {
   const path = progressPath("feature-list", stateRoot);
   if (!existsSync2(path))
     return null;
-  const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"));
+  const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"), path);
   return { list: data, body };
 }
 function writeHandoff(handoff, body = "", stateRoot) {
@@ -3908,7 +3911,7 @@ function readHandoff(stateRoot) {
   const path = progressPath("handoff", stateRoot);
   if (!existsSync2(path))
     return null;
-  const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"));
+  const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"), path);
   return { handoff: data, body };
 }
 function validateReview(report) {
@@ -13718,6 +13721,28 @@ ${now()}
   }
   throw new LockHeldError(Number.NaN, lockPath);
 }
+async function withFileLock(lockPath, fn, opts = {}) {
+  const retries = opts.retries ?? 50;
+  const retryDelayMs = opts.retryDelayMs ?? 40;
+  let release;
+  for (let attempt = 0;; attempt++) {
+    try {
+      release = acquireFileLock(lockPath, opts);
+      break;
+    } catch (err) {
+      if (err instanceof LockHeldError && attempt < retries) {
+        await new Promise((r3) => setTimeout(r3, retryDelayMs));
+        continue;
+      }
+      throw err;
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
+}
 var LockHeldError, DEFAULT_STALE_MS = 30000;
 var init_file_lock = __esm(() => {
   LockHeldError = class LockHeldError extends Error {
@@ -15594,6 +15619,7 @@ var exports_work = {};
 __export(exports_work, {
   runWork: () => runWork
 });
+import { join as join4 } from "node:path";
 function nowIso2() {
   return new Date().toISOString();
 }
@@ -15626,6 +15652,13 @@ function printList(log, list, activeId) {
   }
 }
 async function runWork(opts = {}) {
+  if (opts.add || opts.done) {
+    const root3 = resolveStateRoot(opts.stateRoot);
+    return withFileLock(join4(root3, ".work.lock"), () => runWorkUnlocked(opts));
+  }
+  return runWorkUnlocked(opts);
+}
+async function runWorkUnlocked(opts = {}) {
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
   const log = (m2) => logger.say(m2);
   const stateRoot = opts.stateRoot;
@@ -15727,6 +15760,7 @@ async function runWork(opts = {}) {
 var init_work = __esm(() => {
   init_state();
   init_logger();
+  init_file_lock();
 });
 
 // src/dispatcher/agents/reviewer-correctness.ts
@@ -16130,7 +16164,7 @@ async function qaBrowser(input, opts = {}) {
 }
 
 // src/dispatcher/agents/playwright-runner.ts
-import { join as join4 } from "node:path";
+import { join as join5 } from "node:path";
 function firstLine(s2) {
   return (s2.split(`
 `).find((l2) => l2.trim().length > 0) ?? "").trim();
@@ -16197,7 +16231,7 @@ function makeBrowseRunner(opts) {
     try {
       for (let i3 = 0;i3 < targets.length; i3++) {
         const t2 = targets[i3];
-        const shot = join4(screenshotDir, `qa-${i3}-${safeLabel(t2.label)}.png`);
+        const shot = join5(screenshotDir, `qa-${i3}-${safeLabel(t2.label)}.png`);
         const r3 = await session.smoke(t2.url, shot);
         if (r3.screenshot)
           evidence_refs.push(r3.screenshot);
@@ -16294,7 +16328,7 @@ __export(exports_qa, {
   runQa: () => runQa
 });
 import { mkdirSync as mkdirSync3 } from "node:fs";
-import { join as join5 } from "node:path";
+import { join as join6 } from "node:path";
 function generateReportId2() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
@@ -16321,7 +16355,7 @@ async function runQa(opts = {}) {
   const optIn = opts.browse === true || process.env["SGC_QA_REAL"] === "1";
   let browseRunner = opts.browseRunner;
   if (!browseRunner && optIn) {
-    const shotDir = join5(stateRoot ?? process.cwd(), "reviews", String(taskId), "qa");
+    const shotDir = join6(stateRoot ?? process.cwd(), "reviews", String(taskId), "qa");
     mkdirSync3(shotDir, { recursive: true });
     browseRunner = makeBrowseRunner({ launch: launchPlaywrightSession, screenshotDir: shotDir });
   }
@@ -17516,7 +17550,7 @@ import {
   writeFileSync as writeFileSync6
 } from "node:fs";
 import { randomBytes as randomBytes2 } from "node:crypto";
-import { dirname as dirname4, join as join6, resolve as resolve13 } from "node:path";
+import { dirname as dirname4, join as join7, resolve as resolve13 } from "node:path";
 function resolveStateRoot2(custom) {
   return resolve13(custom ?? process.env["SGC_STATE_ROOT"] ?? DEFAULT_STATE_DIR2);
 }
@@ -17553,10 +17587,13 @@ function ensureSgcStructure2(stateRoot) {
   ensureDefaultStateGitignored2(stateRoot);
   return r3;
 }
-function parseFrontmatter2(text) {
+function parseFrontmatter2(text, source) {
   const match = FRONTMATTER_RE2.exec(text);
-  if (!match)
-    throw new StateError2("NoFrontmatter", "file missing YAML frontmatter");
+  if (!match) {
+    const where = source ? `${source}: ` : "";
+    const hint = source ? " — corrupt or partially written; .sgc/ is regenerable runtime state (delete it and re-run, or restore this file)" : "";
+    throw new StateError2("NoFrontmatter", `${where}file missing YAML frontmatter${hint}`);
+  }
   const data = load(match[1]) ?? {};
   const body = (match[2] ?? "").replace(/^\n+/, "");
   return { data, body };
@@ -17669,7 +17706,7 @@ function readIntent2(taskId, stateRoot) {
   if (!existsSync16(path2)) {
     throw new StateError2("NotFound", `intent.md not found for ${taskId}`);
   }
-  const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"));
+  const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"), path2);
   return { ...data, body };
 }
 function validateShip2(ship) {
@@ -17700,7 +17737,7 @@ function readShip(taskId, stateRoot) {
   if (!existsSync16(path2)) {
     throw new StateError2("NotFound", `ship.md not found for ${taskId}`);
   }
-  const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"));
+  const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"), path2);
   return { ship: data, body };
 }
 function progressPath2(file, stateRoot) {
@@ -17715,7 +17752,7 @@ function readCurrentTask2(stateRoot) {
   const path2 = progressPath2("current-task", stateRoot);
   if (!existsSync16(path2))
     return null;
-  const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"));
+  const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"), path2);
   return { task: data, body };
 }
 function writeFeatureList2(list, body = "", stateRoot) {
@@ -17724,9 +17761,9 @@ function writeFeatureList2(list, body = "", stateRoot) {
   return path2;
 }
 function writePlanDoc2(slug, dateIso, content, base) {
-  const dir = join6(base ?? process.cwd(), "docs", "superpowers", "plans");
+  const dir = join7(base ?? process.cwd(), "docs", "superpowers", "plans");
   mkdirSync4(dir, { recursive: true });
-  const path2 = join6(dir, `${dateIso}-${slug}.md`);
+  const path2 = join7(dir, `${dateIso}-${slug}.md`);
   writeAtomic2(path2, content);
   return path2;
 }
@@ -17734,7 +17771,7 @@ function readFeatureList2(stateRoot) {
   const path2 = progressPath2("feature-list", stateRoot);
   if (!existsSync16(path2))
     return null;
-  const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"));
+  const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"), path2);
   return { list: data, body };
 }
 function writeHandoff2(handoff, body = "", stateRoot) {
@@ -17746,7 +17783,7 @@ function readHandoff2(stateRoot) {
   const path2 = progressPath2("handoff", stateRoot);
   if (!existsSync16(path2))
     return null;
-  const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"));
+  const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"), path2);
   return { handoff: data, body };
 }
 function validateReview2(report) {
@@ -18984,7 +19021,7 @@ __export(exports_qa2, {
   runQa: () => runQa2
 });
 import { mkdirSync as mkdirSync5 } from "node:fs";
-import { join as join7 } from "node:path";
+import { join as join8 } from "node:path";
 function generateReportId4() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
@@ -19011,7 +19048,7 @@ async function runQa2(opts = {}) {
   const optIn = opts.browse === true || process.env["SGC_QA_REAL"] === "1";
   let browseRunner = opts.browseRunner;
   if (!browseRunner && optIn) {
-    const shotDir = join7(stateRoot2 ?? process.cwd(), "reviews", String(taskId), "qa");
+    const shotDir = join8(stateRoot2 ?? process.cwd(), "reviews", String(taskId), "qa");
     mkdirSync5(shotDir, { recursive: true });
     browseRunner = makeBrowseRunner({ launch: launchPlaywrightSession, screenshotDir: shotDir });
   }
@@ -19335,7 +19372,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.31.3",
+    version: "1.31.4",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -20448,7 +20485,7 @@ var init_watch_ci_failure = __esm(() => {
 // src/dispatcher/canary.ts
 import { mkdir as mkdir7, mkdtemp, rm, stat as stat3, writeFile as writeFile4 } from "node:fs/promises";
 import { tmpdir as osTmpdir } from "node:os";
-import { join as join8, resolve as resolve21 } from "node:path";
+import { join as join9, resolve as resolve21 } from "node:path";
 function clamp3(n2, lo, hi) {
   return Math.max(lo, Math.min(hi, n2));
 }
@@ -20481,7 +20518,7 @@ function deriveBinName(pkg) {
   return pkg;
 }
 async function defaultNpxSmoke(pkg, ver, bin) {
-  const dir = await mkdtemp(join8(osTmpdir(), "sgc-canary-smoke-"));
+  const dir = await mkdtemp(join9(osTmpdir(), "sgc-canary-smoke-"));
   try {
     const {
       stdout: installStdout,
@@ -20775,7 +20812,7 @@ var init_canary2 = __esm(() => {
 // src/dispatcher/handoff.ts
 import { existsSync as existsSync21 } from "node:fs";
 import * as fs from "node:fs/promises";
-import { join as join9 } from "node:path";
+import { join as join10 } from "node:path";
 import { spawn as nodeSpawn3 } from "node:child_process";
 function kebabize(s2) {
   return s2.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -20786,7 +20823,7 @@ function timestampFallback(now) {
 }
 async function deriveSlug(stateRoot2, now) {
   const dateStr = now.toISOString().slice(0, 10);
-  const decisionsDir = join9(stateRoot2, "decisions");
+  const decisionsDir = join10(stateRoot2, "decisions");
   if (!existsSync21(decisionsDir))
     return timestampFallback(now);
   const entries = await fs.readdir(decisionsDir, { withFileTypes: true });
@@ -20794,7 +20831,7 @@ async function deriveSlug(stateRoot2, now) {
   for (const e2 of entries) {
     if (!e2.isDirectory())
       continue;
-    const intentPath3 = join9(decisionsDir, e2.name, "intent.md");
+    const intentPath3 = join10(decisionsDir, e2.name, "intent.md");
     try {
       const stat5 = await fs.stat(intentPath3);
       intents.push({ path: intentPath3, mtime: stat5.mtimeMs, id: e2.name });
@@ -20850,7 +20887,7 @@ function inferVerifyCommand(snapshot) {
   };
 }
 async function gatherActiveIntent(stateRoot2) {
-  const decisionsDir = join9(stateRoot2, "decisions");
+  const decisionsDir = join10(stateRoot2, "decisions");
   if (!existsSync21(decisionsDir))
     return;
   try {
@@ -20859,7 +20896,7 @@ async function gatherActiveIntent(stateRoot2) {
     for (const e2 of entries) {
       if (!e2.isDirectory())
         continue;
-      const p = join9(decisionsDir, e2.name, "intent.md");
+      const p = join10(decisionsDir, e2.name, "intent.md");
       try {
         const stat5 = await fs.stat(p);
         refs.push({ path: p, mtime: stat5.mtimeMs, id: e2.name });
@@ -20924,7 +20961,7 @@ async function scanCaptureDir(dir, kind, seedField) {
         continue;
       const slug = name.slice(0, -3);
       try {
-        const text = await fs.readFile(join9(dir, name), "utf-8");
+        const text = await fs.readFile(join10(dir, name), "utf-8");
         const fm = parseFrontmatter(text).data;
         if (typeof fm.promoted_to === "string" && fm.promoted_to.length > 0)
           continue;
@@ -20940,13 +20977,13 @@ async function scanCaptureDir(dir, kind, seedField) {
 }
 async function gatherUnpromotedCaptures(stateRoot2) {
   const [ships, canaries] = await Promise.all([
-    scanCaptureDir(join9(stateRoot2, "ship-failures"), "ship-failure", "prevention_seed"),
-    scanCaptureDir(join9(stateRoot2, "canaries"), "canary", "regression_seed")
+    scanCaptureDir(join10(stateRoot2, "ship-failures"), "ship-failure", "prevention_seed"),
+    scanCaptureDir(join10(stateRoot2, "canaries"), "canary", "regression_seed")
   ]);
   return [...ships, ...canaries];
 }
 async function gatherUnclosedSpawns(stateRoot2, tailLines) {
-  const eventsPath2 = join9(stateRoot2, "progress", "events.ndjson");
+  const eventsPath2 = join10(stateRoot2, "progress", "events.ndjson");
   if (!existsSync21(eventsPath2))
     return [];
   try {
@@ -21180,10 +21217,10 @@ function renderHandoffMarkdown(snap) {
 `);
 }
 async function writeHandoffMarkdown(repoRoot2, slug, content) {
-  const tasksDir = join9(repoRoot2, "tasks");
+  const tasksDir = join10(repoRoot2, "tasks");
   await fs.mkdir(tasksDir, { recursive: true });
-  const target = join9(tasksDir, `${slug}-paused.md`);
-  const tmp = join9(tasksDir, `.${slug}-paused.md.tmp.${process.pid}.${Date.now()}`);
+  const target = join10(tasksDir, `${slug}-paused.md`);
+  const tmp = join10(tasksDir, `.${slug}-paused.md.tmp.${process.pid}.${Date.now()}`);
   await fs.writeFile(tmp, content, "utf-8");
   await fs.rename(tmp, target);
   return target;
@@ -21202,14 +21239,14 @@ __export(exports_handoff, {
 });
 import { existsSync as existsSync22 } from "node:fs";
 import * as fs2 from "node:fs/promises";
-import { join as join10 } from "node:path";
+import { join as join11 } from "node:path";
 async function runHandoff(opts) {
   const repoRoot2 = opts.repoRoot ?? process.cwd();
-  const stateRoot2 = opts.stateRoot ?? join10(repoRoot2, ".sgc");
+  const stateRoot2 = opts.stateRoot ?? join11(repoRoot2, ".sgc");
   const stdout2 = opts.stdoutWrite ?? ((s2) => process.stdout.write(s2));
   const stderr = opts.stderrWrite ?? ((s2) => process.stderr.write(s2));
   if (typeof opts.print === "string" && opts.print.length > 0) {
-    const target = join10(repoRoot2, "tasks", `${opts.print}-paused.md`);
+    const target = join11(repoRoot2, "tasks", `${opts.print}-paused.md`);
     if (!existsSync22(target)) {
       stderr(`no paused.md for slug ${opts.print}
 `);
@@ -23427,7 +23464,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.31.3",
+  version: "1.31.4",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {

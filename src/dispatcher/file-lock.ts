@@ -112,3 +112,38 @@ export function acquireFileLock(lockPath: string, opts: FileLockOptions = {}): (
   }
   throw new LockHeldError(Number.NaN, lockPath)
 }
+
+/**
+ * Acquire `lockPath`, run `fn`, then always release. Unlike a bare
+ * acquireFileLock (fail-fast), this WAITS on live contention with bounded
+ * retry, so a read-modify-write critical section serializes instead of the
+ * loser silently overwriting the winner. Non-contention errors propagate
+ * immediately. Default budget: 50 × 40ms = 2s before giving up (then the
+ * LockHeldError throws).
+ */
+export async function withFileLock<T>(
+  lockPath: string,
+  fn: () => T | Promise<T>,
+  opts: FileLockOptions & { retries?: number; retryDelayMs?: number } = {},
+): Promise<T> {
+  const retries = opts.retries ?? 50
+  const retryDelayMs = opts.retryDelayMs ?? 40
+  let release: (() => void) | undefined
+  for (let attempt = 0; ; attempt++) {
+    try {
+      release = acquireFileLock(lockPath, opts)
+      break
+    } catch (err) {
+      if (err instanceof LockHeldError && attempt < retries) {
+        await new Promise((r) => setTimeout(r, retryDelayMs))
+        continue
+      }
+      throw err
+    }
+  }
+  try {
+    return await fn()
+  } finally {
+    release()
+  }
+}

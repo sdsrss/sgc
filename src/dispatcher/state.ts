@@ -138,9 +138,19 @@ const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/
 
 export function parseFrontmatter<T = Record<string, unknown>>(
   text: string,
+  source?: string,
 ): FrontmatterFile<T> {
   const match = FRONTMATTER_RE.exec(text)
-  if (!match) throw new StateError("NoFrontmatter", "file missing YAML frontmatter")
+  if (!match) {
+    // A truncated / partially-written / hand-corrupted state file lands here.
+    // When the caller passes its path, name it and point at recovery — `.sgc/`
+    // is regenerable runtime state, so the fix is usually "delete and re-run".
+    const where = source ? `${source}: ` : ""
+    const hint = source
+      ? " — corrupt or partially written; .sgc/ is regenerable runtime state (delete it and re-run, or restore this file)"
+      : ""
+    throw new StateError("NoFrontmatter", `${where}file missing YAML frontmatter${hint}`)
+  }
   const data = (yamlLoad(match[1]!) ?? {}) as T
   // Strip leading blank lines that the serializer adds for visual spacing,
   // so round-trip preserves the original body.
@@ -345,7 +355,7 @@ export function readIntent(taskId: TaskId, stateRoot?: string): IntentDoc {
   if (!existsSync(path)) {
     throw new StateError("NotFound", `intent.md not found for ${taskId}`)
   }
-  const { data, body } = parseFrontmatter<IntentDoc>(readFileSync(path, "utf8"))
+  const { data, body } = parseFrontmatter<IntentDoc>(readFileSync(path, "utf8"), path)
   return { ...data, body }
 }
 
@@ -394,7 +404,7 @@ export function readShip(taskId: TaskId, stateRoot?: string): { ship: ShipDoc; b
   if (!existsSync(path)) {
     throw new StateError("NotFound", `ship.md not found for ${taskId}`)
   }
-  const { data, body } = parseFrontmatter<ShipDoc>(readFileSync(path, "utf8"))
+  const { data, body } = parseFrontmatter<ShipDoc>(readFileSync(path, "utf8"), path)
   return { ship: data, body }
 }
 
@@ -415,7 +425,7 @@ export function writeCurrentTask(task: CurrentTask, body = "", stateRoot?: strin
 export function readCurrentTask(stateRoot?: string): { task: CurrentTask; body: string } | null {
   const path = progressPath("current-task", stateRoot)
   if (!existsSync(path)) return null
-  const { data, body } = parseFrontmatter<CurrentTask>(readFileSync(path, "utf8"))
+  const { data, body } = parseFrontmatter<CurrentTask>(readFileSync(path, "utf8"), path)
   return { task: data, body }
 }
 
@@ -447,7 +457,7 @@ export function writePlanDoc(
 export function readFeatureList(stateRoot?: string): { list: FeatureList; body: string } | null {
   const path = progressPath("feature-list", stateRoot)
   if (!existsSync(path)) return null
-  const { data, body } = parseFrontmatter<FeatureList>(readFileSync(path, "utf8"))
+  const { data, body } = parseFrontmatter<FeatureList>(readFileSync(path, "utf8"), path)
   return { list: data, body }
 }
 
@@ -460,7 +470,7 @@ export function writeHandoff(handoff: Handoff, body = "", stateRoot?: string): s
 export function readHandoff(stateRoot?: string): { handoff: Handoff; body: string } | null {
   const path = progressPath("handoff", stateRoot)
   if (!existsSync(path)) return null
-  const { data, body } = parseFrontmatter<Handoff>(readFileSync(path, "utf8"))
+  const { data, body } = parseFrontmatter<Handoff>(readFileSync(path, "utf8"), path)
   return { handoff: data, body }
 }
 

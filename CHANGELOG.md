@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.31.4 — 2026-06-08 — state-layer hardening (concurrent-write lock · clearer corrupt-file errors)
+
+A sixth dogfood pass stress-tested the `.sgc/` state layer's concurrency and
+crash recovery. Two real defects fixed; the rest (the file lock primitive,
+`writeAtomic`, every directory walk) verified robust.
+
+### What changed
+
+- **Concurrent `sgc work --add` / `--done` no longer silently loses features.**
+  Each mutating path is a read-modify-write of the feature list, and while
+  `writeAtomic` makes each individual write atomic, the surrounding
+  read→append→write is not: firing several `sgc work --add` in parallel left
+  only the last writer's feature (the others' appends were clobbered). The
+  mutating paths now serialize through a `withFileLock` around the critical
+  section (bounded-retry wait, always released); read-only listing stays
+  lock-free. Eight parallel adds now all survive.
+- **A corrupt or partially-written state file now names itself and the fix.** A
+  truncated `.sgc/progress/current-task.md` (or intent/ship/feature-list/handoff)
+  threw a context-free `file missing YAML frontmatter`. The error now includes
+  the file path and a recovery hint — `.sgc/` is regenerable runtime state, so
+  the fix is usually "delete it and re-run, or restore the file".
+
 ## v1.31.3 — 2026-06-08 — loop adopts an active task (discover→plan→loop no longer dead-ends)
 
 A fifth dogfood pass walked the full `discover → plan → loop` chain and found a

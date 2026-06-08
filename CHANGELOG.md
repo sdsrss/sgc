@@ -1,5 +1,42 @@
 # Changelog
 
+## v1.29.2 — 2026-06-08 — audit fixes: test determinism, doc honesty, output lint
+
+Fix-dominant release from the v1.29.1 comprehensive audit
+(`docs/COMPREHENSIVE-AUDIT-v1.29.1.md`). No breaking changes.
+
+### What changed
+
+- **P0 — `SGC_FORCE_INLINE` now governs the eval LLM gate.** The
+  `tests/eval/*-llm.test.ts` skip gate keyed only on API-key presence, so a
+  plain `bun test` routed to a live model whenever a key was exported in the
+  dev shell — slow, flaky on model drift, and billable; the documented
+  determinism switch did not protect it. New `eval-helpers.hasLiveLlmKey()`
+  honors `SGC_FORCE_INLINE` / `SGC_USE_FILE_AGENTS`; 9 `*-llm.test.ts` gate
+  through it. Repro: `SGC_FORCE_INLINE=1` clarifier eval went 1 fail / 71.8 s
+  → 4 skip / 66 ms.
+- **P1 — refreshed stale LLM-visible metadata.** `plugins/sgc/CLAUDE.md`'s
+  status header had drifted to v1.20.0 and falsely claimed the L2 reviewer
+  cluster was "not yet wired" (it has been wired since Phase 2c — `review.ts`
+  runs correctness + tests + maintainability + diff-conditional specialists at
+  L2+). Header refreshed, command count corrected 19 → 20, honest depth note
+  added. New `sgc doctor` check **(L) `statusHeaderFreshness`** warns when the
+  header trails `package.json`, preventing recurrence.
+- **P1 — honest reviewer-cluster annotation.** `sgc-capabilities.yaml` now
+  documents that the derived reviewers (`prompt_path: null`) are heuristic /
+  keyword matchers, not LLM-backed; `status: implemented` means
+  functional-and-wired. `prompt_path` truthiness stays the LLM-backed signal.
+- **P2 — post-spawn banned-vocab lint.** `detectBannedVocab()` + a
+  **non-blocking** `output.banned_vocab` warn event surface vacuous hedge
+  vocabulary an LLM emitted against its prompt guardrail. It never rejects — a
+  false positive must not break a valid plan/review.
+
+### Validation
+
+- 1208 pass / 38 skip / 0 fail (100 files); `tsc` clean; `sgc doctor` 64 OK
+  source / 32 OK bundle / 0 fail; bundle parity green. Bundle rebuilt
+  (`npm run build:cli`) for the version bump.
+
 ## v1.29.1 — 2026-06-04 — remove the legacy vendored browse tree
 
 Cleanup, no functional change. The vendored gstack `browse/` source (now

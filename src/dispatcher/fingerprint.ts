@@ -103,6 +103,18 @@ export function clearFingerprintCache(): void {
   fpCache.clear()
 }
 
+/**
+ * Drop the cached fingerprints for a single stateRoot. A targeted alternative
+ * to clearFingerprintCache() for embedders that host multiple stateRoots in
+ * one long-running process and want to invalidate just the one they wrote to
+ * (P2-7 audit). `writeSolution` itself uses the broad clearFingerprintCache()
+ * — solution writes are rare (compound only) so rebuilding the small cache is
+ * cheap and avoids any stateRoot key-resolution mismatch.
+ */
+export function invalidateFingerprintCache(stateRoot: string): void {
+  fpCache.delete(resolve(stateRoot))
+}
+
 function isReviewerOrQaAgent(name: string): boolean {
   return name.startsWith("reviewer.") || name.startsWith("qa.")
 }

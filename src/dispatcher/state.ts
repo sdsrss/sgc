@@ -34,6 +34,7 @@ import { randomBytes } from "node:crypto"
 import { dirname, join, resolve } from "node:path"
 import { dump as yamlDump, load as yamlLoad } from "js-yaml"
 import { PLAN_VERDICTS } from "./types"
+import { clearFingerprintCache } from "./fingerprint"
 import type {
   CurrentTask,
   DedupStamp,
@@ -697,6 +698,11 @@ export function writeSolution(
     path,
     serializeFrontmatter(fm as unknown as Record<string, unknown>, finalBody),
   )
+  // P2-7: the solutions corpus just changed; drop the leak-check fingerprint
+  // cache so a same-process review (embedded use) rebuilds from disk rather
+  // than leak-checking against a stale snapshot. No-op in the CLI (one process
+  // per command).
+  clearFingerprintCache()
   return { path, entry: finalEntry }
 }
 

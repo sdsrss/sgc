@@ -3556,25 +3556,144 @@ var init_types = __esm(() => {
   PLAN_VERDICTS = ["approve", "revise", "reject"];
 });
 
+// src/dispatcher/fingerprint.ts
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { join, resolve as resolve2 } from "node:path";
+import { createHash as createHash2 } from "node:crypto";
+function isFingerprintable(line) {
+  const trimmed = line.trim();
+  if (trimmed.length < MIN_LINE_LEN)
+    return false;
+  const c3 = trimmed[0];
+  if (c3 === "#" || c3 === "-" || c3 === "*" || c3 === ">" || c3 === "|" || c3 === "`")
+    return false;
+  if (trimmed === "---" || trimmed === "...")
+    return false;
+  return true;
+}
+function hashLine(line) {
+  const norm = line.trim().toLowerCase().replace(/\s+/g, " ");
+  return createHash2("sha256").update(norm).digest("hex").slice(0, HASH_LEN);
+}
+function safeReaddir(dir) {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
+}
+function isDir(path) {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+function safeReadFile(path) {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return null;
+  }
+}
+function loadSolutionsFingerprints(stateRoot) {
+  const dir = resolve2(stateRoot, "solutions");
+  const set2 = new Set;
+  if (!existsSync(dir))
+    return set2;
+  for (const cat of safeReaddir(dir)) {
+    const catPath = join(dir, cat);
+    if (!isDir(catPath))
+      continue;
+    for (const file of safeReaddir(catPath)) {
+      if (!file.endsWith(".md"))
+        continue;
+      const text = safeReadFile(join(catPath, file));
+      if (!text)
+        continue;
+      for (const line of text.split(`
+`)) {
+        if (!isFingerprintable(line))
+          continue;
+        set2.add(hashLine(line));
+      }
+    }
+  }
+  return set2;
+}
+function getFingerprintsCached(stateRoot) {
+  const key = resolve2(stateRoot);
+  let v2 = fpCache.get(key);
+  if (!v2) {
+    v2 = loadSolutionsFingerprints(key);
+    fpCache.set(key, v2);
+  }
+  return v2;
+}
+function clearFingerprintCache() {
+  fpCache.clear();
+}
+function isReviewerOrQaAgent(name) {
+  return name.startsWith("reviewer.") || name.startsWith("qa.");
+}
+function scanOutputForLeak(agentName, output, fingerprints) {
+  if (!isReviewerOrQaAgent(agentName) || fingerprints.size === 0) {
+    return { hit: false, samples: [], count: 0 };
+  }
+  const samples = [];
+  let count = 0;
+  const seen = new Set;
+  function walk(v2) {
+    if (typeof v2 === "string") {
+      for (const line of v2.split(`
+`)) {
+        if (!isFingerprintable(line))
+          continue;
+        const h2 = hashLine(line);
+        if (fingerprints.has(h2) && !seen.has(h2)) {
+          seen.add(h2);
+          count++;
+          if (samples.length < 3) {
+            const trimmed = line.trim();
+            samples.push(trimmed.length > 100 ? trimmed.slice(0, 97) + "..." : trimmed);
+          }
+        }
+      }
+    } else if (Array.isArray(v2)) {
+      for (const item of v2)
+        walk(item);
+    } else if (v2 && typeof v2 === "object") {
+      for (const val of Object.values(v2))
+        walk(val);
+    }
+  }
+  walk(output);
+  return { hit: count > 0, samples, count };
+}
+var MIN_LINE_LEN = 25, HASH_LEN = 16, fpCache;
+var init_fingerprint = __esm(() => {
+  fpCache = new Map;
+});
+
 // src/dispatcher/state.ts
 import {
-  existsSync,
+  existsSync as existsSync2,
   mkdirSync as mkdirSync2,
-  readFileSync,
-  readdirSync,
+  readFileSync as readFileSync2,
+  readdirSync as readdirSync2,
   renameSync,
   unlinkSync,
   writeFileSync
 } from "node:fs";
 import { randomBytes } from "node:crypto";
-import { dirname as dirname2, join, resolve as resolve2 } from "node:path";
+import { dirname as dirname2, join as join2, resolve as resolve3 } from "node:path";
 function resolveStateRoot(custom) {
-  return resolve2(custom ?? process.env["SGC_STATE_ROOT"] ?? DEFAULT_STATE_DIR);
+  return resolve3(custom ?? process.env["SGC_STATE_ROOT"] ?? DEFAULT_STATE_DIR);
 }
 function ensureSgcStructure(stateRoot) {
   const r3 = root(stateRoot);
   for (const layer of LAYERS) {
-    mkdirSync2(resolve2(r3, layer), { recursive: true });
+    mkdirSync2(resolve3(r3, layer), { recursive: true });
   }
   return r3;
 }
@@ -3613,12 +3732,12 @@ function redGreenSlug(title, taskId) {
   return `${base}-${taskId.slice(0, 8).toLowerCase()}`;
 }
 function writeRedGreenCapture(fm, stateRoot) {
-  const dir = resolve2(root(stateRoot), "red-green");
+  const dir = resolve3(root(stateRoot), "red-green");
   mkdirSync2(dir, { recursive: true });
   const baseSlug = redGreenSlug(fm.title, fm.task_id);
   let slug = baseSlug;
   let n2 = 1;
-  while (existsSync(resolve2(dir, `${slug}.md`))) {
+  while (existsSync2(resolve3(dir, `${slug}.md`))) {
     n2 += 1;
     slug = `${baseSlug}-${n2}`;
     if (n2 > 50)
@@ -3644,7 +3763,7 @@ function writeRedGreenCapture(fm, stateRoot) {
 
 Fill \`prevention_seed:\` with the ` + `reusable safeguard, then run \`sgc compound --from-red-green ${slug}\`.
 `;
-  writeAtomic(resolve2(dir, `${slug}.md`), serializeFrontmatter(data, body));
+  writeAtomic(resolve3(dir, `${slug}.md`), serializeFrontmatter(data, body));
   return slug;
 }
 function wordCount(text) {
@@ -3677,11 +3796,11 @@ function validateIntent(intent) {
   }
 }
 function intentPath(taskId, stateRoot) {
-  return resolve2(root(stateRoot), "decisions", taskId, "intent.md");
+  return resolve3(root(stateRoot), "decisions", taskId, "intent.md");
 }
 function writeIntent(intent, stateRoot) {
   const path = intentPath(intent.task_id, stateRoot);
-  if (existsSync(path)) {
+  if (existsSync2(path)) {
     throw new StateError("IntentImmutable", `intent.md exists for ${intent.task_id} — Invariant §2 (immutable)`);
   }
   validateIntent(intent);
@@ -3691,10 +3810,10 @@ function writeIntent(intent, stateRoot) {
 }
 function readIntent(taskId, stateRoot) {
   const path = intentPath(taskId, stateRoot);
-  if (!existsSync(path)) {
+  if (!existsSync2(path)) {
     throw new StateError("NotFound", `intent.md not found for ${taskId}`);
   }
-  const { data, body } = parseFrontmatter(readFileSync(path, "utf8"));
+  const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"));
   return { ...data, body };
 }
 function validateShip(ship) {
@@ -3709,11 +3828,11 @@ function validateShip(ship) {
   }
 }
 function shipPath(taskId, stateRoot) {
-  return resolve2(root(stateRoot), "decisions", taskId, "ship.md");
+  return resolve3(root(stateRoot), "decisions", taskId, "ship.md");
 }
 function writeShip(ship, body = "", stateRoot) {
   const path = shipPath(ship.task_id, stateRoot);
-  if (existsSync(path)) {
+  if (existsSync2(path)) {
     throw new StateError("ShipImmutable", `ship.md exists for ${ship.task_id}`);
   }
   validateShip(ship);
@@ -3721,7 +3840,7 @@ function writeShip(ship, body = "", stateRoot) {
   return path;
 }
 function progressPath(file, stateRoot) {
-  return resolve2(root(stateRoot), "progress", `${file}.md`);
+  return resolve3(root(stateRoot), "progress", `${file}.md`);
 }
 function writeCurrentTask(task, body = "", stateRoot) {
   const path = progressPath("current-task", stateRoot);
@@ -3730,9 +3849,9 @@ function writeCurrentTask(task, body = "", stateRoot) {
 }
 function readCurrentTask(stateRoot) {
   const path = progressPath("current-task", stateRoot);
-  if (!existsSync(path))
+  if (!existsSync2(path))
     return null;
-  const { data, body } = parseFrontmatter(readFileSync(path, "utf8"));
+  const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"));
   return { task: data, body };
 }
 function writeFeatureList(list, body = "", stateRoot) {
@@ -3741,17 +3860,17 @@ function writeFeatureList(list, body = "", stateRoot) {
   return path;
 }
 function writePlanDoc(slug, dateIso, content, base) {
-  const dir = join(base ?? process.cwd(), "docs", "superpowers", "plans");
+  const dir = join2(base ?? process.cwd(), "docs", "superpowers", "plans");
   mkdirSync2(dir, { recursive: true });
-  const path = join(dir, `${dateIso}-${slug}.md`);
+  const path = join2(dir, `${dateIso}-${slug}.md`);
   writeAtomic(path, content);
   return path;
 }
 function readFeatureList(stateRoot) {
   const path = progressPath("feature-list", stateRoot);
-  if (!existsSync(path))
+  if (!existsSync2(path))
     return null;
-  const { data, body } = parseFrontmatter(readFileSync(path, "utf8"));
+  const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"));
   return { list: data, body };
 }
 function writeHandoff(handoff, body = "", stateRoot) {
@@ -3761,9 +3880,9 @@ function writeHandoff(handoff, body = "", stateRoot) {
 }
 function readHandoff(stateRoot) {
   const path = progressPath("handoff", stateRoot);
-  if (!existsSync(path))
+  if (!existsSync2(path))
     return null;
-  const { data, body } = parseFrontmatter(readFileSync(path, "utf8"));
+  const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"));
   return { handoff: data, body };
 }
 function validateReview(report) {
@@ -3782,14 +3901,14 @@ function validateReview(report) {
 }
 function reviewPath(taskId, stage, reviewerId, stateRoot, suffix) {
   const base = suffix ? `${reviewerId}.${suffix}.md` : `${reviewerId}.md`;
-  return resolve2(root(stateRoot), "reviews", taskId, stage, base);
+  return resolve3(root(stateRoot), "reviews", taskId, stage, base);
 }
 function appendReview(report, body = "", stateRoot, suffix) {
   if (suffix !== undefined && !REVIEW_SUFFIX_RE.test(suffix)) {
     throw new StateError("SchemaViolation", `invalid review suffix ${JSON.stringify(suffix)} — must match ${REVIEW_SUFFIX_RE.source}`);
   }
   const path = reviewPath(report.task_id, report.stage, report.reviewer_id, stateRoot, suffix);
-  if (existsSync(path)) {
+  if (existsSync2(path)) {
     const ref = suffix ? `${report.reviewer_id}.${suffix}` : report.reviewer_id;
     throw new StateError("AppendOnly", `review ${ref} already exists for ${report.task_id}/${report.stage} — append-only per Invariant §6`);
   }
@@ -3798,11 +3917,11 @@ function appendReview(report, body = "", stateRoot, suffix) {
   return path;
 }
 function hasQaEvidence(taskId, stateRoot) {
-  const qaDir = resolve2(root(stateRoot), "reviews", taskId, "qa");
-  if (!existsSync(qaDir))
+  const qaDir = resolve3(root(stateRoot), "reviews", taskId, "qa");
+  if (!existsSync2(qaDir))
     return false;
   try {
-    return readdirSync(qaDir).some((f3) => f3.endsWith(".md"));
+    return readdirSync2(qaDir).some((f3) => f3.endsWith(".md"));
   } catch {
     return false;
   }
@@ -3828,7 +3947,7 @@ function validateSolution(entry) {
   }
 }
 function solutionPath(category, slug, stateRoot) {
-  return resolve2(root(stateRoot), "solutions", category, `${slug}.md`);
+  return resolve3(root(stateRoot), "solutions", category, `${slug}.md`);
 }
 function validateDedupStamp(stamp) {
   if (!stamp || typeof stamp !== "object") {
@@ -3855,8 +3974,8 @@ function writeSolution(entry, slug, dedupStamp, body = "", stateRoot) {
   const path = solutionPath(entry.category, slug, stateRoot);
   let finalEntry = entry;
   let finalBody = body;
-  if (existsSync(path)) {
-    const existing = parseFrontmatter(readFileSync(path, "utf8"));
+  if (existsSync2(path)) {
+    const existing = parseFrontmatter(readFileSync2(path, "utf8"));
     const mergedTasks = Array.from(new Set([...existing.data.source_task_ids ?? [], ...entry.source_task_ids]));
     const mergedWdw = [
       ...existing.data.what_didnt_work ?? [],
@@ -3873,33 +3992,34 @@ function writeSolution(entry, slug, dedupStamp, body = "", stateRoot) {
   }
   const { body: _bodyField, ...fm } = finalEntry;
   writeAtomic(path, serializeFrontmatter(fm, finalBody));
+  clearFingerprintCache();
   return { path, entry: finalEntry };
 }
 function listSolutions(stateRoot) {
-  const dir = resolve2(root(stateRoot), "solutions");
-  if (!existsSync(dir))
+  const dir = resolve3(root(stateRoot), "solutions");
+  if (!existsSync2(dir))
     return [];
   const out = [];
   let categories;
   try {
-    categories = readdirSync(dir, { withFileTypes: true }).filter((e2) => e2.isDirectory()).map((e2) => e2.name);
+    categories = readdirSync2(dir, { withFileTypes: true }).filter((e2) => e2.isDirectory()).map((e2) => e2.name);
   } catch {
     return [];
   }
   for (const cat of categories) {
     if (!SOLUTION_CATEGORIES.has(cat))
       continue;
-    const catDir = resolve2(dir, cat);
+    const catDir = resolve3(dir, cat);
     let files;
     try {
-      files = readdirSync(catDir).filter((f3) => f3.endsWith(".md"));
+      files = readdirSync2(catDir).filter((f3) => f3.endsWith(".md"));
     } catch {
       continue;
     }
     for (const f3 of files) {
-      const fpath = resolve2(catDir, f3);
+      const fpath = resolve3(catDir, f3);
       try {
-        const { data, body } = parseFrontmatter(readFileSync(fpath, "utf8"));
+        const { data, body } = parseFrontmatter(readFileSync2(fpath, "utf8"));
         out.push({
           category: cat,
           slug: f3.replace(/\.md$/, ""),
@@ -3921,11 +4041,11 @@ function validateJanitorDecision(d2) {
   }
 }
 function janitorDecisionPath(taskId, stateRoot) {
-  return resolve2(root(stateRoot), "reviews", taskId, "janitor", "compound-decision.md");
+  return resolve3(root(stateRoot), "reviews", taskId, "janitor", "compound-decision.md");
 }
 function writeJanitorDecision(decision, body = "", stateRoot) {
   const path = janitorDecisionPath(decision.task_id, stateRoot);
-  if (existsSync(path)) {
+  if (existsSync2(path)) {
     throw new StateError("AppendOnly", `janitor decision already written for ${decision.task_id} (Invariant §6)`);
   }
   validateJanitorDecision(decision);
@@ -3933,19 +4053,19 @@ function writeJanitorDecision(decision, body = "", stateRoot) {
   return path;
 }
 function listReviewsForStage(taskId, stage, stateRoot) {
-  const dir = resolve2(root(stateRoot), "reviews", taskId, stage);
-  if (!existsSync(dir))
+  const dir = resolve3(root(stateRoot), "reviews", taskId, stage);
+  if (!existsSync2(dir))
     return [];
   let files;
   try {
-    files = readdirSync(dir).filter((f3) => f3.endsWith(".md"));
+    files = readdirSync2(dir).filter((f3) => f3.endsWith(".md"));
   } catch {
     return [];
   }
   const reports = [];
   for (const f3 of files) {
     try {
-      const text = readFileSync(resolve2(dir, f3), "utf8");
+      const text = readFileSync2(resolve3(dir, f3), "utf8");
       const { data } = parseFrontmatter(text);
       reports.push(data);
     } catch {}
@@ -3956,6 +4076,7 @@ var StateError, DEFAULT_STATE_DIR = ".sgc", root, LAYERS, FRONTMATTER_RE, atomic
 var init_state = __esm(() => {
   init_js_yaml();
   init_types();
+  init_fingerprint();
   StateError = class StateError extends Error {
     code;
     constructor(code, message) {
@@ -4233,11 +4354,11 @@ var init_validation = __esm(() => {
 });
 
 // src/dispatcher/agents/researcher-history.ts
-import { existsSync as existsSync2 } from "node:fs";
+import { existsSync as existsSync3 } from "node:fs";
 import { readFile, readdir, stat } from "node:fs/promises";
-import { resolve as resolve3 } from "node:path";
+import { resolve as resolve4 } from "node:path";
 async function walkSolutionsCorpus(stateRoot, keywords) {
-  const dir = resolve3(stateRoot, "solutions");
+  const dir = resolve4(stateRoot, "solutions");
   if (keywords.length === 0)
     return [];
   let categories;
@@ -4249,7 +4370,7 @@ async function walkSolutionsCorpus(stateRoot, keywords) {
   }
   const out = [];
   for (const cat of categories) {
-    const catPath = resolve3(dir, cat);
+    const catPath = resolve4(dir, cat);
     let files;
     try {
       const entries = await readdir(catPath, { withFileTypes: true });
@@ -4258,7 +4379,7 @@ async function walkSolutionsCorpus(stateRoot, keywords) {
       continue;
     }
     for (const file of files) {
-      const filePath = resolve3(catPath, file);
+      const filePath = resolve4(catPath, file);
       let raw;
       try {
         const st = await stat(filePath);
@@ -4333,7 +4454,7 @@ async function researcherHistoryHeuristic(input, opts = {}) {
   if (keywords.length === 0) {
     warnings.push("intent_draft produced no keywords (too short or stopwords only); no scan performed");
   }
-  if (prior_art.length === 0 && keywords.length > 0 && existsSync2(resolve3(stateRoot, "solutions"))) {
+  if (prior_art.length === 0 && keywords.length > 0 && existsSync3(resolve4(stateRoot, "solutions"))) {
     warnings.push("no relevant prior solutions found in .sgc/solutions/");
   }
   return { prior_art, warnings };
@@ -4416,9 +4537,9 @@ __export(exports_debug, {
   deriveInvestigationId: () => deriveInvestigationId,
   defaultHeuristic: () => defaultHeuristic
 });
-import { existsSync as existsSync3 } from "node:fs";
+import { existsSync as existsSync4 } from "node:fs";
 import { readFile as readFile2, readdir as readdir2, writeFile, rename, mkdir } from "node:fs/promises";
-import { join as join2 } from "node:path";
+import { join as join3 } from "node:path";
 import { spawnSync } from "node:child_process";
 function deriveInvestigationId(symptom, now) {
   const yyyy = now.getUTCFullYear().toString().padStart(4, "0");
@@ -4434,7 +4555,7 @@ function deriveInvestigationId(symptom, now) {
   return `${prefix}-${truncated}`;
 }
 async function readEventsTail(stateRoot, lineLimit) {
-  const path = join2(stateRoot, "progress", "events.ndjson");
+  const path = join3(stateRoot, "progress", "events.ndjson");
   try {
     const content = await readFile2(path, "utf8");
     const all = content.split(`
@@ -4563,7 +4684,7 @@ async function detectThreeStrikeImpl(opts) {
   return strikes;
 }
 async function scanDir(stateRoot, dir, needle) {
-  const path = join2(stateRoot, dir);
+  const path = join3(stateRoot, dir);
   let entries;
   try {
     entries = await readdir2(path);
@@ -4576,7 +4697,7 @@ async function scanDir(stateRoot, dir, needle) {
       continue;
     let content;
     try {
-      content = await readFile2(join2(path, name), "utf8");
+      content = await readFile2(join3(path, name), "utf8");
     } catch {
       continue;
     }
@@ -4703,9 +4824,9 @@ function renderFrontmatter(fm) {
 `;
 }
 async function writeInvestigation(opts) {
-  const dir = join2(opts.stateRoot, "investigations");
+  const dir = join3(opts.stateRoot, "investigations");
   await mkdir(dir, { recursive: true });
-  const target = join2(dir, `${opts.id}.md`);
+  const target = join3(dir, `${opts.id}.md`);
   const tmp = `${target}.tmp.${process.pid}.${Date.now()}`;
   const content = renderFrontmatter(opts.frontmatter) + opts.body;
   await writeFile(tmp, content, "utf8");
@@ -4713,18 +4834,18 @@ async function writeInvestigation(opts) {
   return target;
 }
 async function resolveCollisionId(stateRoot, baseId) {
-  const dir = join2(stateRoot, "investigations");
-  if (!existsSync3(join2(dir, `${baseId}.md`)))
+  const dir = join3(stateRoot, "investigations");
+  if (!existsSync4(join3(dir, `${baseId}.md`)))
     return baseId;
   for (let n2 = 2;n2 < 100; n2++) {
     const candidate = `${baseId}-${n2}`;
-    if (!existsSync3(join2(dir, `${candidate}.md`)))
+    if (!existsSync4(join3(dir, `${candidate}.md`)))
       return candidate;
   }
   throw new Error(`collision: too many same-minute investigations for ${baseId}`);
 }
 async function readInvestigationContent(stateRoot, id) {
-  const path = join2(stateRoot, "investigations", `${id}.md`);
+  const path = join3(stateRoot, "investigations", `${id}.md`);
   try {
     const content = await readFile2(path, "utf8");
     return { path, content };
@@ -4733,7 +4854,7 @@ async function readInvestigationContent(stateRoot, id) {
   }
 }
 async function runDebugClose(opts) {
-  const stateRoot = opts.stateRoot ?? join2(process.cwd(), ".sgc");
+  const stateRoot = opts.stateRoot ?? join3(process.cwd(), ".sgc");
   const stderrWrite = opts.stderrWrite ?? ((c3) => {
     process.stderr.write(c3);
   });
@@ -4762,7 +4883,7 @@ async function runDebugClose(opts) {
   }
   const existing = await readInvestigationContent(stateRoot, opts.id);
   if (!existing) {
-    stderrWrite(`close refused: no investigation at ${join2(stateRoot, "investigations", `${opts.id}.md`)}
+    stderrWrite(`close refused: no investigation at ${join3(stateRoot, "investigations", `${opts.id}.md`)}
 `);
     return { exitCode: 1 };
   }
@@ -4829,7 +4950,7 @@ async function runDebugClose(opts) {
   return { exitCode: 0 };
 }
 async function runDebugStatus(opts) {
-  const stateRoot = opts.stateRoot ?? join2(process.cwd(), ".sgc");
+  const stateRoot = opts.stateRoot ?? join3(process.cwd(), ".sgc");
   const stdoutWrite = opts.stdoutWrite ?? ((c3) => {
     process.stdout.write(c3);
   });
@@ -4838,7 +4959,7 @@ async function runDebugStatus(opts) {
   });
   const result = await readInvestigationContent(stateRoot, opts.id);
   if (!result) {
-    stderrWrite(`no investigation at ${join2(stateRoot, "investigations", `${opts.id}.md`)}
+    stderrWrite(`no investigation at ${join3(stateRoot, "investigations", `${opts.id}.md`)}
 `);
     return { exitCode: 1 };
   }
@@ -4846,11 +4967,11 @@ async function runDebugStatus(opts) {
   return { exitCode: 0 };
 }
 async function runDebugList(opts) {
-  const stateRoot = opts.stateRoot ?? join2(process.cwd(), ".sgc");
+  const stateRoot = opts.stateRoot ?? join3(process.cwd(), ".sgc");
   const stdoutWrite = opts.stdoutWrite ?? ((c3) => {
     process.stdout.write(c3);
   });
-  const dir = join2(stateRoot, "investigations");
+  const dir = join3(stateRoot, "investigations");
   let entries;
   try {
     entries = await readdir2(dir);
@@ -4864,7 +4985,7 @@ async function runDebugList(opts) {
     if (!name.endsWith(".md"))
       continue;
     try {
-      const content = await readFile2(join2(dir, name), "utf8");
+      const content = await readFile2(join3(dir, name), "utf8");
       const fm = parseFrontmatter(content);
       records.push({
         id: String(fm.data.id ?? name.replace(/\.md$/, "")),
@@ -4891,7 +5012,7 @@ async function runDebugList(opts) {
   return { exitCode: 0 };
 }
 async function runDebugStart(opts) {
-  const stateRoot = opts.stateRoot ?? join2(opts.repoRoot ?? process.cwd(), ".sgc");
+  const stateRoot = opts.stateRoot ?? join3(opts.repoRoot ?? process.cwd(), ".sgc");
   const repoRoot = opts.repoRoot ?? process.cwd();
   const heuristic = opts.heuristic ?? defaultHeuristic();
   const now = (opts.now ?? (() => new Date))();
@@ -7222,8 +7343,8 @@ Write only the YAML above. No prose outside the YAML block.
 var init_reviewer_correctness = () => {};
 
 // src/dispatcher/embedded-data.ts
-import { readFileSync as readFileSync2 } from "node:fs";
-import { resolve as resolve4, dirname as dirname3 } from "node:path";
+import { readFileSync as readFileSync3 } from "node:fs";
+import { resolve as resolve5, dirname as dirname3 } from "node:path";
 import { fileURLToPath } from "node:url";
 function listEmbeddedPromptKeys() {
   return Object.keys(EMBEDDED_PROMPTS);
@@ -7231,26 +7352,26 @@ function listEmbeddedPromptKeys() {
 function readContract(filename) {
   const override = process.env["SGC_CONTRACTS_DIR"];
   if (override)
-    return readDisk(resolve4(override, filename), filename, "SGC_CONTRACTS_DIR");
+    return readDisk(resolve5(override, filename), filename, "SGC_CONTRACTS_DIR");
   const embedded = EMBEDDED_CONTRACTS[filename];
   if (embedded !== undefined)
     return embedded;
-  return readDisk(resolve4(diskContractsDir, filename), filename, "SGC_CONTRACTS_DIR");
+  return readDisk(resolve5(diskContractsDir, filename), filename, "SGC_CONTRACTS_DIR");
 }
 function readPrompt(relPath) {
   const override = process.env["SGC_PROMPTS_DIR"];
   if (override) {
     const base = relPath.replace(/^prompts\//, "");
-    return readDisk(resolve4(override, base), relPath, "SGC_PROMPTS_DIR");
+    return readDisk(resolve5(override, base), relPath, "SGC_PROMPTS_DIR");
   }
   const embedded = EMBEDDED_PROMPTS[relPath];
   if (embedded !== undefined)
     return embedded;
-  return readDisk(resolve4(diskRepoRoot, relPath), relPath, "SGC_PROMPTS_DIR");
+  return readDisk(resolve5(diskRepoRoot, relPath), relPath, "SGC_PROMPTS_DIR");
 }
 function readDisk(path, label, envVar) {
   try {
-    return readFileSync2(path, "utf8");
+    return readFileSync3(path, "utf8");
   } catch (err) {
     const e2 = err;
     if (e2.code === "ENOENT") {
@@ -7296,8 +7417,8 @@ var init_embedded_data = __esm(() => {
     "prompts/reviewer-correctness.md": reviewer_correctness_default
   };
   moduleDir = dirname3(fileURLToPath(import.meta.url));
-  diskContractsDir = resolve4(moduleDir, "..", "..", "contracts");
-  diskRepoRoot = resolve4(moduleDir, "..", "..");
+  diskContractsDir = resolve5(moduleDir, "..", "..", "contracts");
+  diskRepoRoot = resolve5(moduleDir, "..", "..");
 });
 
 // src/dispatcher/schema.ts
@@ -7384,8 +7505,8 @@ var init_capabilities = __esm(() => {
 });
 
 // src/dispatcher/spawn-protocol.ts
-import { existsSync as existsSync4, readdirSync as readdirSync2 } from "node:fs";
-import { resolve as resolve5 } from "node:path";
+import { existsSync as existsSync5, readdirSync as readdirSync3 } from "node:fs";
+import { resolve as resolve6 } from "node:path";
 function parseSpawnId(spawnId) {
   const dashIdx = spawnId.indexOf("-");
   if (dashIdx === -1) {
@@ -7397,16 +7518,16 @@ function parseSpawnId(spawnId) {
   };
 }
 function promptPath(spawnId, stateRoot) {
-  return resolve5(stateRoot, "progress/agent-prompts", `${spawnId}.md`);
+  return resolve6(stateRoot, "progress/agent-prompts", `${spawnId}.md`);
 }
 function resultPath(spawnId, stateRoot) {
-  return resolve5(stateRoot, "progress/agent-results", `${spawnId}.md`);
+  return resolve6(stateRoot, "progress/agent-results", `${spawnId}.md`);
 }
 function listAllSpawns(stateRoot) {
-  const promptsDir = resolve5(stateRoot, "progress/agent-prompts");
-  if (!existsSync4(promptsDir))
+  const promptsDir = resolve6(stateRoot, "progress/agent-prompts");
+  if (!existsSync5(promptsDir))
     return [];
-  return readdirSync2(promptsDir).filter((f3) => f3.endsWith(".md")).sort().map((f3) => {
+  return readdirSync3(promptsDir).filter((f3) => f3.endsWith(".md")).sort().map((f3) => {
     const spawnId = f3.slice(0, -3);
     const { agentName } = parseSpawnId(spawnId);
     const pp = promptPath(spawnId, stateRoot);
@@ -7416,7 +7537,7 @@ function listAllSpawns(stateRoot) {
       agentName,
       promptPath: pp,
       resultPath: rp,
-      hasResult: existsSync4(rp)
+      hasResult: existsSync5(rp)
     };
   });
 }
@@ -7424,122 +7545,6 @@ function listPendingSpawns(stateRoot) {
   return listAllSpawns(stateRoot).filter((s2) => !s2.hasResult);
 }
 var init_spawn_protocol = () => {};
-
-// src/dispatcher/fingerprint.ts
-import { existsSync as existsSync5, readdirSync as readdirSync3, readFileSync as readFileSync3, statSync } from "node:fs";
-import { join as join3, resolve as resolve6 } from "node:path";
-import { createHash as createHash2 } from "node:crypto";
-function isFingerprintable(line) {
-  const trimmed = line.trim();
-  if (trimmed.length < MIN_LINE_LEN)
-    return false;
-  const c3 = trimmed[0];
-  if (c3 === "#" || c3 === "-" || c3 === "*" || c3 === ">" || c3 === "|" || c3 === "`")
-    return false;
-  if (trimmed === "---" || trimmed === "...")
-    return false;
-  return true;
-}
-function hashLine(line) {
-  const norm = line.trim().toLowerCase().replace(/\s+/g, " ");
-  return createHash2("sha256").update(norm).digest("hex").slice(0, HASH_LEN);
-}
-function safeReaddir(dir) {
-  try {
-    return readdirSync3(dir);
-  } catch {
-    return [];
-  }
-}
-function isDir(path) {
-  try {
-    return statSync(path).isDirectory();
-  } catch {
-    return false;
-  }
-}
-function safeReadFile(path) {
-  try {
-    return readFileSync3(path, "utf8");
-  } catch {
-    return null;
-  }
-}
-function loadSolutionsFingerprints(stateRoot) {
-  const dir = resolve6(stateRoot, "solutions");
-  const set2 = new Set;
-  if (!existsSync5(dir))
-    return set2;
-  for (const cat of safeReaddir(dir)) {
-    const catPath = join3(dir, cat);
-    if (!isDir(catPath))
-      continue;
-    for (const file of safeReaddir(catPath)) {
-      if (!file.endsWith(".md"))
-        continue;
-      const text = safeReadFile(join3(catPath, file));
-      if (!text)
-        continue;
-      for (const line of text.split(`
-`)) {
-        if (!isFingerprintable(line))
-          continue;
-        set2.add(hashLine(line));
-      }
-    }
-  }
-  return set2;
-}
-function getFingerprintsCached(stateRoot) {
-  const key = resolve6(stateRoot);
-  let v2 = fpCache.get(key);
-  if (!v2) {
-    v2 = loadSolutionsFingerprints(key);
-    fpCache.set(key, v2);
-  }
-  return v2;
-}
-function isReviewerOrQaAgent(name) {
-  return name.startsWith("reviewer.") || name.startsWith("qa.");
-}
-function scanOutputForLeak(agentName, output, fingerprints) {
-  if (!isReviewerOrQaAgent(agentName) || fingerprints.size === 0) {
-    return { hit: false, samples: [], count: 0 };
-  }
-  const samples = [];
-  let count = 0;
-  const seen = new Set;
-  function walk(v2) {
-    if (typeof v2 === "string") {
-      for (const line of v2.split(`
-`)) {
-        if (!isFingerprintable(line))
-          continue;
-        const h2 = hashLine(line);
-        if (fingerprints.has(h2) && !seen.has(h2)) {
-          seen.add(h2);
-          count++;
-          if (samples.length < 3) {
-            const trimmed = line.trim();
-            samples.push(trimmed.length > 100 ? trimmed.slice(0, 97) + "..." : trimmed);
-          }
-        }
-      }
-    } else if (Array.isArray(v2)) {
-      for (const item of v2)
-        walk(item);
-    } else if (v2 && typeof v2 === "object") {
-      for (const val of Object.values(v2))
-        walk(val);
-    }
-  }
-  walk(output);
-  return { hit: count > 0, samples, count };
-}
-var MIN_LINE_LEN = 25, HASH_LEN = 16, fpCache;
-var init_fingerprint = __esm(() => {
-  fpCache = new Map;
-});
 
 // src/dispatcher/claude-cli-agent.ts
 import { spawn } from "node:child_process";
@@ -12913,10 +12918,15 @@ var init_anthropic_sdk_agent = __esm(() => {
 // src/dispatcher/openrouter-agent.ts
 import { readFileSync as readFileSync6 } from "node:fs";
 function extractYamlBlock(text) {
-  const fenced = text.match(/```ya?ml\s*\n([\s\S]*?)```/);
-  if (fenced)
-    return fenced[1].trim();
-  return text.trim();
+  const tagged = text.match(/```ya?ml\s*\n([\s\S]*?)```/);
+  if (tagged)
+    return tagged[1].trim();
+  const generic = text.match(/```[^\n]*\n([\s\S]*?)```/);
+  if (generic)
+    return generic[1].trim();
+  return text.split(`
+`).filter((l2) => !/^\s*```/.test(l2)).join(`
+`).trim();
 }
 async function runOpenRouterAgent(promptPath2, manifest, fetchFn, ctx) {
   const apiKey = process.env["OPENROUTER_API_KEY"];
@@ -15088,7 +15098,6 @@ async function runPlan(taskDescription, opts = {}) {
 `);
     return {
       taskId: fork.job.job_id,
-      level: "L0",
       intentPath: fork.jobPath
     };
   }
@@ -17763,6 +17772,7 @@ function writeSolution2(entry, slug, dedupStamp, body = "", stateRoot) {
   }
   const { body: _bodyField, ...fm } = finalEntry;
   writeAtomic2(path2, serializeFrontmatter2(fm, finalBody));
+  clearFingerprintCache();
   return { path: path2, entry: finalEntry };
 }
 function readSolution(category, slug, stateRoot) {
@@ -17863,6 +17873,7 @@ var StateError2, DEFAULT_STATE_DIR2 = ".sgc", root3, LAYERS2, FRONTMATTER_RE2, a
 var init_state2 = __esm(() => {
   init_js_yaml();
   init_types();
+  init_fingerprint();
   StateError2 = class StateError2 extends Error {
     code;
     constructor(code, message) {
@@ -18246,7 +18257,6 @@ async function runPlan2(taskDescription, opts = {}) {
 `);
     return {
       taskId: fork.job.job_id,
-      level: "L0",
       intentPath: fork.jobPath
     };
   }

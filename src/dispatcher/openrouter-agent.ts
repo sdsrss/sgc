@@ -31,13 +31,27 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 const DEFAULT_MODEL = "anthropic/claude-opus-4.7"
 const MAX_TOKENS_CAP = 8192
 
-/** Extract ```yaml ... ``` fenced block from response text. */
-function extractYamlBlock(text: string): string {
-  const fenced = text.match(/```ya?ml\s*\n([\s\S]*?)```/)
-  // Group 1 is non-optional in the pattern, so when fenced matches it is always defined.
-  if (fenced) return fenced[1]!.trim()
-  // Fallback: try to parse the whole text as YAML
-  return text.trim()
+/**
+ * Extract a YAML body from an LLM response, with layered recovery so a model
+ * that drops the language tag or omits a closing fence does not hard-fail
+ * (P2-1 audit: OpenRouter parsing had no recovery path).
+ * Exported for unit testing.
+ */
+export function extractYamlBlock(text: string): string {
+  // 1. Preferred: an explicitly tagged ```yaml / ```yml fence.
+  const tagged = text.match(/```ya?ml\s*\n([\s\S]*?)```/)
+  if (tagged) return tagged[1]!.trim()
+  // 2. Recovery: a generic fenced block (model dropped the `yaml` tag, or used
+  //    ```json / ``` ) — the most common real failure mode.
+  const generic = text.match(/```[^\n]*\n([\s\S]*?)```/)
+  if (generic) return generic[1]!.trim()
+  // 3. Recovery: an unterminated / fence-less response — strip any stray fence
+  //    lines and hand the remainder to the YAML parser.
+  return text
+    .split("\n")
+    .filter((l) => !/^\s*```/.test(l))
+    .join("\n")
+    .trim()
 }
 
 export type OpenRouterFetch = (url: string, init: RequestInit) => Promise<Response>

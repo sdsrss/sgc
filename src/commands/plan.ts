@@ -171,7 +171,10 @@ export async function runPlan(
   opts: PlanOptions = {},
 ): Promise<{
   taskId: string
-  level: Level
+  // Optional: the async-parent path forks before classification, so the level
+  // is not yet known there (P2-8 — don't synthesize a misleading "L0"). The
+  // sync + async-child paths always carry a real classified level.
+  level?: Level
   intentPath: string
 }> {
   const asyncChildJobId = process.env["SGC_PLAN_ASYNC_CHILD"]
@@ -210,10 +213,11 @@ export async function runPlan(
     process.stderr.write(
       `  events:  sgc tail --event-type plan.async_start,plan.async_complete,plan.async_failed --follow\n`,
     )
-    // Synthetic shape; sgc.ts handler ignores the return value.
+    // Parent shape; sgc.ts handler ignores the return value. The level is
+    // intentionally omitted — it is not classified until the detached child
+    // runs (P2-8: was a misleading synthetic "L0").
     return {
       taskId: fork.job.job_id,
-      level: "L0",
       intentPath: fork.jobPath,
     }
   }

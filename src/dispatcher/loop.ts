@@ -221,7 +221,9 @@ async function getDefaultRunners(): Promise<Required<StepRunners>> {
       })
       return {
         task_id: r.taskId,
-        level: r.level,
+        // The loop never forks async, so runPlan always returns a real level
+        // here (the optional level is only absent on the async-parent path).
+        level: r.level!,
         intent_path: r.intentPath,
       }
     },

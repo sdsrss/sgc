@@ -129,6 +129,14 @@ describe("intent.md — Invariant §2 (immutable)", () => {
       writeIntent(makeIntent({ motivation: "too short rationale text" }), tmp),
     ).toThrow(/≥20 words/)
   })
+  test("out-of-range level throws SchemaViolation", () => {
+    // A bad `--level` override must not be persisted into intent.md — every
+    // gate (review/qa/ship) keys off this field. Mirrors the fused_verdict guard.
+    ensureSgcStructure(tmp)
+    expect(() =>
+      writeIntent(makeIntent({ level: "BOGUS" as unknown as "L1" }), tmp),
+    ).toThrow(/level must be one of/)
+  })
   test("L3 without user_signature throws", () => {
     ensureSgcStructure(tmp)
     expect(() => writeIntent(makeIntent({ level: "L3" }), tmp)).toThrow(StateError)

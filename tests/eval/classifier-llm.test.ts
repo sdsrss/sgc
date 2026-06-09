@@ -21,10 +21,12 @@ describe("classifier.level: LLM vs heuristic (eval)", () => {
   // ── Heuristic blind spots ──────────────────────────────────────────────
 
   test("heuristic returns L1 on semantic migration input (no keyword match)", () => {
-    // "add 2FA column to 5M-row users table" has NO migration/schema/infra keywords.
-    // Heuristic falls through to L1 default.
+    // "add a created_at column to the 5M-row orders table" has NO migration/
+    // schema/infra (and no auth/security) keywords — heuristic falls through to
+    // L1 default. (The earlier "2FA" example now matches SECURITY_KEYWORDS and
+    // escalates to L2, so it no longer demonstrates the blind spot.)
     const result = classifierLevelHeuristic({
-      user_request: "add 2FA column to 5M-row users table",
+      user_request: "add a created_at column to the 5M-row orders table",
     })
     expect(result.level).toBe("L1")
     // This demonstrates the heuristic's blind spot — a real LLM would catch

@@ -100,7 +100,7 @@ export async function runLoopCommand(
         }
       : undefined,
   }
-  if (!cliOpts.resume && !cliOpts.task) {
+  if (!cliOpts.resume && (!cliOpts.task || cliOpts.task.trim().length === 0)) {
     process.stderr.write(
       "error: TASK arg required (unless --resume <id>, --runs, or --status <id> is set)\n",
     )

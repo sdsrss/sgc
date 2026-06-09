@@ -3,7 +3,11 @@
 // schema changes, update both.
 
 export type TaskId = string  // ULID
-export type Level = "L0" | "L1" | "L2" | "L3"
+/** Classification levels. Runtime array is the single source for the
+ *  `validateIntent` enum guard (mirrors PLAN_VERDICTS) so an out-of-range
+ *  `--level` can't be persisted into intent.md. */
+export const LEVELS = ["L0", "L1", "L2", "L3"] as const
+export type Level = (typeof LEVELS)[number]
 export type ScopeToken = string  // e.g. "read:decisions", "spawn:reviewer.*"
 
 export type Verdict = "pass" | "concern" | "fail"

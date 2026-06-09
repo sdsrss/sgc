@@ -16,6 +16,7 @@ import {
   writeHandoffMarkdown,
   type GitProbe,
 } from "../dispatcher/handoff"
+import { resolveStateRoot } from "../dispatcher/state"
 
 export interface HandoffCliOptions {
   auto?: boolean
@@ -36,7 +37,12 @@ export interface HandoffCliResult {
 
 export async function runHandoff(opts: HandoffCliOptions): Promise<HandoffCliResult> {
   const repoRoot = opts.repoRoot ?? process.cwd()
-  const stateRoot = opts.stateRoot ?? join(repoRoot, ".sgc")
+  // State reads honor SGC_STATE_ROOT via the centralized resolver (explicit arg
+  // → env → ".sgc") — same as every other command. Inlining `join(repoRoot,
+  // ".sgc")` here silently bypassed the env var and leaked an unrelated repo's
+  // active task into the handoff. `repoRoot` stays the output root for the
+  // tasks/<slug>-paused.md file + the git probe (repo concerns, not state).
+  const stateRoot = resolveStateRoot(opts.stateRoot)
   const stdout = opts.stdoutWrite ?? ((s: string) => process.stdout.write(s))
   const stderr = opts.stderrWrite ?? ((s: string) => process.stderr.write(s))
 

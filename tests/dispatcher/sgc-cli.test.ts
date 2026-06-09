@@ -129,6 +129,55 @@ describe("sgc CLI smoke", () => {
     expect(stderr).toMatch(/topic/i)
   })
 
+  test("tail rejects an unparseable --since value", async () => {
+    // Regression: --since used a raw lexical string compare, so a garbage value
+    // ("not-a-date") silently filtered every event out instead of erroring.
+    const root = mkdtempSync(join(tmpdir(), "sgc-cli-since-"))
+    try {
+      const { stderr, exitCode } = await runSgc(["tail", "--since", "not-a-date"], {
+        SGC_STATE_ROOT: root,
+        SGC_FORCE_INLINE: "1",
+      })
+      expect(exitCode).not.toBe(0)
+      expect(stderr).toMatch(/--since must be an ISO 8601 timestamp/)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test("plan rejects an out-of-range --level value", async () => {
+    // Regression: citty passes --level verbatim; "BOGUS" used to be written as
+    // the intent's level, corrupting every downstream gate that keys off it.
+    const root = mkdtempSync(join(tmpdir(), "sgc-cli-lvl-"))
+    try {
+      const { stderr, exitCode } = await runSgc(
+        ["plan", "do a thing", "--level", "BOGUS", "--motivation",
+          "this motivation is comfortably longer than the twenty word minimum so it does not trip another validation gate before the level value is checked here ok"],
+        { SGC_STATE_ROOT: root, SGC_FORCE_INLINE: "1" },
+      )
+      expect(exitCode).not.toBe(0)
+      expect(stderr).toMatch(/--level must be one of/)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test("plan rejects a whitespace-only task (not just empty)", async () => {
+    // Regression: `!task` caught undefined/"" but a whitespace task like "   "
+    // is truthy and slipped through, creating a decision with a blank feature.
+    const root = mkdtempSync(join(tmpdir(), "sgc-cli-ws-"))
+    try {
+      const { stderr, exitCode } = await runSgc(["plan", "   "], {
+        SGC_STATE_ROOT: root,
+        SGC_FORCE_INLINE: "1",
+      })
+      expect(exitCode).not.toBe(0)
+      expect(stderr).toMatch(/TASK arg required/)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   // GS-6 (v1.16.0): --template selector. toContain (not regex) per DOG-3
   // ([[feedback_citty_help_consola_ci_mode]]) — backtick wrap under CI=1.
   test("discover --help lists --template flag with valid values (GS-6)", async () => {

@@ -265,6 +265,51 @@ export async function runPlan(
   return runPlanCore(taskDescription, opts)
 }
 
+// Resilience for the planner cluster. A planner.eng / planner.ceo spawn can
+// throw on a transient LLM failure or malformed YAML from the model (observed:
+// real OpenRouter mode where one planner's "bad indentation of a mapping entry"
+// rejected `Promise.all` and aborted the whole plan — losing the classifier
+// verdict and every other planner's work). researcher.history already degrades
+// gracefully (handleCoerceFailure); these mirror that for eng/ceo so ONE
+// planner's hiccup can't kill the plan. Degraded verdict = "revise": honest
+// (neither a fabricated approve nor a fabricated reject) and the fusion's
+// worst()-rule carries it through as needs-review.
+function planEvalLabel(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err)
+  return msg.replace(/\s+/g, " ").slice(0, 120)
+}
+function emitPlannerFailed(agent: string, err: unknown, logger: Logger, taskId: string): void {
+  logger.event({
+    task_id: taskId,
+    spawn_id: null,
+    agent,
+    event_type: "planner.spawn_failed",
+    level: "warn",
+    payload: {
+      error_class: err instanceof Error ? err.name : "unknown",
+      error_message: planEvalLabel(err),
+    },
+  })
+}
+/** Exported for unit testing (mirrors researcher-history.ts:handleCoerceFailure). */
+export function degradedEngOutput(err: unknown, logger: Logger, taskId: string): PlannerEngOutput {
+  emitPlannerFailed("planner.eng", err, logger, taskId)
+  return {
+    verdict: "revise",
+    concerns: [`planner.eng could not be evaluated (${planEvalLabel(err)}) — treat as needs-review`],
+    structural_risks: [],
+  }
+}
+/** Exported for unit testing (mirrors researcher-history.ts:handleCoerceFailure). */
+export function degradedCeoOutput(err: unknown, logger: Logger, taskId: string): PlannerCeoOutput {
+  emitPlannerFailed("planner.ceo", err, logger, taskId)
+  return {
+    verdict: "revise",
+    concerns: [`planner.ceo could not be evaluated (${planEvalLabel(err)}) — treat as needs-review`],
+    rewrite_hints: [],
+  }
+}
+
 async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Promise<{
   taskId: string
   level: Level
@@ -324,6 +369,23 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
     log(`level overridden to ${level} (upgrade)`)
   }
 
+  // Fail fast: the motivation (explicit --motivation, else the task itself) is
+  // known up front, so validate the ≥20-word rule BEFORE the planner cluster.
+  // Otherwise an L1+ plan with a too-short motivation burns planner spawns
+  // (real LLM tokens in non-inline mode) only to be rejected at the write
+  // boundary below. L0 skips intent.md, so it is exempt.
+  const motivation = opts.motivation ?? taskDescription
+  if (level !== "L0") {
+    const motivationWords = wordCount(motivation)
+    if (motivationWords < 20) {
+      throw new Error(
+        `motivation must be ≥20 words (sgc-state.schema.yaml min_words rule); ` +
+          `got ${motivationWords} word(s). Re-run with ` +
+          `--motivation "<longer rationale describing why this matters and what changes>".`,
+      )
+    }
+  }
+
   // Step 3: planner cluster
   //   L0 → skip
   //   L1 → planner.eng
@@ -347,16 +409,28 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
       for (const hint of delegationHintsFor("plan.adversarial")) log(formatHint(hint))
     }
     const tasks: Promise<unknown>[] = [
-      spawn<unknown, PlannerEngOutput>(
-        "planner.eng",
-        { intent_draft: taskDescription },
-        { stateRoot, inlineStub: (i) => plannerEng(i as { intent_draft: string }), logger, taskId },
-      ),
-      spawn<unknown, PlannerCeoOutput>(
-        "planner.ceo",
-        { intent_draft: taskDescription },
-        { stateRoot, inlineStub: (i) => plannerCeo(i as { intent_draft: string }), logger, taskId },
-      ),
+      (async (): Promise<{ output: PlannerEngOutput }> => {
+        try {
+          return await spawn<unknown, PlannerEngOutput>(
+            "planner.eng",
+            { intent_draft: taskDescription },
+            { stateRoot, inlineStub: (i) => plannerEng(i as { intent_draft: string }), logger, taskId },
+          )
+        } catch (err) {
+          return { output: degradedEngOutput(err, logger, taskId) }
+        }
+      })(),
+      (async (): Promise<{ output: PlannerCeoOutput }> => {
+        try {
+          return await spawn<unknown, PlannerCeoOutput>(
+            "planner.ceo",
+            { intent_draft: taskDescription },
+            { stateRoot, inlineStub: (i) => plannerCeo(i as { intent_draft: string }), logger, taskId },
+          )
+        } catch (err) {
+          return { output: degradedCeoOutput(err, logger, taskId) }
+        }
+      })(),
       (async (): Promise<{ output: ResearcherHistoryOutput }> => {
         const candidates = await preFilterSolutions(taskDescription, stateRoot)
         if (candidates.length === 0) {
@@ -587,13 +661,18 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
       }
     }
   } else if (LEVEL_RANK[level] >= 1) {
-    // L1: eng only
-    const planRes = await spawn<unknown, PlannerEngOutput>(
-      "planner.eng",
-      { intent_draft: taskDescription },
-      { stateRoot, inlineStub: (i) => plannerEng(i as { intent_draft: string }), logger, taskId },
-    )
-    plannerEngOut = planRes.output
+    // L1: eng only. Degrade gracefully on spawn/parse failure (same rationale
+    // as the L2+ cluster) so a malformed-YAML planner doesn't abort an L1 plan.
+    try {
+      const planRes = await spawn<unknown, PlannerEngOutput>(
+        "planner.eng",
+        { intent_draft: taskDescription },
+        { stateRoot, inlineStub: (i) => plannerEng(i as { intent_draft: string }), logger, taskId },
+      )
+      plannerEngOut = planRes.output
+    } catch (err) {
+      plannerEngOut = degradedEngOutput(err, logger, taskId)
+    }
     log(`planner.eng verdict: ${plannerEngOut.verdict}`)
     if (plannerEngOut.concerns.length > 0) {
       for (const c of plannerEngOut.concerns) log(`  concern: ${c}`)
@@ -688,15 +767,8 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
   // to decisions/ — they skip it entirely". Audit C3 adjacent fix.
   let intentPath = "(skipped — L0)"
   if (level !== "L0") {
-    const motivation = opts.motivation ?? taskDescription
-    const motivationWords = wordCount(motivation)
-    if (motivationWords < 20) {
-      throw new Error(
-        `motivation must be ≥20 words (sgc-state.schema.yaml min_words rule); ` +
-          `got ${motivationWords} word(s). Re-run with ` +
-          `--motivation "<longer rationale describing why this matters and what changes>".`,
-      )
-    }
+    // motivation + its ≥20-word guard are validated up front (after Step 2)
+    // so the planner cluster never runs on an invalid plan; reused here.
     const intent: IntentDoc = {
       task_id: taskId,
       level,
@@ -732,7 +804,12 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
               ? `_No prior art found._\n\n`
               : researcherOut.prior_art
                   .map((p) => {
-                    const head = `- **${p.solution_ref}** (score ${p.relevance_score.toFixed(2)}): ${p.excerpt}`
+                    // Heuristic mode (mineSolutions) leaves excerpt empty when the
+                    // solution body is frontmatter-only (the common case) — omit the
+                    // trailing ": " so the line doesn't dangle.
+                    const excerpt = p.excerpt?.trim()
+                    const ref = `- **${p.solution_ref}** (score ${p.relevance_score.toFixed(2)})`
+                    const head = excerpt ? `${ref}: ${excerpt}` : ref
                     return p.relevance_reason
                       ? `${head}\n  Reason: ${p.relevance_reason}`
                       : head

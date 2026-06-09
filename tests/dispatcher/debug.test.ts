@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs"
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { spawnSync } from "node:child_process"
@@ -552,6 +552,37 @@ describe("runDebugStart", () => {
     expect(types.filter((t: string) => t === "debug.phase_complete")).toHaveLength(3)
 
     rmSync(repoRoot, { recursive: true, force: true })
+  })
+
+  test("honors SGC_STATE_ROOT when no stateRoot opt is passed (not cwd/.sgc)", async () => {
+    // Regression: runDebugStart resolved `opts.stateRoot ?? join(repoRoot ?? cwd,
+    // ".sgc")`, ignoring SGC_STATE_ROOT — `sgc debug start` then wrote the
+    // investigation into the real repo's .sgc/ instead of the env-pointed root
+    // (same class as the handoff.ts / qa.ts bypasses).
+    const { repoRoot } = makeTmpState()
+    const envRoot = mkdtempSync(join(tmpdir(), "sgc-dbg-env-"))
+    mkdirSync(join(envRoot, "progress"), { recursive: true })
+    const prior = process.env["SGC_STATE_ROOT"]
+    process.env["SGC_STATE_ROOT"] = envRoot
+    const stderrChunks: string[] = []
+    try {
+      const result = await runDebugStart({
+        symptom: "env routed symptom",
+        // no stateRoot, no repoRoot — exercises the CLI default resolution
+        now: () => new Date("2026-05-27T14:23:00.000Z"),
+        stdoutWrite: () => {},
+        stderrWrite: (c) => stderrChunks.push(c),
+      })
+      expect(result.exitCode).toBe(0)
+      const written = join(envRoot, "investigations", "2026-05-27-1423-env-routed-symptom.md")
+      expect(existsSync(written)).toBe(true)
+      expect(stderrChunks.join("")).toContain(envRoot)
+    } finally {
+      if (prior === undefined) delete process.env["SGC_STATE_ROOT"]
+      else process.env["SGC_STATE_ROOT"] = prior
+      rmSync(envRoot, { recursive: true, force: true })
+      rmSync(repoRoot, { recursive: true, force: true })
+    }
   })
 
   test("empty corpus → hypothesize fallback line", async () => {

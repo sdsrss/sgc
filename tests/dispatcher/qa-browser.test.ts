@@ -3,9 +3,30 @@ import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { qaBrowser } from "../../src/dispatcher/agents/qa-browser"
-import { runQa } from "../../src/commands/qa"
+import { runQa, qaScreenshotDir } from "../../src/commands/qa"
 import { runPlan } from "../../src/commands/plan"
 import { hasQaEvidence, readReview } from "../../src/dispatcher/state"
+
+describe("qaScreenshotDir — honors state root (not cwd)", () => {
+  // Regression: real-browser screenshots were written to <cwd>/reviews/ via
+  // `stateRoot ?? process.cwd()`, ignoring SGC_STATE_ROOT and splitting the PNG
+  // from its qa.browser.md (which uses resolveStateRoot). They must co-locate.
+  test("explicit stateRoot is used", () => {
+    expect(qaScreenshotDir("/tmp/xyz", "T1")).toBe(join("/tmp/xyz", "reviews", "T1", "qa"))
+  })
+  test("undefined stateRoot resolves via SGC_STATE_ROOT env, never cwd", () => {
+    const prior = process.env["SGC_STATE_ROOT"]
+    process.env["SGC_STATE_ROOT"] = "/tmp/env-root"
+    try {
+      const dir = qaScreenshotDir(undefined, "T2")
+      expect(dir).toBe(join("/tmp/env-root", "reviews", "T2", "qa"))
+      expect(dir.startsWith(process.cwd())).toBe(false)
+    } finally {
+      if (prior === undefined) delete process.env["SGC_STATE_ROOT"]
+      else process.env["SGC_STATE_ROOT"] = prior
+    }
+  })
+})
 
 describe("qaBrowser stub", () => {
   test("empty target_url → fail", async () => {
@@ -157,6 +178,34 @@ describe("runQa — integration", () => {
     const stored = readReview(plan.taskId, "qa", "qa.browser", tmp)
     expect(stored?.report.verdict).toBe("pass")
     expect(stored?.report.evidence_refs).toEqual(["/tmp/qa-home.png"])
+  })
+
+  test("prose-label notes are not counted/recorded as failures (pass stays clean)", async () => {
+    // Regression: the runner records prose flow labels as step:"note" entries in
+    // failed_flows for surfacing. They are NOT failures — but the qa command used
+    // failed_flows.length, so a clean pass printed "1 failed flow(s)" and wrote a
+    // bogus "Step 'note' failed" finding into the persisted review.
+    const plan = await freshTask()
+    const logs: string[] = []
+    const r = await runQa({
+      stateRoot: tmp,
+      target: "http://localhost:3000",
+      flows: ["load", "checkout"],
+      browse: true,
+      browseRunner: async () => ({
+        verdict: "pass",
+        evidence_refs: ["/tmp/qa.png"],
+        failed_flows: [
+          { flow: "load", step: "note", observed: "recorded as label; not navigated" },
+          { flow: "checkout", step: "note", observed: "recorded as label; not navigated" },
+        ],
+      }),
+      log: (s) => logs.push(s),
+    })
+    expect(r.verdict).toBe("pass")
+    expect(logs.some((l) => l.includes("0 failed flow(s)"))).toBe(true)
+    const stored = readReview(plan.taskId, "qa", "qa.browser", tmp)
+    expect(stored?.report.findings ?? []).toHaveLength(0)
   })
 })
 

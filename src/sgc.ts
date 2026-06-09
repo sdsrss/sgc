@@ -20,6 +20,7 @@ import { defineCommand, runCommand, runMain, showUsage } from "citty"
 import { existsSync } from "node:fs"
 import packageJson from "../package.json"
 import { debugCommand } from "./commands/debug"
+import { LEVELS } from "./dispatcher/types"
 
 const discover = defineCommand({
   meta: { name: "discover", description: "Clarify requirements before planning" },
@@ -143,7 +144,9 @@ const plan = defineCommand({
     }
 
     const task = args.task as string | undefined
-    if (!task) {
+    // Reject whitespace-only too — `!task` only catches undefined/"". A blank
+    // task otherwise creates a degenerate decision with an empty feature label.
+    if (!task || task.trim().length === 0) {
       process.stderr.write(
         "error: TASK arg required (unless --jobs or --status <id> is set)\n",
       )
@@ -151,6 +154,15 @@ const plan = defineCommand({
     }
     const { runPlan } = await import("./commands/plan")
     const force = args.level as "L0" | "L1" | "L2" | "L3" | undefined
+    // citty passes --level through verbatim — reject an out-of-range value up
+    // front (clean message, no wasted planner run) instead of letting it reach
+    // the validateIntent write boundary as a SchemaViolation throw.
+    if (force !== undefined && !LEVELS.includes(force)) {
+      process.stderr.write(
+        `error: --level must be one of L0|L1|L2|L3 (got '${force}')\n`,
+      )
+      process.exit(1)
+    }
     const signedBy = args["signed-by"] as string | undefined
     const userSignature = signedBy
       ? { signed_at: new Date().toISOString(), signer_id: signedBy }
@@ -519,11 +531,24 @@ const tail = defineCommand({
       }
       limit = n
     }
+    // Validate + normalize --since to canonical ISO. matchFilters compares ts
+    // lexically (correct for ISO-8601 UTC), so a garbage value like "yesterday"
+    // used to silently filter everything out instead of erroring. Normalizing
+    // also fixes non-canonical-but-valid inputs (date-only, space separator).
+    const sinceRaw = args.since as string | undefined
+    let since: string | undefined
+    if (sinceRaw !== undefined) {
+      const ms = Date.parse(sinceRaw)
+      if (Number.isNaN(ms)) {
+        throw new Error(`--since must be an ISO 8601 timestamp; got ${sinceRaw}`)
+      }
+      since = new Date(ms).toISOString()
+    }
     await runTail({
       task: args.task as string | undefined,
       agent: args.agent as string | undefined,
       eventType: args["event-type"] as string | undefined,
-      since: args.since as string | undefined,
+      since,
       follow: args.follow as boolean,
       json: args.json as boolean,
       limit,

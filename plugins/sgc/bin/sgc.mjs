@@ -3552,8 +3552,9 @@ var init_js_yaml = __esm(() => {
 });
 
 // src/dispatcher/types.ts
-var PLAN_VERDICTS;
+var LEVELS, PLAN_VERDICTS;
 var init_types = __esm(() => {
+  LEVELS = ["L0", "L1", "L2", "L3"];
   PLAN_VERDICTS = ["approve", "revise", "reject"];
 });
 
@@ -3813,6 +3814,9 @@ function validateIntent(intent) {
   }
   if (!Array.isArray(intent.affected_readers) || intent.affected_readers.length < 1) {
     throw new StateError("SchemaViolation", "affected_readers must be a non-empty array (required even at L1)");
+  }
+  if (!LEVELS.includes(intent.level)) {
+    throw new StateError("SchemaViolation", `level must be one of L0|L1|L2|L3 (got '${intent.level}')`);
   }
   const mwords = wordCount(intent.motivation);
   if (mwords < 20) {
@@ -4925,7 +4929,7 @@ async function readInvestigationContent(stateRoot, id) {
   }
 }
 async function runDebugClose(opts) {
-  const stateRoot = opts.stateRoot ?? join3(process.cwd(), ".sgc");
+  const stateRoot = resolveStateRoot(opts.stateRoot);
   const stderrWrite = opts.stderrWrite ?? ((c3) => {
     process.stderr.write(c3);
   });
@@ -5021,7 +5025,7 @@ async function runDebugClose(opts) {
   return { exitCode: 0 };
 }
 async function runDebugStatus(opts) {
-  const stateRoot = opts.stateRoot ?? join3(process.cwd(), ".sgc");
+  const stateRoot = resolveStateRoot(opts.stateRoot);
   const stdoutWrite = opts.stdoutWrite ?? ((c3) => {
     process.stdout.write(c3);
   });
@@ -5038,7 +5042,7 @@ async function runDebugStatus(opts) {
   return { exitCode: 0 };
 }
 async function runDebugList(opts) {
-  const stateRoot = opts.stateRoot ?? join3(process.cwd(), ".sgc");
+  const stateRoot = resolveStateRoot(opts.stateRoot);
   const stdoutWrite = opts.stdoutWrite ?? ((c3) => {
     process.stdout.write(c3);
   });
@@ -5085,7 +5089,7 @@ async function runDebugList(opts) {
   return { exitCode: 0 };
 }
 async function findSoleInProgressInvestigation(stateRoot) {
-  const root2 = stateRoot ?? join3(process.cwd(), ".sgc");
+  const root2 = resolveStateRoot(stateRoot);
   const dir = join3(root2, "investigations");
   let entries;
   try {
@@ -5109,7 +5113,7 @@ async function findSoleInProgressInvestigation(stateRoot) {
   return open.length === 1 ? open[0] : null;
 }
 async function runDebugStart(opts) {
-  const stateRoot = opts.stateRoot ?? join3(opts.repoRoot ?? process.cwd(), ".sgc");
+  const stateRoot = resolveStateRoot(opts.stateRoot ?? (opts.repoRoot ? join3(opts.repoRoot, ".sgc") : undefined));
   const repoRoot = opts.repoRoot ?? process.cwd();
   const heuristic = opts.heuristic ?? defaultHeuristic();
   const now = (opts.now ?? (() => new Date))();
@@ -14129,6 +14133,13 @@ function classifierLevelHeuristic(input) {
       affected_readers_candidates: ["dispatcher", "downstream callers"]
     };
   }
+  if (SECURITY_KEYWORDS.some((re) => re.test(req))) {
+    return {
+      level: "L2",
+      rationale: "request touches security/auth surface (login/credential/oauth/vuln/rate-limit); minimum L2 so the change gets independent review + qa gate",
+      affected_readers_candidates: ["dispatcher", "downstream callers", "security reviewers"]
+    };
+  }
   if (L0_KEYWORDS.some((re) => re.test(req))) {
     return {
       level: "L0",
@@ -14142,7 +14153,7 @@ function classifierLevelHeuristic(input) {
     affected_readers_candidates: ["dispatcher"]
   };
 }
-var L3_KEYWORDS, L2_KEYWORDS, STRONG_L0, L0_KEYWORDS, classifierLevel;
+var L3_KEYWORDS, L2_KEYWORDS, SECURITY_KEYWORDS, STRONG_L0, L0_KEYWORDS, classifierLevel;
 var init_classifier_level2 = __esm(() => {
   L3_KEYWORDS = [
     /\bmigration\b/i,
@@ -14159,6 +14170,14 @@ var init_classifier_level2 = __esm(() => {
     /\bcrypto\b|\bjwt\b|\btoken\b|\bsession\b/i,
     /\bmulti[- ]file\b/i,
     /\brefactor\b/i
+  ];
+  SECURITY_KEYWORDS = [
+    /\blog[- ]?in\b|\bsign[- ]?in\b|\bsign[- ]?up\b|\bsignup\b|\bsignin\b/i,
+    /\bpassword\b|\bpasswd\b|\bcredentials?\b/i,
+    /\boauth\b|\bopenid\b|\bsaml\b|\bsso\b/i,
+    /\b2fa\b|\bmfa\b|\botp\b/i,
+    /\bcsrf\b|\bxss\b|\binjection\b|\bvulnerabilit(y|ies)\b|\bexploit\b/i,
+    /\brate[- ]?limit(ing|ed|er|s)?\b|\bthrottl(e|ing|ed)\b/i
   ];
   STRONG_L0 = [
     /\btypos?\b/i,
@@ -15152,6 +15171,8 @@ var init_plan_jobs2 = __esm(() => {
 var exports_plan = {};
 __export(exports_plan, {
   runPlan: () => runPlan,
+  degradedEngOutput: () => degradedEngOutput,
+  degradedCeoOutput: () => degradedCeoOutput,
   _readLineSyncForFutureInteractiveFlow: () => readLineSync
 });
 function generateTaskId() {
@@ -15244,6 +15265,39 @@ async function runPlan(taskDescription, opts = {}) {
   }
   return runPlanCore(taskDescription, opts);
 }
+function planEvalLabel(err) {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.replace(/\s+/g, " ").slice(0, 120);
+}
+function emitPlannerFailed(agent, err, logger, taskId) {
+  logger.event({
+    task_id: taskId,
+    spawn_id: null,
+    agent,
+    event_type: "planner.spawn_failed",
+    level: "warn",
+    payload: {
+      error_class: err instanceof Error ? err.name : "unknown",
+      error_message: planEvalLabel(err)
+    }
+  });
+}
+function degradedEngOutput(err, logger, taskId) {
+  emitPlannerFailed("planner.eng", err, logger, taskId);
+  return {
+    verdict: "revise",
+    concerns: [`planner.eng could not be evaluated (${planEvalLabel(err)}) — treat as needs-review`],
+    structural_risks: []
+  };
+}
+function degradedCeoOutput(err, logger, taskId) {
+  emitPlannerFailed("planner.ceo", err, logger, taskId);
+  return {
+    verdict: "revise",
+    concerns: [`planner.ceo could not be evaluated (${planEvalLabel(err)}) — treat as needs-review`],
+    rewrite_hints: []
+  };
+}
 async function runPlanCore(taskDescription, opts = {}) {
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
   const log = (m2) => logger.say(m2);
@@ -15274,6 +15328,13 @@ async function runPlanCore(taskDescription, opts = {}) {
     level = opts.forceLevel;
     log(`level overridden to ${level} (upgrade)`);
   }
+  const motivation = opts.motivation ?? taskDescription;
+  if (level !== "L0") {
+    const motivationWords = wordCount(motivation);
+    if (motivationWords < 20) {
+      throw new Error(`motivation must be ≥20 words (sgc-state.schema.yaml min_words rule); ` + `got ${motivationWords} word(s). Re-run with ` + `--motivation "<longer rationale describing why this matters and what changes>".`);
+    }
+  }
   let plannerEngOut = null;
   let plannerCeoOut = null;
   let researcherOut = null;
@@ -15287,8 +15348,20 @@ async function runPlanCore(taskDescription, opts = {}) {
         log(formatHint(hint));
     }
     const tasks = [
-      spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i3) => plannerEng(i3), logger, taskId }),
-      spawn3("planner.ceo", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i3) => plannerCeo(i3), logger, taskId }),
+      (async () => {
+        try {
+          return await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i3) => plannerEng(i3), logger, taskId });
+        } catch (err) {
+          return { output: degradedEngOutput(err, logger, taskId) };
+        }
+      })(),
+      (async () => {
+        try {
+          return await spawn3("planner.ceo", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i3) => plannerCeo(i3), logger, taskId });
+        } catch (err) {
+          return { output: degradedCeoOutput(err, logger, taskId) };
+        }
+      })(),
       (async () => {
         const candidates = await preFilterSolutions(taskDescription, stateRoot);
         if (candidates.length === 0) {
@@ -15453,8 +15526,12 @@ async function runPlanCore(taskDescription, opts = {}) {
       }
     }
   } else if (LEVEL_RANK[level] >= 1) {
-    const planRes = await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i3) => plannerEng(i3), logger, taskId });
-    plannerEngOut = planRes.output;
+    try {
+      const planRes = await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i3) => plannerEng(i3), logger, taskId });
+      plannerEngOut = planRes.output;
+    } catch (err) {
+      plannerEngOut = degradedEngOutput(err, logger, taskId);
+    }
     log(`planner.eng verdict: ${plannerEngOut.verdict}`);
     if (plannerEngOut.concerns.length > 0) {
       for (const c3 of plannerEngOut.concerns)
@@ -15523,11 +15600,6 @@ async function runPlanCore(taskDescription, opts = {}) {
   }
   let intentPath2 = "(skipped — L0)";
   if (level !== "L0") {
-    const motivation = opts.motivation ?? taskDescription;
-    const motivationWords = wordCount(motivation);
-    if (motivationWords < 20) {
-      throw new Error(`motivation must be ≥20 words (sgc-state.schema.yaml min_words rule); ` + `got ${motivationWords} word(s). Re-run with ` + `--motivation "<longer rationale describing why this matters and what changes>".`);
-    }
     const intent = {
       task_id: taskId,
       level,
@@ -15571,7 +15643,9 @@ ${plannerCeoOut.rewrite_hints.map((h2) => `- ${h2}`).join(`
 ` + (researcherOut.prior_art.length === 0 ? `_No prior art found._
 
 ` : researcherOut.prior_art.map((p) => {
-        const head = `- **${p.solution_ref}** (score ${p.relevance_score.toFixed(2)}): ${p.excerpt}`;
+        const excerpt = p.excerpt?.trim();
+        const ref = `- **${p.solution_ref}** (score ${p.relevance_score.toFixed(2)})`;
+        const head = excerpt ? `${ref}: ${excerpt}` : ref;
         return p.relevance_reason ? `${head}
   Reason: ${p.relevance_reason}` : head;
       }).join(`
@@ -16376,10 +16450,14 @@ var init_playwright_runner = () => {};
 // src/commands/qa.ts
 var exports_qa = {};
 __export(exports_qa, {
-  runQa: () => runQa
+  runQa: () => runQa,
+  qaScreenshotDir: () => qaScreenshotDir
 });
 import { mkdirSync as mkdirSync3 } from "node:fs";
 import { join as join6 } from "node:path";
+function qaScreenshotDir(stateRoot, taskId) {
+  return join6(resolveStateRoot(stateRoot), "reviews", taskId, "qa");
+}
 function generateReportId2() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
@@ -16406,7 +16484,7 @@ async function runQa(opts = {}) {
   const optIn = opts.browse === true || process.env["SGC_QA_REAL"] === "1";
   let browseRunner = opts.browseRunner;
   if (!browseRunner && optIn) {
-    const shotDir = join6(stateRoot ?? process.cwd(), "reviews", String(taskId), "qa");
+    const shotDir = qaScreenshotDir(stateRoot, String(taskId));
     mkdirSync3(shotDir, { recursive: true });
     browseRunner = makeBrowseRunner({ launch: launchPlaywrightSession, screenshotDir: shotDir });
   }
@@ -16416,6 +16494,7 @@ async function runQa(opts = {}) {
     logger,
     taskId
   });
+  const realFlows = r3.output.failed_flows.filter((f3) => f3.step !== "note");
   const report = {
     report_id: generateReportId2(),
     task_id: taskId,
@@ -16424,7 +16503,7 @@ async function runQa(opts = {}) {
     reviewer_version: "0.1",
     verdict: r3.output.verdict,
     severity: verdictToSeverity(r3.output.verdict),
-    findings: r3.output.failed_flows.map((f3) => ({
+    findings: realFlows.map((f3) => ({
       location: f3.flow,
       description: `Step '${f3.step}' failed: ${f3.observed}`
     })),
@@ -16432,7 +16511,7 @@ async function runQa(opts = {}) {
     created_at: nowIso4()
   };
   const reportPath = appendReview(report, "", stateRoot);
-  log(`qa.browser: ${report.verdict} (severity: ${report.severity}, ${r3.output.failed_flows.length} failed flow(s), ${r3.output.evidence_refs.length} evidence ref(s))`);
+  log(`qa.browser: ${report.verdict} (severity: ${report.severity}, ${realFlows.length} failed flow(s), ${r3.output.evidence_refs.length} evidence ref(s))`);
   for (const f3 of r3.output.failed_flows.slice(0, 5)) {
     log(`  - [${f3.flow}] ${f3.step}: ${f3.observed}`);
   }
@@ -17728,6 +17807,9 @@ function validateIntent2(intent) {
   if (!Array.isArray(intent.affected_readers) || intent.affected_readers.length < 1) {
     throw new StateError2("SchemaViolation", "affected_readers must be a non-empty array (required even at L1)");
   }
+  if (!LEVELS.includes(intent.level)) {
+    throw new StateError2("SchemaViolation", `level must be one of L0|L1|L2|L3 (got '${intent.level}')`);
+  }
   const mwords = wordCount2(intent.motivation);
   if (mwords < 20) {
     throw new StateError2("SchemaViolation", `motivation must be ≥20 words (got ${mwords}); pass --motivation "<longer rationale>"`);
@@ -18421,6 +18503,8 @@ var init_agent_loop = __esm(() => {
 var exports_plan2 = {};
 __export(exports_plan2, {
   runPlan: () => runPlan2,
+  degradedEngOutput: () => degradedEngOutput2,
+  degradedCeoOutput: () => degradedCeoOutput2,
   _readLineSyncForFutureInteractiveFlow: () => readLineSync2
 });
 function generateTaskId2() {
@@ -18513,6 +18597,39 @@ async function runPlan2(taskDescription, opts = {}) {
   }
   return runPlanCore2(taskDescription, opts);
 }
+function planEvalLabel2(err) {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.replace(/\s+/g, " ").slice(0, 120);
+}
+function emitPlannerFailed2(agent, err, logger, taskId) {
+  logger.event({
+    task_id: taskId,
+    spawn_id: null,
+    agent,
+    event_type: "planner.spawn_failed",
+    level: "warn",
+    payload: {
+      error_class: err instanceof Error ? err.name : "unknown",
+      error_message: planEvalLabel2(err)
+    }
+  });
+}
+function degradedEngOutput2(err, logger, taskId) {
+  emitPlannerFailed2("planner.eng", err, logger, taskId);
+  return {
+    verdict: "revise",
+    concerns: [`planner.eng could not be evaluated (${planEvalLabel2(err)}) — treat as needs-review`],
+    structural_risks: []
+  };
+}
+function degradedCeoOutput2(err, logger, taskId) {
+  emitPlannerFailed2("planner.ceo", err, logger, taskId);
+  return {
+    verdict: "revise",
+    concerns: [`planner.ceo could not be evaluated (${planEvalLabel2(err)}) — treat as needs-review`],
+    rewrite_hints: []
+  };
+}
 async function runPlanCore2(taskDescription, opts = {}) {
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
   const log = (m2) => logger.say(m2);
@@ -18543,6 +18660,13 @@ async function runPlanCore2(taskDescription, opts = {}) {
     level = opts.forceLevel;
     log(`level overridden to ${level} (upgrade)`);
   }
+  const motivation = opts.motivation ?? taskDescription;
+  if (level !== "L0") {
+    const motivationWords = wordCount(motivation);
+    if (motivationWords < 20) {
+      throw new Error(`motivation must be ≥20 words (sgc-state.schema.yaml min_words rule); ` + `got ${motivationWords} word(s). Re-run with ` + `--motivation "<longer rationale describing why this matters and what changes>".`);
+    }
+  }
   let plannerEngOut = null;
   let plannerCeoOut = null;
   let researcherOut = null;
@@ -18556,8 +18680,20 @@ async function runPlanCore2(taskDescription, opts = {}) {
         log(formatHint(hint));
     }
     const tasks = [
-      spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i3) => plannerEng(i3), logger, taskId }),
-      spawn3("planner.ceo", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i3) => plannerCeo(i3), logger, taskId }),
+      (async () => {
+        try {
+          return await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i3) => plannerEng(i3), logger, taskId });
+        } catch (err) {
+          return { output: degradedEngOutput2(err, logger, taskId) };
+        }
+      })(),
+      (async () => {
+        try {
+          return await spawn3("planner.ceo", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i3) => plannerCeo(i3), logger, taskId });
+        } catch (err) {
+          return { output: degradedCeoOutput2(err, logger, taskId) };
+        }
+      })(),
       (async () => {
         const candidates = await preFilterSolutions(taskDescription, stateRoot2);
         if (candidates.length === 0) {
@@ -18722,8 +18858,12 @@ async function runPlanCore2(taskDescription, opts = {}) {
       }
     }
   } else if (LEVEL_RANK2[level] >= 1) {
-    const planRes = await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i3) => plannerEng(i3), logger, taskId });
-    plannerEngOut = planRes.output;
+    try {
+      const planRes = await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i3) => plannerEng(i3), logger, taskId });
+      plannerEngOut = planRes.output;
+    } catch (err) {
+      plannerEngOut = degradedEngOutput2(err, logger, taskId);
+    }
     log(`planner.eng verdict: ${plannerEngOut.verdict}`);
     if (plannerEngOut.concerns.length > 0) {
       for (const c3 of plannerEngOut.concerns)
@@ -18792,11 +18932,6 @@ async function runPlanCore2(taskDescription, opts = {}) {
   }
   let intentPath3 = "(skipped — L0)";
   if (level !== "L0") {
-    const motivation = opts.motivation ?? taskDescription;
-    const motivationWords = wordCount(motivation);
-    if (motivationWords < 20) {
-      throw new Error(`motivation must be ≥20 words (sgc-state.schema.yaml min_words rule); ` + `got ${motivationWords} word(s). Re-run with ` + `--motivation "<longer rationale describing why this matters and what changes>".`);
-    }
     const intent = {
       task_id: taskId,
       level,
@@ -18840,7 +18975,9 @@ ${plannerCeoOut.rewrite_hints.map((h2) => `- ${h2}`).join(`
 ` + (researcherOut.prior_art.length === 0 ? `_No prior art found._
 
 ` : researcherOut.prior_art.map((p) => {
-        const head = `- **${p.solution_ref}** (score ${p.relevance_score.toFixed(2)}): ${p.excerpt}`;
+        const excerpt = p.excerpt?.trim();
+        const ref = `- **${p.solution_ref}** (score ${p.relevance_score.toFixed(2)})`;
+        const head = excerpt ? `${ref}: ${excerpt}` : ref;
         return p.relevance_reason ? `${head}
   Reason: ${p.relevance_reason}` : head;
       }).join(`
@@ -19119,10 +19256,14 @@ var init_review2 = __esm(() => {
 // src/commands/qa.ts
 var exports_qa2 = {};
 __export(exports_qa2, {
-  runQa: () => runQa2
+  runQa: () => runQa2,
+  qaScreenshotDir: () => qaScreenshotDir2
 });
 import { mkdirSync as mkdirSync5 } from "node:fs";
 import { join as join8 } from "node:path";
+function qaScreenshotDir2(stateRoot2, taskId) {
+  return join8(resolveStateRoot(stateRoot2), "reviews", taskId, "qa");
+}
 function generateReportId4() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
@@ -19149,7 +19290,7 @@ async function runQa2(opts = {}) {
   const optIn = opts.browse === true || process.env["SGC_QA_REAL"] === "1";
   let browseRunner = opts.browseRunner;
   if (!browseRunner && optIn) {
-    const shotDir = join8(stateRoot2 ?? process.cwd(), "reviews", String(taskId), "qa");
+    const shotDir = qaScreenshotDir2(stateRoot2, String(taskId));
     mkdirSync5(shotDir, { recursive: true });
     browseRunner = makeBrowseRunner({ launch: launchPlaywrightSession, screenshotDir: shotDir });
   }
@@ -19159,6 +19300,7 @@ async function runQa2(opts = {}) {
     logger,
     taskId
   });
+  const realFlows = r3.output.failed_flows.filter((f3) => f3.step !== "note");
   const report = {
     report_id: generateReportId4(),
     task_id: taskId,
@@ -19167,7 +19309,7 @@ async function runQa2(opts = {}) {
     reviewer_version: "0.1",
     verdict: r3.output.verdict,
     severity: verdictToSeverity2(r3.output.verdict),
-    findings: r3.output.failed_flows.map((f3) => ({
+    findings: realFlows.map((f3) => ({
       location: f3.flow,
       description: `Step '${f3.step}' failed: ${f3.observed}`
     })),
@@ -19175,7 +19317,7 @@ async function runQa2(opts = {}) {
     created_at: nowIso12()
   };
   const reportPath = appendReview(report, "", stateRoot2);
-  log(`qa.browser: ${report.verdict} (severity: ${report.severity}, ${r3.output.failed_flows.length} failed flow(s), ${r3.output.evidence_refs.length} evidence ref(s))`);
+  log(`qa.browser: ${report.verdict} (severity: ${report.severity}, ${realFlows.length} failed flow(s), ${r3.output.evidence_refs.length} evidence ref(s))`);
   for (const f3 of r3.output.failed_flows.slice(0, 5)) {
     log(`  - [${f3.flow}] ${f3.step}: ${f3.observed}`);
   }
@@ -19473,7 +19615,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.31.7",
+    version: "1.31.8",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -19539,7 +19681,7 @@ var init_package = __esm(() => {
 
 // src/dispatcher/metrics.ts
 import { readFileSync as readFileSync18, statSync as statSync4 } from "node:fs";
-import { resolve as resolve16 } from "node:path";
+import { resolve as resolve16, dirname as dirname5 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 function computeStandardization(invariantYaml) {
   const doc = load(invariantYaml);
@@ -19591,7 +19733,13 @@ function computeMetricsLive(root4) {
 function computeRuntimeMetrics() {
   let bundleBytes = 0;
   try {
-    bundleBytes = statSync4(fileURLToPath2(import.meta.url)).size;
+    const self = fileURLToPath2(import.meta.url);
+    if (self.endsWith("sgc.mjs")) {
+      bundleBytes = statSync4(self).size;
+    } else {
+      const repoRoot = resolve16(dirname5(self), "..", "..");
+      bundleBytes = statSync4(resolve16(repoRoot, "plugins/sgc/bin/sgc.mjs")).size;
+    }
   } catch {
     bundleBytes = 0;
   }
@@ -19680,7 +19828,7 @@ __export(exports_doctor, {
 import { createHash as createHash4 } from "node:crypto";
 import { existsSync as existsSync20, mkdtempSync, readdirSync as readdirSync8, readFileSync as readFileSync19, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname as dirname5, resolve as resolve17 } from "node:path";
+import { dirname as dirname6, resolve as resolve17 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 function extractCliSubcommands(src2) {
   const marker = "subCommands: {";
@@ -20087,7 +20235,7 @@ var init_doctor = __esm(() => {
   init_schema();
   init_embedded_data();
   init_metrics();
-  moduleDir2 = dirname5(fileURLToPath3(import.meta.url));
+  moduleDir2 = dirname6(fileURLToPath3(import.meta.url));
   repoRoot = resolve17(moduleDir2, "..", "..");
 });
 
@@ -20319,14 +20467,14 @@ __export(exports_metrics, {
   runMetrics: () => runMetrics
 });
 import { mkdirSync as mkdirSync6, writeFileSync as writeFileSync7 } from "node:fs";
-import { dirname as dirname6, resolve as resolve19 } from "node:path";
+import { dirname as dirname7, resolve as resolve19 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 async function runMetrics(opts = {}) {
   const root4 = opts.repoRoot ?? defaultRoot;
   if (opts.writeBaseline) {
     const live = computeMetricsLive(root4);
     const path2 = resolve19(root4, "metrics", "metrics-baseline.yaml");
-    mkdirSync6(dirname6(path2), { recursive: true });
+    mkdirSync6(dirname7(path2), { recursive: true });
     writeFileSync7(path2, serializeBaseline(live), "utf8");
     console.error(`wrote: ${path2}`);
     return;
@@ -20337,7 +20485,7 @@ async function runMetrics(opts = {}) {
 var moduleDir3, defaultRoot;
 var init_metrics2 = __esm(() => {
   init_metrics();
-  moduleDir3 = dirname6(fileURLToPath4(import.meta.url));
+  moduleDir3 = dirname7(fileURLToPath4(import.meta.url));
   defaultRoot = resolve19(moduleDir3, "..", "..");
 });
 
@@ -21343,7 +21491,7 @@ import * as fs2 from "node:fs/promises";
 import { join as join11 } from "node:path";
 async function runHandoff(opts) {
   const repoRoot2 = opts.repoRoot ?? process.cwd();
-  const stateRoot2 = opts.stateRoot ?? join11(repoRoot2, ".sgc");
+  const stateRoot2 = resolveStateRoot(opts.stateRoot);
   const stdout2 = opts.stdoutWrite ?? ((s2) => process.stdout.write(s2));
   const stderr = opts.stderrWrite ?? ((s2) => process.stderr.write(s2));
   if (typeof opts.print === "string" && opts.print.length > 0) {
@@ -21377,6 +21525,7 @@ async function runHandoff(opts) {
 }
 var init_handoff2 = __esm(() => {
   init_handoff();
+  init_state();
 });
 
 // src/dispatcher/land.ts
@@ -21419,7 +21568,7 @@ function emitLandEvent(logger, event_type, level, payload) {
 }
 async function runLand(opts = {}) {
   const repoRoot2 = opts.repoRoot ?? process.cwd();
-  const stateRoot2 = opts.stateRoot ?? resolve23(repoRoot2, ".sgc");
+  const stateRoot2 = resolveStateRoot(opts.stateRoot ?? (opts.repoRoot ? resolve23(opts.repoRoot, ".sgc") : undefined));
   const stdoutWrite = opts.stdoutWrite ?? ((c3) => {
     process.stdout.write(c3);
   });
@@ -21632,6 +21781,7 @@ var init_land = __esm(() => {
   init_ship_failure();
   init_canary();
   init_logger();
+  init_state();
   init_subprocess();
   LandError = class LandError extends Error {
     code;
@@ -21738,7 +21888,7 @@ async function runLoopCommand(cliOpts) {
       signer_id: cliOpts.signedBy
     } : undefined
   };
-  if (!cliOpts.resume && !cliOpts.task) {
+  if (!cliOpts.resume && (!cliOpts.task || cliOpts.task.trim().length === 0)) {
     process.stderr.write(`error: TASK arg required (unless --resume <id>, --runs, or --status <id> is set)
 `);
     process.exit(1);
@@ -23565,7 +23715,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.31.7",
+  version: "1.31.8",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {
@@ -23729,6 +23879,9 @@ var debugCommand = defineCommand2({
   }
 });
 
+// src/dispatcher/types.ts
+var LEVELS2 = ["L0", "L1", "L2", "L3"];
+
 // src/sgc.ts
 var discover = defineCommand({
   meta: { name: "discover", description: "Clarify requirements before planning" },
@@ -23865,13 +24018,18 @@ var plan = defineCommand({
       return;
     }
     const task = args.task;
-    if (!task) {
+    if (!task || task.trim().length === 0) {
       process.stderr.write(`error: TASK arg required (unless --jobs or --status <id> is set)
 `);
       process.exit(1);
     }
     const { runPlan: runPlan3 } = await Promise.resolve().then(() => (init_plan(), exports_plan));
     const force = args.level;
+    if (force !== undefined && !LEVELS2.includes(force)) {
+      process.stderr.write(`error: --level must be one of L0|L1|L2|L3 (got '${force}')
+`);
+      process.exit(1);
+    }
     const signedBy = args["signed-by"];
     const userSignature = signedBy ? { signed_at: new Date().toISOString(), signer_id: signedBy } : undefined;
     await runPlan3(task, {
@@ -24200,11 +24358,20 @@ var tail = defineCommand({
       }
       limit = n2;
     }
+    const sinceRaw = args.since;
+    let since;
+    if (sinceRaw !== undefined) {
+      const ms = Date.parse(sinceRaw);
+      if (Number.isNaN(ms)) {
+        throw new Error(`--since must be an ISO 8601 timestamp; got ${sinceRaw}`);
+      }
+      since = new Date(ms).toISOString();
+    }
     await runTail2({
       task: args.task,
       agent: args.agent,
       eventType: args["event-type"],
-      since: args.since,
+      since,
       follow: args.follow,
       json: args.json,
       limit

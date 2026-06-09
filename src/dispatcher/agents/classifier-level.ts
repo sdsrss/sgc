@@ -41,6 +41,23 @@ const L2_KEYWORDS = [
   /\brefactor\b/i,
 ]
 
+// Security/auth surface — same "at least L2" rule as L2_KEYWORDS, split out for
+// rationale. The original L2 set covered auth/payment/token/session but missed
+// the most common security phrasings, so e.g. "add rate limiting to the login
+// endpoint" fell through to L1 and skipped the independent review + qa gate
+// exactly where they matter most. Deliberately high-signal / low-false-positive
+// (no bare `permission`/`access`, which appear in non-security UI tasks). The
+// strong-L0 short-circuit still runs first, so a genuine "fix login-page typo"
+// stays L0.
+const SECURITY_KEYWORDS = [
+  /\blog[- ]?in\b|\bsign[- ]?in\b|\bsign[- ]?up\b|\bsignup\b|\bsignin\b/i,
+  /\bpassword\b|\bpasswd\b|\bcredentials?\b/i,
+  /\boauth\b|\bopenid\b|\bsaml\b|\bsso\b/i,
+  /\b2fa\b|\bmfa\b|\botp\b/i,
+  /\bcsrf\b|\bxss\b|\binjection\b|\bvulnerabilit(y|ies)\b|\bexploit\b/i,
+  /\brate[- ]?limit(ing|ed|er|s)?\b|\bthrottl(e|ing|ed)\b/i,
+]
+
 // ALG-5: unambiguous trivial-edit markers that WIN over incidental L2/L3
 // keyword mentions. Checked before L3/L2 so "fix the API docs typo" (typo) and
 // "rename the token variable" (variable rename) classify L0 instead of being
@@ -100,6 +117,14 @@ export function classifierLevelHeuristic(input: ClassifierInput): ClassifierOutp
       rationale:
         "request involves public API/auth/payment surface; minimum L2 per HARD escalation rule",
       affected_readers_candidates: ["dispatcher", "downstream callers"],
+    }
+  }
+  if (SECURITY_KEYWORDS.some((re) => re.test(req))) {
+    return {
+      level: "L2",
+      rationale:
+        "request touches security/auth surface (login/credential/oauth/vuln/rate-limit); minimum L2 so the change gets independent review + qa gate",
+      affected_readers_candidates: ["dispatcher", "downstream callers", "security reviewers"],
     }
   }
   if (L0_KEYWORDS.some((re) => re.test(req))) {

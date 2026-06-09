@@ -2,8 +2,16 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
-import { runPlan } from "../../src/commands/plan"
-import { readCurrentTask, readFeatureList, readIntent } from "../../src/dispatcher/state"
+import { runPlan, degradedEngOutput, degradedCeoOutput } from "../../src/commands/plan"
+import {
+  readCurrentTask,
+  readFeatureList,
+  readIntent,
+  ensureSgcStructure,
+  writeSolution,
+} from "../../src/dispatcher/state"
+import type { Logger } from "../../src/dispatcher/logger"
+import type { DedupStamp, SolutionEntry } from "../../src/dispatcher/types"
 
 let tmp: string
 beforeEach(() => {
@@ -15,6 +23,86 @@ afterEach(() => {
 
 const LONG_MOTIVATION =
   "We need this change because the existing flow lacks a critical structural element that downstream readers depend on for clarity and discoverability of the underlying behavior contract."
+
+describe("planner-cluster resilience — degraded output on spawn/parse failure", () => {
+  function capturingLogger(): { logger: Logger; events: any[] } {
+    const events: any[] = []
+    const logger: Logger = { say: () => {}, event: (p) => events.push(p) }
+    return { logger, events }
+  }
+  // Regression: in real OpenRouter mode a single planner emitting malformed YAML
+  // ("bad indentation of a mapping entry") rejected Promise.all and aborted the
+  // whole plan. eng/ceo now degrade gracefully (like researcher.history) so the
+  // plan survives one planner's hiccup.
+  test("degradedEngOutput → revise verdict + concern + warn event", () => {
+    const { logger, events } = capturingLogger()
+    const out = degradedEngOutput(new Error("YAMLException: bad indentation"), logger, "task-x")
+    expect(out.verdict).toBe("revise")
+    expect(out.concerns[0]).toMatch(/could not be evaluated/)
+    expect(out.structural_risks).toEqual([])
+    expect(events).toHaveLength(1)
+    expect(events[0].event_type).toBe("planner.spawn_failed")
+    expect(events[0].level).toBe("warn")
+    expect(events[0].agent).toBe("planner.eng")
+    expect(events[0].payload.error_class).toBe("Error")
+  })
+  test("degradedCeoOutput → revise verdict + concern + warn event", () => {
+    const { logger, events } = capturingLogger()
+    const out = degradedCeoOutput(new Error("boom"), logger, "task-y")
+    expect(out.verdict).toBe("revise")
+    expect(out.rewrite_hints).toEqual([])
+    expect(events[0].agent).toBe("planner.ceo")
+    expect(events[0].event_type).toBe("planner.spawn_failed")
+  })
+})
+
+describe("prior-art render — no dangling ': ' on empty-body solution", () => {
+  // Regression: compound writes frontmatter-only solutions (empty body), so the
+  // heuristic excerpt is empty and the intent.md prior-art line rendered as
+  // "**ref** (score 0.89): " with a dangling colon. Common case — most surfaced
+  // prior art hit it.
+  const STAMP: DedupStamp = {
+    compound_related_spawn_id: "01STAMP-compound.related",
+    threshold_met_or_forced: true,
+    reason: "new_entry",
+  }
+  function emptyBodySolution(): SolutionEntry {
+    return {
+      id: "01PRIORARTSOLUTION0000000000",
+      signature: "d".repeat(64),
+      category: "auth",
+      problem: "null pointer crash on login authentication flow when session expired",
+      symptoms: ["crash on /login"],
+      what_didnt_work: [],
+      solution: "guard the null session before dereference",
+      prevention: "assert session present before authenticate()",
+      tags: ["authentication", "login", "null-pointer"],
+      first_seen: "2026-04-15T10:00:00Z",
+      last_updated: "2026-04-15T10:00:00Z",
+      times_referenced: 0,
+      source_task_ids: ["01ORIGINTASK0000000000000"],
+    }
+  }
+  test("surfaced prior-art line ends at the score, not a trailing colon", async () => {
+    ensureSgcStructure(tmp)
+    // 4th arg "" → frontmatter-only solution (the empty-body case)
+    writeSolution(emptyBodySolution(), "npe-login-auth", STAMP, "", tmp)
+    const res = await runPlan(
+      "guard null pointer on login authentication when session expired",
+      {
+        stateRoot: tmp,
+        motivation:
+          "returning users crash during login authentication because the expired session is dereferenced without a null guard so we add a defensive check additively",
+        log: () => {},
+      },
+    )
+    const intent = readFileSync(res.intentPath, "utf8")
+    const priorLine = intent.split("\n").find((l) => l.includes("(score "))
+    expect(priorLine).toBeDefined()
+    expect(priorLine!.endsWith(": ")).toBe(false)
+    expect(priorLine!).not.toMatch(/\):\s*$/)
+  })
+})
 
 describe("runPlan — full L1 plan flow", () => {
   test("classifies as L1 (default), writes intent + feature-list + current-task", async () => {
@@ -137,6 +225,21 @@ describe("runPlan — full L1 plan flow", () => {
         log: () => {},
       }),
     ).rejects.toThrow(/≥20 words/)
+  })
+
+  test("short motivation fails fast — before the planner cluster runs", async () => {
+    // Efficiency: the motivation word-count is known up front, so a too-short
+    // motivation must be rejected after classification but BEFORE any planner
+    // spawn (real LLM tokens in non-inline mode). Assert planner.eng never ran.
+    const logs: string[] = []
+    await expect(
+      runPlan("add a markdown table", {
+        stateRoot: tmp,
+        log: (s) => logs.push(s),
+      }),
+    ).rejects.toThrow(/≥20 words/)
+    expect(logs.some((l) => l.includes("classifier verdict"))).toBe(true)
+    expect(logs.some((l) => l.includes("planner.eng"))).toBe(false)
   })
 
   // G.3 DF-1: pre-fix split(/\s+/) collapsed CJK runs to a single token

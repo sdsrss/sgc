@@ -8,7 +8,7 @@ import { loadSpec } from "./preprocessor"
 import { load as yamlLoad } from "js-yaml"
 import { STEPS, MANUAL_GATES } from "./loop"
 import { readFileSync, statSync } from "node:fs"
-import { resolve } from "node:path"
+import { resolve, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 import { readContract } from "./embedded-data"
 import packageJson from "../../package.json"
@@ -114,7 +114,18 @@ export function computeMetricsLive(root: string): FourHuaMetrics {
 export function computeRuntimeMetrics(): FourHuaMetrics {
   let bundleBytes = 0
   try {
-    bundleBytes = statSync(fileURLToPath(import.meta.url)).size
+    const self = fileURLToPath(import.meta.url)
+    // When running AS the bundle, import.meta.url IS sgc.mjs → measure it.
+    // In source mode (`bun src/sgc.ts`), it points at this .ts file (~9 KB),
+    // which would mis-report the bundle as the source-file size — resolve the
+    // committed bundle relative to the repo root instead.
+    if (self.endsWith("sgc.mjs")) {
+      bundleBytes = statSync(self).size
+    } else {
+      // src/dispatcher/metrics.ts → ../.. → repo root
+      const repoRoot = resolve(dirname(self), "..", "..")
+      bundleBytes = statSync(resolve(repoRoot, "plugins/sgc/bin/sgc.mjs")).size
+    }
   } catch {
     bundleBytes = 0
   }

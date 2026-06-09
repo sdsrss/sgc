@@ -24,6 +24,7 @@ import {
   runCanaryChecks,
 } from "./canary"
 import { createLogger, type Logger } from "./logger"
+import { resolveStateRoot } from "./state"
 import { spawnCapture } from "./subprocess"
 
 export type LandStepName = "watch-ci-failure" | "canary"
@@ -158,7 +159,12 @@ function emitLandEvent(
 
 export async function runLand(opts: LandOptions = {}): Promise<LandResult> {
   const repoRoot = opts.repoRoot ?? process.cwd()
-  const stateRoot = opts.stateRoot ?? resolve(repoRoot, ".sgc")
+  // Honor SGC_STATE_ROOT (resolveStateRoot) while keeping the repoRoot test
+  // seam: explicit stateRoot → repoRoot/.sgc → env → cwd/.sgc. Previously
+  // ignored the env var (same class as the handoff.ts / qa.ts / debug.ts fixes).
+  const stateRoot = resolveStateRoot(
+    opts.stateRoot ?? (opts.repoRoot ? resolve(opts.repoRoot, ".sgc") : undefined),
+  )
   const stdoutWrite = opts.stdoutWrite ?? ((c: string) => { process.stdout.write(c) })
   const stderrWrite = opts.stderrWrite ?? ((c: string) => { process.stderr.write(c) })
   const now = opts.now ?? (() => new Date())

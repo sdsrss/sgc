@@ -29,7 +29,7 @@ import {
   makeBrowseRunner,
   launchPlaywrightSession,
 } from "../dispatcher/agents/playwright-runner"
-import { appendReview, readCurrentTask } from "../dispatcher/state"
+import { appendReview, readCurrentTask, resolveStateRoot } from "../dispatcher/state"
 import type { ReviewReport, Severity, TaskId } from "../dispatcher/types"
 import { createLogger, type Logger } from "../dispatcher/logger"
 
@@ -43,6 +43,16 @@ export interface QaOptions {
   browseRunner?: BrowseRunner
   log?: (msg: string) => void
   logger?: Logger
+}
+
+/** Real-browser QA screenshot dir. Must resolve under the SAME state root as
+ *  the qa.browser.md review (appendReview → resolveStateRoot) so the PNG evidence
+ *  co-locates with the report. Inlining `stateRoot ?? process.cwd()` ignored
+ *  SGC_STATE_ROOT and dumped PNGs into <cwd>/reviews/ (repo root, not gitignored)
+ *  split from the .md — same class as the handoff.ts state-root bypass. Exported
+ *  for unit testing. */
+export function qaScreenshotDir(stateRoot: string | undefined, taskId: string): string {
+  return join(resolveStateRoot(stateRoot), "reviews", taskId, "qa")
 }
 
 function generateReportId(): string {
@@ -79,7 +89,7 @@ export async function runQa(opts: QaOptions = {}): Promise<{
   const optIn = opts.browse === true || process.env["SGC_QA_REAL"] === "1"
   let browseRunner = opts.browseRunner
   if (!browseRunner && optIn) {
-    const shotDir = join(stateRoot ?? process.cwd(), "reviews", String(taskId), "qa")
+    const shotDir = qaScreenshotDir(stateRoot, String(taskId))
     mkdirSync(shotDir, { recursive: true })
     browseRunner = makeBrowseRunner({ launch: launchPlaywrightSession, screenshotDir: shotDir })
   }
@@ -99,6 +109,13 @@ export async function runQa(opts: QaOptions = {}): Promise<{
     },
   )
 
+  // Prose flow labels (step "note") are recorded by the runner for surfacing,
+  // but they are NOT failures — they must not inflate the "failed flow(s)" count
+  // or land in the review findings as "Step 'note' failed". Almost every run
+  // with named --flows (load, checkout, …) emits these, so counting them would
+  // print "N failed flow(s)" on a clean pass. They still surface in stdout below.
+  const realFlows = r.output.failed_flows.filter((f) => f.step !== "note")
+
   const report: ReviewReport = {
     report_id: generateReportId(),
     task_id: taskId,
@@ -107,7 +124,7 @@ export async function runQa(opts: QaOptions = {}): Promise<{
     reviewer_version: "0.1",
     verdict: r.output.verdict,
     severity: verdictToSeverity(r.output.verdict),
-    findings: r.output.failed_flows.map((f) => ({
+    findings: realFlows.map((f) => ({
       location: f.flow,
       description: `Step '${f.step}' failed: ${f.observed}`,
     })),
@@ -118,7 +135,7 @@ export async function runQa(opts: QaOptions = {}): Promise<{
   const reportPath = appendReview(report, "", stateRoot)
 
   log(
-    `qa.browser: ${report.verdict} (severity: ${report.severity}, ${r.output.failed_flows.length} failed flow(s), ${r.output.evidence_refs.length} evidence ref(s))`,
+    `qa.browser: ${report.verdict} (severity: ${report.severity}, ${realFlows.length} failed flow(s), ${r.output.evidence_refs.length} evidence ref(s))`,
   )
   for (const f of r.output.failed_flows.slice(0, 5)) {
     log(`  - [${f.flow}] ${f.step}: ${f.observed}`)

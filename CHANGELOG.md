@@ -1,5 +1,59 @@
 # Changelog
 
+## v1.31.8 — 2026-06-09 — dogfood hardening: state-root env, classifier security gap, LLM planner resilience, CLI/render fixes
+
+Three more dogfood passes (rounds 11–13) drove the tool through its full
+lifecycle as a real user would — including real-LLM mode (OpenRouter) and the
+Playwright `--browse` real-browser QA — and surfaced a cluster of defects. The
+headline is a recurring **state-root-bypass class**: four commands resolved
+their `.sgc/` location by inlining `join(cwd, ".sgc")` instead of the
+centralized `resolveStateRoot`, silently ignoring `SGC_STATE_ROOT`.
+
+### What changed
+
+- **`SGC_STATE_ROOT` is now honored by every command.** `handoff`, `qa`
+  (real-browser screenshot dir), `debug` (5 sites), and `land` each resolved
+  state by inlining `join(cwd|repoRoot, ".sgc")` / `?? process.cwd()`, so with
+  `SGC_STATE_ROOT` pointed elsewhere they read/wrote the wrong project's `.sgc/`
+  — e.g. `handoff` leaked an unrelated repo's active task, and `qa --browse`
+  dropped screenshots into a non-gitignored `<cwd>/reviews/`. All now route
+  through `resolveStateRoot` (the `--repo-root` test seam is preserved).
+- **The classifier no longer under-classifies security work.** The L2 keyword
+  set covered `auth`/`payment`/`token`/`session` but missed common phrasings, so
+  "add rate limiting to the login endpoint" fell through to L1 and skipped the
+  independent review + QA gate. A `SECURITY_KEYWORDS` set (login / password /
+  credential / oauth / sso / 2fa / csrf / xss / injection / rate-limit / …) now
+  escalates these to at least L2; the strong-L0 short-circuit still wins, so a
+  genuine "fix the login-page typo" stays L0.
+- **A single planner's malformed YAML no longer aborts the whole plan.** In
+  real LLM mode, when `planner.eng`/`planner.ceo` returned YAML the parser
+  couldn't load, `Promise.all` rejected and the entire plan died (losing the
+  classification and every other planner's work). `researcher.history` already
+  degraded gracefully; `eng`/`ceo` now do too — a failed planner yields a
+  `revise` verdict + a concern + a `planner.spawn_failed` event, and the plan
+  completes.
+- **`--level` and the task argument are validated.** `sgc plan --level BOGUS`
+  used to write an out-of-range level into `intent.md` (corrupting every gate
+  that keys off it); it's now rejected, and `validateIntent` enforces the level
+  enum at the write boundary. `sgc plan "   "` (whitespace-only) is rejected
+  like the empty string.
+- **`sgc tail --since` validates its value.** A non-date like `--since
+  yesterday` used to silently filter every event out (lexical compare); it now
+  errors clearly and normalizes valid inputs to canonical ISO.
+- **The motivation ≥20-word check runs before the planner cluster**, so an
+  under-length `--motivation` fails fast instead of burning planner spawns
+  (real LLM tokens) only to be rejected at the write boundary.
+- **`sgc qa` no longer counts prose flow labels as failures.** Named `--flows`
+  (e.g. `load,checkout`) are recorded as notes for surfacing; a clean pass used
+  to print "N failed flow(s)" and write a bogus "Step 'note' failed" finding.
+  Notes are now excluded from the count and the persisted findings.
+- **Prior-art lines no longer dangle a colon.** Frontmatter-only solutions have
+  an empty heuristic excerpt, which rendered `**ref** (score 0.89): `; the
+  trailing `: ` is now omitted when there's no excerpt.
+- **`sgc metrics` reports the real bundle size in source mode.** It measured
+  `import.meta.url`, which is the bundle when shipped but the ~9 KB source file
+  under `bun src/sgc.ts` — it now resolves the committed bundle (~921 KB).
+
 ## v1.31.7 — 2026-06-08 — schema validation on progress/ writes (Invariant §7 gap)
 
 A ninth and tenth dogfood pass probed the scope-token boundary (§1/§8/§9 —

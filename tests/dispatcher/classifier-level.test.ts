@@ -31,6 +31,37 @@ describe("classifierLevelHeuristic — precedence (characterization)", () => {
   })
 })
 
+describe("classifierLevelHeuristic — security/auth surface escalates to L2", () => {
+  // The L2 list covered `auth`/`payment`/`token`/`session` but missed the most
+  // common security-sensitive phrasings, so a clearly auth-touching task like
+  // "add rate limiting to the login endpoint" fell through to L1 — skipping the
+  // independent review + qa gate exactly where they matter most. Same design
+  // rule as the existing L2 set: API/auth/payment surface → at least L2.
+  it("login / sign-in / sign-up flows", () => {
+    expect(lvl("add rate limiting to the login endpoint")).toBe("L2")
+    expect(lvl("fix the sign-in redirect loop")).toBe("L2")
+    expect(lvl("add a sign-up confirmation step")).toBe("L2")
+  })
+  it("credentials and password handling", () => {
+    expect(lvl("store the password with bcrypt")).toBe("L2")
+    expect(lvl("rotate the database credential")).toBe("L2")
+  })
+  it("auth protocols", () => {
+    expect(lvl("wire up the oauth callback")).toBe("L2")
+    expect(lvl("add SAML SSO support")).toBe("L2")
+  })
+  it("security vulnerabilities", () => {
+    expect(lvl("fix the XSS in the comment renderer")).toBe("L2")
+    expect(lvl("patch the SQL injection in search")).toBe("L2")
+    expect(lvl("add CSRF protection to the form")).toBe("L2")
+  })
+  it("a typo fix still wins over a security keyword (strong-L0 short-circuit)", () => {
+    // The strong-L0 short-circuit runs before the L2 check, so genuine trivial
+    // edits are not force-escalated by an incidental security word.
+    expect(lvl("fix a typo in the login page heading")).toBe("L0")
+  })
+})
+
 describe("classifierLevelHeuristic — ALG-5 over-classification fix", () => {
   it("a typo fix is L0 even when an L2 keyword (API) appears incidentally", () => {
     expect(lvl("fix the API docs typo")).toBe("L0")

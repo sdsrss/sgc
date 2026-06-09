@@ -17,7 +17,7 @@ import { join } from "node:path"
 import { spawnSync } from "node:child_process"
 import { walkSolutionsCorpus, extractKeywords } from "./agents/researcher-history"
 import type { SolutionScan } from "./agents/researcher-history"
-import { parseFrontmatter } from "./state"
+import { parseFrontmatter, resolveStateRoot } from "./state"
 
 export type DebugPhase =
   | "investigate"
@@ -513,7 +513,7 @@ async function readInvestigationContent(
 }
 
 export async function runDebugClose(opts: DebugCloseOptions): Promise<DebugResult> {
-  const stateRoot = opts.stateRoot ?? join(process.cwd(), ".sgc")
+  const stateRoot = resolveStateRoot(opts.stateRoot)
   const stderrWrite = opts.stderrWrite ?? ((c: string) => { process.stderr.write(c) })
   const stdoutWrite = opts.stdoutWrite ?? ((c: string) => { process.stdout.write(c) })
   const now = (opts.now ?? (() => new Date()))()
@@ -610,7 +610,7 @@ export async function runDebugClose(opts: DebugCloseOptions): Promise<DebugResul
 }
 
 export async function runDebugStatus(opts: DebugStatusOptions): Promise<DebugResult> {
-  const stateRoot = opts.stateRoot ?? join(process.cwd(), ".sgc")
+  const stateRoot = resolveStateRoot(opts.stateRoot)
   const stdoutWrite = opts.stdoutWrite ?? ((c: string) => { process.stdout.write(c) })
   const stderrWrite = opts.stderrWrite ?? ((c: string) => { process.stderr.write(c) })
 
@@ -624,7 +624,7 @@ export async function runDebugStatus(opts: DebugStatusOptions): Promise<DebugRes
 }
 
 export async function runDebugList(opts: DebugListOptions): Promise<DebugResult> {
-  const stateRoot = opts.stateRoot ?? join(process.cwd(), ".sgc")
+  const stateRoot = resolveStateRoot(opts.stateRoot)
   const stdoutWrite = opts.stdoutWrite ?? ((c: string) => { process.stdout.write(c) })
   const dir = join(stateRoot, "investigations")
 
@@ -687,7 +687,7 @@ export async function runDebugList(opts: DebugListOptions): Promise<DebugResult>
 export async function findSoleInProgressInvestigation(
   stateRoot?: string,
 ): Promise<string | null> {
-  const root = stateRoot ?? join(process.cwd(), ".sgc")
+  const root = resolveStateRoot(stateRoot)
   const dir = join(root, "investigations")
   let entries: string[]
   try {
@@ -713,7 +713,13 @@ export async function findSoleInProgressInvestigation(
 }
 
 export async function runDebugStart(opts: DebugStartOptions): Promise<DebugResult> {
-  const stateRoot = opts.stateRoot ?? join(opts.repoRoot ?? process.cwd(), ".sgc")
+  // Honor SGC_STATE_ROOT (via resolveStateRoot) like every other command while
+  // preserving the --repo-root test seam: explicit stateRoot → repoRoot/.sgc →
+  // env → cwd/.sgc. Previously this ignored the env var (same bug class as the
+  // handoff.ts / qa.ts state-root bypasses).
+  const stateRoot = resolveStateRoot(
+    opts.stateRoot ?? (opts.repoRoot ? join(opts.repoRoot, ".sgc") : undefined),
+  )
   const repoRoot = opts.repoRoot ?? process.cwd()
   const heuristic = opts.heuristic ?? defaultHeuristic()
   const now = (opts.now ?? (() => new Date()))()

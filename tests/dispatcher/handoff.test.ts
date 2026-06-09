@@ -712,6 +712,43 @@ describe("runHandoff (GS-2 T14)", () => {
     expect(result.exitCode).toBe(1)
   })
 
+  it("honors SGC_STATE_ROOT env when opts.stateRoot is omitted (CLI path)", async () => {
+    // Regression: commands/handoff.ts inlined `join(repoRoot, ".sgc")` instead
+    // of state.ts:resolveStateRoot, so the one command that bypassed the env
+    // var read state from the wrong place — leaking an unrelated repo's active
+    // task into the handoff. Every other command honors SGC_STATE_ROOT via
+    // resolveStateRoot; handoff must too.
+    const envStateRoot = mkdtempSync(join(tmpdir(), "sgc-handoff-env-"))
+    writeYaml(join(envStateRoot, "decisions", "ENV1", "intent.md"), {
+      task_id: "ENV1",
+      level: "L1",
+      title: "Env Root Test",
+    })
+    const fakeProbe: GitProbe = {
+      branchAheadBehind: async () => ({ branch: "main" }),
+      statusPorcelain: async () => [],
+      recentCommits: async () => [],
+    }
+    const prior = process.env["SGC_STATE_ROOT"]
+    process.env["SGC_STATE_ROOT"] = envStateRoot
+    try {
+      // No `stateRoot` in opts — exercises the CLI default resolution.
+      const result = await runHandoff({
+        auto: true,
+        repoRoot,
+        gitProbe: fakeProbe,
+        now: new Date("2026-05-26T18:00:00Z"),
+        sgcVersion: "1.13.0",
+      })
+      expect(result.exitCode).toBe(0)
+      expect(result.writtenPath).toMatch(/2026-05-26-env-root-test-paused\.md$/)
+    } finally {
+      if (prior === undefined) delete process.env["SGC_STATE_ROOT"]
+      else process.env["SGC_STATE_ROOT"] = prior
+      rmSync(envStateRoot, { recursive: true, force: true })
+    }
+  })
+
   it("no flag (bare handoff) defaults to the checkpoint, same as --auto", async () => {
     // README documents `sgc handoff [--auto]` — --auto is optional, so bare
     // `sgc handoff` must run the checkpoint, not error with usage.

@@ -166,9 +166,11 @@ describe("classifier-level heuristic (backward compat)", () => {
 
   test("classifierLevelHeuristic returns L1 on generic request (no LLM semantic catch)", () => {
     // This demonstrates the heuristic's limit — why the LLM path exists.
-    // "2FA" is semantically auth but has no keyword match in the fallback.
+    // Authorization expressed purely semantically ("only the owner can edit")
+    // has no keyword match in the fallback, so it stays L1. (Explicit security
+    // phrasings like 2FA / login / oauth ARE caught — see SECURITY_KEYWORDS.)
     const result = classifierLevelHeuristic({
-      user_request: "add 2FA column to 5M-row users table",
+      user_request: "ensure only the document owner can edit their own records",
     })
     expect(result.level).toBe("L1")
   })

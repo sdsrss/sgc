@@ -99,7 +99,10 @@ test("computeRuntimeMetrics computes the real product four 化 (structural)", ()
   expect(m.intelligence.llm_invokable).toBeGreaterThanOrEqual(11)
   expect(m.automation).toEqual({ automated_steps: 5, total_steps: 9 })
   expect(m.efficiency.runtime_node).toBe(">=18")
-  expect(typeof m.efficiency.bundle_bytes).toBe("number")
+  // Regression: in source mode import.meta.url points at metrics.ts (~9 KB), so
+  // measuring it mis-reported the bundle. It must resolve the real committed
+  // bundle (~900 KB) — assert it's clearly the bundle, not the source file.
+  expect(m.efficiency.bundle_bytes).toBeGreaterThan(500_000)
 })
 
 import {

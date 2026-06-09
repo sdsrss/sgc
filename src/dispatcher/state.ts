@@ -33,7 +33,7 @@ import {
 import { randomBytes } from "node:crypto"
 import { dirname, join, resolve } from "node:path"
 import { dump as yamlDump, load as yamlLoad } from "js-yaml"
-import { PLAN_VERDICTS } from "./types"
+import { LEVELS, PLAN_VERDICTS } from "./types"
 import { clearFingerprintCache } from "./fingerprint"
 import type {
   CurrentTask,
@@ -305,6 +305,15 @@ function validateIntent(intent: IntentDoc): void {
     throw new StateError(
       "SchemaViolation",
       "affected_readers must be a non-empty array (required even at L1)",
+    )
+  }
+  // `level` is the routing field every gate (review/qa/ship) keys off — an
+  // out-of-range value (e.g. a bad `--level` override) must not be persisted.
+  // Mirrors the fused_verdict enum guard below.
+  if (!(LEVELS as readonly string[]).includes(intent.level)) {
+    throw new StateError(
+      "SchemaViolation",
+      `level must be one of L0|L1|L2|L3 (got '${intent.level}')`,
     )
   }
   // sgc-state.schema.yaml:52 — motivation: { type: markdown, min_words: 20 }

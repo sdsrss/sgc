@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import { deriveCliFact, DERIVED_AGENT_IDS, CLI_FACT_MARKER } from "../../src/dispatcher/agent-facts"
-import { cliFactDrift, readAgentMdFiles, runDoctor } from "../../src/commands/doctor"
+import { cliFactDrift, readAgentMdFiles, runDoctor, rewriteCliFact } from "../../src/commands/doctor"
 import { resolve, join } from "node:path"
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from "node:fs"
 import { tmpdir } from "node:os"
+import { load as yamlLoad } from "js-yaml"
 const ROOT = resolve(import.meta.dir, "../..")
 
 /** Minimal hasSource=true fixture root: just the stub entry. Every other
@@ -169,5 +170,66 @@ describe("doctor check (O) — survives a broken registry and doesn't overclaim 
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
+  })
+})
+
+describe("--write-descriptions — regenerates the fact, never the capability", () => {
+  const CAP = "Performance review of a diff — algorithmic complexity and N+1 patterns."
+  const file = (desc: string) =>
+    `---\nname: reviewer-performance\ndescription: ${JSON.stringify(desc)}\n---\n\n# Body\n\nUnchanged.\n`
+
+  test("a stale clause is replaced and the capability sentence survives byte-for-byte", () => {
+    const out = rewriteCliFact(file(`${CAP} ${CLI_FACT_MARKER} stale junk.`), "reviewer.performance")
+    expect(out).toContain(CAP)
+    expect(out).toContain(deriveCliFact("reviewer.performance"))
+    expect(out).not.toContain("stale junk")
+    expect(out).toContain("# Body")      // body untouched
+  })
+
+  test("a missing clause is appended after the capability sentence", () => {
+    const out = rewriteCliFact(file(CAP), "reviewer.performance")
+    expect(out).toContain(`${CAP} ${deriveCliFact("reviewer.performance")}`)
+  })
+
+  test("it is idempotent — running it twice changes nothing", () => {
+    const once = rewriteCliFact(file(CAP), "reviewer.performance")
+    expect(rewriteCliFact(once, "reviewer.performance")).toBe(once)
+  })
+
+  test("output round-trips through the drift check", () => {
+    const out = rewriteCliFact(file(`${CAP} ${CLI_FACT_MARKER} junk.`), "reviewer.performance")
+    expect(cliFactDrift([{ id: "reviewer.performance", file: "x.md", text: out }])).toEqual([])
+  })
+
+  // The team's own stated attack surface for this task: does rewriteCliFact
+  // touch anything OTHER than the clause, and is idempotency real or an
+  // artifact of the one fixture above (simple capability, single id)?
+
+  test("the name key is preserved exactly, not just the description", () => {
+    const out = rewriteCliFact(file(`${CAP} ${CLI_FACT_MARKER} stale junk.`), "reviewer.performance")
+    expect(out).toMatch(/^name: reviewer-performance$/m)
+  })
+
+  test("idempotent on a second id whose clause has a different shape (LLM-backed, not term-list)", () => {
+    const secFile =
+      `---\nname: reviewer-security\ndescription: ${JSON.stringify("Adversarial security review.")}\n---\n\n# Body\n\nUnchanged.\n`
+    const once = rewriteCliFact(secFile, "reviewer.security")
+    expect(once).toContain(deriveCliFact("reviewer.security"))
+    expect(rewriteCliFact(once, "reviewer.security")).toBe(once)
+  })
+
+  test("a capability sentence containing a literal double-quote round-trips intact", () => {
+    // A literal " in the value is legitimately \"-escaped in the YAML-double-quoted
+    // OUTPUT text — checking the raw text for the unescaped substring would fail on
+    // correct output. Parse the frontmatter back, same as cliFactDrift/doctor do,
+    // and check the VALUE, not the file's escaped representation of it.
+    const quoted = `Flags the literal word "TODO" in added lines.`
+    const out = rewriteCliFact(file(`${quoted} ${CLI_FACT_MARKER} stale junk.`), "reviewer.performance")
+    const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(out)?.[1]
+    const parsedDesc = (yamlLoad(block!) as { description: string }).description
+    expect(parsedDesc).toContain(quoted)
+    expect(parsedDesc).toContain(deriveCliFact("reviewer.performance"))
+    // And it stays idempotent with that punctuation in play, not just with CAP.
+    expect(rewriteCliFact(out, "reviewer.performance")).toBe(out)
   })
 })

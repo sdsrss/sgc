@@ -21,12 +21,12 @@
 // files" without blocking ship.
 
 import { createHash } from "node:crypto"
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs"
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { spawnCapture } from "../dispatcher/subprocess"
-import { load as yamlLoad } from "js-yaml"
+import { load as yamlLoad, dump as yamlDump } from "js-yaml"
 import { getCapabilities, getSubagentManifest } from "../dispatcher/schema"
 import { deriveCliFact, CLI_FACT_MARKER, DERIVED_AGENT_IDS } from "../dispatcher/agent-facts"
 import { EMBEDDED_PROMPTS, listEmbeddedPromptKeys } from "../dispatcher/embedded-data"
@@ -352,6 +352,27 @@ export function cliFactDrift(files: AgentMdFile[]): string[] {
   return drifts
 }
 
+/**
+ * Replace everything from CLI_FACT_MARKER to the end of the description with the
+ * derived clause, leaving the capability sentence and the body untouched.
+ *
+ * Rebuilds the frontmatter with js-yaml rather than a regex substitution: a
+ * description is a YAML string that may be quoted three different ways, and M4
+ * already shipped a regex that captured "" from an unquoted one and then accused
+ * it of disclosing nothing.
+ */
+export function rewriteCliFact(text: string, id: string): string {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text)
+  if (!m) throw new Error(`${id}: no frontmatter block`)
+  const parsed = yamlLoad(m[1]!) as Record<string, unknown>
+  const desc = typeof parsed["description"] === "string" ? (parsed["description"] as string) : ""
+  const at = desc.indexOf(CLI_FACT_MARKER)
+  const capability = (at < 0 ? desc : desc.slice(0, at)).trimEnd()
+  parsed["description"] = `${capability} ${deriveCliFact(id)}`
+  const front = yamlDump(parsed, { lineWidth: -1, quotingType: '"', forceQuotes: false })
+  return `---\n${front.trimEnd()}\n---\n${text.slice(m[0].length)}`
+}
+
 /** Read `description:` out of an agent file's YAML frontmatter. Throws on malformed YAML. */
 function readFrontmatterDescription(text: string): string {
   const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1]
@@ -480,6 +501,9 @@ export interface DoctorOptions {
   log?: (msg: string) => void
   /** Override repo root for tests (default: derived from import.meta). */
   repoRoot?: string
+  /** Regenerate the derived CLI-fact clause in plugins/sgc/agents/**\/*.md
+   *  before any check runs, so a single invocation both fixes and verifies. */
+  writeDescriptions?: boolean
 }
 
 export interface DoctorReport {
@@ -506,6 +530,30 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   // files (D/E/F/G/H/I) are only meaningful in dev/CI; in a shipped bundle those
   // files don't exist and each such check emits a single info/skip row instead.
   const hasSource = existsSync(resolve(root, "src", "sgc.ts"))
+
+  if (opts.writeDescriptions) {
+    // Same readAgentMdFiles call check (O) below had to learn to guard — a
+    // broken symlink under agents/ throws, and an explicit --write-descriptions
+    // invocation shouldn't crash uninformatively any more than a check should.
+    try {
+      const written: string[] = []
+      for (const f of readAgentMdFiles(root)) {
+        if (!DERIVED_AGENT_IDS.includes(f.id)) continue
+        const next = rewriteCliFact(f.text, f.id)
+        if (next !== f.text) {
+          writeFileSync(resolve(root, f.file), next, "utf8")
+          written.push(f.id)
+        }
+      }
+      log(
+        written.length > 0
+          ? `wrote CLI-fact clause for: ${written.join(", ")}`
+          : "all CLI-fact clauses already match the code",
+      )
+    } catch (e) {
+      log(`✗ --write-descriptions failed: ${(e as Error).message.slice(0, 120)}`)
+    }
+  }
 
   // ── (A) manifest.prompt_path → embedded (bundle) or file exists (dev) ───
   log("=== Manifest prompt_path ↔ prompts/ ===")

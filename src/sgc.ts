@@ -605,9 +605,16 @@ const doctor = defineCommand({
     description:
       "Consistency check across contracts/sgc-capabilities.yaml ↔ prompts/ ↔ slot-only annotations. Exit 1 on any failure.",
   },
-  async run() {
+  args: {
+    "write-descriptions": {
+      type: "boolean",
+      required: false,
+      description: "Regenerate the derived CLI-fact clause in plugins/sgc/agents/**/*.md",
+    },
+  },
+  async run({ args }) {
     const { runDoctor } = await import("./commands/doctor")
-    const report = await runDoctor()
+    const report = await runDoctor({ writeDescriptions: args["write-descriptions"] as boolean | undefined })
     if (report.fail > 0) process.exit(1)
   },
 })

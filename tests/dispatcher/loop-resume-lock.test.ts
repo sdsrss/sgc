@@ -80,8 +80,23 @@ describe("loop run locking (P3-6)", () => {
     })
     await aStarted // A now holds the exec lock, parked mid-run
 
+    // B shares A's counter on purpose (M4). The earlier version gave B its own
+    // pausingRunners(), whose `review` is a different closure — it could never
+    // increment A's counter, so `expect(reviewCalls).toBe(1)` held whether or
+    // not the lock existed. Wiring both to the same counter is what makes the
+    // assertion discriminate: without the lock B drives `review` too and this
+    // reads 2.
     await expect(
-      runLoop(null, { stateRoot: tmp, resume: runId, steps: pausingRunners() }),
+      runLoop(null, {
+        stateRoot: tmp,
+        resume: runId,
+        steps: {
+          ...pausingRunners(),
+          review: async () => {
+            reviewCalls++
+          },
+        },
+      }),
     ).rejects.toThrow(LoopError)
 
     releaseA!()
@@ -124,6 +139,12 @@ describe("loop run locking (P3-6)", () => {
     expect(err!.code).toBe("ConcurrentRunActive")
     expect(err!.message).toMatch(/in progress/i)
     expect(err!.detail?.["active_pid"]).toBe(process.pid)
+    // M4: name the lock file. "Wait for pid N to finish or park" is unactionable
+    // when pid N is a recycled pid from before a reboot and will never finish or
+    // park — and the resume path is the one the operator is told to use, so it
+    // must mention the artifact that is actually blocking them.
+    expect(err!.message).toContain(".exec.lock")
+    expect(err!.detail?.["lock_path"]).toMatch(/\.exec\.lock$/)
     releaseA!()
     await a
   })
@@ -172,5 +193,38 @@ describe("loop L3 stdin gate without a terminal (P3-4)", () => {
     expect(r.run.error).toContain("--signed-by")
     expect(r.run.error).toContain("sgc loop --resume")
     expect(r.run.error).toMatch(/no terminal|stdin/i)
+  })
+
+  test("M4: the machine-readable code survives into the checkpoint", async () => {
+    // `L3NeedsConfirmation` was declared on LoopErrorCode and thrown — and then
+    // discarded. The step handler does `err.message` and drops the code, so
+    // nothing could ever branch on it: grep found zero consumers. A CI job that
+    // wants to tell "this needs a human" apart from "the planner blew up" had to
+    // regex the prose. Either the code is reachable or it is a contract that
+    // does not exist; this pins the former.
+    const r = await runLoop("run the DB migration to drop the legacy sessions table", {
+      stateRoot: tmp,
+      motivation:
+        "the legacy sessions table blocks the new auth flow and downstream readers depend on a clean schema for the correctness and clarity of the session contract they rely on",
+      userSignature: { signed_at: new Date().toISOString(), signer_id: "ci-bot" },
+    })
+    expect(r.terminal_reason).toBe("failed")
+    expect(r.run.error_code).toBe("L3NeedsConfirmation")
+  })
+
+  test("M4: a non-LoopError failure records no code rather than a wrong one", async () => {
+    const r = await runLoop("add a field to the orders endpoint", {
+      stateRoot: tmp,
+      motivation: "long enough motivation for the plan gate to accept this task without complaining at all",
+      steps: {
+        ...pausingRunners(),
+        plan: async () => {
+          throw new Error("planner exploded")
+        },
+      },
+    })
+    expect(r.terminal_reason).toBe("failed")
+    expect(r.run.error).toContain("planner exploded")
+    expect(r.run.error_code).toBeUndefined()
   })
 })

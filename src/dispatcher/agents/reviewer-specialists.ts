@@ -1,6 +1,6 @@
-// L3 diff-conditional reviewer specialists — keyword-pattern stubs.
+// L2+ diff-conditional reviewer specialists — keyword-pattern stubs.
 //
-// runReview at L3 spawns reviewer.correctness PLUS one or more of these
+// runReview at L2+ spawns reviewer.correctness PLUS one or more of these
 // specialists when the diff contains domain markers. Each stub matches a
 // narrow keyword set on added lines (lines starting with `+` but not
 // `+++`) and emits a targeted concern. Real LLM path replaces the stub
@@ -10,8 +10,12 @@
 // Same shape as reviewer-correctness so spawn() validateOutputShape
 // accepts the result against the (shared `<<: *reviewer_base`) manifest.
 //
-// All four are gated by `runReview` on `level === "L3" && pattern.test(diff)`,
-// so L1/L2 paths stay untouched.
+// All four are gated by `runReview` on `isL2Plus && trigger.test(diff)`
+// (review.ts) — L1 stays correctness-only. This file said "L3" throughout
+// until M4: Phase 2c lowered the gate in v1.27.0 and the header, the four
+// per-agent comments and the export name were all left behind, so a reader
+// following skills/review/SKILL.md's "L2+ specialists" link landed on a file
+// asserting the opposite.
 
 import type { Finding, Severity, Verdict } from "../types"
 
@@ -72,7 +76,7 @@ export function reviewerSecurity(input: ReviewerSpecialistInput): ReviewerSpecia
 }
 
 // reviewer.migration — schema-DDL patterns + filename hint (migrations/).
-// At L3 a migration touches durable state; the stub flags any DDL-shaped
+// At L2+ a migration touches durable state; the stub flags any DDL-shaped
 // addition for explicit human review of rollback + lock behaviour.
 const MIGRATION: SpecialistDef = {
   name: "reviewer.migration",
@@ -99,7 +103,7 @@ export function reviewerPerformance(input: ReviewerSpecialistInput): ReviewerSpe
 }
 
 // reviewer.infra — Dockerfile / k8s manifests / terraform / deploy
-// configs. At L3 an infra change touches shared state outside the repo's
+// configs. At L2+ an infra change touches shared state outside the repo's
 // own runtime; stub flags any added line referencing these surfaces.
 // Loose pattern (no end-boundary): "FROM node:20-alpine" includes a "-"
 // which breaks \b — so we just look for the surface name fragment.
@@ -114,7 +118,7 @@ export function reviewerInfra(input: ReviewerSpecialistInput): ReviewerSpecialis
   return reviewBy(INFRA, input)
 }
 
-// ----- L3 diff-conditional dispatch table -----
+// ----- L2+ diff-conditional dispatch table -----
 
 export interface SpecialistDescriptor {
   name: "reviewer.security" | "reviewer.migration" | "reviewer.performance" | "reviewer.infra"
@@ -123,16 +127,16 @@ export interface SpecialistDescriptor {
 }
 
 /**
- * Triggers for L3 specialist spawn — broader than each agent's internal
+ * Triggers for L2+ specialist spawn — broader than each agent's internal
  * pattern (which scans added lines): a hit anywhere in the diff (including
  * file headers, context lines) is enough to spawn the specialist. The
  * specialist itself then scans only added lines.
  *
- * Order matches the L3 priority spec (security > migration > performance >
+ * Order matches the priority spec (security > migration > performance >
  * infra). At most all 4 can spawn; aggregate verdict is worst-of (per
  * runReview's existing severity ordering).
  */
-export const L3_SPECIALISTS: readonly SpecialistDescriptor[] = [
+export const DIFF_CONDITIONAL_SPECIALISTS: readonly SpecialistDescriptor[] = [
   {
     name: "reviewer.security",
     // Loose matching — same rationale as the agents themselves: snake_case
@@ -159,5 +163,5 @@ export const L3_SPECIALISTS: readonly SpecialistDescriptor[] = [
 
 /** Return the specialists whose triggers match the diff. */
 export function matchSpecialists(diff: string): SpecialistDescriptor[] {
-  return L3_SPECIALISTS.filter((s) => s.trigger.test(diff))
+  return DIFF_CONDITIONAL_SPECIALISTS.filter((s) => s.trigger.test(diff))
 }

@@ -1,6 +1,6 @@
 ---
 name: reviewer-security
-description: "Heuristic keyword matcher, NOT LLM-backed: flags diff lines matching auth/jwt/token/session/crypto/password/secret and reports them at medium severity. It does not reason about injection, auth bypass, or OWASP categories — it cannot tell a real vulnerability from the word 'token'. Runs at L2+ when the diff matches. For semantic security analysis use `sgc cso` or a human reviewer."
+description: "This id means two different things depending on who dispatches it. Via `sgc review` (L2+, when the diff matches): a heuristic keyword matcher over added lines containing auth/jwt/token/session/crypto/password/secret, reported at medium severity — it cannot tell a real vulnerability from the word 'token', and this file's body is NOT what runs. Via Claude Code dispatching this subagent directly: the offensive-security prompt in this file's body does run (injection tracing, auth bypass, secrets, deserialization, SSRF/path traversal). Do not expect the second from the first; for semantic analysis inside sgc use `sgc cso` or a human."
 ---
 
 # Security Reviewer

@@ -1,6 +1,6 @@
 ---
 name: reviewer-performance
-description: "Heuristic keyword matcher, NOT LLM-backed: flags diff lines mentioning perf/cache/index/n+1/O(n)/p95/p99. It does not detect N+1 queries, unbounded loops, or algorithmic complexity — it matches words about them. Runs at L2+ when the diff matches."
+description: "This id means two different things depending on who dispatches it. Via `sgc review` (L2+, when the diff matches): a heuristic keyword matcher over added lines containing cache/caching/index/memoize/debounce/throttle/O(n)/n+1/benchmark/p95/p99 — it matches words about performance problems, it does not detect them, and this file's body is NOT what runs. Its spawn trigger is wider than its matcher, so a diff mentioning only `perf` or `performance` spawns it and it then finds nothing. Via Claude Code dispatching this subagent directly: the performance prompt in this file's body does run."
 ---
 
 # Performance Reviewer

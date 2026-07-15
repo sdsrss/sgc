@@ -7,6 +7,7 @@
 // docs/superpowers/specs/2026-04-24-phase-g-design.md §3.
 
 import { appendFileSync, mkdirSync, renameSync, statSync } from "node:fs"
+import { acquireFileLock } from "./file-lock"
 import { dirname, resolve } from "node:path"
 
 export interface EventRecord {
@@ -83,9 +84,11 @@ export interface LlmAgentContext {
  * P3-9: size cap for `.sgc/progress/events.ndjson` before it rotates to `.1`.
  *
  * The stream was append-only with no bound: every spawn and every LLM call,
- * forever. Its consumers (`sgc tail`, cso's anomaly detection) all read the
- * whole file, so an old project's stream degrades them and nothing reclaims the
- * space.
+ * forever. The load-bearing argument is memory, not analysis quality (M4
+ * correction — the original rationale here overstated it): cso and handoff do
+ * window their analysis to a tail, but they `readFileSync` the entire file
+ * first, so past ~2GB `sgc cso` throws on Node's max string length and goes
+ * down outright. Nothing reclaims the space either.
  *
  * Rotation does drop the oldest audit trail, which §13 cares about — but
  * unbounded growth does not preserve that trail either, it just makes it
@@ -95,9 +98,18 @@ export interface LlmAgentContext {
  */
 export const EVENTS_MAX_BYTES = 10_000_000
 
+/** M4: a project with a larger stream can size it without a rebuild. */
+function configuredMaxBytes(): number {
+  const raw = process.env["SGC_EVENTS_MAX_BYTES"]
+  if (!raw) return EVENTS_MAX_BYTES
+  const n = Number.parseInt(raw, 10)
+  return Number.isFinite(n) && n > 0 ? n : EVENTS_MAX_BYTES
+}
+
 function defaultNdjsonSink(stateRoot: string, maxBytes: number): (e: EventRecord) => void {
   const path = resolve(stateRoot, "progress/events.ndjson")
   const rotated = `${path}.1`
+  const rotateLock = `${path}.rotate.lock`
   // Create the parent directory once at sink creation (fail fast if
   // filesystem is unwritable; no per-write syscall overhead).
   mkdirSync(dirname(path), { recursive: true })
@@ -110,20 +122,69 @@ function defaultNdjsonSink(stateRoot: string, maxBytes: number): (e: EventRecord
   } catch {
     // No stream yet — starts at 0.
   }
+
+  /**
+   * M4: `bytes` counts only OUR writes, but the stream is shared. Against a
+   * second sgc process the counter is an undercount while it appends and a
+   * stale OVERcount once it rotates — and acting on the overcount is what
+   * destroyed data: we would rename the freshly-rotated, near-empty live file
+   * over the generation that process had just preserved. Measured before the
+   * fix: 12 events across two sinks, 1 still readable.
+   *
+   * So the counter is only a cheap *trigger*; crossing it buys one stat, and
+   * the real size decides. Zero syscalls per write on the common path.
+   *
+   * Bound, stated honestly: one writer → the live stream never exceeds the cap,
+   * total never exceeds 2×. N concurrent writers each bound their own
+   * contribution, so the live stream can reach N× the cap before anyone's
+   * counter trips. That overshoot is benign (N is 2 in the realistic case — an
+   * async plan child plus an operator command) and the alternative is a stat on
+   * every event.
+   */
+  const rotateIfNeeded = (lineLen: number): void => {
+    if (bytes + lineLen <= maxBytes) return
+    let actual: number
+    try {
+      actual = statSync(path).size
+    } catch {
+      bytes = 0 // stream vanished under us — treat as fresh
+      return
+    }
+    if (actual + lineLen <= maxBytes) {
+      bytes = actual // someone else already rotated; resync, don't rotate again
+      return
+    }
+    // Serialize the rename itself: two writers that both measure over-cap would
+    // otherwise race, and the loser can still clobber the winner's generation.
+    // Rotation happens once per cap, so this costs nothing per write.
+    let release: (() => void) | null = null
+    try {
+      release = acquireFileLock(rotateLock)
+    } catch {
+      return // another writer is rotating; appending one event past the cap is fine
+    }
+    try {
+      const recheck = statSync(path).size
+      if (recheck + lineLen > maxBytes) {
+        // Keep exactly one generation: rename replaces any prior .1, so the
+        // pile is bounded rather than growing a .2/.3/... tail.
+        renameSync(path, rotated)
+        bytes = 0
+      } else {
+        bytes = recheck
+      }
+    } catch {
+      // Rotation failed (permissions, races) — keep appending rather than
+      // dropping the event. An oversize stream beats a lost audit record.
+    } finally {
+      release()
+    }
+  }
+
   return (e: EventRecord) => {
     try {
       const line = JSON.stringify(e) + "\n"
-      if (bytes + line.length > maxBytes) {
-        // Keep exactly one generation: rename replaces any prior .1, so the
-        // pile is bounded rather than growing a .2/.3/... tail.
-        try {
-          renameSync(path, rotated)
-          bytes = 0
-        } catch {
-          // Rotation failed (permissions, races) — keep appending rather than
-          // dropping the event. An oversize stream beats a lost audit record.
-        }
-      }
+      rotateIfNeeded(line.length)
       appendFileSync(path, line, "utf8")
       bytes += line.length
     } catch (err) {
@@ -136,12 +197,12 @@ export function createLogger(opts: {
   stateRoot?: string
   say?: (m: string) => void
   eventSink?: (e: EventRecord) => void
-  /** P3-9: rotation cap override (tests). Defaults to EVENTS_MAX_BYTES. */
+  /** P3-9: rotation cap override (tests). Defaults to SGC_EVENTS_MAX_BYTES, else EVENTS_MAX_BYTES. */
   maxBytes?: number
 } = {}): Logger {
   const stateRoot = opts.stateRoot ?? process.env["SGC_STATE_ROOT"] ?? ".sgc"
   const say = opts.say ?? ((m: string) => console.log(m))
-  const sink = opts.eventSink ?? defaultNdjsonSink(stateRoot, opts.maxBytes ?? EVENTS_MAX_BYTES)
+  const sink = opts.eventSink ?? defaultNdjsonSink(stateRoot, opts.maxBytes ?? configuredMaxBytes())
   return {
     say,
     event(partial) {

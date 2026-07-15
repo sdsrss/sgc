@@ -108,23 +108,35 @@ describe("cso secret-scan pattern coverage (P3-12)", () => {
 })
 
 describe("cso oversize files are not silently trusted (P3-12)", () => {
-  // The audit proposed upgrading the >200KB skip from `warn` to a finding
-  // (i.e. fail the gate). Rejected, with evidence: this repo git-tracks its own
-  // ~950KB bundle (plugins/sgc/bin/sgc.mjs), so `sgc cso` would fail on sgc
-  // itself, every run, forever — and a gate that always fails gets ignored,
-  // which is strictly worse than one that warns. The existing behavior is
-  // already correct; these tests pin it so it stays that way.
-  test("a file too large to scan downgrades the verdict away from `pass`", () => {
-    src("big.ts", "// filler\n".repeat(30_000))
+  // Superseded by M4 — see tests/dispatcher/cso-scan-tiers.test.ts.
+  //
+  // What this block used to say: the audit wanted the >200KB skip upgraded from
+  // `warn` to a finding; that was rejected because this repo git-tracks its own
+  // ~950KB bundle, so `sgc cso` would then fail on sgc itself forever, and a
+  // gate that always fails is an ignored gate.
+  //
+  // That reasoning was correct and still is. The conclusion drawn from it was
+  // not: "the audit's fix is harmful" was allowed to close the item, while the
+  // audit's actual concern — an unscanned file is an unscanned file — survived
+  // the rebuttal intact. There was a third option neither side looked for.
+  // Raising the cap to 2MB scans the bundle in 4ms, keeps `sgc cso` green on
+  // sgc, and closes the concern. The cap below now pins THAT boundary.
+  test("a file past the cap downgrades the verdict away from `pass`", () => {
+    src("big.bin", "x".repeat(2_500_000))
     const r = scanSecrets(repo)
     expect(r.verdict).toBe("warn")
     expect(r.verdict).not.toBe("pass")
   })
 
   test("the unscanned file is named so the operator can check it by hand", () => {
-    src("big.ts", "// filler\n".repeat(30_000))
+    src("big.bin", "x".repeat(2_500_000))
     const r = scanSecrets(repo)
-    expect(r.warnings.join(" ")).toContain("big.ts")
+    expect(r.warnings.join(" ")).toContain("big.bin")
     expect(r.warnings.join(" ")).toMatch(/exceeds|cap|skipped/i)
+  })
+
+  test("a bundle-sized file is now inside the gate, not warned past it", () => {
+    src("big.ts", "// filler\n".repeat(30_000)) // 300KB — skipped before M4
+    expect(scanSecrets(repo).verdict).toBe("pass")
   })
 })

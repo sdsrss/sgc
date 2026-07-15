@@ -1,6 +1,6 @@
 ---
 name: reviewer-adversarial
-description: "NOT IMPLEMENTED (slot-only): a reserved slot for an adversarial reviewer that would hunt race conditions and edge-case abuse. /review never dispatches it — nothing runs today. Do not route work here expecting a result."
+description: "NOT IMPLEMENTED in sgc (slot-only): the manifest marks this id slot-only and no sgc command routes to it, so `sgc review` will never produce a result here. The body of this file is a complete adversarial-review prompt (race conditions, edge-case abuse) which DOES run if Claude Code dispatches this subagent directly — that is the only path on which anything happens."
 ---
 
 # Adversarial Reviewer

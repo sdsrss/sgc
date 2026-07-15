@@ -35,6 +35,30 @@ export interface FileLockOptions {
   isAlive?: (pid: number) => boolean
   /** Fallback staleness window for locks with an unparseable pid. */
   staleMs?: number
+  /** Boot-identity probe injection (tests). Defaults to currentBootId. */
+  bootId?: () => string | null
+}
+
+/**
+ * M4: an identifier that changes on every boot, used to tell "the holder pid is
+ * alive" apart from "a DIFFERENT process owns that pid because we rebooted".
+ *
+ * Needed because pid liveness alone is not holder identity. Reclaim only falls
+ * back to age when the pid is unparseable, so a well-formed lock whose pid is
+ * alive is never reclaimed at any age — and after a reboot the recorded pid is
+ * very likely alive again, since low pids get handed out early. That wedged the
+ * run permanently: `--resume` said "wait for pid 1 to finish", and pid 1 never
+ * finishes.
+ *
+ * Linux only. Where the OS exposes no boot id we record none and the reclaim
+ * rule is exactly what it was — a narrower fix than pretending otherwise.
+ */
+function currentBootId(): string | null {
+  try {
+    return readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim() || null
+  } catch {
+    return null
+  }
 }
 
 // A fork/claim critical section is sub-second; a lock older than this with no
@@ -60,6 +84,8 @@ export function acquireFileLock(lockPath: string, opts: FileLockOptions = {}): (
   const now = opts.now ?? Date.now
   const isAlive = opts.isAlive ?? defaultIsAlive
   const staleMs = opts.staleMs ?? DEFAULT_STALE_MS
+  const bootIdOf = opts.bootId ?? currentBootId
+  const myBoot = bootIdOf()
 
   // At most one stale-reclaim retry: if we lose the reclaim race twice, a
   // competitor is actively holding/claiming → treat as held.
@@ -70,7 +96,9 @@ export function acquireFileLock(lockPath: string, opts: FileLockOptions = {}): (
       // pid alone can't: pids recycle, and a reclaimer that re-took the path
       // may legitimately be this same process.
       const nonce = randomBytes(8).toString("hex")
-      const ours = `${process.pid}\n${now()}\n${nonce}\n`
+      // Line 4 is the boot id (M4), empty where the platform has none. Appending
+      // rather than reordering keeps locks written by <=v1.33.0 parseable.
+      const ours = `${process.pid}\n${now()}\n${nonce}\n${myBoot ?? ""}\n`
       try {
         writeSync(fd, ours)
       } finally {
@@ -96,6 +124,7 @@ export function acquireFileLock(lockPath: string, opts: FileLockOptions = {}): (
 
       let holderPid = Number.NaN
       let ts = Number.NaN
+      let holderBoot: string | null = null
       // P2-5: remember the exact bytes the reclaim decision is based on, so the
       // unlink below can confirm it is still removing THAT lock.
       let inspected: string | null = null
@@ -104,13 +133,20 @@ export function acquireFileLock(lockPath: string, opts: FileLockOptions = {}): (
         const parts = inspected.split("\n")
         holderPid = Number.parseInt(parts[0] ?? "", 10)
         ts = Number.parseInt(parts[1] ?? "", 10)
+        holderBoot = (parts[3] ?? "").trim() || null
       } catch {
         // Unreadable lock — fall through to staleness fallback.
       }
 
+      // M4: a boot id that disagrees with ours is proof of death — the holder
+      // cannot have survived the reboot, whatever its pid now belongs to. This
+      // outranks the liveness probe, which would say "alive" about a recycled
+      // pid and hold the lock forever. Only decisive when BOTH sides recorded
+      // one; a missing id on either side leaves the old rule untouched.
+      const rebooted = holderBoot !== null && myBoot !== null && holderBoot !== myBoot
       // Trust pid liveness primarily (avoids falsely reclaiming a live
       // holder). Only fall back to age when the pid is unparseable.
-      const holderDead = Number.isFinite(holderPid) ? !isAlive(holderPid) : null
+      const holderDead = rebooted ? true : Number.isFinite(holderPid) ? !isAlive(holderPid) : null
       const ageStale = Number.isFinite(ts) ? now() - ts > staleMs : true
       const reclaim = holderDead === true || (holderDead === null && ageStale)
 

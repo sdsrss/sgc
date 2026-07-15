@@ -170,6 +170,27 @@ export type ManifestLookup = (
 ) => { prompt_path?: string | null; status?: string } | null
 
 /**
+ * Manifest ids with no Claude Code registry file (M4).
+ *
+ * All four are dispatched inside sgc and work; none is exposed as a Claude Code
+ * subagent, so none has a prompt body for Claude to run. `reviewer.migration`
+ * and `reviewer.infra` are keyword matchers spawned by `sgc review` at L2+;
+ * `clarifier.discover` and `planner.decompose` are LLM-backed (they have a
+ * `prompt_path`) and are dispatched by `sgc discover` / `sgc plan`.
+ *
+ * Recorded, not designed: the manifest→file direction below did not exist, so
+ * these absences were nobody's decision — they were invisible. The review that
+ * prompted this fix predicted two of them; the check found four. Listing them
+ * makes the gap explicit and makes any NEW absence fail.
+ */
+const REGISTRY_EXEMPT_IDS = new Set([
+  "reviewer.migration",
+  "reviewer.infra",
+  "clarifier.discover",
+  "planner.decompose",
+])
+
+/**
  * P3-2 (audit v1.31.8): bind the Claude Code agent registry to the manifest.
  *
  * `plugins/sgc/agents/**\/*.md` frontmatter `description:` is LLM-visible
@@ -180,13 +201,34 @@ export type ManifestLookup = (
  * auth|jwt|token, and two reviewers claiming to be "Dispatched by /review"
  * while the manifest marks them slot-only — never dispatched at all.
  *
- * Two obligations, derived from the manifest rather than from prose review:
- *   - `status: slot-only` → the description must say it is not implemented.
+ * Obligations, derived from the manifest rather than from prose review:
+ *   - `status: slot-only` → the description must say it is not implemented, and
+ *     must NOT also claim to be dispatched.
  *   - `prompt_path: null` → the description must disclose it is heuristic, since
  *     `prompt_path` truthiness is this project's honest LLM-backed signal (it is
  *     what `sgc metrics` 智能化 counts).
+ *   - every manifest id has a registry file, or is exempt above (M4).
+ *
+ * ## What this check CANNOT do, and why that matters (M4)
+ *
+ * It enforces WIRING and DISCLOSURE, not ACCURACY. It cannot read the
+ * implementation and decide whether the prose describes it. So a description
+ * can carry the required word and still lie about everything else, and this
+ * check will pass it — which is exactly what happened: the P3-2 honesty pass
+ * itself shipped `maintainability.md` advertising long-function/large-file
+ * analysis that the code never performed, and `janitor/archive.md` describing
+ * housekeeping with zero implementation. Both said "heuristic". Both passed.
+ *
+ * Treat a green (N) as "the registry is wired and discloses its LLM-backing",
+ * never as "the descriptions are true". The latter needs a human reading the
+ * code, and `tests/dispatcher/m4-agent-metadata.test.ts` pins the specific
+ * claims that have been wrong before.
  */
-export function agentMetadataDrift(files: AgentMdFile[], lookup: ManifestLookup): string[] {
+export function agentMetadataDrift(
+  files: AgentMdFile[],
+  lookup: ManifestLookup,
+  manifestIds: string[] = [],
+): string[] {
   const drifts: string[] = []
   for (const f of files) {
     // Use the real manifest parser, not a regex: entries are written in three
@@ -197,14 +239,35 @@ export function agentMetadataDrift(files: AgentMdFile[], lookup: ManifestLookup)
       drifts.push(`${f.id}: ${f.file} has no manifest entry (orphan registry file)`)
       continue
     }
-    const desc = (/description:\s*"([^"]*)"/.exec(f.text)?.[1] ?? "").toLowerCase()
+    // Parse the frontmatter as YAML rather than regexing it (M4). The old
+    // `/description:\s*"([^"]*)"/` only matched double-quoted single-line
+    // values: an unquoted description (valid YAML) captured "" and was then
+    // accused of not disclosing what it disclosed perfectly, and an escaped
+    // quote truncated the capture at the escape.
+    let desc: string
+    try {
+      desc = readFrontmatterDescription(f.text).toLowerCase()
+    } catch (err) {
+      drifts.push(`${f.id}: ${f.file} frontmatter does not parse (${String(err).slice(0, 80)})`)
+      continue
+    }
     const slotOnly = entry.status === "slot-only"
     const heuristic = !entry.prompt_path
 
-    if (slotOnly && !/(not implemented|slot-only|never dispatched|not wired)/.test(desc)) {
-      drifts.push(
-        `${f.id}: manifest says status slot-only (never dispatched) but ${f.file} advertises it as working`,
-      )
+    if (slotOnly) {
+      if (!/(not implemented|slot-only|never dispatched|not wired)/.test(desc)) {
+        drifts.push(
+          `${f.id}: manifest says status slot-only (never dispatched) but ${f.file} advertises it as working`,
+        )
+      } else if (/dispatched by/.test(desc)) {
+        // A disclaimer in a parenthetical does not neutralize the claim in the
+        // sentence. "…Dispatched by /review for L2+ tasks. (The legacy stub is
+        // not wired.)" satisfied the check above while restoring the precise
+        // overclaim P3-2 removed.
+        drifts.push(
+          `${f.id}: ${f.file} is slot-only yet still says "dispatched by" — a disclaimer elsewhere does not undo it`,
+        )
+      }
       continue
     }
     // The obligation is "disclose that this is not LLM-backed", not "use the
@@ -212,13 +275,32 @@ export function agentMetadataDrift(files: AgentMdFile[], lookup: ManifestLookup)
     // deterministic BY DESIGN (§3 — an LLM could mint a dedup verdict past the
     // write gate), qa.browser drives a real browser, janitor.* runs decision
     // rules. Forcing one vocabulary would trade one inaccuracy for another.
-    if (!slotOnly && heuristic && !/(heuristic|keyword match|deterministic|not llm-backed|rule-based)/.test(desc)) {
+    if (heuristic && !/(heuristic|keyword match|deterministic|not llm-backed|rule-based|not implemented)/.test(desc)) {
       drifts.push(
         `${f.id}: manifest says prompt_path null (not LLM-backed) but ${f.file} does not disclose it`,
       )
     }
   }
+
+  // M4: the other direction. Check B binds prompts↔manifest both ways; this one
+  // only ever walked files → manifest, so an id that is manifested and
+  // dispatched but has no registry file was invisible.
+  const present = new Set(files.map((f) => f.id))
+  for (const id of manifestIds) {
+    if (present.has(id) || REGISTRY_EXEMPT_IDS.has(id)) continue
+    drifts.push(`${id}: manifested but has no registry file under plugins/sgc/agents/ (missing)`)
+  }
   return drifts
+}
+
+/** Read `description:` out of an agent file's YAML frontmatter. Throws on malformed YAML. */
+function readFrontmatterDescription(text: string): string {
+  const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1]
+  if (block === undefined) throw new Error("no frontmatter block")
+  const parsed = yamlLoad(block)
+  if (typeof parsed !== "object" || parsed === null) throw new Error("frontmatter is not a mapping")
+  const d = (parsed as Record<string, unknown>)["description"]
+  return typeof d === "string" ? d : ""
 }
 
 /** Enumerate the agent registry: agents/<group>/<name>.md → `<group>.<name>`. */
@@ -691,20 +773,31 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   log("")
   log("=== agent registry ↔ manifest ===")
   {
-    const files = readAgentMdFiles(root)
-    if (files.length === 0) {
-      emit({ severity: "ok", msg: "  ⓘ agent registry check skipped (no plugins/sgc/agents/ — npm channel)" })
-    } else {
-      try {
-        const drifts = agentMetadataDrift(files, (id) => getSubagentManifest(id) ?? null)
+    // M4: readAgentMdFiles walks the filesystem, so a broken symlink or an
+    // unreadable dir under agents/ threw statSync/readdirSync straight out of
+    // runDoctor instead of producing the ✗ this catch exists for. It belongs
+    // inside the try.
+    try {
+      const files = readAgentMdFiles(root)
+      if (files.length === 0) {
+        emit({ severity: "ok", msg: "  ⓘ agent registry check skipped (no plugins/sgc/agents/ — npm channel)" })
+      } else {
+        const drifts = agentMetadataDrift(
+          files,
+          (id) => getSubagentManifest(id) ?? null,
+          Object.keys(getCapabilities().subagents),
+        )
         if (drifts.length === 0) {
-          emit({ severity: "ok", msg: `  ✓ ${files.length} agent descriptions match manifest reality` })
+          // Deliberately not "descriptions are accurate" — see agentMetadataDrift's
+          // docblock. This check enforces wiring and disclosure; only a human
+          // reading the implementation can confirm the prose.
+          emit({ severity: "ok", msg: `  ✓ ${files.length} agent descriptions wired to manifest (disclosure checked, not accuracy)` })
         } else {
           for (const d of drifts) emit({ severity: "fail", msg: `  ✗ agent metadata drift — ${d}` })
         }
-      } catch (e) {
-        emit({ severity: "fail", msg: `  ✗ agent registry check error: ${(e as Error).message.slice(0, 80)}` })
       }
+    } catch (e) {
+      emit({ severity: "fail", msg: `  ✗ agent registry check error: ${(e as Error).message.slice(0, 80)}` })
     }
   }
 

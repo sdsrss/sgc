@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import {
-  L3_SPECIALISTS,
+  DIFF_CONDITIONAL_SPECIALISTS,
   matchSpecialists,
   reviewerInfra,
   reviewerMigration,
@@ -19,8 +19,8 @@ describe("reviewer-specialists — manifest wiring", () => {
       expect(tokens).not.toContain("read:solutions")  // Invariant §1
     }
   })
-  test("L3_SPECIALISTS lists exactly 4 specialists in priority order", () => {
-    const names = L3_SPECIALISTS.map((s) => s.name)
+  test("DIFF_CONDITIONAL_SPECIALISTS lists exactly 4 specialists in priority order", () => {
+    const names = DIFF_CONDITIONAL_SPECIALISTS.map((s) => s.name)
     expect(names).toEqual([
       "reviewer.security",
       "reviewer.migration",

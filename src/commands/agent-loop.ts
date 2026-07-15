@@ -126,6 +126,24 @@ export async function runAgentLoop(opts: AgentLoopOptions = {}): Promise<{
     // is never readable by a later poll.
     const leak = scanOutputForLeak(agentName, parsed, getFingerprintsCached(root))
     if (leak.hit) {
+      // M4: record the trip. spawn()'s equivalent rejection is visible to
+      // `sgc tail` as spawn.end{outcome:"error"}; this path threw silently —
+      // so a §1 violation arriving through the one path with no live poller
+      // (the whole reason --submit exists) left no audit trace at all. A gate
+      // whose trips are not recorded cannot be shown to have ever worked.
+      //
+      // Count, not content: `leak.samples` IS the solution text the agent was
+      // not allowed to see. Copying it into events.ndjson would leak it a
+      // second time, into a file tail prints and cso reads. The operator has
+      // the sample in the thrown message already.
+      logger.event({
+        task_id: null,
+        spawn_id: opts.submit,
+        agent: agentName,
+        event_type: "submit.rejected",
+        level: "error",
+        payload: { reason: "invariant_1_output_leak", match_count: leak.count },
+      })
       throw new Error(
         `Invariant §1 violation (output leak): submitted result for ${agentName} contains ${leak.count} line(s) matching solutions/ content. ` +
           `Sample(s): ${leak.samples.map((s) => `"${s}"`).join(", ")}. ` +

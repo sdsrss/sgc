@@ -103,35 +103,82 @@ function reportSlug(stamp: { date: string; time: string }): string {
 // ─────────────────────────────────────────────────────────────────────────
 
 // P3-12 (audit v1.31.8): the set below missed formats common in the repos this
-// gate actually runs against — `sk-` caught OpenAI but not Stripe's `sk_live_`,
-// and JWTs / Google keys / npm tokens / Slack webhooks matched nothing at all.
+// gate actually runs against — Stripe's `sk_live_`, JWTs, Google keys, npm
+// tokens and Slack webhooks matched nothing at all.
 //
 // Every pattern here is anchored on a vendor-specific prefix with a bounded
-// length class: no unbounded quantifier sits next to another (ReDoS-safe on the
-// 200KB inputs this runs over), and prefix-anchoring keeps the false-positive
-// rate low enough that the gate stays usable. This is still a last-line
-// heuristic, not gitleaks.
-const SECRET_PATTERNS: { name: string; re: RegExp }[] = [
+// length class: no unbounded quantifier sits next to another, and in each one
+// the class and the literal that follows it are disjoint (`.` and `/` are not
+// in `[A-Za-z0-9_-]`), so there is no ambiguity for the engine to backtrack
+// through. Measured linear, not asserted: 11 patterns × nine pathological 200KB
+// inputs peaked at 5.3ms. This is still a last-line heuristic, not gitleaks.
+interface SecretPattern {
+  name: string
+  re: RegExp
+  /**
+   * True when this shape legitimately appears in prose — vendor quickstarts,
+   * decoded-token walkthroughs, API reference pages. In a documentation file
+   * these downgrade to a warning instead of failing the gate.
+   *
+   * This is the `sk_test_` reasoning below, generalized: a gate that fails on
+   * values which are safe to commit trains operators to ignore it. jwt.io's
+   * front-page token, Slack's own docs webhook URL and Google's docs API key
+   * are the canonical examples, and every repo with a `docs/auth.md` has one.
+   *
+   * The narrow scope matters. Flagging *nothing* in `.md` would be the same
+   * mistake in the other direction — README.md and CHANGELOG.md are in
+   * `files[]`, i.e. published — so a shape that is never legitimate in prose
+   * (Stripe live, npm token, AWS) stays a finding wherever it appears.
+   */
+  commonInDocs?: boolean
+}
+
+const SECRET_PATTERNS: SecretPattern[] = [
   { name: "AWS access key", re: /AKIA[0-9A-Z]{16}/ },
   { name: "private key block", re: /-----BEGIN (RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----/ },
-  { name: "GitHub PAT", re: /gh[ps]_[A-Za-z0-9]{36,}/ },
-  { name: "OpenAI API key", re: /sk-[A-Za-z0-9]{20,}/ },
+  // gh[pousr]_ covers personal / OAuth / user-to-server / server / refresh.
+  // `github_pat_` is the fine-grained format GitHub now recommends and is not
+  // reachable from the classic prefix (`gh` + `i` fails the class).
+  { name: "GitHub token", re: /gh[pousr]_[A-Za-z0-9]{36,}/ },
+  { name: "GitHub fine-grained PAT", re: /github_pat_[A-Za-z0-9_]{22,}/ },
+  // OpenAI issues `sk-proj-` by default (since 2024) and `sk-svcacct-` for
+  // service accounts. The old `sk-[A-Za-z0-9]{20,}` matched neither: `proj` is
+  // four characters before the `-` breaks the class, so the pattern most likely
+  // to fire in a real diff fired on nothing.
+  { name: "OpenAI API key", re: /sk-(?:proj-|svcacct-|admin-)?[A-Za-z0-9_-]{20,}/ },
   { name: "Slack token", re: /xox[abprs]-[A-Za-z0-9-]{10,}/ },
+  { name: "Slack app-level token", re: /xapp-[0-9]-[A-Za-z0-9-]{20,}/ },
   // Stripe: `sk_live_` / `rk_live_` are the ones that cost money. Test keys
   // (`sk_test_`) are deliberately NOT flagged — they are safe to commit and
-  // flagging them would train operators to ignore this gate.
+  // flagging them would train operators to ignore this gate. `whsec_` is the
+  // webhook signing secret: the most commonly leaked Stripe value after the
+  // API key itself.
   { name: "Stripe live key", re: /(?:sk|rk)_live_[A-Za-z0-9]{16,}/ },
-  // JWT: three base64url segments. Requires a real signature segment so the
-  // literal string "header.payload.signature" in docs doesn't match.
-  { name: "JWT", re: /eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{20,}/ },
-  { name: "Google API key", re: /AIza[A-Za-z0-9_-]{35}/ },
+  { name: "Stripe webhook secret", re: /whsec_[A-Za-z0-9]{32,}/ },
+  // JWT: three base64url segments, requiring a real signature segment.
+  { name: "JWT", re: /eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{20,}/, commonInDocs: true },
+  // `AIza` keys are frequently domain-restricted and semi-public; `GOCSPX-` is
+  // the Google value that is actually secret.
+  { name: "Google API key", re: /AIza[A-Za-z0-9_-]{35}/, commonInDocs: true },
+  { name: "Google OAuth client secret", re: /GOCSPX-[A-Za-z0-9_-]{24,}/ },
   { name: "npm token", re: /npm_[A-Za-z0-9]{36}/ },
-  { name: "Slack webhook URL", re: /hooks\.slack\.com\/services\/T[A-Za-z0-9]{8,}\/B[A-Za-z0-9]{8,}\/[A-Za-z0-9]{20,}/ },
+  // `services/` is the classic incoming webhook, `triggers/` is Workflow
+  // Builder — same host, same secrecy, different path shape.
+  {
+    name: "Slack webhook URL",
+    re: /hooks\.slack\.com\/(?:services|triggers)\/T[A-Za-z0-9]{8,}\/[A-Za-z0-9]{8,}\/[A-Za-z0-9]{20,}/,
+    commonInDocs: true,
+  },
   {
     name: "generic api-key/password assignment",
     re: /\b(?:api[_-]?key|api[_-]?secret|access[_-]?token|password|secret[_-]?key|private[_-]?key)\s*[=:]\s*["'][^"'\s]{16,}["']/i,
   },
 ]
+
+/** Documentation shapes, where `commonInDocs` patterns downgrade to a warning. */
+function isDocPath(rel: string): boolean {
+  return /\.mdx?$/i.test(rel) || /(^|\/)docs?\//.test(rel)
+}
 
 const SCAN_EXCLUDE_PREFIXES = [
   ".sgc/cso/",
@@ -184,11 +231,30 @@ function listScanFiles(repoRoot: string): { files: string[]; warnings: string[] 
   return { files, warnings }
 }
 
-const MAX_SCAN_BYTES = 200_000
+// The old cap was 200KB, and in this repo the only file it ever excluded was
+// `plugins/sgc/bin/sgc.mjs` — which, since P3-9 trimmed `files[]`, is the only
+// code file published to npm. The gate skipped the one artifact that reaches
+// users. Scanning it costs 4ms (measured on the real 974KB bundle), and the
+// bundle is exactly where an artifact-level scan earns its keep: bundlers
+// inline `process.env.X` at build time, so a secret can be in the bundle while
+// `src/` is clean.
+//
+// 2MB keeps genuinely pathological blobs (checked-in binaries, minified vendor
+// dumps) out while covering any plausible source or bundle file.
+const DEFAULT_MAX_SCAN_BYTES = 2_000_000
+
+/** §2-EXT: a user-visible default change owes an explicit revert path. */
+function maxScanBytes(): number {
+  const raw = process.env.SGC_CSO_MAX_SCAN_BYTES
+  if (!raw) return DEFAULT_MAX_SCAN_BYTES
+  const n = Number.parseInt(raw, 10)
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_SCAN_BYTES
+}
 
 export function scanSecrets(repoRoot: string): CsoCheckResult {
   const { files, warnings } = listScanFiles(repoRoot)
   const findings: string[] = []
+  const capBytes = maxScanBytes()
   for (const rel of files) {
     const abs = resolve(repoRoot, rel)
     if (!existsSync(abs)) continue
@@ -199,8 +265,8 @@ export function scanSecrets(repoRoot: string): CsoCheckResult {
       continue
     }
     if (!stat.isFile()) continue
-    if (stat.size > MAX_SCAN_BYTES) {
-      warnings.push(`${rel}: ${stat.size} bytes exceeds ${MAX_SCAN_BYTES} scan cap, skipped`)
+    if (stat.size > capBytes) {
+      warnings.push(`${rel}: ${stat.size} bytes exceeds ${capBytes} scan cap, skipped`)
       continue
     }
     let content: string
@@ -209,12 +275,21 @@ export function scanSecrets(repoRoot: string): CsoCheckResult {
     } catch {
       continue
     }
-    for (const { name, re } of SECRET_PATTERNS) {
+    const inDocs = isDocPath(rel)
+    for (const { name, re, commonInDocs } of SECRET_PATTERNS) {
+      // No /g flag on any pattern by design: these are module-level RegExp
+      // objects reused across every file, and `lastIndex` would carry between
+      // files and skip real secrets depending on scan order.
       const m = re.exec(content)
-      if (m) {
-        const line = content.slice(0, m.index).split(/\r?\n/).length
-        findings.push(`${rel}:${line} matches ${name}`)
+      if (!m) continue
+      const line = content.slice(0, m.index).split(/\r?\n/).length
+      if (commonInDocs && inDocs) {
+        warnings.push(`${rel}:${line} matches ${name} — documentation, treated as an example; confirm it is not live`)
+        continue
       }
+      // The match itself is never interpolated: a scanner that echoes what it
+      // found copies the secret into its own report.
+      findings.push(`${rel}:${line} matches ${name}`)
     }
   }
   const verdict: CsoVerdict = findings.length > 0 ? "fail" : warnings.length > 0 ? "warn" : "pass"

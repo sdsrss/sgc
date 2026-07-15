@@ -1,6 +1,6 @@
 ---
 name: janitor-archive
-description: "Deterministic decision rules, NOT LLM-backed: archival/retention housekeeping over .sgc/ state. No semantic judgement is involved."
+description: "NOT IMPLEMENTED in sgc: there is no archive code in this repo — no janitor-archive module, no subcommand, no caller — so no sgc command can produce a result here. The body of this file is a complete `.sgc/` housekeeping prompt which DOES run, and will move files, if Claude Code dispatches this subagent directly. That is the only path on which anything happens. (Manifest status is `manual-only` rather than `slot-only`, which is how this escaped the reviewer.adversarial / reviewer.spec relabelling.)"
 ---
 
 # Archive Janitor

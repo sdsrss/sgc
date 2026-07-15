@@ -1,6 +1,6 @@
 ---
 name: reviewer-maintainability
-description: "Heuristic keyword matcher, NOT LLM-backed: flags size/shape signals in the diff (long functions, large files). It does not evaluate naming, coupling, or design patterns. Runs at L2+ (always-on in the L2 cluster)."
+description: "This id means two different things depending on who dispatches it. Via `sgc review` (L2+, always-on in the L2 cluster): a heuristic keyword matcher that flags added lines over 120 characters and added lines containing a suppression marker (TODO, FIXME, @ts-ignore, @ts-nocheck, eslint-disable, `as any`) — that is the whole of it. No function length, no file size, no naming, coupling or design-pattern analysis, and this file's body is NOT what runs. Via Claude Code dispatching this subagent directly: the maintainability prompt in this file's body does run."
 ---
 
 # Maintainability Reviewer

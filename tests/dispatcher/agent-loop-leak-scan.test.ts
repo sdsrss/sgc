@@ -19,6 +19,7 @@ import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { runAgentLoop } from "../../src/commands/agent-loop"
 import { promptPath, resultPath } from "../../src/dispatcher/spawn-protocol"
+import { createLogger, type EventRecord, type Logger } from "../../src/dispatcher/logger"
 import { ensureSgcStructure } from "../../src/dispatcher/state"
 
 let tmp: string
@@ -97,5 +98,67 @@ describe("agent-loop --submit runs the §1 leak scan (P3-5)", () => {
     })
     expect(r.action).toBe("submit")
     expect(readFileSync(resultPath(SPAWN_ID, tmp), "utf8")).toContain("verdict: pass")
+  })
+})
+
+// M4: the gate fired, but silently.
+//
+// spawn()'s equivalent rejection surfaces as spawn.end{outcome:"error"}, so an
+// operator running `sgc tail` sees §1 violations. This path only threw. The
+// result: a violation arriving through the ONE path with no live poller — which
+// is the entire reason --submit exists — left no audit trace. A security gate
+// whose trips are not recorded cannot be shown to have ever worked.
+describe("agent-loop --submit records the §1 rejection (M4)", () => {
+  function capture(): { logger: Logger; events: EventRecord[] } {
+    const events: EventRecord[] = []
+    const logger = createLogger({ stateRoot: tmp, say: () => {}, eventSink: (e) => events.push(e) })
+    return { logger, events }
+  }
+
+  test("a rejected submission emits an event naming the agent and the invariant", async () => {
+    const { logger, events } = capture()
+    await runAgentLoop({
+      stateRoot: tmp,
+      submit: SPAWN_ID,
+      readStdin: async () => leakingYaml,
+      log: () => {},
+      logger,
+    }).catch(() => {})
+
+    const rejected = events.filter((e) => e.event_type === "submit.rejected")
+    expect(rejected.length).toBe(1)
+    const e = rejected[0] as EventRecord
+    expect(e.level).toBe("error")
+    expect(e.agent).toBe("reviewer.correctness")
+    expect(e.spawn_id).toBe(SPAWN_ID)
+    expect(e.payload.reason).toBe("invariant_1_output_leak")
+    expect(e.payload.match_count).toBe(1)
+  })
+
+  test("the event does not carry the leaked content itself", async () => {
+    // The samples are the solution text the reviewer was not allowed to see.
+    // Copying them into the event stream would leak them a second time, into a
+    // file that `sgc tail` prints and cso reads.
+    const { logger, events } = capture()
+    await runAgentLoop({
+      stateRoot: tmp,
+      submit: SPAWN_ID,
+      readStdin: async () => leakingYaml,
+      log: () => {},
+      logger,
+    }).catch(() => {})
+    expect(JSON.stringify(events)).not.toContain(SECRET_LINE)
+  })
+
+  test("a clean submission emits no rejection", async () => {
+    const { logger, events } = capture()
+    await runAgentLoop({
+      stateRoot: tmp,
+      submit: SPAWN_ID,
+      readStdin: async () => cleanYaml,
+      log: () => {},
+      logger,
+    })
+    expect(events.filter((e) => e.event_type === "submit.rejected").length).toBe(0)
   })
 })

@@ -1,6 +1,6 @@
 ---
 name: reviewer-spec
-description: "NOT IMPLEMENTED (slot-only): a reserved slot for drift detection between shipped code and declared intent. /review never dispatches it — nothing runs today. Do not route work here expecting a result."
+description: "NOT IMPLEMENTED in sgc (slot-only): the manifest marks this id slot-only and no sgc command routes to it, so `sgc review` will never produce a result here. The body of this file is a complete spec-drift prompt (shipped code vs declared intent) which DOES run if Claude Code dispatches this subagent directly — that is the only path on which anything happens."
 ---
 
 # Spec Reviewer

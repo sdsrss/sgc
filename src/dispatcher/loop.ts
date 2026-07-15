@@ -83,6 +83,15 @@ export interface LoopRun {
   status: RunStatus
   failed_step?: LoopStepName
   error?: string
+  /**
+   * M4: the machine-readable code behind `error`, when the failure carried one.
+   *
+   * The step handler used to keep only `err.message`, so `L3NeedsConfirmation`
+   * — declared, thrown, and documented — could never be observed by anything:
+   * a CI job wanting to tell "this needs a human" from "the planner crashed"
+   * had to regex the prose. Absent for plain Errors rather than guessed at.
+   */
+  error_code?: LoopErrorCode
   steps: LoopStepEntry[]
 }
 
@@ -406,15 +415,24 @@ export async function runLoop(
   // same run: both spawn planners, both write the same checkpoint, and the run
   // file goes last-writer-wins.
   let releaseExecLock: () => void
+  const execLockPath = runExecLockPath(stateRoot, run.run_id)
   try {
-    releaseExecLock = acquireFileLock(runExecLockPath(stateRoot, run.run_id))
+    releaseExecLock = acquireFileLock(execLockPath)
   } catch (err) {
     if (err instanceof LockHeldError) {
+      // M4: name the lock file. "Wait for it to finish or park" is unactionable
+      // when the holder is gone — a pid recorded before a reboot is very likely
+      // alive again but is not our holder, and the boot-id check in file-lock.ts
+      // only reclaims that when both sides recorded one (Linux). Where it
+      // cannot, the operator needs to see the artifact that is blocking them:
+      // this is the path they were told to use, and it previously mentioned
+      // neither the lock nor where it lives.
       throw new LoopError(
         "ConcurrentRunActive",
-        `loop run ${run.run_id} is already in progress (holder pid=${err.holderPid}). ` +
-          `Wait for it to finish or park, then resume.`,
-        { run_id: run.run_id, active_pid: err.holderPid },
+        `loop run ${run.run_id} is already in progress (holder pid=${err.holderPid}, lock=${execLockPath}). ` +
+          `Wait for it to finish or park, then resume. If that pid is not an sgc run — a reboot can leave the ` +
+          `lock behind — delete ${execLockPath} and resume.`,
+        { run_id: run.run_id, active_pid: err.holderPid, lock_path: execLockPath },
       )
     }
     throw err
@@ -464,6 +482,7 @@ export async function runLoop(
         // Clear any prior failure crumbs (we resumed past them).
         delete run.failed_step
         delete run.error
+        delete run.error_code
         writeRun(runFilePath, run)
         const pauseReason =
           stepName === "work"
@@ -515,6 +534,7 @@ export async function runLoop(
         // Clear prior failure crumbs (success after retry).
         delete run.failed_step
         delete run.error
+        delete run.error_code
         writeRun(runFilePath, run)
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
@@ -524,6 +544,10 @@ export async function runLoop(
         run.status = "failed"
         run.failed_step = stepName
         run.error = msg
+        // M4: carry the code, not just the prose. Without this the LoopErrorCode
+        // enum is decorative — the throw site sets it and this line dropped it.
+        if (err instanceof LoopError) run.error_code = err.code
+        else delete run.error_code
         run.last_updated_at = entry.completed_at
         run.current_step = stepName
         writeRun(runFilePath, run)
@@ -537,6 +561,7 @@ export async function runLoop(
     run.last_updated_at = new Date(now()).toISOString()
     delete run.failed_step
     delete run.error
+    delete run.error_code
     writeRun(runFilePath, run)
     return { run, terminal_reason: "complete" }
   } finally {

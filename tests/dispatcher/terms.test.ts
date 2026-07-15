@@ -38,6 +38,13 @@ describe("buildPattern", () => {
     expect(buildPattern(terms, "gi").flags).toBe("gi")
   })
 
+  test("an explicit empty flag string is honoured, not coerced back to the default", () => {
+    const terms: Term[] = [{ display: "auth", re: "auth", wordBounded: false }]
+    expect(buildPattern(terms, "").flags).toBe("")
+    expect(buildPattern(terms, "").test("Auth")).toBe(false)   // case-SENSITIVE
+    expect(buildPattern(terms).test("Auth")).toBe(true)        // default "i" is not
+  })
+
   test("displayList joins the display names, not the regex sources", () => {
     const terms: Term[] = [
       { display: "O(n…)", re: String.raw`O\(n\^?\d*\)`, wordBounded: false },

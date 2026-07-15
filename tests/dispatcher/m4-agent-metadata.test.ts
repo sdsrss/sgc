@@ -36,6 +36,8 @@ import {
   matchSpecialists,
   reviewerPerformance,
 } from "../../src/dispatcher/agents/reviewer-specialists"
+import { MAINT_MARKER_TERMS } from "../../src/dispatcher/agents/reviewer-quality"
+import { buildPattern } from "../../src/dispatcher/agents/terms"
 import { getCapabilities, getSubagentManifest } from "../../src/dispatcher/schema"
 
 const ROOT = resolve(import.meta.dir, "../..")
@@ -58,7 +60,16 @@ describe("M4 · descriptions the honesty pass got wrong", () => {
     // Ground the assertions in the implementation rather than in my reading of
     // it: these two are what the code actually looks at.
     expect(impl).toContain("MAX_LINE = 120")
-    expect(impl).toMatch(/MAINT_MARKERS\s*=\s*\/\(TODO\|FIXME/)
+    // This asserted the marker set by regex-scraping this file's SOURCE TEXT for
+    // `MAINT_MARKERS = /(TODO|FIXME`, until v1.36.0 made the pattern a
+    // buildPattern() call (the same move Task 2 made for reviewer-specialists.ts).
+    // Asserting behaviour against the exported term list survives that move —
+    // the fact owed is "the marker matcher looks for TODO/FIXME and is
+    // case-sensitive", and it is now assertable directly.
+    expect(MAINT_MARKER_TERMS.map((t) => t.display)).toEqual(
+      expect.arrayContaining(["TODO", "FIXME"]))
+    expect(buildPattern(MAINT_MARKER_TERMS, "").test("TODO")).toBe(true)
+    expect(buildPattern(MAINT_MARKER_TERMS, "").test("todo")).toBe(false)   // case-SENSITIVE
     expect(impl).not.toMatch(/function.*length|lines\s*per\s*function|file\s*size/i)
 
     // So the description must claim those, and must not claim the two things

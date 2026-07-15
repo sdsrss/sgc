@@ -2,7 +2,10 @@ import { test, expect, describe } from "bun:test"
 import {
   reviewerTests,
   reviewerMaintainability,
+  MAINT_MARKER_TERMS, MAX_LINE, MAINTAINABILITY_SEVERITY,
+  TESTS_SEVERITY, TESTS_MECHANISM,
 } from "../../src/dispatcher/agents/reviewer-quality"
+import { buildPattern } from "../../src/dispatcher/agents/terms"
 
 describe("reviewer.tests heuristic", () => {
   test("source file changed with no test file → concern", () => {
@@ -51,5 +54,30 @@ describe("reviewer.maintainability heuristic", () => {
   test("markers on removed lines are not flagged", () => {
     const diff = "-// TODO old\n+const clean = 1\n"
     expect(reviewerMaintainability({ diff, intent: "" }).verdict).toBe("pass")
+  })
+})
+
+describe("Task 3 — quality reviewer facts are data", () => {
+  test("the marker regex is built from MAINT_MARKER_TERMS and is unchanged", () => {
+    const FROZEN = /(TODO|FIXME|@ts-ignore|@ts-nocheck|eslint-disable|\bas any\b)/
+    const built = buildPattern(MAINT_MARKER_TERMS, "")
+    for (const p of ["TODO", "FIXME", "@ts-ignore", "@ts-nocheck", "eslint-disable",
+                     "x as any", "asany", "as anything", "const x = 1"]) {
+      expect(`${JSON.stringify(p)} → ${built.test(p)}`).toBe(`${JSON.stringify(p)} → ${FROZEN.test(p)}`)
+    }
+  })
+
+  test("severities match what the functions actually return", () => {
+    expect(MAX_LINE).toBe(120)
+    expect(MAINTAINABILITY_SEVERITY).toBe("low")
+    expect(TESTS_SEVERITY).toBe("medium")
+  })
+
+  test("TESTS_MECHANISM names a file-path check, not a keyword match", () => {
+    // M4 called this a "keyword matcher". It is a path regex over `+++ b/<path>`
+    // headers and reads no line content — and "keyword match" was, precisely, the
+    // phrase that satisfied doctor's honesty gate.
+    expect(TESTS_MECHANISM).toMatch(/file-path/i)
+    expect(TESTS_MECHANISM).not.toMatch(/keyword/i)
   })
 })

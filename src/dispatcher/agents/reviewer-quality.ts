@@ -15,6 +15,7 @@ import type {
   ReviewerSpecialistInput,
   ReviewerSpecialistOutput,
 } from "./reviewer-specialists"
+import { buildPattern, type Term } from "./terms"
 
 /** Lines starting with `+` (added) but not the `+++` file header. */
 function addedLines(diff: string): string[] {
@@ -67,15 +68,29 @@ export function reviewerTests(
           .join(", ")}`,
       },
     ]
-    return { verdict: "concern", severity: "medium", findings }
+    return { verdict: "concern", severity: TESTS_SEVERITY, findings }
   }
   return { verdict: "pass", severity: "none", findings: [] }
 }
 
 // reviewer.maintainability — readability/complexity smells on added lines.
 // Advisory (severity low): long lines + suppression/escape-hatch markers.
-const MAINT_MARKERS = /(TODO|FIXME|@ts-ignore|@ts-nocheck|eslint-disable|\bas any\b)/
-const MAX_LINE = 120
+
+/** Suppression / escape-hatch markers. `as any` is word-bounded; the rest are not. */
+export const MAINT_MARKER_TERMS: readonly Term[] = [
+  { display: "TODO", re: "TODO", wordBounded: false },
+  { display: "FIXME", re: "FIXME", wordBounded: false },
+  { display: "@ts-ignore", re: "@ts-ignore", wordBounded: false },
+  { display: "@ts-nocheck", re: "@ts-nocheck", wordBounded: false },
+  { display: "eslint-disable", re: "eslint-disable", wordBounded: false },
+  { display: "as any", re: "as any", wordBounded: true },
+]
+const MAINT_MARKERS = buildPattern(MAINT_MARKER_TERMS, "")   // case-SENSITIVE, as before
+export const MAX_LINE = 120
+export const MAINTAINABILITY_SEVERITY: Severity = "low"
+export const TESTS_SEVERITY: Severity = "medium"
+export const TESTS_MECHANISM =
+  "a file-path check over the diff's `+++ b/<path>` headers"
 
 export function reviewerMaintainability(
   input: ReviewerSpecialistInput,
@@ -94,7 +109,7 @@ export function reviewerMaintainability(
       })
     }
   }
-  const severity: Severity = findings.length > 0 ? "low" : "none"
+  const severity: Severity = findings.length > 0 ? MAINTAINABILITY_SEVERITY : "none"
   const verdict: Verdict = findings.length > 0 ? "concern" : "pass"
   return { verdict, severity, findings }
 }

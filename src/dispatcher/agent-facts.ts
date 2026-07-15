@@ -68,7 +68,7 @@ export function deriveCliFact(agentId: string): string {
   if (m.prompt_path) {
     const fb =
       agentId === "reviewer.tests"
-        ? `${TESTS_MECHANISM} that only asks whether test files were touched`
+        ? `${TESTS_MECHANISM} that only asks whether test files were touched, at ${severityOf(agentId)} severity`
         : `a keyword matcher (${fallbackTerms(agentId)}) at ${severityOf(agentId)} severity`
     return `${CLI_FACT_MARKER} ${NO_BODY} — with an API key it runs ${m.prompt_path}; without one it falls back to ${fb}.`
   }

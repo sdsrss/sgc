@@ -712,7 +712,7 @@ export function deriveCliFact(agentId: string): string {
   if (m.prompt_path) {
     const fb =
       agentId === "reviewer.tests"
-        ? `${TESTS_MECHANISM} that only asks whether test files were touched`
+        ? `${TESTS_MECHANISM} that only asks whether test files were touched, at ${severityOf(agentId)} severity`
         : `a keyword matcher (${fallbackTerms(agentId)}) at ${severityOf(agentId)} severity`
     return `${CLI_FACT_MARKER} ${NO_BODY} — with an API key it runs ${m.prompt_path}; without one it falls back to ${fb}.`
   }
@@ -726,6 +726,10 @@ export function deriveCliFact(agentId: string): string {
   return `${CLI_FACT_MARKER} ${NO_BODY} — ${agentId} there is a heuristic keyword matcher over added lines (${fallbackTerms(agentId)}) at ${severityOf(agentId)} severity, which matches words about the problem rather than detecting it. Its spawn trigger is deliberately wider than that matcher, so a spawned reviewer reporting zero findings is not evidence of a clean diff.`
 }
 ```
+
+**Found in review of `5839cdd`, resolved in the same commit: `severityOf`'s `reviewer.tests` case was dead code.** The `fb` ternary's `reviewer.tests` branch never called `severityOf(agentId)` — proved with a mutation (`case "reviewer.tests": return TESTS_SEVERITY` → `return "BOGUS-UNREACHABLE"`) and watched the full suite pass unchanged with `deriveCliFact("reviewer.tests")` byte-identical. That contradicted this task's own Interfaces line above ("Consumes: ... `TESTS_SEVERITY`") — an export created specifically to be consumed here, then never read. It was also the one heuristic-fallback clause of the five that didn't state its severity while genuinely having one (`reviewerTests` really does return `TESTS_SEVERITY` at runtime), an asymmetry a CLI-reading user would have no way to notice.
+
+Resolved by making the case live — the code above already reflects it: `reviewer.tests`'s branch now ends `, at ${severityOf(agentId)} severity` like every sibling shape. The alternative (delete the dead case + drop the `TESTS_SEVERITY` import, treating the omission as intentional) was considered and rejected — there was no substantive reason for tests' fallback to hide its severity when it reports one same as the rest. Whichever way a future change resolves this again, verify by mutation the same way: flip the case to a bogus value, confirm the suite goes red, then revert.
 
 - [ ] **Step 4: Run tests to verify they pass**
 

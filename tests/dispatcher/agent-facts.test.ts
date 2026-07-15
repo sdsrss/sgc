@@ -38,10 +38,14 @@ describe("deriveCliFact — the four shapes", () => {
     expect(f).toContain("low severity")
   })
 
-  test("tests names a file-path check, never a keyword matcher", () => {
+  test("tests names a file-path check, never a keyword matcher, and states its severity like its siblings", () => {
     const f = deriveCliFact("reviewer.tests")
     expect(f).toContain("file-path")
     expect(f).not.toMatch(/keyword/i)
+    // Every other fallback clause names its severity (medium/high/low above);
+    // omitting it here would be an unexplained asymmetry a reader would notice
+    // and this heuristic really does report TESTS_SEVERITY when it fires.
+    expect(f).toContain("medium severity")
   })
 
   test("CLI-never-runs (adversarial, spec, archive) says so and names no matcher", () => {

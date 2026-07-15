@@ -12,7 +12,7 @@
 
 - **Iron Law #1 — every task is RED first.** A test that has never failed proves nothing.
 - **`SGC_FORCE_INLINE=1 bun test tests/` is the ONLY correct test invocation.** A bare `bun test` reaches a real LLM and hangs. This applies to every Run step below.
-- **Baseline to beat (measured at `95d0421`):** 1499 pass / 38 skip / 0 fail · `npm run typecheck` exit 0 · `SGC_FORCE_INLINE=1 bun run src/sgc.ts doctor` → 70 OK / 0 warn / 0 fail · `npm audit` 0 vulnerabilities.
+- **Baseline to beat:** `SGC_FORCE_INLINE=1 bun test tests/` → **1499 pass / 38 skip / 0 fail** at `95d0421`. Note `npm run test` is NOT this command — it runs `tests/dispatcher` only (~1436 pass) and skips `tests/e2e` + `tests/eval`. Quote the number that goes with the command you ran · `npm run typecheck` exit 0 · `SGC_FORCE_INLINE=1 bun run src/sgc.ts doctor` → 70 OK / 0 warn / 0 fail · `npm audit` 0 vulnerabilities.
 - **Scope is exactly 9 files.** `plugins/sgc/agents/reviewer/{security,tests,performance,maintainability,migration,infra,adversarial,spec}.md` and `plugins/sgc/agents/janitor/archive.md`. The other 10 agents are recorded debt in the spec; do not touch them.
 - **No behaviour change to `sgc review`.** Every regex this plan rebuilds must match exactly what it matched before. Task 2 and Task 3 each pin this with an equivalence test.
 - **`npm run build:cli` must use bun 1.3.5, not the local 1.3.11.** bun's output is not byte-stable across versions: a bundle built with 1.3.11 passes `doctor` locally (it rebuilds with the same bun) and fails CI (which rebuilds with 1.3.5). See Task 9.
@@ -476,6 +476,17 @@ export const TESTS_MECHANISM =
 ```
 
 **Careful — the frozen `MAINT_MARKERS` has NO `i` flag.** `buildPattern` defaults to `"i"`; pass `""` explicitly or `todo` starts matching `TODO`.
+
+**Also add this test to `tests/dispatcher/terms.test.ts`** (Task 1's review found the gap: no test calls `buildPattern` with `""`, so a regression from the `flags = "i"` default parameter to `flags || "i"` — which would silently restore `"i"` and defeat the case-sensitivity this task depends on — would not be caught there):
+
+```ts
+test("an explicit empty flag string is honoured, not coerced back to the default", () => {
+  const terms: Term[] = [{ display: "auth", re: "auth", wordBounded: false }]
+  expect(buildPattern(terms, "").flags).toBe("")
+  expect(buildPattern(terms, "").test("Auth")).toBe(false)   // case-SENSITIVE
+  expect(buildPattern(terms).test("Auth")).toBe(true)        // default "i" is not
+})
+```
 
 Then replace the inline severity literals so the exported constants are the only source:
 

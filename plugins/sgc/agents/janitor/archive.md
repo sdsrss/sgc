@@ -1,6 +1,6 @@
 ---
 name: janitor-archive
-description: "MOVES FILES ON DISK. Housekeeping for a project's `.sgc/` state directory: finds shipped tasks (those whose `decisions/` and `reviews/` carry a `ship.md`), moves them under `.sgc/decisions/_archive/{epoch}/{task_id}/`, and reports what moved and what was retained. Requires explicit AUTH before running; never touches `.sgc/solutions/` (permanent knowledge base) and never touches a task without a `ship.md`. Never deletes — only moves. Separate fact for sgc CLI users: there is no archive command and no janitor-archive module, so the CLI never runs this (manifest status: manual-only) — Claude Code dispatch is the only executor."
+description: "MOVES FILES ON DISK. Housekeeping for a project's `.sgc/` state directory: finds shipped tasks (those whose `decisions/` and `reviews/` carry a `ship.md`), moves them under `.sgc/decisions/_archive/{epoch}/{task_id}/`, and reports what moved and what was retained. Requires explicit AUTH before running; never touches `.sgc/solutions/` (permanent knowledge base) and never touches a task without a `ship.md`. Never deletes — only moves. Separate fact for sgc CLI users: there is no archive command and no janitor-archive module (manifest status: manual-only), so `sgc review` never produces a result for it — Claude Code dispatch is the only executor."
 ---
 
 # Archive Janitor

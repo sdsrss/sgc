@@ -1,6 +1,6 @@
 ---
 name: reviewer-performance
-description: "Performance review of a diff — algorithmic complexity, N+1 and repeated-work patterns, cache correctness and invalidation, unbounded growth, and hot-path allocation. Dispatch this to have a change reasoned about rather than pattern-matched. Separate fact for sgc CLI users: `sgc review` does not run this file's body — reviewer.performance there is a heuristic keyword matcher over added lines (cache|caching|index|memoize|debounce|throttle|O(n…)|n+1|benchmark|p95|p99) at medium severity, which matches words about performance problems rather than detecting them. Its spawn trigger is deliberately wider than that matcher, so a spawned performance reviewer reporting zero findings is not evidence of a clean diff."
+description: "Performance review of a diff — algorithmic complexity, N+1 and repeated-work patterns, cache correctness and invalidation, unbounded growth, and hot-path allocation. Dispatch this to have a change reasoned about rather than pattern-matched. Separate fact for sgc CLI users: `sgc review` does not run this file's body — reviewer.performance there is a heuristic keyword matcher over added lines (cache|cached/caching|index|memoize|debounce|throttle|n+1|benchmark|p95/p99|O(n…)) at medium severity, which matches words about the problem rather than detecting it. Its spawn trigger is deliberately wider than that matcher, so a spawned reviewer reporting zero findings is not evidence of a clean diff."
 ---
 
 # Performance Reviewer

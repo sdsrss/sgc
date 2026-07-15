@@ -296,3 +296,9 @@ describe("Task 7 — every M4/M5 defect class now requires editing code to repro
     expect(deriveCliFact("reviewer.performance")).not.toContain("with an API key it runs")
   })
 })
+
+test("THE REAL 9 FILES are in sync with the derivation", () => {
+  // The one test that binds the derivation to what actually ships. Every other
+  // test in this file works on constructed fixtures; this one reads the repo.
+  expect(cliFactDrift(readAgentMdFiles(ROOT))).toEqual([])
+})

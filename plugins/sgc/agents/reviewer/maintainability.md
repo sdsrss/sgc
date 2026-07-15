@@ -1,6 +1,6 @@
 ---
 name: reviewer-maintainability
-description: "Maintainability review of a diff — naming that carries intent, function and module boundaries, coupling introduced, duplication worth collapsing, and whether the next reader can follow the change without the author. Dispatch this for design judgement on a change. Separate fact for sgc CLI users: `sgc review` does not run this file's body — reviewer.maintainability there is a heuristic matcher that flags added lines over 120 characters and added lines carrying a suppression marker (TODO, FIXME, @ts-ignore, @ts-nocheck, eslint-disable, `as any`), reported at low severity. That is the whole of it: no function length, no file size, no naming, coupling or design analysis."
+description: "Maintainability review of a diff — naming that carries intent, function and module boundaries, coupling introduced, duplication worth collapsing, and whether the next reader can follow the change without the author. Dispatch this for design judgement on a change. Separate fact for sgc CLI users: `sgc review` does not run this file's body — reviewer.maintainability there is a heuristic matcher over added lines: longer than 120 characters, or carrying a suppression marker (TODO|FIXME|@ts-ignore|@ts-nocheck|eslint-disable|as any), at low severity. That is the whole of it."
 ---
 
 # Maintainability Reviewer

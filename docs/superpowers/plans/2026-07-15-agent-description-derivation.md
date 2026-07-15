@@ -1255,8 +1255,10 @@ test("THE REAL 9 FILES are in sync with the derivation", () => {
 
 - [ ] **Step 6: doctor and full suite green**
 
+**The `71 OK / 0 warn / 0 fail` this step originally expected was computed from the 95d0421 baseline and is stale — Task 2 already moved `src/` past the bundle, so the bundle-hash warn (Global Constraints) has been live since then and doesn't clear here.** After regeneration expect **70 OK / 1 warn / 0 fail**: the 7 fails collapse into check (O)'s single ✓ (69 + 1 = 70), the 1 warn is the stale bundle and stays until Task 9 rebuilds it with bun 1.3.5. `0 fail` is the number that actually matters and must hold.
+
 ```bash
-SGC_FORCE_INLINE=1 bun run src/sgc.ts doctor    # expect 71 OK / 0 warn / 0 fail (70 + check O)
+SGC_FORCE_INLINE=1 bun run src/sgc.ts doctor    # expect 70 OK / 1 warn / 0 fail
 SGC_FORCE_INLINE=1 bun test tests/              # expect 0 fail
 npm run typecheck                                # expect exit 0
 ```

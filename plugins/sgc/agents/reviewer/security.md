@@ -1,6 +1,6 @@
 ---
 name: reviewer-security
-description: "Offensive-security review of a diff — traces injection paths, auth/authz bypass, secret exposure, insecure deserialization, SSRF and path traversal. Every finding carries a concrete attack path: entry point, route, sink. Dispatch this for semantic security analysis of a change. Separate fact for sgc CLI users: `sgc review` does not run this file's body — with an API key it runs prompts/reviewer-security.md; without one it falls back to a keyword matcher (auth|jwt|token|session|crypto|password|secret|signature|encrypt|decrypt) at medium severity that cannot tell a real vulnerability from the word 'token'."
+description: "Offensive-security review of a diff — traces injection paths, auth/authz bypass, secret exposure, insecure deserialization, SSRF and path traversal. Every finding carries a concrete attack path: entry point, route, sink. Dispatch this for semantic security analysis of a change. Separate fact for sgc CLI users: `sgc review` does not run this file's body — with an API key it runs prompts/reviewer-security.md; without one it falls back to a keyword matcher (auth|jwt|token|session|crypto|password|secret|signature|encrypt|decrypt|verifyAuth|signJwt|signToken) at medium severity."
 ---
 
 # Security Reviewer

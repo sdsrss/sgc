@@ -13,11 +13,14 @@
 - **Iron Law #1 — every task is RED first.** A test that has never failed proves nothing.
 - **`SGC_FORCE_INLINE=1 bun test tests/` is the ONLY correct test invocation.** A bare `bun test` reaches a real LLM and hangs. This applies to every Run step below.
 - **Baseline to beat:** `SGC_FORCE_INLINE=1 bun test tests/` → **1499 pass / 38 skip / 0 fail** at `95d0421`. Note `npm run test` is NOT this command — it runs `tests/dispatcher` only (~1436 pass) and skips `tests/e2e` + `tests/eval`. Quote the number that goes with the command you ran · `npm run typecheck` exit 0 · `SGC_FORCE_INLINE=1 bun run src/sgc.ts doctor` → 70 OK / 0 warn / 0 fail · `npm audit` 0 vulnerabilities.
+- **The doctor baseline expires the moment `src/` changes.** `70 OK / 0 warn` was measured at `95d0421`, where `plugins/sgc/bin/sgc.mjs` still matched `src/`. From Task 2 (the first task whose `src/` edit reaches the bundle) through Task 9 Step 4, doctor reports **69 OK / 1 warn / 0 fail** — the bundle-hash check, correctly noting the bundle is stale and that the local bun 1.3.11 cannot conclusively rebuild it. That warn is expected, is not yours to fix, and **must not be fixed by rebuilding with the local bun** (doctor's own message says so; see Task 9 Step 4). `0 fail` is the number that must hold every task.
+- **`cso — append-only: second runCso writes a NEW file` is flaky.** It sleeps 1100ms against a 5000ms timeout and times out under full-suite load perhaps 1 run in 3. It is unrelated to this plan. Re-run it alone before believing it: `SGC_FORCE_INLINE=1 bun test tests/ -t "append-only: second runCso writes a NEW file"`.
+- **Some tests read `src/` as TEXT, not as code, and this plan's edits break them.** They regex-scrape implementation source for literal patterns — the same read-the-prose failure this whole plan exists to eliminate. Grep before each task: `grep -rn 'readFileSync.*src/dispatcher' tests/`. Known: `tests/dispatcher/m4-agent-metadata.test.ts` (Task 2 hit one, fixed there; **Task 3 will hit line ~56**, see Task 3 Step 3). When one breaks, rewrite it to assert behaviour against the now-exported objects — do NOT teach the scraper the new source shape.
 - **Scope is exactly 9 files.** `plugins/sgc/agents/reviewer/{security,tests,performance,maintainability,migration,infra,adversarial,spec}.md` and `plugins/sgc/agents/janitor/archive.md`. The other 10 agents are recorded debt in the spec; do not touch them.
 - **No behaviour change to `sgc review`.** Every regex this plan rebuilds must match exactly what it matched before. Task 2 and Task 3 each pin this with an equivalence test.
 - **`npm run build:cli` must use bun 1.3.5, not the local 1.3.11.** bun's output is not byte-stable across versions: a bundle built with 1.3.11 passes `doctor` locally (it rebuilds with the same bun) and fails CI (which rebuilds with 1.3.5). See Task 9.
 - **§2 L3.** These files are LLM-visible metadata steering Claude Code routing. Implementation needs hard AUTH; ships as **v1.36.0**, non-patch, with a §2-EXT migration note.
-- Commit after every task. `git commit` messages end with the repo's `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>` trailer.
+- Commit after every task. The trailer names **whichever model actually wrote the commit** — history through `2ef15b5` reads `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>` because Fable 5 wrote it; Task 2 (`0951bce`) reads `Claude Opus 4.8 (1M context)` for the same reason. Copying the previous trailer for consistency would make the commit metadata claim an author it does not have — which is this plan's own subject, one directory up.
 
 ---
 
@@ -45,7 +48,7 @@
 **Interfaces:**
 - Produces: `type Term = { display: string; re: string; wordBounded: boolean }`, `buildPattern(terms: readonly Term[], flags?: string): RegExp`, `displayList(terms: readonly Term[]): string`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/dispatcher/terms.test.ts`:
 
@@ -104,12 +107,12 @@ describe("buildPattern", () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `SGC_FORCE_INLINE=1 bun test tests/dispatcher/terms.test.ts`
 Expected: FAIL — `Cannot find module '../../src/dispatcher/agents/terms'`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `src/dispatcher/agents/terms.ts`:
 
@@ -151,12 +154,12 @@ export function displayList(terms: readonly Term[]): string {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `SGC_FORCE_INLINE=1 bun test tests/dispatcher/terms.test.ts`
 Expected: PASS — 6 pass, 0 fail
 
-- [ ] **Step 5: Typecheck and commit**
+- [x] **Step 5: Typecheck and commit**
 
 ```bash
 npm run typecheck   # expect exit 0
@@ -184,7 +187,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 **Critical:** the rebuilt regexes MUST match exactly what they matched at `95d0421`. Step 1 pins that before anything moves.
 
-- [ ] **Step 1: Write the failing equivalence test**
+- [x] **Step 1: Write the failing equivalence test**
 
 Add to `tests/dispatcher/reviewer-specialists.test.ts`:
 
@@ -228,12 +231,12 @@ describe("Task 2 — rebuilt patterns are equivalent to the v1.35.0 hand-written
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `SGC_FORCE_INLINE=1 bun test tests/dispatcher/reviewer-specialists.test.ts`
 Expected: FAIL — `SECURITY` etc. are not exported; `def.terms` is undefined.
 
-- [ ] **Step 3: Convert the defs**
+- [x] **Step 3: Convert the defs**
 
 In `src/dispatcher/agents/reviewer-specialists.ts`, add to the imports:
 
@@ -342,7 +345,7 @@ export const INFRA: SpecialistDef = {
 
 **Note on ordering:** `buildPattern` emits bounded terms first, then unbounded. `PERFORMANCE`'s frozen source has the same order (bounded group, then `O\(n…\)`), and for the others every term is on one side, so all four sources reproduce exactly. `INFRA_TERMS` order matches the frozen source's order.
 
-- [ ] **Step 4: Rebuild the triggers from the same lists**
+- [x] **Step 4: Rebuild the triggers from the same lists**
 
 Replace the `DIFF_CONDITIONAL_SPECIALISTS` entries. Triggers = the matcher's terms **plus** trigger-only terms, all unbounded (a trigger tests the whole diff, including file headers, by design — see the docblock above the table):
 
@@ -371,17 +374,17 @@ Building triggers from the matcher's own list is what makes M5's reachability in
 
 Delete the now-stale M5 pin block `describe("M5 — regex-source pins (edit a pattern → update the probes above)")` from `tests/dispatcher/reviewer-specialists.test.ts` — it pinned hand-written trigger sources that no longer exist. **Keep** `describe("M5 — every matcher term is reachable through its trigger")` exactly as-is; construction now guarantees it, and its job from here is to fail on the refactor that stops.
 
-- [ ] **Step 5: Run the full specialists suite**
+- [x] **Step 5: Run the full specialists suite**
 
 Run: `SGC_FORCE_INLINE=1 bun test tests/dispatcher/reviewer-specialists.test.ts`
 Expected: PASS, 0 fail. The M5 reachability tests must still pass unchanged.
 
-- [ ] **Step 6: Run the full suite — this refactor touches `sgc review`**
+- [x] **Step 6: Run the full suite — this refactor touches `sgc review`**
 
 Run: `SGC_FORCE_INLINE=1 bun test tests/`
 Expected: 0 fail. Pass count ≥ 1499 + the new tests.
 
-- [ ] **Step 7: Typecheck and commit**
+- [x] **Step 7: Typecheck and commit**
 
 ```bash
 npm run typecheck   # expect exit 0
@@ -476,6 +479,24 @@ export const TESTS_MECHANISM =
 ```
 
 **Careful — the frozen `MAINT_MARKERS` has NO `i` flag.** `buildPattern` defaults to `"i"`; pass `""` explicitly or `todo` starts matching `TODO`.
+
+**This step breaks `tests/dispatcher/m4-agent-metadata.test.ts:56`** — the same class of landmine Task 2 hit, found there and recorded in Global Constraints. That test scrapes this file's source text:
+
+```ts
+expect(impl).toMatch(/MAINT_MARKERS\s*=\s*\/\(TODO\|FIXME/)   // ← dies on buildPattern(…)
+expect(impl).toContain("MAX_LINE = 120")                      // ← survives: `export const MAX_LINE = 120` still contains it
+```
+
+Rewrite the first to assert behaviour against the exports this task creates, in the same move Task 2 made — the fact owed is *"the marker matcher looks for TODO/FIXME and is case-sensitive"*, and it is now assertable directly:
+
+```ts
+expect(MAINT_MARKER_TERMS.map((t) => t.display)).toEqual(
+  expect.arrayContaining(["TODO", "FIXME"]))
+expect(buildPattern(MAINT_MARKER_TERMS, "").test("TODO")).toBe(true)
+expect(buildPattern(MAINT_MARKER_TERMS, "").test("todo")).toBe(false)   // case-SENSITIVE
+```
+
+Do NOT teach the scraper the new source shape. A test that greps an implementation for a literal is the exact defect this plan exists to remove; leaving one in place while removing the others is how the class survives.
 
 **Also add this test to `tests/dispatcher/terms.test.ts`** (Task 1's review found the gap: no test calls `buildPattern` with `""`, so a regression from the `flags = "i"` default parameter to `flags || "i"` — which would silently restore `"i"` and defeat the case-sensitivity this task depends on — would not be caught there):
 

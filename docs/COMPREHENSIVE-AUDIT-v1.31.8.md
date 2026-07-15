@@ -7,20 +7,27 @@
 
 ---
 
-> ## ✅ 回填：全部 P1 + 全部 P2 已闭合并发版（back-annotated 2026-07-15）
+> ## ✅ 回填：本审核已全量收口 —— 28 项 = 27 修复 + 1 误报（back-annotated 2026-07-15）
 >
-> 本文是 **v1.31.8 时点快照**，下文发现保留原样作历史记录。当前状态：
+> 本文是 **v1.31.8 时点快照**，下文发现保留原样作历史记录。当前状态：**全部闭合**。
 >
 > - **P1（4 项）→ SHIPPED v1.32.0**：P1-1 `review.ts:74` 注入 argv 化 · P1-2 §8 契约名实对齐 · P1-3 分级器确定性下限 · P1-4 README 评分卡 4/6→5/9 + doctor 检查 (M) 防复发。
 > - **P2（12 项）→ SHIPPED v1.32.0**：P2-1 测试隔离 · P2-2 doctor 工具链敏感性 · P2-3 js-yaml CVE · P2-4 §13 Tier-2 信号配对 · P2-5 file-lock 竞态 · P2-6 §3 stamp provenance · P2-7 applied 指标诚实化 · P2-8 词形匹配 · P2-9 dedup 加权 · P2-10 prompt 改 stdin · P2-11 openrouter 外发告知 · P2-12 Node 18 CI 背书。
-> - **P3（12 项）→ 1 项随 P2-3 顺带闭合（P3-1 锁文件根元数据）；其余 11 项待办**，见 `docs/AUDIT-REMEDIATION-ROADMAP-v1.31.8.md`。
+> - **P3（12 项）→ 11 修复 + 1 误报**：P3-1 随 P2-3 顺带闭合于 v1.32.0；**P3-2…P3-10、P3-12 → SHIPPED v1.33.0**（agent 注册表诚实化 + doctor 检查 (N) 防复发 · SKILL.md 追上 v1.27.0 · L3 无终端快速失败 · `--submit` 接入 §1 泄漏扫描 · loop 全执行期加锁 · 真多进程锁测试 · publish 补 typecheck · files[] 裁剪 + events 轮转 · 三处计数文案 · cso 补 5 类密钥模式）；**P3-11 判定为审核误报**（见下）。
 >
-> **发版验收实证**（v1.32.0，commit `e27681f`）：测试 1269 → **1339 pass / 0 fail**（+70 回归测试）· `npm audit` 1 moderate → **0** · `sgc doctor` **65 OK / 0 fail** · CI test.yml 与 publish-npm **双绿** · 从 npm registry 实装 v1.32.0 验证产物：CVE 修复在位、argv-prompt 漏洞代码已消失、doctor 33 OK/0 fail。
+> **发版验收实证**：
+> - **v1.32.0**（`e27681f`）：测试 1269 → **1339 pass / 0 fail**（+70）· `npm audit` 1 moderate → **0** · `sgc doctor` **65 OK / 0 fail** · CI 双绿 · 从 registry 实装验证：CVE 修复在位、argv-prompt 漏洞代码已消失、doctor 33 OK / 0 fail。
+> - **v1.33.0**（`f20feb5`）：测试 → **1410 pass / 38 skip / 0 fail**（较审核基线 1269 **+141 回归测试**）· `sgc doctor` **66 OK / 0 warn / 0 fail**（新增检查 N）· `npm audit` **0** · CI 双绿 · npm 包 **529KB → 296KB（-44%）**、文件数 90 → 5 · 从 registry 实装 v1.33.0 验证：`src/` 确已不随包发出、doctor 34 OK / 0 fail。
 >
-> **本报告被本次修复推翻/修正的三处**（审核自身的错误，如实记录）：
+> **本报告被修复过程推翻/修正的六处**（审核自身的错误，如实记录——无人纠正的审核会变成传说）：
 > 1. **P2-2 由推断升为实证并改变了修复方向**：实测 bun 1.3.5（CI 锁定版）能字节复现提交的 bundle、1.3.11 不能 → 会话初的 `bundle STALE` 是**纯假阳性**，且其文案会诱导开发者提交让 CI 变红的产物。
 > 2. **P2-8 的 `ui → build` 例子不成立**：`tokenize` 的 ASCII ≥3 长度下限已把 "ui" 滤出查询词；真实暴露面是 3 字符以上前缀型子串（auth→author、cat→category）。
 > 3. **§4-12 关于 playwright 的表述不准确**：移入 `optionalDependencies` **不改变默认安装体积**（npm 默认仍装 optional 依赖），真实收益是 CDN 被墙时不再整体安装失败。
+> 4. **P3-11 整条误报**（本报告最严重的自身错误）：本文断言"规范化指标信任自报 machine_enforced 而无校验"——实测推翻，**doctor 检查 G 早已在校验**（把 §8 的 test 引用改成不存在的文件 → 立刻 `✗ §8 cites missing test file(s)`；空 tests 列表同样被拦）。而"测试是否真的断言了该不变量"这层，`invariant-enforcement.yaml` 头部已明确声明不在校验范围——**契约本就诚实，是审核漏看了检查 G**。不做改动。
+> 5. **P3-12 的第二半建议有害**：本文提议把 ">200KB 跳过"从 warn 升为 finding。现状已是 `warn`（非 pass，本文此处描述有误）；且本仓库自己 git-track 着 ~950KB 的 bundle，升级后 `sgc cso` 会在 sgc 自己身上**永远失败**——永远失败的门等于被忽略的门，严格劣于 warn。仅采纳"补密钥模式"那一半。
+> 6. **P3-2 / P3-4 / P3-5 / P3-6 均低估了范围**：agent 元数据实际漂移 **10 个**而非本文点的 6 个；loop 无锁不只在 `--resume`（fresh-start 的锁只覆盖 [scan → writeRun]，两条路径的执行期都裸奔）；`--submit` 的泄漏风险比本文描述更重（§9 只校验字段形状、不看值内容）；L3 stdin 挂起仅在传 `--signed-by` 时发生（签名门在 stdin 门之前）。
+>
+> 逐项修复记录、实测证据与方法教训 → `docs/AUDIT-REMEDIATION-ROADMAP-v1.31.8.md`。
 
 ---
 

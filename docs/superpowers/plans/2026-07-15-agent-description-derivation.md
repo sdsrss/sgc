@@ -567,7 +567,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: `displayList` (Task 1); `SECURITY|MIGRATION|PERFORMANCE|INFRA` (Task 2); `MAINT_MARKER_TERMS|MAX_LINE|MAINTAINABILITY_SEVERITY|TESTS_SEVERITY|TESTS_MECHANISM` (Task 3); `getSubagentManifest` from `src/dispatcher/schema`.
 - Produces: `CLI_FACT_MARKER: string`, `deriveCliFact(agentId: string): string`, `DERIVED_AGENT_IDS: readonly string[]`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/dispatcher/agent-facts.test.ts`:
 
@@ -632,12 +632,12 @@ describe("deriveCliFact — the four shapes", () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `SGC_FORCE_INLINE=1 bun test tests/dispatcher/agent-facts.test.ts`
 Expected: FAIL — `Cannot find module '../../src/dispatcher/agent-facts'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `src/dispatcher/agent-facts.ts`:
 
@@ -731,12 +731,12 @@ export function deriveCliFact(agentId: string): string {
 
 Resolved by making the case live — the code above already reflects it: `reviewer.tests`'s branch now ends `, at ${severityOf(agentId)} severity` like every sibling shape. The alternative (delete the dead case + drop the `TESTS_SEVERITY` import, treating the omission as intentional) was considered and rejected — there was no substantive reason for tests' fallback to hide its severity when it reports one same as the rest. Whichever way a future change resolves this again, verify by mutation the same way: flip the case to a bogus value, confirm the suite goes red, then revert.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `SGC_FORCE_INLINE=1 bun test tests/dispatcher/agent-facts.test.ts`
 Expected: PASS, 0 fail
 
-- [ ] **Step 5: Typecheck and commit**
+- [x] **Step 5: Typecheck and commit**
 
 ```bash
 npm run typecheck   # expect exit 0

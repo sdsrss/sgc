@@ -233,3 +233,66 @@ describe("--write-descriptions — regenerates the fact, never the capability", 
     expect(rewriteCliFact(out, "reviewer.performance")).toBe(out)
   })
 })
+
+describe("Task 7 — every M4/M5 defect class now requires editing code to reproduce", () => {
+  const withDesc = (id: string, desc: string) => ({
+    id, file: "x.md",
+    text: `---\nname: x\ndescription: ${JSON.stringify(desc)}\n---\nbody\n`,
+  })
+  const CAP = "Does the thing."
+
+  test("M4: a term dropped from the advertised list (signature|encrypt|decrypt)", () => {
+    const mangled = deriveCliFact("reviewer.security").replace("|signature|encrypt|decrypt", "")
+    expect(mangled).not.toBe(deriveCliFact("reviewer.security"))   // the replace actually landed
+    expect(cliFactDrift([withDesc("reviewer.security", `${CAP} ${mangled}`)])).toHaveLength(1)
+  })
+
+  test("M4: an advertised term the matcher cannot match (O(n))", () => {
+    // The inverse now: O(n…) can only appear in the clause because it is in
+    // PERFORMANCE_TERMS, and Task 2's frozen probes prove the regex matches it.
+    const mangled = deriveCliFact("reviewer.performance").replace("|O(n…)", "")
+    expect(mangled).not.toBe(deriveCliFact("reviewer.performance"))   // the replace actually landed
+    expect(cliFactDrift([withDesc("reviewer.performance", `${CAP} ${mangled}`)])).toHaveLength(1)
+  })
+
+  test("M5: a severity that disagrees with the code", () => {
+    const mangled = deriveCliFact("reviewer.migration").replace("high severity", "low severity")
+    expect(mangled).not.toBe(deriveCliFact("reviewer.migration"))   // the replace actually landed
+    expect(cliFactDrift([withDesc("reviewer.migration", `${CAP} ${mangled}`)])).toHaveLength(1)
+  })
+
+  test("M4: the mechanism mislabelled (tests called a keyword matcher)", () => {
+    // [^,]*, not the plan's [^;]* — the clause has grown a trailing ", at medium
+    // severity" since the plan was written, and there's no semicolon after "a
+    // file-path check" to stop a [^;]* match, so it would eat that too and
+    // conflate this test with the severity-mismatch one above. Verified against
+    // today's deriveCliFact("reviewer.tests") output before trusting it: the
+    // mechanism phrase itself has no comma, so [^,]* stops exactly where the
+    // mechanism description ends and the severity clause begins.
+    const mangled = deriveCliFact("reviewer.tests").replace(/a file-path check[^,]*/, "a keyword matcher")
+    expect(mangled).not.toBe(deriveCliFact("reviewer.tests"))   // the replace actually landed
+    expect(cliFactDrift([withDesc("reviewer.tests", `${CAP} ${mangled}`)])).toHaveLength(1)
+  })
+
+  test("M5 F1/F2: the disclaimer moved to the front", () => {
+    const mangled = `${deriveCliFact("janitor.archive")} ${CAP}`
+    expect(mangled).not.toBe(deriveCliFact("janitor.archive"))
+    const drifts = cliFactDrift([withDesc("janitor.archive", mangled)])
+    expect(drifts.join(" ")).toMatch(/capability sentence must come first/)
+  })
+
+  test("M5 F3: an invented pointer to a non-LLM surface (the cso redirect)", () => {
+    const mangled = `${deriveCliFact("reviewer.security")} For semantic analysis use \`sgc cso\`.`
+    expect(mangled).not.toBe(deriveCliFact("reviewer.security"))
+    expect(cliFactDrift([withDesc("reviewer.security", `${CAP} ${mangled}`)])).toHaveLength(1)
+  })
+
+  test("a prompt_path flip must change the clause — the metric cannot be moved by a label", () => {
+    // reviewer.security has a prompt_path; reviewer.performance does not. Their
+    // clauses must therefore differ in shape, not just in wording. This tests
+    // deriveCliFact directly, not the gate — no mangled, no cliFactDrift call,
+    // and it must stay green when check (O) is disabled (Step 2).
+    expect(deriveCliFact("reviewer.security")).toContain("with an API key it runs")
+    expect(deriveCliFact("reviewer.performance")).not.toContain("with an API key it runs")
+  })
+})

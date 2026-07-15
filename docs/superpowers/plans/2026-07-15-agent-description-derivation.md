@@ -480,6 +480,23 @@ export const TESTS_MECHANISM =
 
 **Careful — the frozen `MAINT_MARKERS` has NO `i` flag.** `buildPattern` defaults to `"i"`; pass `""` explicitly or `todo` starts matching `TODO`.
 
+**That note is not enough on its own — found in review of `2d5e857`, closed in the same commit.** Step 1's test below, and the m4 rewrite two blocks down, both call `buildPattern(MAINT_MARKER_TERMS, "")` themselves and assert on the regex they just built. Neither ever observes the module-private `MAINT_MARKERS` constant `reviewerMaintainability` actually calls. Silently dropping the `""` (`buildPattern(MAINT_MARKER_TERMS)` instead of `buildPattern(MAINT_MARKER_TERMS, "")`, defaulting back to `"i"`) passes every test in this file AND the full suite — verified by making that exact mutation. Add one more test that goes through `reviewerMaintainability` itself, not a freshly-built pattern:
+
+```ts
+test("MAINT_MARKERS is case-sensitive through reviewerMaintainability itself", () => {
+  const upper = reviewerMaintainability({
+    diff: "--- a/x.ts\n+++ b/x.ts\n+  // TODO fix this\n", intent: "",
+  })
+  const lower = reviewerMaintainability({
+    diff: "--- a/x.ts\n+++ b/x.ts\n+  // todo fix this\n", intent: "",
+  })
+  expect(upper.findings.length).toBeGreaterThan(0)
+  expect(lower.findings.length).toBe(0)
+})
+```
+
+Before trusting it, make the mutation yourself (drop the `""` at `reviewer-quality.ts`'s `MAINT_MARKERS` line) and watch this specific test — only this one — go red, then revert. A guard you haven't watched fail is not a guard; it is the exact class of unverified gate this whole plan exists to close.
+
 **This step breaks `tests/dispatcher/m4-agent-metadata.test.ts:56`** — the same class of landmine Task 2 hit, found there and recorded in Global Constraints. That test scrapes this file's source text:
 
 ```ts

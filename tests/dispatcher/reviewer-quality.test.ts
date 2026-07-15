@@ -67,6 +67,26 @@ describe("Task 3 — quality reviewer facts are data", () => {
     }
   })
 
+  test("MAINT_MARKERS is case-sensitive through reviewerMaintainability itself", () => {
+    // The test above rebuilds its own pattern from MAINT_MARKER_TERMS and
+    // asserts on THAT — it never observes the module-private MAINT_MARKERS
+    // constant reviewerMaintainability actually calls. Dropping the ""
+    // (buildPattern(MAINT_MARKER_TERMS) instead of buildPattern(MAINT_MARKER_TERMS, ""))
+    // silently restores the "i" default, "todo" starts matching "TODO", and
+    // nothing above notices — this is the only test that goes through the real
+    // function instead of a freshly-built one, so it's the only one that can.
+    const upper = reviewerMaintainability({
+      diff: "--- a/x.ts\n+++ b/x.ts\n+  // TODO fix this\n",
+      intent: "",
+    })
+    const lower = reviewerMaintainability({
+      diff: "--- a/x.ts\n+++ b/x.ts\n+  // todo fix this\n",
+      intent: "",
+    })
+    expect(upper.findings.length).toBeGreaterThan(0)
+    expect(lower.findings.length).toBe(0)
+  })
+
   test("severities match what the functions actually return", () => {
     expect(MAX_LINE).toBe(120)
     expect(MAINTAINABILITY_SEVERITY).toBe("low")

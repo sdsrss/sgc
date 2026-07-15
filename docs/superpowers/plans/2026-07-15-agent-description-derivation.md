@@ -719,13 +719,15 @@ export function deriveCliFact(agentId: string): string {
 
   // Shape 3 — threshold + marker list.
   if (agentId === "reviewer.maintainability") {
-    return `${CLI_FACT_MARKER} ${NO_BODY} — reviewer.maintainability there is a heuristic matcher over added lines: longer than ${MAX_LINE} characters, or carrying a suppression marker (${displayList(MAINT_MARKER_TERMS)}), at ${MAINTAINABILITY_SEVERITY} severity. That is the whole of it.`
+    return `${CLI_FACT_MARKER} ${NO_BODY} — there, reviewer.maintainability is a heuristic matcher over added lines: longer than ${MAX_LINE} characters, or carrying a suppression marker (${displayList(MAINT_MARKER_TERMS)}), at ${MAINTAINABILITY_SEVERITY} severity. That is the whole of it.`
   }
 
   // Shape 1 — term-list matcher, no LLM path.
-  return `${CLI_FACT_MARKER} ${NO_BODY} — ${agentId} there is a heuristic keyword matcher over added lines (${fallbackTerms(agentId)}) at ${severityOf(agentId)} severity, which matches words about the problem rather than detecting it. Its spawn trigger is deliberately wider than that matcher, so a spawned reviewer reporting zero findings is not evidence of a clean diff.`
+  return `${CLI_FACT_MARKER} ${NO_BODY} — there, ${agentId} is a heuristic keyword matcher over added lines (${fallbackTerms(agentId)}) at ${severityOf(agentId)} severity, which matches words about the problem rather than detecting it. Its spawn trigger is deliberately wider than that matcher, so a spawned reviewer reporting zero findings is not evidence of a clean diff.`
 }
 ```
+
+**Found in review of `2e57824` (Task 8), fixed in `<this commit>`: Shape 1 and Shape 3 originally read `— ${agentId} there is a heuristic...`.** That parses as valid English (`there` post-modifying the noun, as in "the man there is my father") but it's a garden path: `X there is…` primes the existential reading of "there is" so strongly that a reader commits to it, hits "a heuristic keyword matcher", and has to back up and re-parse. Correct is not the same as readable, and this field's only reader is a routing decision. Fixed by moving `there` in front and comma-ing it off: `— there, ${agentId} is a...`. The comma immediately after `there` makes the existential reading impossible, so the garden path can't form. `there` still does its real job — the contrast with "this file's body" (this document vs. the CLI's own code) — and `agentId` stays in subject position, which Shape 1 needs as the antecedent for "**Its** spawn trigger" two sentences later; dropping the id instead of relocating `there` would have left that pronoun pointing at the matcher instead of the specialist.
 
 **Found in review of `5839cdd`, resolved in the same commit: `severityOf`'s `reviewer.tests` case was dead code.** The `fb` ternary's `reviewer.tests` branch never called `severityOf(agentId)` — proved with a mutation (`case "reviewer.tests": return TESTS_SEVERITY` → `return "BOGUS-UNREACHABLE"`) and watched the full suite pass unchanged with `deriveCliFact("reviewer.tests")` byte-identical. That contradicted this task's own Interfaces line above ("Consumes: ... `TESTS_SEVERITY`") — an export created specifically to be consumed here, then never read. It was also the one heuristic-fallback clause of the five that didn't state its severity while genuinely having one (`reviewerTests` really does return `TESTS_SEVERITY` at runtime), an asymmetry a CLI-reading user would have no way to notice.
 

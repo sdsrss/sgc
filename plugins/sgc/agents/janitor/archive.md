@@ -1,6 +1,6 @@
 ---
 name: janitor-archive
-description: "Epoch-based archival of closed decisions and stale progress. Manual trigger only. Moves completed task artifacts to archive while preserving solutions."
+description: "Deterministic decision rules, NOT LLM-backed: archival/retention housekeeping over .sgc/ state. No semantic judgement is involved."
 ---
 
 # Archive Janitor

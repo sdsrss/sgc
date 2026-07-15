@@ -172,6 +172,29 @@ export function serializeFrontmatter(
 // writeAtomic calls landing in the same millisecond on the same pid.
 let atomicWriteSeq = 0
 
+/**
+ * Write via tmp + rename. "Atomic" here means VISIBILITY-atomic: a concurrent
+ * reader sees either the whole old file or the whole new one, never a torn
+ * write. That is the property every caller actually needs — `--resume` re-reads
+ * checkpoints, and a half-serialized run file surfaces as MalformedRunFile.
+ *
+ * P3-7 (audit v1.31.8) — the fsync question, decided and documented rather than
+ * left implicit: there is deliberately NO fsync before the rename, so this is
+ * not durable against power loss. The rename may be journaled while the data
+ * blocks are not yet flushed, and the file can come back empty or stale after
+ * a hard crash.
+ *
+ * That is the right trade for what this stores. `.sgc/` is developer-local
+ * workflow state: losing an intent.md to a power cut costs one `sgc plan`
+ * re-run, and the append-only knowledge corpus is rebuilt from tasks, not
+ * relied on as a system of record. Paying an fsync (a real disk flush) on every
+ * state write — and there are many per task — to protect against a failure mode
+ * whose recovery is "run the command again" would be a bad bargain.
+ *
+ * If sgc ever stores something whose loss is NOT re-derivable, revisit this:
+ * the fix is fsync on the tmp fd before renameSync, plus an fsync of the parent
+ * directory to persist the rename itself.
+ */
 export function writeAtomic(path: string, content: string): void {
   mkdirSync(dirname(path), { recursive: true })
   // STAB-4: pid+Date.now() alone collides on same-ms writes and (across pid

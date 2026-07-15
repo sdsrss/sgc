@@ -21,13 +21,13 @@
 // files" without blocking ship.
 
 import { createHash } from "node:crypto"
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs"
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { spawnCapture } from "../dispatcher/subprocess"
 import { load as yamlLoad } from "js-yaml"
-import { getCapabilities } from "../dispatcher/schema"
+import { getCapabilities, getSubagentManifest } from "../dispatcher/schema"
 import { EMBEDDED_PROMPTS, listEmbeddedPromptKeys } from "../dispatcher/embedded-data"
 import {
   computeMetricsLive,
@@ -154,6 +154,91 @@ export function readmeScorecardDrift(readme: string, live: FourHuaMetrics): stri
     }
   }
   return drifts
+}
+
+export interface AgentMdFile {
+  /** `<group>.<name>` derived from agents/<group>/<name>.md */
+  id: string
+  file: string
+  text: string
+}
+
+/** Resolve an agent id to its manifest entry; null when absent. Injected so the
+ *  check is unit-testable without a contracts dir on disk. */
+export type ManifestLookup = (
+  id: string,
+) => { prompt_path?: string | null; status?: string } | null
+
+/**
+ * P3-2 (audit v1.31.8): bind the Claude Code agent registry to the manifest.
+ *
+ * `plugins/sgc/agents/**\/*.md` frontmatter `description:` is LLM-visible
+ * metadata — what a model reads to decide whether a capability exists. doctor
+ * gates the other two registries (prompts↔manifest in check B, slash↔CLI in
+ * check H) but never this one, so it drifted into advertising work the runtime
+ * does not do: an "OWASP Top 10" security reviewer that is a regex over
+ * auth|jwt|token, and two reviewers claiming to be "Dispatched by /review"
+ * while the manifest marks them slot-only — never dispatched at all.
+ *
+ * Two obligations, derived from the manifest rather than from prose review:
+ *   - `status: slot-only` → the description must say it is not implemented.
+ *   - `prompt_path: null` → the description must disclose it is heuristic, since
+ *     `prompt_path` truthiness is this project's honest LLM-backed signal (it is
+ *     what `sgc metrics` 智能化 counts).
+ */
+export function agentMetadataDrift(files: AgentMdFile[], lookup: ManifestLookup): string[] {
+  const drifts: string[] = []
+  for (const f of files) {
+    // Use the real manifest parser, not a regex: entries are written in three
+    // shapes (block, `&anchor` block, and `{ <<: *anchor, ... }` flow map), and
+    // a hand-rolled matcher silently reports the anchored ones as orphans.
+    const entry = lookup(f.id)
+    if (!entry) {
+      drifts.push(`${f.id}: ${f.file} has no manifest entry (orphan registry file)`)
+      continue
+    }
+    const desc = (/description:\s*"([^"]*)"/.exec(f.text)?.[1] ?? "").toLowerCase()
+    const slotOnly = entry.status === "slot-only"
+    const heuristic = !entry.prompt_path
+
+    if (slotOnly && !/(not implemented|slot-only|never dispatched|not wired)/.test(desc)) {
+      drifts.push(
+        `${f.id}: manifest says status slot-only (never dispatched) but ${f.file} advertises it as working`,
+      )
+      continue
+    }
+    // The obligation is "disclose that this is not LLM-backed", not "use the
+    // word heuristic". The accurate word differs per agent: compound.related is
+    // deterministic BY DESIGN (§3 — an LLM could mint a dedup verdict past the
+    // write gate), qa.browser drives a real browser, janitor.* runs decision
+    // rules. Forcing one vocabulary would trade one inaccuracy for another.
+    if (!slotOnly && heuristic && !/(heuristic|keyword match|deterministic|not llm-backed|rule-based)/.test(desc)) {
+      drifts.push(
+        `${f.id}: manifest says prompt_path null (not LLM-backed) but ${f.file} does not disclose it`,
+      )
+    }
+  }
+  return drifts
+}
+
+/** Enumerate the agent registry: agents/<group>/<name>.md → `<group>.<name>`. */
+export function readAgentMdFiles(root: string): AgentMdFile[] {
+  const dir = resolve(root, "plugins", "sgc", "agents")
+  if (!existsSync(dir)) return []
+  const out: AgentMdFile[] = []
+  for (const group of readdirSync(dir)) {
+    const gdir = resolve(dir, group)
+    if (!statSync(gdir).isDirectory()) continue
+    for (const f of readdirSync(gdir)) {
+      if (!f.endsWith(".md")) continue
+      out.push({
+        id: `${group}.${f.slice(0, -3)}`,
+        file: `plugins/sgc/agents/${group}/${f}`,
+        text: readFileSync(resolve(gdir, f), "utf8"),
+      })
+    }
+  }
+  return out
 }
 
 /**
@@ -599,6 +684,27 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
       }
     } catch (e) {
       emit({ severity: "fail", msg: `  ✗ metrics baseline check error: ${(e as Error).message.slice(0, 80)}` })
+    }
+  }
+
+  // ── (N) agent registry ↔ manifest honesty ───────────────────────────────
+  log("")
+  log("=== agent registry ↔ manifest ===")
+  {
+    const files = readAgentMdFiles(root)
+    if (files.length === 0) {
+      emit({ severity: "ok", msg: "  ⓘ agent registry check skipped (no plugins/sgc/agents/ — npm channel)" })
+    } else {
+      try {
+        const drifts = agentMetadataDrift(files, (id) => getSubagentManifest(id) ?? null)
+        if (drifts.length === 0) {
+          emit({ severity: "ok", msg: `  ✓ ${files.length} agent descriptions match manifest reality` })
+        } else {
+          for (const d of drifts) emit({ severity: "fail", msg: `  ✗ agent metadata drift — ${d}` })
+        }
+      } catch (e) {
+        emit({ severity: "fail", msg: `  ✗ agent registry check error: ${(e as Error).message.slice(0, 80)}` })
+      }
     }
   }
 

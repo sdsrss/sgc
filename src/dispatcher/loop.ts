@@ -90,6 +90,8 @@ export type LoopErrorCode =
   | "RunNotFound"
   | "ConcurrentRunActive"
   | "MalformedRunFile"
+  /** P3-4: L3 needs a human at stdin (§4) and the loop has no terminal. */
+  | "L3NeedsConfirmation"
 
 export class LoopError extends Error {
   readonly code: LoopErrorCode
@@ -156,6 +158,20 @@ function runPath(stateRoot: string | undefined, runId: string): string {
 // and both create a run.
 function loopClaimLockPath(stateRoot: string | undefined): string {
   return resolve(loopRunsDir(stateRoot), ".claim.lock")
+}
+/**
+ * P3-6: held for the DURATION of a run's execution, by both the fresh and the
+ * resume path.
+ *
+ * The claim lock above only covers [scan → writeRun]; once a run id existed the
+ * steps ran unlocked, and `--resume` took no lock at all. Two
+ * `sgc loop --resume <same-id>` invocations therefore both drove the same run —
+ * both spawning planners, both writing the same checkpoint, last-writer-wins on
+ * the run file. That is the hazard STAB-1 addressed for run *creation*, one
+ * layer further in.
+ */
+function runExecLockPath(stateRoot: string | undefined, runId: string): string {
+  return resolve(loopRunsDir(stateRoot), `.${runId}.exec.lock`)
 }
 
 function readRun(path: string): LoopRun {
@@ -232,6 +248,29 @@ async function getDefaultRunners(): Promise<Required<StepRunners>> {
           motivation: opts.motivation,
           userSignature: opts.userSignature,
           forceLevel: opts.forceLevel,
+          // P3-4: an L3 classification reaches runPlan's interactive stdin gate
+          // (Invariant §4). With a terminal attached that gate is correct and
+          // runPlan's own reader handles it — so inject nothing. Without one
+          // (CI, a detached run), the loop blocked on a prompt nobody would ever
+          // answer: it looked like a hang, not like a decision waiting. Fail
+          // fast instead, naming the command that CAN answer it.
+          //
+          // Deliberately NOT auto-confirming. §4's human gate at L3 is the whole
+          // point; satisfying it because no human is present would invert it.
+          ...(process.stdin.isTTY
+            ? {}
+            : {
+                readConfirmation: async (): Promise<string> => {
+                  throw new LoopError(
+                    "L3NeedsConfirmation",
+                    `task classified L3 — Invariant §4 requires a human confirmation at stdin, and ` +
+                      `this loop has no terminal attached. Plan it by hand first:\n` +
+                      `  sgc plan "${state.task}" --signed-by <you> --motivation "..."\n` +
+                      `then resume: sgc loop --resume ${state.run_id}`,
+                    { run_id: state.run_id, reason: "l3_needs_tty" },
+                  )
+                },
+              }),
         })
         return {
           task_id: r.taskId,
@@ -362,125 +401,147 @@ export async function runLoop(
     }
   }
 
-  // Resolve step runners — opts overrides win; defaults fill the rest.
-  const overrides = opts.steps ?? {}
-  let runners: Required<StepRunners>
-  if (overrides.plan && overrides.review && overrides.qa && overrides.compound) {
-    // All four supplied — skip the lazy default import entirely.
-    runners = overrides as Required<StepRunners>
-  } else {
-    const defaults = await getDefaultRunners()
-    runners = {
-      plan: overrides.plan ?? defaults.plan,
-      review: overrides.review ?? defaults.review,
-      qa: overrides.qa ?? defaults.qa,
-      compound: overrides.compound ?? defaults.compound,
+  // P3-6: hold an exec lock for the WHOLE run, not just the id claim above.
+  // Without it, two `sgc loop --resume <same-id>` invocations both drive the
+  // same run: both spawn planners, both write the same checkpoint, and the run
+  // file goes last-writer-wins.
+  let releaseExecLock: () => void
+  try {
+    releaseExecLock = acquireFileLock(runExecLockPath(stateRoot, run.run_id))
+  } catch (err) {
+    if (err instanceof LockHeldError) {
+      throw new LoopError(
+        "ConcurrentRunActive",
+        `loop run ${run.run_id} is already in progress (holder pid=${err.holderPid}). ` +
+          `Wait for it to finish or park, then resume.`,
+        { run_id: run.run_id, active_pid: err.holderPid },
+      )
     }
+    throw err
   }
-
-  // Drive the chain.
-  for (const stepName of STEPS) {
-    const entry = findStep(run, stepName)
-
-    // Skip terminal-done steps without touching the runner.
-    if (entry.status === "done" || entry.status === "skipped") continue
-
-    // --resume case: a paused manual gate from a prior invocation
-    // means the operator has come back ready to proceed. Mark done
-    // and fall through to the next step.
-    if (entry.status === "paused") {
-      entry.status = "done"
-      entry.completed_at = new Date(now()).toISOString()
-      run.last_updated_at = entry.completed_at
-      writeRun(runFilePath, run)
-      continue
+  try {
+    // Resolve step runners — opts overrides win; defaults fill the rest.
+    const overrides = opts.steps ?? {}
+    let runners: Required<StepRunners>
+    if (overrides.plan && overrides.review && overrides.qa && overrides.compound) {
+      // All four supplied — skip the lazy default import entirely.
+      runners = overrides as Required<StepRunners>
+    } else {
+      const defaults = await getDefaultRunners()
+      runners = {
+        plan: overrides.plan ?? defaults.plan,
+        review: overrides.review ?? defaults.review,
+        qa: overrides.qa ?? defaults.qa,
+        compound: overrides.compound ?? defaults.compound,
+      }
     }
 
-    // Manual gate (work / ship): pause + exit on first arrival.
-    if (MANUAL_GATES.has(stepName)) {
-      entry.status = "paused"
+    // Drive the chain.
+    for (const stepName of STEPS) {
+      const entry = findStep(run, stepName)
+
+      // Skip terminal-done steps without touching the runner.
+      if (entry.status === "done" || entry.status === "skipped") continue
+
+      // --resume case: a paused manual gate from a prior invocation
+      // means the operator has come back ready to proceed. Mark done
+      // and fall through to the next step.
+      if (entry.status === "paused") {
+        entry.status = "done"
+        entry.completed_at = new Date(now()).toISOString()
+        run.last_updated_at = entry.completed_at
+        writeRun(runFilePath, run)
+        continue
+      }
+
+      // Manual gate (work / ship): pause + exit on first arrival.
+      if (MANUAL_GATES.has(stepName)) {
+        entry.status = "paused"
+        entry.started_at = new Date(now()).toISOString()
+        run.current_step = stepName
+        run.status = "paused"
+        run.last_updated_at = entry.started_at
+        // Clear any prior failure crumbs (we resumed past them).
+        delete run.failed_step
+        delete run.error
+        writeRun(runFilePath, run)
+        const pauseReason =
+          stepName === "work"
+            ? "paused_work"
+            : stepName === "qa"
+              ? "paused_qa"
+              : "paused_ship"
+        return { run, terminal_reason: pauseReason }
+      }
+
+      // Auto step: run via injected runner; catch + mark failed.
+      entry.status = "in_progress"
       entry.started_at = new Date(now()).toISOString()
       run.current_step = stepName
-      run.status = "paused"
-      run.last_updated_at = entry.started_at
-      // Clear any prior failure crumbs (we resumed past them).
-      delete run.failed_step
-      delete run.error
-      writeRun(runFilePath, run)
-      const pauseReason =
-        stepName === "work"
-          ? "paused_work"
-          : stepName === "qa"
-            ? "paused_qa"
-            : "paused_ship"
-      return { run, terminal_reason: pauseReason }
-    }
-
-    // Auto step: run via injected runner; catch + mark failed.
-    entry.status = "in_progress"
-    entry.started_at = new Date(now()).toISOString()
-    run.current_step = stepName
-    run.status = "running"
-    // We don't persist transient "running" / "in_progress" — only
-    // write at terminal points (done / failed / paused).
-    try {
-      if (stepName === "plan") {
-        const out = await runners.plan(run, opts)
-        run.task_id = out.task_id
-        run.level = out.level as LoopRun["level"]
-        entry.output_ref = out.task_id
-        // L0 carve-out: trivial tasks (typo / format / config) skip
-        // the review/qa/ship/compound chain. L0 plans don't write
-        // intent.md so runReview would crash; review/qa/compound have
-        // nothing meaningful to do for a typo. work-step pause stays
-        // (operator still needs to apply the L0 change).
-        if (run.level === "L0") {
-          for (const skipName of ["review", "qa", "ship", "compound"] as const) {
-            const skipEntry = findStep(run, skipName)
-            if (skipEntry.status === "pending") {
-              skipEntry.status = "skipped"
-              skipEntry.completed_at = new Date(now()).toISOString()
+      run.status = "running"
+      // We don't persist transient "running" / "in_progress" — only
+      // write at terminal points (done / failed / paused).
+      try {
+        if (stepName === "plan") {
+          const out = await runners.plan(run, opts)
+          run.task_id = out.task_id
+          run.level = out.level as LoopRun["level"]
+          entry.output_ref = out.task_id
+          // L0 carve-out: trivial tasks (typo / format / config) skip
+          // the review/qa/ship/compound chain. L0 plans don't write
+          // intent.md so runReview would crash; review/qa/compound have
+          // nothing meaningful to do for a typo. work-step pause stays
+          // (operator still needs to apply the L0 change).
+          if (run.level === "L0") {
+            for (const skipName of ["review", "qa", "ship", "compound"] as const) {
+              const skipEntry = findStep(run, skipName)
+              if (skipEntry.status === "pending") {
+                skipEntry.status = "skipped"
+                skipEntry.completed_at = new Date(now()).toISOString()
+              }
             }
           }
+        } else if (stepName === "review") {
+          await runners.review(run, opts)
+        } else if (stepName === "qa") {
+          await runners.qa(run, opts)
+        } else if (stepName === "compound") {
+          await runners.compound(run, opts)
         }
-      } else if (stepName === "review") {
-        await runners.review(run, opts)
-      } else if (stepName === "qa") {
-        await runners.qa(run, opts)
-      } else if (stepName === "compound") {
-        await runners.compound(run, opts)
+        entry.status = "done"
+        entry.completed_at = new Date(now()).toISOString()
+        delete entry.error
+        run.last_updated_at = entry.completed_at
+        // Clear prior failure crumbs (success after retry).
+        delete run.failed_step
+        delete run.error
+        writeRun(runFilePath, run)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        entry.status = "failed"
+        entry.error = msg
+        entry.completed_at = new Date(now()).toISOString()
+        run.status = "failed"
+        run.failed_step = stepName
+        run.error = msg
+        run.last_updated_at = entry.completed_at
+        run.current_step = stepName
+        writeRun(runFilePath, run)
+        return { run, terminal_reason: "failed" }
       }
-      entry.status = "done"
-      entry.completed_at = new Date(now()).toISOString()
-      delete entry.error
-      run.last_updated_at = entry.completed_at
-      // Clear prior failure crumbs (success after retry).
-      delete run.failed_step
-      delete run.error
-      writeRun(runFilePath, run)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      entry.status = "failed"
-      entry.error = msg
-      entry.completed_at = new Date(now()).toISOString()
-      run.status = "failed"
-      run.failed_step = stepName
-      run.error = msg
-      run.last_updated_at = entry.completed_at
-      run.current_step = stepName
-      writeRun(runFilePath, run)
-      return { run, terminal_reason: "failed" }
     }
-  }
 
-  // All steps in done/skipped → complete.
-  run.status = "complete"
-  run.current_step = "done"
-  run.last_updated_at = new Date(now()).toISOString()
-  delete run.failed_step
-  delete run.error
-  writeRun(runFilePath, run)
-  return { run, terminal_reason: "complete" }
+    // All steps in done/skipped → complete.
+    run.status = "complete"
+    run.current_step = "done"
+    run.last_updated_at = new Date(now()).toISOString()
+    delete run.failed_step
+    delete run.error
+    writeRun(runFilePath, run)
+    return { run, terminal_reason: "complete" }
+  } finally {
+    releaseExecLock()
+  }
 }
 
 function listRunsRaw(stateRoot: string | undefined): LoopRun[] {

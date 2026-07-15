@@ -16,6 +16,7 @@
 import { existsSync, readFileSync } from "node:fs"
 import { load as yamlLoad } from "js-yaml"
 import { getSubagentManifest } from "../dispatcher/schema"
+import { getFingerprintsCached, scanOutputForLeak } from "../dispatcher/fingerprint"
 import {
   listAllSpawns,
   listPendingSpawns,
@@ -112,6 +113,25 @@ export async function runAgentLoop(opts: AgentLoopOptions = {}): Promise<{
 
     // Invariant §9: reject undeclared / wrong-type fields BEFORE writing.
     validateOutputShape(manifest, parsed)
+
+    // P3-5: Invariant §1 output-side leak scan, same gate spawn() applies to
+    // every subagent result. This path skipped it: §9 rejects undeclared FIELDS
+    // but cannot inspect VALUE content, so a reviewer result quoting solutions/
+    // walked straight onto disk. The file-poll flow masked it (the polling
+    // spawn() re-validates after pollForResult), but --submit exists precisely
+    // for the case with no live poller — an external actor fulfilling a spawn by
+    // hand — and there the scan never ran at all.
+    //
+    // Fails closed: the throw happens BEFORE writeAtomic, so a rejected result
+    // is never readable by a later poll.
+    const leak = scanOutputForLeak(agentName, parsed, getFingerprintsCached(root))
+    if (leak.hit) {
+      throw new Error(
+        `Invariant §1 violation (output leak): submitted result for ${agentName} contains ${leak.count} line(s) matching solutions/ content. ` +
+          `Sample(s): ${leak.samples.map((s) => `"${s}"`).join(", ")}. ` +
+          `Reviewers and qa agents must stay amnesiac to past solutions — see sgc-invariants.md §1.`,
+      )
+    }
 
     writeAtomic(rp, serializeFrontmatter(parsed as Record<string, unknown>, ""))
     log(`wrote ${rp}`)

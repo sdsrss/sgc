@@ -53,6 +53,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # P3-8 (audit v1.31.8): publish gated on less than push did.
+      # test.yml runs typecheck before its tests; this workflow ran neither, so
+      # the normal tag-after-green-main flow was only covered by coincidence —
+      # a tag pushed onto a commit whose test.yml had not gone green (or had
+      # never run, e.g. a tag on an older commit) published on the dispatcher
+      # suite alone. bun strips types at runtime, so a type error is invisible
+      # to `bun test` and would have shipped.
+      - name: Typecheck (tsc --noEmit)
+        run: npm run typecheck
+
       - name: Build CLI bundle
         run: npm run build:cli
 

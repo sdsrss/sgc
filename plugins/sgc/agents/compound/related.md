@@ -1,6 +1,6 @@
 ---
 name: compound-related
-description: "Dedup checker. Searches existing .sgc/solutions/ for entries similar to the current solution. Returns similarity score. MUST run before any solutions/ write."
+description: "Deterministic by design, NEVER LLM-backed: computes the dedup verdict (0.85 similarity gate) that authorizes a solutions/ write under Invariant §3. Kept out of LLM hands on purpose — a model could mint best_similarity 0 and wave a duplicate past the corpus's only write gate. Do not give this agent a prompt_path."
 ---
 
 # Related Solutions Checker

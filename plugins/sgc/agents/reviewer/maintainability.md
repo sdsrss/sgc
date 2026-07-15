@@ -1,6 +1,6 @@
 ---
 name: reviewer-maintainability
-description: "Maintainability reviewer. Evaluates naming, coupling, complexity, readability, and design pattern usage. Dispatched by /review for L2+ tasks."
+description: "Heuristic keyword matcher, NOT LLM-backed: flags size/shape signals in the diff (long functions, large files). It does not evaluate naming, coupling, or design patterns. Runs at L2+ (always-on in the L2 cluster)."
 ---
 
 # Maintainability Reviewer

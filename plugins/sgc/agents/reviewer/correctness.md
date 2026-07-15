@@ -1,6 +1,6 @@
 ---
 name: reviewer-correctness
-description: "Always-on code reviewer. Hunts for logic errors, edge cases, off-by-one, null handling, and broken error propagation. Dispatched by /review for all levels."
+description: "LLM-backed code reviewer (the only one in this cluster). Hunts for logic errors, edge cases, off-by-one, null handling, and broken error propagation. Dispatched by /review at every level; amnesiac to past solutions by Invariant §1."
 ---
 
 # Correctness Reviewer

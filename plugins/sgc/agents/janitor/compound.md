@@ -1,6 +1,6 @@
 ---
 name: janitor-compound
-description: "Decides whether /compound should fire after /ship. Applies decision rules based on task level, diff size, reviewer findings, and novelty. Logs every decision. Dispatched automatically after /ship."
+description: "Deterministic decision rules, NOT LLM-backed: decides after a ship whether the task carries reusable knowledge worth compounding (level, outcome, reviewer severity, diff size). Every decision is logged per Invariant §6 — silent skips are forbidden."
 ---
 
 # Compound Decision Janitor

@@ -83,7 +83,7 @@ This prevents "helpful" subagents from corrupting state they were not invited to
 
 ## §10. Failure of Any Compound Substep Aborts the Whole Compound
 
-The compound cluster has five subagents. If any of them fails or times out, the entire compound operation is rolled back and no write to `solutions/` occurs. Partial compound writes are forbidden.
+The compound cluster has four subagents (context, related, solution, prevention). `janitor.compound` is NOT one of them — it is the separate gate that decides *whether* to compound at all, and runs before the cluster. If any of them fails or times out, the entire compound operation is rolled back and no write to `solutions/` occurs. Partial compound writes are forbidden.
 
 The rationale is that a half-written solution entry is worse than no entry. A solution without the `what_didnt_work` field, for instance, encourages the reader to re-walk dead-end paths. Better to log a janitor skip with reason `compound_cluster_failure` and surface the error for human diagnosis.
 

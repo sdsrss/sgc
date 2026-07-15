@@ -1,6 +1,6 @@
 ---
 name: reviewer-adversarial
-description: "Adversarial code reviewer. Actively tries to break the code through race conditions, concurrent access, unusual inputs, and edge case abuse. Dispatched by /review for L2+ tasks."
+description: "NOT IMPLEMENTED (slot-only): a reserved slot for an adversarial reviewer that would hunt race conditions and edge-case abuse. /review never dispatches it — nothing runs today. Do not route work here expecting a result."
 ---
 
 # Adversarial Reviewer

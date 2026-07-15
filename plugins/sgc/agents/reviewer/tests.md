@@ -1,6 +1,6 @@
 ---
 name: reviewer-tests
-description: "Test quality reviewer. Evaluates test coverage, test quality, missing edge case tests, and flaky test risk. Dispatched by /review for L1+ tasks."
+description: "Heuristic keyword matcher, NOT LLM-backed: checks whether the diff touches test files and flags source changes that ship without them. It does not evaluate test quality, coverage adequacy, or flakiness risk. Runs at L2+ (always-on in the L2 cluster)."
 ---
 
 # Test Reviewer

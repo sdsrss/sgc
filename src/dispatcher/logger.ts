@@ -6,7 +6,7 @@
 // Invariant §13: spawn.ts + LLM-mode agents MUST emit paired events — see
 // docs/superpowers/specs/2026-04-24-phase-g-design.md §3.
 
-import { appendFileSync, mkdirSync } from "node:fs"
+import { appendFileSync, mkdirSync, renameSync, statSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 
 export interface EventRecord {
@@ -79,14 +79,53 @@ export interface LlmAgentContext {
   registerLlmClose?: (close: (outcome: LlmResponsePayload["outcome"]) => void) => void
 }
 
-function defaultNdjsonSink(stateRoot: string): (e: EventRecord) => void {
+/**
+ * P3-9: size cap for `.sgc/progress/events.ndjson` before it rotates to `.1`.
+ *
+ * The stream was append-only with no bound: every spawn and every LLM call,
+ * forever. Its consumers (`sgc tail`, cso's anomaly detection) all read the
+ * whole file, so an old project's stream degrades them and nothing reclaims the
+ * space.
+ *
+ * Rotation does drop the oldest audit trail, which §13 cares about — but
+ * unbounded growth does not preserve that trail either, it just makes it
+ * unreadable while also taking the tooling down with it. One rotated generation
+ * bounds the stream at 2× this cap and still leaves far more history than any
+ * consumer reads. ~10MB is ~50k events at typical payload size.
+ */
+export const EVENTS_MAX_BYTES = 10_000_000
+
+function defaultNdjsonSink(stateRoot: string, maxBytes: number): (e: EventRecord) => void {
   const path = resolve(stateRoot, "progress/events.ndjson")
+  const rotated = `${path}.1`
   // Create the parent directory once at sink creation (fail fast if
   // filesystem is unwritable; no per-write syscall overhead).
   mkdirSync(dirname(path), { recursive: true })
+  // Seed from the file already on disk: the counter is per-process, and a
+  // stream inherited from an earlier run must be measured, not assumed empty.
+  // One stat at sink creation, then O(1) per write — no syscall per event.
+  let bytes = 0
+  try {
+    bytes = statSync(path).size
+  } catch {
+    // No stream yet — starts at 0.
+  }
   return (e: EventRecord) => {
     try {
-      appendFileSync(path, JSON.stringify(e) + "\n", "utf8")
+      const line = JSON.stringify(e) + "\n"
+      if (bytes + line.length > maxBytes) {
+        // Keep exactly one generation: rename replaces any prior .1, so the
+        // pile is bounded rather than growing a .2/.3/... tail.
+        try {
+          renameSync(path, rotated)
+          bytes = 0
+        } catch {
+          // Rotation failed (permissions, races) — keep appending rather than
+          // dropping the event. An oversize stream beats a lost audit record.
+        }
+      }
+      appendFileSync(path, line, "utf8")
+      bytes += line.length
     } catch (err) {
       console.error("[sgc] ndjson write failed:", String(err))
     }
@@ -97,10 +136,12 @@ export function createLogger(opts: {
   stateRoot?: string
   say?: (m: string) => void
   eventSink?: (e: EventRecord) => void
+  /** P3-9: rotation cap override (tests). Defaults to EVENTS_MAX_BYTES. */
+  maxBytes?: number
 } = {}): Logger {
   const stateRoot = opts.stateRoot ?? process.env["SGC_STATE_ROOT"] ?? ".sgc"
   const say = opts.say ?? ((m: string) => console.log(m))
-  const sink = opts.eventSink ?? defaultNdjsonSink(stateRoot)
+  const sink = opts.eventSink ?? defaultNdjsonSink(stateRoot, opts.maxBytes ?? EVENTS_MAX_BYTES)
   return {
     say,
     event(partial) {

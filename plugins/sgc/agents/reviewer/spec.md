@@ -1,6 +1,6 @@
 ---
 name: reviewer-spec
-description: "Spec drift detector. Compares shipped code against declared intent to find where implementation deviates from the plan. Dispatched by /review for L2+ tasks."
+description: "NOT IMPLEMENTED (slot-only): a reserved slot for drift detection between shipped code and declared intent. /review never dispatches it — nothing runs today. Do not route work here expecting a result."
 ---
 
 # Spec Reviewer

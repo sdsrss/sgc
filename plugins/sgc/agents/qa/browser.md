@@ -1,6 +1,6 @@
 ---
 name: qa-browser
-description: "Browser E2E QA agent (Playwright real-browser; opt-in via --browse/SGC_QA_REAL=1, stub by default). Opens pages, clicks buttons, fills forms, captures screenshots, and verifies UI behavior. Dispatched by /qa."
+description: "Real-browser smoke runner (Playwright), NOT LLM-backed: drives goto + console/page-error capture + screenshot, then returns a verdict. Opt-in via --browse / SGC_QA_REAL=1; STUB BY DEFAULT, and the stub returns `concern` rather than rubber-stamping. Needs a browser (npx playwright install chromium, or SGC_QA_BROWSER=chrome)."
 ---
 
 # Browser QA Agent

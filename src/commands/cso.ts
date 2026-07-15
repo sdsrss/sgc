@@ -102,12 +102,31 @@ function reportSlug(stamp: { date: string; time: string }): string {
 // T2: secret-scan
 // ─────────────────────────────────────────────────────────────────────────
 
+// P3-12 (audit v1.31.8): the set below missed formats common in the repos this
+// gate actually runs against — `sk-` caught OpenAI but not Stripe's `sk_live_`,
+// and JWTs / Google keys / npm tokens / Slack webhooks matched nothing at all.
+//
+// Every pattern here is anchored on a vendor-specific prefix with a bounded
+// length class: no unbounded quantifier sits next to another (ReDoS-safe on the
+// 200KB inputs this runs over), and prefix-anchoring keeps the false-positive
+// rate low enough that the gate stays usable. This is still a last-line
+// heuristic, not gitleaks.
 const SECRET_PATTERNS: { name: string; re: RegExp }[] = [
   { name: "AWS access key", re: /AKIA[0-9A-Z]{16}/ },
   { name: "private key block", re: /-----BEGIN (RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----/ },
   { name: "GitHub PAT", re: /gh[ps]_[A-Za-z0-9]{36,}/ },
   { name: "OpenAI API key", re: /sk-[A-Za-z0-9]{20,}/ },
   { name: "Slack token", re: /xox[abprs]-[A-Za-z0-9-]{10,}/ },
+  // Stripe: `sk_live_` / `rk_live_` are the ones that cost money. Test keys
+  // (`sk_test_`) are deliberately NOT flagged — they are safe to commit and
+  // flagging them would train operators to ignore this gate.
+  { name: "Stripe live key", re: /(?:sk|rk)_live_[A-Za-z0-9]{16,}/ },
+  // JWT: three base64url segments. Requires a real signature segment so the
+  // literal string "header.payload.signature" in docs doesn't match.
+  { name: "JWT", re: /eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{20,}/ },
+  { name: "Google API key", re: /AIza[A-Za-z0-9_-]{35}/ },
+  { name: "npm token", re: /npm_[A-Za-z0-9]{36}/ },
+  { name: "Slack webhook URL", re: /hooks\.slack\.com\/services\/T[A-Za-z0-9]{8,}\/B[A-Za-z0-9]{8,}\/[A-Za-z0-9]{20,}/ },
   {
     name: "generic api-key/password assignment",
     re: /\b(?:api[_-]?key|api[_-]?secret|access[_-]?token|password|secret[_-]?key|private[_-]?key)\s*[=:]\s*["'][^"'\s]{16,}["']/i,

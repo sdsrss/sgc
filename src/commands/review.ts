@@ -8,8 +8,11 @@
 //      - scope tokens pinned at spawn (Invariant §8)
 //      - read:solutions forbidden (Invariant §1, enforced by manifest +
 //        computeSubagentTokens)
-//   4. At L3 only: detect diff-keyword triggers; spawn matching specialist
-//      reviewers in parallel (security / migration / performance / infra).
+//   4. At L2+: run the always-on cluster (tests + maintainability), then detect
+//      diff-keyword triggers and spawn matching specialist reviewers in
+//      parallel (security / migration / performance / infra). The specialist
+//      gate was lowered from L3-only in Phase 2c (v1.27.0) — this comment said
+//      "L3 only" for four releases after that stopped being true.
 //      Each writes its own append-only report under reviews/{task_id}/code/.
 //   5. appendReview each report to .sgc/reviews/{task_id}/code/<reviewer>.md
 //      (append-only per Invariant §6)

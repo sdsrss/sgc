@@ -1,6 +1,6 @@
 ---
 name: reviewer-security
-description: "Security reviewer. Hunts for injection, auth bypass, data exposure, and OWASP Top 10 vulnerabilities. Dispatched by /review for L2+ tasks or when diff touches auth/crypto/public endpoints."
+description: "Heuristic keyword matcher, NOT LLM-backed: flags diff lines matching auth/jwt/token/session/crypto/password/secret and reports them at medium severity. It does not reason about injection, auth bypass, or OWASP categories — it cannot tell a real vulnerability from the word 'token'. Runs at L2+ when the diff matches. For semantic security analysis use `sgc cso` or a human reviewer."
 ---
 
 # Security Reviewer

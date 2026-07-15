@@ -4,7 +4,7 @@ Classify a user's engineering request into L0, L1, L2, or L3 per the sgc level d
 
 ## Scope
 
-- Token scope: read:progress, read:decisions (read current-task context if relevant)
+- Token scope: read:progress (this is the full grant — the manifest does NOT give you read:decisions)
 - Forbidden: read:solutions (reviewer-adjacent isolation — do not consult past answers)
 - Allowed outputs: level, rationale, affected_readers_candidates
 

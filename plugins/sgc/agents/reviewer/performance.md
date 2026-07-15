@@ -1,6 +1,6 @@
 ---
 name: reviewer-performance
-description: "Performance reviewer. Hunts for N+1 queries, unbounded loops, missing indexes, memory leaks, and algorithmic inefficiency. Dispatched by /review for L2+ tasks."
+description: "Heuristic keyword matcher, NOT LLM-backed: flags diff lines mentioning perf/cache/index/n+1/O(n)/p95/p99. It does not detect N+1 queries, unbounded loops, or algorithmic complexity — it matches words about them. Runs at L2+ when the diff matches."
 ---
 
 # Performance Reviewer

@@ -163,7 +163,7 @@ sgc auto-detects an LLM backend per priority: `SGC_FORCE_INLINE=1` → **inline*
 ```
 contracts/        spec source-of-truth — capabilities.yaml, state.schema.yaml, invariants.md
 src/
-  sgc.ts          citty CLI (19 subcommands)
+  sgc.ts          citty CLI (20 subcommands)
   commands/       one implementation per subcommand
   dispatcher/     spawn protocol, scope tokens, dedup, embedded contracts/prompts, state I/O
 plugins/sgc/

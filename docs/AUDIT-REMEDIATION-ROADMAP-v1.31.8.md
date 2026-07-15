@@ -13,8 +13,8 @@
 |---|---|---|---|---|---|
 | M1 — P1 安全与诚实性 | 4 | 4 | 0 | 0 | **100%** |
 | M2 — P2 高杠杆组 | 12 | 12 | 0 | 0 | **100%** |
-| M3 — P3 清理组 | 12 | 1 | 0 | 0 | 8%（P3-1 随 P2-3 顺带闭合） |
-| **合计** | **28** | **17** | **0** | **0** | **61%** |
+| M3 — P3 清理组 | 12 | 11 | 0 | 1 ❌ | **100%**（11 修 + 1 判定为审核误报） |
+| **合计** | **28** | **27** | **0** | **1 ❌** | **100%** |
 
 **M1+M2 验收记录（SHIPPED v1.32.0 @ `e27681f`，2026-07-15）**：
 - `tsc --noEmit` exit 0
@@ -24,7 +24,17 @@
 - 发布产物 CVE 实证：`grep -c maxTotalMergeKeys plugins/sgc/bin/sgc.mjs` → **3**（HEAD 的 bundle 为 0）
 - 真实 Node 18.20.8 跑发布产物 → doctor **33 OK · 0 fail**（"node ≥ 18"声明首次获实证）
 
-**M2 的共同主题**（值得记住，与 M1 的"LLM 模式下护栏退化"并列）：**绿色信号不等于证据**——测试因宿主树恰好脏得合适而通过、doctor 因 bun 版本而误报、`npm audit` 报干净而产物仍带 CVE、§3 校验 stamp 的形状却不问它是否被挣得、复用指标数的是 LLM 复读自己的输入。
+**M3 验收记录（SHIPPED v1.33.0，2026-07-15）**：
+- `tsc --noEmit` exit 0 · `SGC_FORCE_INLINE=1 bun test tests/` → **1410 pass / 38 skip / 0 fail**（基线 1269 → **+141 新测试**）
+- `bun src/sgc.ts doctor`（CI 锁定的 bun 1.3.5）→ **66 OK · 0 warn · 0 fail**（新增检查 N）
+- npm 包 **529KB → 296KB（-44%）**、文件数 90 → 5，经真实消费者 e2e 验证（34 OK / 0 fail）
+
+**三批的共同主题**（三条彼此独立，都是关于"什么才算证据"）：
+1. **M1 — 确定性护栏在 LLM 模式下退化为建议**：分级器的 HARD 规则活在生产从不调用的函数里；§8 的"越权即终止"背后无实现。
+2. **M2 — 绿色信号不等于证据**：测试因宿主树恰好脏得合适而通过、doctor 因 bun 版本而误报、`npm audit` 报干净而产物仍带 CVE、§3 校验 stamp 的形状却不问它是否被挣得、复用指标数的是 LLM 复读自己的输入。
+3. **M3 — 元数据是运行时行为**：`agents/**/*.md` 的 description 是 Claude Code 读来决策路由的，它宣称有"OWASP 级安全评审"而运行时是个正则；两个 reviewer 自称"Dispatched by /review"而 manifest 标着 slot-only（从不派发）。doctor 已守着 prompts↔manifest 与 slash↔CLI 两个注册表，唯独这个没守——所以它烂了。
+
+**审核自身被推翻/修正的六处**（如实记录，因为无人纠正的审核会变成传说）：P2-2（推断→实证，且改变了修复方向）· P2-8（`ui→build` 例子不成立）· P2-12（playwright 收益被夸大）· **P3-11（整条误报——doctor 检查 G 早已在校验，实测证明）** · **P3-12（"超大文件跳过升为 finding"的建议有害——本仓库自己的 950KB bundle 会让 cso 永远失败）** · P3-2/P3-4/P3-5/P3-6（审核低估了范围：实际漂移 10 个而非 6 个；loop 无锁不只在 resume；等等）。
 
 > 全局验收（每个里程碑收口时跑一遍）：
 > `tsc --noEmit` exit 0 · `SGC_FORCE_INLINE=1 bun test tests/` 0 fail · `bun src/sgc.ts doctor` 0 fail · `npm audit` 0 vuln
@@ -155,17 +165,17 @@
 | 状态 | # | 项 | 一句话动作 | 完成于 |
 |---|---|---|---|---|
 | ✅ | P3-1 | package-lock 根元数据 v1.18.0 | 已随 P2-3 的 `npm audit fix` 一并刷新（version/bin/engines 现均为 1.31.8 口径） | v1.32.0 (`e27681f`) |
-| ⬜ | P3-2 | reviewer agent 元数据超卖（LLM 可见，敏感度高于一般 P3） | 六个 `agents/reviewer/*.md` description 加 "heuristic keyword matcher / slot-only" 注记；doctor 增加 agents/**.md ↔ manifest 绑定检查 | _ |
-| ⬜ | P3-3 | `skills/review/SKILL.md` 与 `review.ts:11` 头注释 L3→L2+ 过期 | 措辞更新两处 | _ |
-| ⬜ | P3-4 | loop 的 L3 步 stdin 挂起 | 非 TTY 时快速失败并提示需人工 `sgc plan` 确认 | _ |
-| ⬜ | P3-5 | `agent-loop --submit` 跳过 §1 泄漏扫描 | submit 路径补 `scanOutputForLeak` | _ |
-| ⬜ | P3-6 | `loop --resume` 无锁 | resume 路径复用 fork-lock | _ |
-| ⬜ | P3-7 | 缺真多进程锁测试 + crash-mid-write 测试 | 新增 fork 双进程 O_EXCL 竞争测试；writeAtomic 评估 fsync 取舍并文档化 | _ |
-| ⬜ | P3-8 | publish 门禁薄于 push | publish.yml 补 typecheck（+可选 eval） | _ |
-| ⬜ | P3-9 | files[] 死重 + events.ndjson 无轮转 | npm 包裁掉 src/（或文档说明保留理由）；logger 加尺寸上限/轮转 | _ |
-| ⬜ | P3-10 | 计数类文案错位（19→20 subcommands；§10 five→4+janitor；classifier prompt scope 多报） | 三处文案修正 | _ |
-| ⬜ | P3-11 | 规范化指标信任自报 `machine_enforced` | metrics 或 doctor 校验每条 machine_enforced 有对应测试引用 | _ |
-| ⬜ | P3-12 | cso 扫描盲区（>200KB / 非 git 跟踪 / Stripe·JWT 模式缺失） | 补 3-5 个常见模式；>200KB 跳过从 warn 升为 finding | _ |
+| ✅ | P3-2 | reviewer agent 元数据超卖（LLM 可见） | **发现比审核多**：审核点了 6 个 reviewer，实际漂移 **10 个**（另含 compound.related / janitor.archive / janitor.compound / qa.browser）。全部改为如实描述，且**每个用准确的词**——security/performance/tests/maintainability = heuristic keyword matcher；adversarial/spec = NOT IMPLEMENTED (slot-only，从不派发)；compound.related = deterministic by design（§3 纪律）；qa.browser = Playwright 真实浏览器、默认 stub。新增 doctor 检查 (N) 绑定 agents/**.md ↔ manifest 防复发。**过程修正**：初版用正则解析 manifest，把 `&anchor` 形式的条目误报为孤儿——改用库内既有的 `getSubagentManifest`。 | v1.33.0 |
+| ✅ | P3-3 | review SKILL.md 与 review.ts:11 的 L3→L2+ 过期 | SKILL.md 三处（L3 specialists → L2+、\“not yet wired\” 删除并改为各 reviewer 的真实身份、trigger table 标题）+ review.ts 头注释。均注明 v1.27.0 起就不再为真。 | v1.33.0 |
+| ✅ | P3-4 | loop 的 L3 步 stdin 挂起 | 非 TTY 时注入拒绝器并快速失败（新错误码 `L3NeedsConfirmation`），错误信息给出可执行的下一步（`sgc plan --signed-by` → `sgc loop --resume`）；TTY 下不注入，runPlan 自己的交互读取照常。**不自动确认**——§4 的人工门就是目的本身。**修正审核的场景描述**：挂起只在传了 `--signed-by` 时发生（签名门在 stdin 门之前），即 CI 里 `sgc loop ... --signed-by X` 的形态。 | v1.33.0 |
+| ✅ | P3-5 | agent-loop --submit 跳过 §1 泄漏扫描 | 写盘前接入 `scanOutputForLeak`（与 spawn 同一道门），fail-closed。**审核低估了严重度**：§9 只校验字段、不看值内容，所以引用了 solutions 内容的 reviewer 结果可直接落盘——而 `--submit` 存在的意义正是“无 live poller 的外部执行者”场景，那里事后 re-validate 根本不会发生。 | v1.33.0 |
+| ✅ | P3-6 | loop --resume 无锁 | **比审核记录的更广**：不只是 resume——fresh-start 的锁只覆盖 [scan → writeRun]，run 的实际执行两条路径都裸奔。新增 per-run exec 锁覆盖整个执行期。**测试方法教训**：并发跑两个 resume 并指望交错**证明不了**互斥（stub runner 太快，第一个跑完才轮到第二个，无锁实现照样通过）——必须让第一个在锁内挂住。 | v1.33.0 |
+| ✅ | P3-7 | 缺真多进程锁测试 + crash-mid-write 测试 | 新增 `file-lock-multiprocess.test.ts`：fork 真实 node 进程争锁，证明 O_EXCL 跨进程互斥（被拒方还报出真实 holder pid）+ 释放后可重取 + 崩溃持有者的锁被回收。**fsync 决策：不加，并写进代码文档**——`.sgc/` 是开发者本地工作流状态，掉电丢失的代价是重跑一次 `sgc plan`；为一个“重跑即可恢复”的故障模式给每次状态写付一次真实磁盘 flush 是坏买卖。文档写明若将来存入不可重导出的数据则须改（tmp fd fsync + 父目录 fsync）。 | v1.33.0 |
+| ✅ | P3-8 | publish 门禁薄于 push | publish.yml 补 `npm run typecheck`。理由写进 workflow：bun 运行时抹类型，类型错误对 `bun test` 不可见，正常 tag-after-green 流程只是“碰巧”覆盖了它——在旧 commit 上打 tag 就没有覆盖。 | v1.33.0 |
+| ✅ | P3-9 | files[] 死重 + events.ndjson 无轮转 | **files[] 裁剪经实测而非推断**：去掉 src/ + contracts/ + prompts/ 后，用真实消费者 e2e（打 tarball → 装进干净树 → 跑发布产物）验证 34 OK / 0 fail。收益：打包 **529KB → 296KB（-44%）**、文件数 90 → 5。events.ndjson 加轮转（10MB cap → `.1`，只保 1 代，上界 2×cap；进程内计数、每次写零 syscall，sink 创建时 stat 一次以量到上轮遗留的流）。**取舍写进注释**：轮转确实丢最老的审计，但无界增长同样保不住审计——它只是让审计变得读不动，还顺带拖垮 tail/cso。 | v1.33.0 |
+| ✅ | P3-10 | 计数类文案错位（三处） | 三条**逐条实测后**修正：README「19 subcommands」实为 **20**（`--help` 点算）；invariants §10「five subagents」实为 **4**（runCompound 只派发 context/related/solution/prevention，janitor.compound 是决定“是否 compound”的独立门，已在文中点明）；classifier prompt 自称 scope `read:progress, read:decisions` 而 manifest 只给 `[“read:progress”]`（prompt 是 LLM 可见的，超报会让模型以为自己可读 decisions）。 | v1.33.0 |
+| ❌ | P3-11 | 规范化指标信任自报 machine_enforced | **审核误报，实测推翻**。doctor 检查 G **已经**在校验：把 §8 的 test 引用改成不存在的文件 → 立刻 `✗ §8 cites missing test file(s)`；空 tests 列表同样被拦（代码 + sgc-doctor.test.ts 均覆盖）。而“测试是否真的断言了该不变量”这层，`invariant-enforcement.yaml` 头部第 15-18 行**已明确声明**不在校验范围（\“file-existence is what doctor verifies; not a per-assertion audit\”）——契约本就诚实。审核漏看了检查 G。不做改动。 | N/A（无需修复） |
+| ✅ | P3-12 | cso 扫描盲区 | **补模式（采纳）**：Stripe live（`sk_live_`/`rk_live_`，刻意不报 `sk_test_`——安全可提交，报了会训练操作者忽略此门）、JWT（要求真签名段，避免文档里的 `header.payload.signature` 误报）、Google API key、npm token、Slack webhook。全部前缀锚定 + 有界长度类（ReDoS 安全）。**「>200KB 跳过升为 finding」拒绝采纳**：现状已是 `warn`（非 pass，审核此处描述有误）；且本仓库自己 git-track 着 950KB 的 bundle，升级后 `sgc cso` 会在 sgc 自己身上永远失败——永远失败的门等于被忽略的门，严格劣于 warn。已加测试钉住现状。 | v1.33.0 |
 
 ---
 

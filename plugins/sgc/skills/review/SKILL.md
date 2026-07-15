@@ -27,8 +27,8 @@ Dispatch reviewer agents (fresh context) against the current task's diff. Review
 
 - **Behavior**: [`src/commands/review.ts`](../../../../src/commands/review.ts) (`runReview`)
 - **Base reviewer**: [`src/dispatcher/agents/reviewer-correctness.ts`](../../../../src/dispatcher/agents/reviewer-correctness.ts) — runs at every level
-- **L3 specialists**: [`src/dispatcher/agents/reviewer-specialists.ts`](../../../../src/dispatcher/agents/reviewer-specialists.ts) — `reviewer.{security,migration,performance,infra}` spawn in parallel when the diff matches their trigger keywords. Aggregate verdict = worst-of (`pass < concern < fail`)
-- **Manifest**: 9 reviewers in [`contracts/sgc-capabilities.yaml`](../../../../contracts/sgc-capabilities.yaml) (correctness/security/performance/tests/maintainability/adversarial/spec/migration/infra). `tests`/`maintainability`/`adversarial`/`spec` are manifested as forward-references — not yet wired into `runReview`
+- **L2+ specialists**: [`src/dispatcher/agents/reviewer-specialists.ts`](../../../../src/dispatcher/agents/reviewer-specialists.ts) — `reviewer.{security,migration,performance,infra}` spawn in parallel when the diff matches their trigger keywords. Heuristic keyword matchers, not LLM-backed. Aggregate verdict = worst-of (`pass < concern < fail`)
+- **Manifest**: 9 reviewers in [`contracts/sgc-capabilities.yaml`](../../../../contracts/sgc-capabilities.yaml). What each one actually is: `correctness` is the only LLM-backed reviewer and runs at every level; `tests` + `maintainability` are always-on at L2+; `security`/`migration`/`performance`/`infra` are diff-conditional at L2+ — all six are heuristic keyword matchers. `adversarial` and `spec` are `status: slot-only`: manifested but NEVER dispatched, so do not route work to them expecting a result.
 - **Scope pin**: `spawn.ts` emits `scope_tokens:` + `FORBIDDEN from: read:solutions` in every reviewer prompt (holistically verified by [`tests/eval/reviewer-isolation.test.ts`](../../../../tests/eval/reviewer-isolation.test.ts))
 - **Invariants**: §1 reviewer no-solutions · §5 override reason ≥40 · §6 append-only per (task, stage, reviewer)
 
@@ -47,9 +47,9 @@ Re-running `review` for the same task throws `AppendOnly` — reviews are an aud
 For broader static analysis beyond sgc's reviewer cluster:
 - `gs:/review` — pre-landing PR review with SQL safety, LLM trust boundary, and structural checks
 
-## L3 specialist trigger table
+## L2+ specialist trigger table
 
-At L3 the dispatcher scans the diff and spawns matching specialists alongside `reviewer.correctness`:
+At L2+ the dispatcher scans the diff and spawns matching specialists alongside `reviewer.correctness` and the always-on `tests` + `maintainability` pair. (Phase 2c / v1.27.0 lowered this gate from L3-only; this doc said L3 for four releases after that stopped being true.)
 
 | Specialist | Trigger keywords (loose match, identifier-friendly) | Severity on hit |
 |------------|-----------------------------------------------------|-----------------|

@@ -28,6 +28,7 @@ import { fileURLToPath } from "node:url"
 import { spawnCapture } from "../dispatcher/subprocess"
 import { load as yamlLoad } from "js-yaml"
 import { getCapabilities, getSubagentManifest } from "../dispatcher/schema"
+import { deriveCliFact, CLI_FACT_MARKER, DERIVED_AGENT_IDS } from "../dispatcher/agent-facts"
 import { EMBEDDED_PROMPTS, listEmbeddedPromptKeys } from "../dispatcher/embedded-data"
 import {
   computeMetricsLive,
@@ -300,6 +301,53 @@ export function agentMetadataDrift(
   for (const id of manifestIds) {
     if (present.has(id) || REGISTRY_EXEMPT_IDS.has(id)) continue
     drifts.push(`${id}: manifested but has no registry file under plugins/sgc/agents/ (missing)`)
+  }
+  return drifts
+}
+
+/**
+ * Check (O): the CLI-fact half of a description must be byte-identical to
+ * deriveCliFact(id).
+ *
+ * agentMetadataDrift (above) checks that a description CONTAINS a disclosure
+ * keyword. That is a magic-word test, and it has now failed in both directions:
+ * it passed a term list missing three terms and an advertised O(n) the regex could
+ * not match, and in M5 it REJECTED a more accurate description that happened to use
+ * none of its words. This check compares against the code instead.
+ */
+export function cliFactDrift(files: AgentMdFile[]): string[] {
+  const drifts: string[] = []
+  for (const f of files) {
+    if (!DERIVED_AGENT_IDS.includes(f.id)) continue
+    let desc: string
+    try {
+      desc = readFrontmatterDescription(f.text)
+    } catch (err) {
+      drifts.push(`${f.id}: ${f.file} frontmatter does not parse (${String(err).slice(0, 80)})`)
+      continue
+    }
+    const at = desc.indexOf(CLI_FACT_MARKER)
+    if (at < 0) {
+      drifts.push(
+        `${f.id}: ${f.file} has no \`${CLI_FACT_MARKER}\` clause — run \`sgc doctor --write-descriptions\``,
+      )
+      continue
+    }
+    if (at === 0) {
+      drifts.push(
+        `${f.id}: ${f.file} opens with the CLI fact — the capability sentence must come first. ` +
+          `This field's only consumer is Claude Code's dispatch decision; leading with a disclaimer suppresses it.`,
+      )
+      continue
+    }
+    const actual = desc.slice(at)
+    const expected = deriveCliFact(f.id)
+    if (actual !== expected) {
+      drifts.push(
+        `${f.id}: ${f.file} CLI-fact clause is stale.\n    expected: ${expected}\n    actual:   ${actual}\n` +
+          `    fix: sgc doctor --write-descriptions`,
+      )
+    }
   }
   return drifts
 }
@@ -809,6 +857,20 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
       }
     } catch (e) {
       emit({ severity: "fail", msg: `  ✗ agent registry check error: ${(e as Error).message.slice(0, 80)}` })
+    }
+  }
+
+  // ── (O) agent description ↔ derived CLI fact ────────────────────────────
+  log("")
+  log("=== agent description ↔ derived CLI fact ===")
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no plugins/sgc/agents/ — npm channel)" })
+  } else {
+    const factDrifts = cliFactDrift(readAgentMdFiles(root))
+    if (factDrifts.length === 0) {
+      emit({ severity: "ok", msg: `  ✓ ${DERIVED_AGENT_IDS.length} agent CLI-fact clauses match the code` })
+    } else {
+      for (const d of factDrifts) emit({ severity: "fail", msg: `  ✗ ${d}` })
     }
   }
 

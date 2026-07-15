@@ -886,14 +886,47 @@ Find the `// ── (N) agent registry ↔ manifest ──` block in `runDoctor`
   if (!hasSource) {
     emit({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no plugins/sgc/agents/ — npm channel)" })
   } else {
-    const factDrifts = cliFactDrift(readAgentMdFiles(root))
-    if (factDrifts.length === 0) {
-      emit({ severity: "ok", msg: `  ✓ ${DERIVED_AGENT_IDS.length} agent CLI-fact clauses match the code` })
-    } else {
-      for (const d of factDrifts) emit({ severity: "fail", msg: `  ✗ ${d}` })
+    // Same failure mode check (N) above already learned the hard way: a broken
+    // symlink or unreadable dir under agents/ makes readAgentMdFiles throw
+    // straight out of runDoctor. It belongs inside the try.
+    try {
+      const files = readAgentMdFiles(root)
+      if (files.length === 0) {
+        // Mirrors check (N)'s own distinction directly above: no plugins/sgc/agents/
+        // at all is "nothing to check" (npm channel) — not "9 files missing". An
+        // incomplete-but-present registry is the real drift, handled below.
+        emit({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no plugins/sgc/agents/ — npm channel)" })
+      } else {
+        const present = new Set(files.map((f) => f.id))
+        const missingIds = DERIVED_AGENT_IDS.filter((id) => !present.has(id))
+        for (const id of missingIds) {
+          emit({
+            severity: "fail",
+            msg: `  ✗ ${id}: no plugins/sgc/agents/${id.replace(".", "/")}.md — a missing file cannot carry the derived clause`,
+          })
+        }
+        const factDrifts = cliFactDrift(files)
+        if (factDrifts.length === 0 && missingIds.length === 0) {
+          // The count actually checked, not the constant DERIVED_AGENT_IDS.length —
+          // a hardcoded count here would claim 9 verified while having seen fewer.
+          const checked = files.filter((f) => DERIVED_AGENT_IDS.includes(f.id)).length
+          emit({ severity: "ok", msg: `  ✓ ${checked} agent CLI-fact clauses match the code` })
+        } else {
+          for (const d of factDrifts) emit({ severity: "fail", msg: `  ✗ ${d}` })
+        }
+      }
+    } catch (e) {
+      emit({ severity: "fail", msg: `  ✗ CLI-fact check error: ${(e as Error).message.slice(0, 80)}` })
     }
   }
 ```
+
+**Found in review of `9c3f9a7`, resolved in the same commit: two findings, same root cause — this block assumed `readAgentMdFiles` always succeeds and always returns all 9 in-scope files.** Neither is guaranteed, and check (N) directly above had already learned the first lesson (see its own docblock).
+
+1. **No try/catch.** A broken symlink or unreadable dir under `agents/` makes `readAgentMdFiles` throw, and with no try/catch here that propagates straight out of `runDoctor` — check (N)'s own catch exists for exactly this, one block up, and this block skipped it. Verified with a real broken symlink in a sandbox: before the fix, `runDoctor` rejected outright and no check after (O) ever ran; after the fix, (O) reports its own ✗ and every later check still runs.
+2. **The success count was the constant `DERIVED_AGENT_IDS.length` (9), not what was verified.** `cliFactDrift([])` returns `[]` — zero files checked — and the old code still emitted "✓ 9 agent CLI-fact clauses match the code". Fixed two ways: the emitted count is now `files.filter(...).length` (what was actually looked at), and — the part worth being deliberate about — a derived id with NO file at all is now its own ✗ rather than silently absent from consideration, so "8 of 9 present, all correct" can no longer read as a clean bill of health. That second part is a judgment call, not forced by the interface; the alternative (an honest count, still a quiet ✓) was considered and rejected, since a missing file for an id this task considers in-scope is drift in its own right, and check (O)'s own section should say so without depending on a reader cross-referencing check (N).
+
+The `files.length === 0` branch (whole registry absent) is deliberately NOT folded into the missing-ids loop — it mirrors check (N)'s existing skip for the same condition. Getting this wrong breaks a real fixture: `tests/dispatcher/sgc-doctor.test.ts`'s `seedHygiene()` sets `hasSource=true` but never creates `plugins/sgc/agents/` at all, and its `H1` test asserts `fail === 0` — treating an absent registry as "9 missing files" would have turned that into 9 new failures. Confirm both directions before trusting a change here: run the full suite (not just this file's tests) and specifically re-run `tests/dispatcher/sgc-doctor.test.ts` + `tests/dispatcher/metrics.test.ts`, the two other files with fixtures that reach `runDoctor` — an impact-analysis check on `runDoctor` names them.
 
 - [ ] **Step 5: Run the check tests**
 

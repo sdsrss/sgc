@@ -1,8 +1,22 @@
 import { describe, expect, test } from "bun:test"
 import { deriveCliFact, DERIVED_AGENT_IDS, CLI_FACT_MARKER } from "../../src/dispatcher/agent-facts"
-import { cliFactDrift, readAgentMdFiles } from "../../src/commands/doctor"
-import { resolve } from "node:path"
+import { cliFactDrift, readAgentMdFiles, runDoctor } from "../../src/commands/doctor"
+import { resolve, join } from "node:path"
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from "node:fs"
+import { tmpdir } from "node:os"
 const ROOT = resolve(import.meta.dir, "../..")
+
+/** Minimal hasSource=true fixture root: just the stub entry. Every other
+ *  hasSource-gated check in runDoctor either skips on a missing target file
+ *  or reports its own fail/warn row for one (verified: metrics baseline does
+ *  exactly this at doctor.ts:813) rather than throwing — so this is enough to
+ *  reach check (O) without any other section crashing first. */
+function makeDoctorRoot(): string {
+  const root = mkdtempSync(join(tmpdir(), "sgc-doctor-agent-facts-"))
+  mkdirSync(join(root, "src"), { recursive: true })
+  writeFileSync(join(root, "src", "sgc.ts"), "// stub entry so hasSource is true\n")
+  return root
+}
 
 const md = (id: string, desc: string) => ({
   id, file: `plugins/sgc/agents/${id.replace(".", "/")}.md`,
@@ -99,5 +113,61 @@ describe("doctor check (O) — the clause is asserted, not sniffed", () => {
 
   test("out-of-scope agent files are ignored, not failed", () => {
     expect(cliFactDrift([md("planner.ceo", "Product gate reviewer.")])).toEqual([])
+  })
+})
+
+// Found in review of 9c3f9a7, closed in the same commit. Both findings trace
+// to the same root cause: check (O)'s runDoctor block assumed readAgentMdFiles
+// always succeeds and always returns all 9 in-scope files — neither is
+// guaranteed, and check (N) right above it already learned the first lesson
+// the hard way (see its own try/catch's docblock).
+describe("doctor check (O) — survives a broken registry and doesn't overclaim its count", () => {
+  test("a broken symlink under plugins/sgc/agents/ fails check (O) without crashing the rest of runDoctor", async () => {
+    const root = makeDoctorRoot()
+    try {
+      const agentsDir = join(root, "plugins", "sgc", "agents", "reviewer")
+      mkdirSync(agentsDir, { recursive: true })
+      // readdirSync lists a broken symlink; readFileSync on it throws ENOENT —
+      // that throw used to propagate straight out of runDoctor (check N's own
+      // docblock names this exact failure mode; check O reintroduced it).
+      symlinkSync(join(root, "does-not-exist.md"), join(agentsDir, "broken.md"))
+
+      const report = await runDoctor({ repoRoot: root, log: () => {} })
+
+      expect(report.rows.some((r) => r.severity === "fail" && /CLI-fact/i.test(r.msg))).toBe(true)
+      // Checks after (O) — e.g. (M) — must still have run; a crash here would
+      // have ended the whole report at (O) and never reached them.
+      expect(report.rows.some((r) => /README/i.test(r.msg))).toBe(true)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test("a missing in-scope file is a fail, not a quiet success claiming all 9 matched", async () => {
+    const root = makeDoctorRoot()
+    try {
+      const agentsDir = join(root, "plugins", "sgc", "agents", "reviewer")
+      mkdirSync(agentsDir, { recursive: true })
+      // Only 1 of the 9 derived files exists, and it's correct. The other 8
+      // (including janitor.archive) are entirely absent — the "delete
+      // security.md" scenario, generalized.
+      writeFileSync(
+        join(agentsDir, "performance.md"),
+        `---\nname: reviewer-performance\ndescription: ${JSON.stringify(`Does a thing. ${deriveCliFact("reviewer.performance")}`)}\n---\n\nbody\n`,
+      )
+
+      const report = await runDoctor({ repoRoot: root, log: () => {} })
+
+      // Every missing derived id is its own reported failure...
+      for (const id of DERIVED_AGENT_IDS) {
+        if (id === "reviewer.performance") continue
+        expect(report.rows.some((r) => r.severity === "fail" && r.msg.includes(id))).toBe(true)
+      }
+      // ...and the healthy-looking "✓ 9 ... match the code" claim never fires
+      // when only 1 of the 9 was actually seen.
+      expect(report.rows.some((r) => /agent CLI-fact clauses match the code/.test(r.msg))).toBe(false)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })

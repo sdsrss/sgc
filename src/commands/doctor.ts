@@ -866,11 +866,38 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   if (!hasSource) {
     emit({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no plugins/sgc/agents/ — npm channel)" })
   } else {
-    const factDrifts = cliFactDrift(readAgentMdFiles(root))
-    if (factDrifts.length === 0) {
-      emit({ severity: "ok", msg: `  ✓ ${DERIVED_AGENT_IDS.length} agent CLI-fact clauses match the code` })
-    } else {
-      for (const d of factDrifts) emit({ severity: "fail", msg: `  ✗ ${d}` })
+    // Same failure mode check (N) above already learned the hard way: a broken
+    // symlink or unreadable dir under agents/ makes readAgentMdFiles throw
+    // straight out of runDoctor. It belongs inside the try.
+    try {
+      const files = readAgentMdFiles(root)
+      if (files.length === 0) {
+        // Mirrors check (N)'s own distinction directly above: no plugins/sgc/agents/
+        // at all is "nothing to check" (npm channel, or a dev checkout that simply
+        // doesn't carry this registry) — not "9 files missing". An incomplete-but-
+        // present registry (some files, not all 9) is the real drift, handled below.
+        emit({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no plugins/sgc/agents/ — npm channel)" })
+      } else {
+        const present = new Set(files.map((f) => f.id))
+        const missingIds = DERIVED_AGENT_IDS.filter((id) => !present.has(id))
+        for (const id of missingIds) {
+          emit({
+            severity: "fail",
+            msg: `  ✗ ${id}: no plugins/sgc/agents/${id.replace(".", "/")}.md — a missing file cannot carry the derived clause`,
+          })
+        }
+        const factDrifts = cliFactDrift(files)
+        if (factDrifts.length === 0 && missingIds.length === 0) {
+          // The count actually checked, not the constant DERIVED_AGENT_IDS.length —
+          // a hardcoded count here would claim 9 verified while having seen fewer.
+          const checked = files.filter((f) => DERIVED_AGENT_IDS.includes(f.id)).length
+          emit({ severity: "ok", msg: `  ✓ ${checked} agent CLI-fact clauses match the code` })
+        } else {
+          for (const d of factDrifts) emit({ severity: "fail", msg: `  ✗ ${d}` })
+        }
+      }
+    } catch (e) {
+      emit({ severity: "fail", msg: `  ✗ CLI-fact check error: ${(e as Error).message.slice(0, 80)}` })
     }
   }
 

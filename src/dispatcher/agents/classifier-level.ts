@@ -144,3 +144,44 @@ export function classifierLevelHeuristic(input: ClassifierInput): ClassifierOutp
 
 /** Backward-compat alias. Prefer the heuristic-specific name in new code. */
 export const classifierLevel = classifierLevelHeuristic
+
+export const LEVEL_RANK: Record<Level, number> = { L0: 0, L1: 1, L2: 2, L3: 3 }
+
+/**
+ * P1-1 (audit v1.31.8): deterministic escalation floor over an LLM verdict.
+ *
+ * `classifier.level` has a `prompt_path`, so whenever an API key is present
+ * spawn routes to the LLM and the heuristic above — which is where the HARD
+ * escalation rules actually live as code — never runs. The prompt restates
+ * those rules, but a prompt is advisory: `validateOutputShape` only checks the
+ * value is one of L0..L3, not that it clears the floor. Since the level decides
+ * whether the planner cluster, the adversarial pre-mortem, and the review + qa
+ * gates run at all, an under-classifying LLM call silently disarmed every
+ * downstream gate.
+ *
+ * The rule is `max(heuristic, llm)`: the LLM may escalate above the floor (it
+ * sees nuance the regexes can't), never below it. This mirrors the discipline
+ * `compound.related` already applies — see agents/compound.ts, kept permanently
+ * heuristic so an LLM cannot mint a dedup stamp past the §3 write gate. LLM
+ * proposes, deterministic code adjudicates.
+ *
+ * Idempotent on heuristic output, so the inline/stub path is a no-op.
+ */
+export function applyHeuristicFloor(
+  llm: ClassifierOutput,
+  input: ClassifierInput,
+): ClassifierOutput {
+  const floor = classifierLevelHeuristic(input)
+  if (LEVEL_RANK[llm.level] >= LEVEL_RANK[floor.level]) return llm
+  return {
+    level: floor.level,
+    // Invariant §11 wants a concrete rationale; an escalation that hides which
+    // verdict it overrode is unauditable after the fact, so record both.
+    rationale:
+      `${floor.rationale} [deterministic heuristic floor raised ${llm.level} → ${floor.level}; ` +
+      `LLM verdict was: ${llm.rationale}]`,
+    affected_readers_candidates: [
+      ...new Set([...floor.affected_readers_candidates, ...llm.affected_readers_candidates]),
+    ],
+  }
+}

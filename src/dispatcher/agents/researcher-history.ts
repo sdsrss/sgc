@@ -153,8 +153,9 @@ export async function walkSolutionsCorpus(
         continue
       }
       const text = raw.normalize("NFC")
-      const lower = text.toLowerCase()
-      const hits = keywords.filter((k) => lower.includes(k)).length
+      // P2-8: match WORDS against WORDS.
+      const corpusTokens = tokenize(text)
+      const hits = keywords.filter((k) => keywordHitsCorpus(k, corpusTokens)).length
       if (hits === 0) continue
       const afterFence = text.replace(/^---[\s\S]*?---\r?\n?/, "").trimStart()
       out.push({
@@ -218,6 +219,40 @@ export function extractKeywords(text: string): string[] {
   // script-aware length floor — ASCII ≥3, non-ASCII ≥2). Single source of
   // truth for tokenization across dedup.ts and researcher-history.ts.
   return Array.from(tokenize(text))
+}
+
+/**
+ * P2-8: light English inflections, applied in BOTH directions.
+ *
+ * Word-exact matching alone would be a different kind of wrong: the corpus says
+ * "markdown tables failed to render" and the intent says "markdown table
+ * rendering" — the same subject, and a recall miss. The old raw-substring scan
+ * got those right only by accident (`"tables".includes("table")`), while also
+ * matching "auth" inside "author" and "cat" inside "category".
+ *
+ * What separates table→tables from auth→author is a word ENDING, not an
+ * arbitrary shared prefix. So allow exactly that, from a closed list, and
+ * nothing else. Not a stemmer (no Porter rules, no irregulars) — deliberately
+ * the smallest thing that keeps the true positives the substring scan was
+ * carrying while dropping the false ones. Non-ASCII is unaffected: CJK matches
+ * exactly, as it did.
+ */
+const INFLECTIONS = ["s", "es", "ed", "d", "ing", "ings", "er", "ers"] as const
+
+function keywordHitsCorpus(keyword: string, corpusTokens: Set<string>): boolean {
+  if (corpusTokens.has(keyword)) return true
+  for (const suf of INFLECTIONS) {
+    // corpus carries the inflected form: intent "table" ← corpus "tables"
+    if (corpusTokens.has(keyword + suf)) return true
+    // intent carries it: intent "rendering" ← corpus "render"
+    if (keyword.endsWith(suf)) {
+      const stem = keyword.slice(0, -suf.length)
+      // Keep the stem long enough to stay a word: "ing"-stripping "sing" → "s"
+      // must not become a wildcard.
+      if (stem.length >= 3 && corpusTokens.has(stem)) return true
+    }
+  }
+  return false
 }
 
 function scoreRelevance(hitCount: number, keywordCount: number): number {

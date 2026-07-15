@@ -46,6 +46,10 @@ export interface SubprocessRunner {
     // registers it so a SIGINT/SIGTERM drain can reap the child. Optional —
     // 2-arg runners (most test fakes) remain valid.
     onSpawn?: (kill: () => void) => void,
+    // P2-10: text to write to the child's stdin. The prompt travels here rather
+    // than in argv, which /proc/<pid>/cmdline exposes to every local user.
+    // Optional — runners that ignore it stay valid.
+    stdin?: string,
   ): Promise<{
     stdout: string
     stderr: string
@@ -56,7 +60,7 @@ export interface SubprocessRunner {
 
 /** Default runner: node:child_process.spawn. Split out so tests can inject a
  *  fake. Ported off Bun.spawn so the shipped bundle runs under node. */
-export const defaultRunner: SubprocessRunner = async (argv, timeoutMs, onSpawn) => {
+export const defaultRunner: SubprocessRunner = async (argv, timeoutMs, onSpawn, stdin) => {
   return new Promise((resolveP) => {
     const controller = new AbortController()
     let timedOut = false
@@ -65,9 +69,17 @@ export const defaultRunner: SubprocessRunner = async (argv, timeoutMs, onSpawn) 
     })
     const timer = setTimeout(() => controller.abort(), timeoutMs)
     const child = spawn(argv[0]!, argv.slice(1), {
-      stdio: ["ignore", "pipe", "pipe"],
+      // P2-10: stdin is a pipe when there is prompt text to feed the child.
+      stdio: [stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
       signal: controller.signal,
     })
+    if (stdin !== undefined) {
+      // Close after writing: `claude -p` reads until EOF, so an unclosed pipe
+      // would hang until the timeout. EPIPE if the child died first — that path
+      // is already reported through error/close below.
+      child.stdin?.on("error", () => {})
+      child.stdin?.end(stdin)
+    }
     // STAB-2: expose a kill handle so a signal drain can SIGTERM this child.
     onSpawn?.(() => {
       try {
@@ -152,7 +164,11 @@ export async function runClaudeCliAgent(
   const promptText = readFileSync(promptPath, "utf8")
   const timeoutMs = (manifest.timeout_s ?? 60) * 1000
 
-  const argv = ["claude", "-p", "--output-format", "json", promptText]
+  // P2-10: flags only. The prompt goes over stdin (below) — as an argv element
+  // it sat in /proc/<pid>/cmdline, world-readable on a default Linux host, so
+  // every local user could read the reviewed diff out of `ps` for the duration
+  // of the call. It also put the prompt under ARG_MAX.
+  const argv = ["claude", "-p", "--output-format", "json"]
 
   // CLI doesn't expose model ID in request; use mode name as placeholder
   const model = "claude-cli"
@@ -179,8 +195,12 @@ export async function runClaudeCliAgent(
   let usageInput: number | undefined
   let usageOutput: number | undefined
 
+  // P2-4: §13 Tier 2 fires exactly once — the signal drain may close this call
+  // concurrently with the agent's own error path.
+  let responded = false
   const emitResponse = (): void => {
-    if (!ctx) return
+    if (!ctx || responded) return
+    responded = true
     const resPayload: LlmResponsePayload = {
       outcome,
       latency_ms: Date.now() - startTs,
@@ -198,11 +218,20 @@ export async function runClaudeCliAgent(
     })
   }
 
+  // P2-4: let a signal drain close Tier 2 for the in-flight child call.
+  ctx?.registerLlmClose?.((oc) => {
+    outcome = oc
+    errorClass ??= "interrupted"
+    emitResponse()
+  })
+
   const { stdout, stderr, exitCode, timedOut } = await runner(
     argv,
     timeoutMs,
     // STAB-2: register the child kill so a signal drain can reap it.
     (kill) => ctx?.registerAbort?.(kill),
+    // P2-10: the prompt, over stdin rather than argv.
+    promptText,
   )
 
   if (timedOut) {

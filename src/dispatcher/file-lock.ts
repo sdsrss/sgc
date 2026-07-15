@@ -15,6 +15,7 @@
 // unparseable lock older than `staleMs` is reclaimed as a fallback. A live
 // holder with a fresh lock throws LockHeldError.
 
+import { randomBytes } from "node:crypto"
 import { closeSync, openSync, readFileSync, unlinkSync, writeSync } from "node:fs"
 
 export class LockHeldError extends Error {
@@ -65,8 +66,13 @@ export function acquireFileLock(lockPath: string, opts: FileLockOptions = {}): (
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const fd = openSync(lockPath, "wx")
+      // P2-5: a per-acquisition nonce makes the lock's identity checkable.
+      // pid alone can't: pids recycle, and a reclaimer that re-took the path
+      // may legitimately be this same process.
+      const nonce = randomBytes(8).toString("hex")
+      const ours = `${process.pid}\n${now()}\n${nonce}\n`
       try {
-        writeSync(fd, `${process.pid}\n${now()}\n`)
+        writeSync(fd, ours)
       } finally {
         closeSync(fd)
       }
@@ -75,6 +81,11 @@ export function acquireFileLock(lockPath: string, opts: FileLockOptions = {}): (
         if (released) return
         released = true
         try {
+          // P2-5: only unlink while it is STILL our lock. If ours was reclaimed
+          // out from under us, the path now holds someone else's lock and an
+          // unconditional unlink would silently strip a live holder — turning
+          // one lost lock into a cascade.
+          if (readFileSync(lockPath, "utf8") !== ours) return
           unlinkSync(lockPath)
         } catch {
           // Already removed (reclaimed by a stale-probe elsewhere) — fine.
@@ -85,8 +96,12 @@ export function acquireFileLock(lockPath: string, opts: FileLockOptions = {}): (
 
       let holderPid = Number.NaN
       let ts = Number.NaN
+      // P2-5: remember the exact bytes the reclaim decision is based on, so the
+      // unlink below can confirm it is still removing THAT lock.
+      let inspected: string | null = null
       try {
-        const parts = readFileSync(lockPath, "utf8").split("\n")
+        inspected = readFileSync(lockPath, "utf8")
+        const parts = inspected.split("\n")
         holderPid = Number.parseInt(parts[0] ?? "", 10)
         ts = Number.parseInt(parts[1] ?? "", 10)
       } catch {
@@ -101,6 +116,30 @@ export function acquireFileLock(lockPath: string, opts: FileLockOptions = {}): (
 
       if (reclaim) {
         try {
+          // P2-5: re-read and confirm this is STILL the stale lock we judged.
+          //
+          // The old code ran a bare `unlinkSync(lockPath)` — a path, not the
+          // inode it had inspected. Two racers on one crashed-holder remnant
+          // could both decide "stale", the first reclaim + acquire, and the
+          // second then unlink the FIRST's valid lock and acquire too: two
+          // holders, and the first's release() would strip the second's lock.
+          // Mutual exclusion gone, which for plan-jobs/loop means duplicate
+          // `detached: true` planners — the exact orphan-process outcome STAB-1
+          // was built to prevent.
+          //
+          // Re-reading collapses that window from "read + parse + isAlive
+          // probe" (a process.kill syscall wide) to two adjacent syscalls, and
+          // any competitor that got in first is now visible as different bytes.
+          // Residual: a reclaim landing between this read and the unlink is
+          // still possible in principle. It is not closed here on purpose — the
+          // alternative (a second-level reclaim lock) trades this sliver for a
+          // crashed-reclaimer deadlock plus another staleness heuristic to
+          // paper over it. Nonce-verified release (above) bounds the damage if
+          // it ever does happen: a stripped holder no longer strips its
+          // successor in turn.
+          if (inspected !== null && readFileSync(lockPath, "utf8") !== inspected) {
+            continue // changed under us → re-evaluate against the new holder
+          }
           unlinkSync(lockPath)
         } catch {
           // Lost the reclaim race — retry will re-evaluate.

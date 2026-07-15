@@ -9,6 +9,7 @@ import {
   writeSolution,
 } from "../../src/dispatcher/state"
 import type { DedupStamp, SolutionEntry } from "../../src/dispatcher/types"
+import { seedRelatedSpawn } from "../fixtures/related-spawn"
 
 const MOTIV = "we need cursor pagination on the orders endpoint because offset paging is slow at scale and clients time out on large pages"
 
@@ -56,7 +57,7 @@ test("deep plan writes a derived markdown doc", async () => {
 // floor → researcher.history surfaces it → decompose receives it in prior_art
 // → feature carries prior_art_refs.
 const STAMP: DedupStamp = {
-  compound_related_spawn_id: "01DECOMPOSE-PRIOR-ART-SEED000-compound.related",
+  compound_related_spawn_id: "01DECOMPOSEPRIORARTSEED000-compound.related",
   threshold_met_or_forced: true,
   reason: "new_entry",
 }
@@ -92,7 +93,9 @@ test("deep plan carries prior_art_refs when a matching solution is seeded", asyn
   ensureSgcStructure(root)
   process.env["SGC_FORCE_INLINE"] = "1"
 
-  // Seed the solution so the corpus walker finds it.
+  // Seed the solution so the corpus walker finds it. §3 (P2-6) requires the
+  // stamp's compound.related spawn to exist on disk, as after a real run.
+  seedRelatedSpawn(root, STAMP.compound_related_spawn_id)
   writeSolution(makePaginationSolution(), "cursor-pagination-orders", STAMP, "", root)
 
   await runPlan("add cursor pagination to GET /orders", {

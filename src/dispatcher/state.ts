@@ -30,6 +30,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs"
+import { parseSpawnId, resultPath as spawnResultPath } from "./spawn-protocol"
 import { randomBytes } from "node:crypto"
 import { dirname, join, resolve } from "node:path"
 import { dump as yamlDump, load as yamlLoad } from "js-yaml"
@@ -715,7 +716,29 @@ export function solutionPath(
   return resolve(root(stateRoot), "solutions", category, `${slug}.md`)
 }
 
-function validateDedupStamp(stamp: DedupStamp | undefined): asserts stamp is DedupStamp {
+/**
+ * P2-6 (audit v1.31.8): §3's write gate now verifies the stamp's PROVENANCE,
+ * not just its shape.
+ *
+ * It used to accept any non-empty string as `compound_related_spawn_id` while
+ * its own error text promised the value "must reference an on-disk spawn" — so
+ * `{compound_related_spawn_id: "x", threshold_met_or_forced: true, reason:
+ * "new_entry"}` passed the single chokepoint guarding the knowledge corpus.
+ *
+ * Why this matters beyond tidiness: compound.related is kept permanently
+ * heuristic (agents/compound.ts) precisely so an LLM cannot mint a verdict of
+ * `best_similarity: 0` and wave a duplicate through. That design only holds if
+ * the stamp is something a caller must actually *earn* by running the agent.
+ * Unverified, it was decoration on the one gate that isn't allowed to be.
+ *
+ * Checks, in order: the id parses as a spawn id · it names compound.related
+ * (a planner's spawn is not a dedup verdict, however real its file is) · that
+ * spawn left a result on disk in the same state root we are writing to.
+ */
+function validateDedupStamp(
+  stamp: DedupStamp | undefined,
+  stateRoot?: string,
+): asserts stamp is DedupStamp {
   if (!stamp || typeof stamp !== "object") {
     throw new StateError(
       "DedupStampMissing",
@@ -745,6 +768,35 @@ function validateDedupStamp(stamp: DedupStamp | undefined): asserts stamp is Ded
     throw new StateError(
       "DedupStampMissing",
       `dedup_stamp.reason must be one of ${allowedReasons.join(", ")}`,
+    )
+  }
+  // Provenance runs LAST: the checks above are pure structure, so a
+  // structurally-bad stamp is rejected without touching the filesystem, and it
+  // keeps the most actionable message ("the verdict denied the write") winning
+  // over the vaguer "no evidence on disk" when a stamp fails both.
+  let agentName: string
+  try {
+    agentName = parseSpawnId(stamp.compound_related_spawn_id).agentName
+  } catch {
+    throw new StateError(
+      "DedupStampMissing",
+      `dedup_stamp.compound_related_spawn_id "${stamp.compound_related_spawn_id}" is not a spawn id ` +
+        `(expected "<ulid>-compound.related")`,
+    )
+  }
+  if (agentName !== "compound.related") {
+    throw new StateError(
+      "DedupStampMissing",
+      `dedup_stamp.compound_related_spawn_id must name a compound.related spawn, got "${agentName}" ` +
+        `(Invariant §3: only compound.related's deterministic verdict authorizes a solutions write)`,
+    )
+  }
+  const evidence = spawnResultPath(stamp.compound_related_spawn_id, root(stateRoot))
+  if (!existsSync(evidence)) {
+    throw new StateError(
+      "DedupStampMissing",
+      `dedup_stamp cites compound.related spawn "${stamp.compound_related_spawn_id}" but no result ` +
+        `exists at ${evidence} — the dedup verdict must be earned by running the agent (Invariant §3)`,
     )
   }
 }
@@ -782,7 +834,7 @@ export function writeSolution(
   body = "",
   stateRoot?: string,
 ): { path: string; entry: SolutionEntry } {
-  validateDedupStamp(dedupStamp)
+  validateDedupStamp(dedupStamp, stateRoot)
   validateSolution(entry)
   const path = solutionPath(entry.category, slug, stateRoot)
 

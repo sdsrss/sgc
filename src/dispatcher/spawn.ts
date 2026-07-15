@@ -45,7 +45,7 @@ import {
   type OpenRouterFetch,
 } from "./openrouter-agent"
 import type { ScopeToken, SubagentManifest } from "./types"
-import type { Logger, LlmAgentContext } from "./logger"
+import type { Logger, LlmAgentContext, LlmResponsePayload } from "./logger"
 import { createLogger } from "./logger"
 import { readPrompt } from "./embedded-data"
 
@@ -170,6 +170,9 @@ interface OpenSpawnEntry {
   logger: Logger
   /** STAB-2: child-kill / fetch-abort handle, set lazily once the LLM agent starts. */
   abort?: () => void
+  /** P2-4: Tier-2 closer, set once an llm.request is in flight. Idempotent —
+   *  a no-op if the agent already emitted its own llm.response. */
+  llmClose?: (outcome: LlmResponsePayload["outcome"]) => void
 }
 
 const openSpawns = new Map<string, OpenSpawnEntry>()
@@ -216,6 +219,17 @@ function drainOpenSpawnsForSignal(signal: string): void {
       e.abort?.()
     } catch {
       // abort handle threw (child already gone, etc.) — keep draining.
+    }
+    // P2-4: close Tier 2 BEFORE Tier 1, so the stream nests the way it opened
+    // (llm.request → llm.response → spawn.end). abort() above only rejects the
+    // in-flight call asynchronously; process.exit() lands before that microtask
+    // runs, so without this the llm.request would stay orphaned — the exact
+    // Tier-2 half of the dogfood finding this drain was built from. Idempotent
+    // in the agent, so an already-answered call adds nothing.
+    try {
+      e.llmClose?.("interrupted")
+    } catch {
+      // best-effort during shutdown; Tier 1 still gets closed below.
     }
     try {
       e.logger.event({
@@ -746,6 +760,10 @@ export async function spawn<I = unknown, O = unknown>(
       registerAbort: (abort) => {
         const e = openSpawns.get(spawnId)
         if (e) e.abort = abort
+      },
+      registerLlmClose: (close) => {
+        const e = openSpawns.get(spawnId)
+        if (e) e.llmClose = close
       },
     }
     if (mode === "inline" && opts.inlineStub) {

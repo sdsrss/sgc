@@ -57,9 +57,23 @@ There is no "validate later" or "lenient mode". If the schema rejects real-world
 
 ## §8. Scope Tokens Are Computed At Spawn, Not Requested At Runtime
 
-When a command invokes a subagent, the dispatcher computes the subagent's scope_token set from the permission matrix and the subagent manifest, and pins that set for the subagent's lifetime. The subagent cannot request additional capabilities during execution. Any file access, git operation, or spawn attempt outside the pinned set causes immediate termination.
+When a command invokes a subagent, the dispatcher computes the subagent's scope_token set from the permission matrix and the subagent manifest, and pins that set for the subagent's lifetime. There is no channel by which a running subagent can request additional capabilities: the set is computed before `spawn.start` and never re-read.
 
-The rationale is that runtime capability elevation is the standard exploit path for prompt injection in agentic systems. Pinning at spawn time and enforcing at the dispatcher closes that path. This is the subagent-layer instance of the scope binding mechanism from CLAUDE.md v3.8.
+The rationale is that runtime capability elevation is the standard exploit path for prompt injection in agentic systems. Pinning at spawn time removes the elevation channel.
+
+**What "pinned" enforces, precisely.** Three distinct guarantees, none of which is syscall interception:
+
+1. **Spawn-time rejection (machine-enforced).** A manifest that declares a token its permission-matrix row forbids never spawns — `capabilities.ts` throws `ScopeViolation` before any work begins. This is what makes §1's `reviewer/qa cannot read:solutions` real rather than aspirational.
+2. **Input gating (machine-enforced).** The dispatcher controls what enters the subagent: the §1 back-channel gate rejects prior-art/pre-mortem content in the `intent` field before `spawn.start`, and the subagent receives only the input the dispatcher hands it.
+3. **Output validation (machine-enforced).** §9 shape validation rejects undeclared output fields, and the §1 leak scan runs over every subagent's output in all modes.
+
+**What it does NOT enforce, and why.** The pinned token set is delivered to LLM-backed subagents as prompt context — it is *advisory to the model*. sgc does not intercept an LLM subagent's file or git access, and **cannot**: in `claude-cli` mode the model's tool use executes inside a separate `claude -p` process, and in API modes it executes on the provider's side. Neither is inside sgc's process boundary. A prompt-injected LLM subagent that reads a file outside its pinned set is therefore caught — if at all — by the post-hoc output scan (verbatim leaks) rather than prevented at access time; a paraphrase can pass.
+
+This is a deliberate boundary, not a deferred TODO. Treat §8 as **"pin + gate the I/O the dispatcher owns + scan what comes back"**, not as a sandbox. Deterministic subagents (inline stubs, `compound.related`) are the only ones whose access is bounded by construction — which is why the invariants that must not be LLM-bypassable (§3's dedup stamp, the §11 classifier floor) are anchored to deterministic code rather than to §8.
+
+`assertScope` / `assertCanSpawn` / `tokensAllow` in `capabilities.ts` exist for dispatcher-mediated access paths and are exercised by `capabilities.test.ts`; they are not — and cannot be — an interception layer over out-of-process model tool use.
+
+This is the subagent-layer instance of the scope binding mechanism from CLAUDE.md v3.8.
 
 ## §9. No Subagent Writes Outside Its Declared Outputs
 

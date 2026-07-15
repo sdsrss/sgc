@@ -51,7 +51,10 @@ describe("compound happy-path scenario (eval §12)", () => {
     await runReview({ stateRoot: tmp, diffOverride: "+auth.ts change\n", log: () => {} })
     await runQa({ stateRoot: tmp, target: "http://x", flows: ["login"], log: () => {} })
 
-    const ship = await runShip({ stateRoot: tmp, log: () => {} })
+    // P2-1: diffLineCount injected — the git fallback reads the SGC repo's own
+    // working tree, which would make this janitor assertion depend on the test
+    // author's unstaged changes rather than on the fixture.
+    const ship = await runShip({ stateRoot: tmp, diffLineCount: () => 150, log: () => {} })
     expect(ship.janitorDecision?.decision).toBe("compound")
     expect(ship.compoundAction).toBe("compound")
 

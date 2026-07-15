@@ -29,7 +29,12 @@ import { spawnCapture } from "../dispatcher/subprocess"
 import { load as yamlLoad } from "js-yaml"
 import { getCapabilities } from "../dispatcher/schema"
 import { EMBEDDED_PROMPTS, listEmbeddedPromptKeys } from "../dispatcher/embedded-data"
-import { computeMetricsLive, parseBaseline, diffMetrics } from "../dispatcher/metrics"
+import {
+  computeMetricsLive,
+  parseBaseline,
+  diffMetrics,
+  type FourHuaMetrics,
+} from "../dispatcher/metrics"
 
 const moduleDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(moduleDir, "..", "..")
@@ -113,6 +118,88 @@ export function bundleExecBitOk(lsFilesStdout: string): boolean | null {
   return (parseInt(mode, 8) & 0o111) !== 0
 }
 
+/**
+ * P1-4 (audit v1.31.8): README four-化 scorecard ↔ live `sgc metrics` parity.
+ *
+ * The README asserts these numbers "are produced by `sgc metrics` … they are
+ * not hand-maintained" and invites the reader to run the command. In fact they
+ * were hand-copied: README carried 自动化 4/6 while the tool printed 5/9 (the
+ * automation metric grew the CE-arc stages in v1.29+). For a project whose
+ * pitch is honest measurement, the one claim a user can check in a single
+ * command was the one that was false — so the prose gets a machine gate, same
+ * as the metrics baseline (check K).
+ *
+ * Parses the three counted 化 out of the README's scorecard line. 高效化 is
+ * prose-shaped ("1 step·node≥18") and covered by check K's baseline, so it is
+ * deliberately not parsed here.
+ *
+ * Returns a human-readable drift line per mismatch; empty = in sync.
+ */
+export function readmeScorecardDrift(readme: string, live: FourHuaMetrics): string[] {
+  const expected: [string, number, number][] = [
+    ["规范化", live.standardization.machine_enforced, live.standardization.total],
+    ["智能化", live.intelligence.llm_invokable, live.intelligence.total_subagents],
+    ["自动化", live.automation.automated_steps, live.automation.total_steps],
+  ]
+  const drifts: string[] = []
+  for (const [label, num, den] of expected) {
+    // `<label> <n>/<d>` — the scorecard's literal shape in README.md.
+    const m = readme.match(new RegExp(`${label}\\s+(\\d+)\\s*/\\s*(\\d+)`))
+    if (!m) {
+      drifts.push(`${label}: no "${label} <n>/<d>" found in README (expected ${num}/${den})`)
+      continue
+    }
+    if (Number(m[1]) !== num || Number(m[2]) !== den) {
+      drifts.push(`${label}: README says ${m[1]}/${m[2]}, live metrics say ${num}/${den}`)
+    }
+  }
+  return drifts
+}
+
+/**
+ * P2-2: the bun version CI pins for `bun build`, read from a workflow file.
+ * Returns null when no `bun-version:` pin is present.
+ */
+export function ciPinnedBunVersion(workflowYaml: string): string | null {
+  const m = workflowYaml.match(/bun-version:\s*["']?([0-9]+\.[0-9]+\.[0-9]+)["']?/)
+  return m?.[1] ?? null
+}
+
+/**
+ * P2-2: decide what a bundle hash mismatch actually means.
+ *
+ * `bun build` output is not byte-stable across bun versions (measured on this
+ * repo: 1.3.5 reproduces the committed bundle exactly, 1.3.11 does not), so a
+ * mismatch only proves staleness when the local toolchain matches CI's pin.
+ * Otherwise the old "✗ committed bundle STALE — run `npm run build:cli` and
+ * commit" was worse than nothing: following it replaces a correct artifact with
+ * one CI's own `git diff --exit-code` gate rejects — a false alarm that
+ * manufactures a real failure.
+ *
+ * Unknown on either side → keep failing. An unreadable pin is not evidence of
+ * innocence, and silently downgrading a possibly-real staleness would defeat
+ * the gate.
+ */
+export function bundleStaleSeverity(
+  localBun: string | null,
+  ciBun: string | null,
+): { severity: "fail" | "warn"; msg: string } {
+  if (localBun && ciBun && localBun !== ciBun) {
+    return {
+      severity: "warn",
+      msg:
+        `  ⚠ bundle-hash differs, but your bun (${localBun}) is not CI's pinned bun (${ciBun}) — ` +
+        `inconclusive, and bun's output is not byte-stable across versions. ` +
+        `Do NOT rebuild-and-commit from this bun: CI rebuilds with ${ciBun} and would reject it. ` +
+        `To check for real: npx bun@${ciBun} build (or match CI's bun), then re-run doctor.`,
+    }
+  }
+  return {
+    severity: "fail",
+    msg: "  ✗ committed bundle STALE — run `npm run build:cli` and commit",
+  }
+}
+
 export async function bundleParityCheck(root: string): Promise<CheckRow> {
   const srcEntry = resolve(root, "src", "sgc.ts")
   const committed = resolve(root, "plugins", "sgc", "bin", "sgc.mjs")
@@ -136,7 +223,15 @@ export async function bundleParityCheck(root: string): Promise<CheckRow> {
     const a = sha(strip(readFileSync(out)))
     const b = sha(strip(readFileSync(committed)))
     if (a !== b) {
-      return { severity: "fail", msg: "  ✗ committed bundle STALE — run `npm run build:cli` and commit" }
+      // P2-2: a hash mismatch only proves staleness if we built with CI's bun.
+      const localBun = (await spawnCapture(["bun", "--version"], { cwd: root })).stdout.trim() || null
+      let ciBun: string | null = null
+      try {
+        ciBun = ciPinnedBunVersion(readFileSync(resolve(root, ".github/workflows/test.yml"), "utf8"))
+      } catch {
+        // No workflow on disk (e.g. npm-installed tree) → can't compare → fail.
+      }
+      return bundleStaleSeverity(localBun, ciBun)
     }
     // Content matches; now guard the git-recorded exec bit (build:cli emits
     // 0o755 → must be committed 100755). Best-effort: a non-repo/untracked
@@ -504,6 +599,30 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
       }
     } catch (e) {
       emit({ severity: "fail", msg: `  ✗ metrics baseline check error: ${(e as Error).message.slice(0, 80)}` })
+    }
+  }
+
+  // ── (M) README four-化 scorecard ↔ live metrics parity ──────────────────
+  log("")
+  log("=== README four-化 scorecard parity ===")
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ README scorecard parity skipped (no source checkout — dev/CI-only check)" })
+  } else {
+    const readmePath = resolve(root, "README.md")
+    if (!existsSync(readmePath)) {
+      emit({ severity: "warn", msg: "  ⚠ README.md not found" })
+    } else {
+      try {
+        const drifts = readmeScorecardDrift(readFileSync(readmePath, "utf8"), computeMetricsLive(root))
+        if (drifts.length === 0) {
+          emit({ severity: "ok", msg: "  ✓ README scorecard matches live metrics" })
+        } else {
+          for (const d of drifts) emit({ severity: "fail", msg: `  ✗ README scorecard drift — ${d}` })
+          emit({ severity: "fail", msg: "  ✗ fix README.md to match `sgc metrics` output" })
+        }
+      } catch (e) {
+        emit({ severity: "fail", msg: `  ✗ README scorecard check error: ${(e as Error).message.slice(0, 80)}` })
+      }
     }
   }
 

@@ -117,7 +117,7 @@ State lives under `.sgc/` in the project (override via `SGC_STATE_ROOT`); it's `
 
 20 commands total — 17 are also exposed as `/sgc:*` slash commands inside Claude Code; `canary`, `watch-ci-failure`, and `land` are CLI-only. Real-browser QA uses **Playwright** (opt-in via `--browse` / `SGC_QA_REAL=1`; needs a browser — `npx playwright install chromium`, or `SGC_QA_BROWSER=chrome` for system Chrome); `sgc qa` defaults to a non-rubber-stamping stub.
 
-**Four-化 scorecard** (run `sgc metrics` to reproduce): 规范化 12/13 · 智能化 11/23 LLM-invokable · 自动化 4/6 · 高效化 1 step·node≥18. These numbers are produced by `sgc metrics`; see `metrics/metrics-baseline.yaml` — they are not hand-maintained.
+**Four-化 scorecard** (run `sgc metrics` to reproduce): 规范化 12/13 · 智能化 11/23 LLM-invokable · 自动化 5/9 · 高效化 1 step·node≥18. These numbers are produced by `sgc metrics`; see `metrics/metrics-baseline.yaml` — they are not hand-maintained, and `sgc doctor` fails if this line drifts from the live output.
 
 ## Task levels (L0–L3)
 
@@ -154,7 +154,9 @@ sgc's differentiator is that work **compounds**. The loop: a shipped task → th
 
 ## Agent dispatch modes
 
-sgc auto-detects an LLM backend per priority: `ANTHROPIC_API_KEY` → **anthropic-sdk** (direct API + prompt caching) · `claude` binary in PATH → **claude-cli** (subscription-friendly) · otherwise **file-poll** (you fulfill prompts manually via `sgc agent-loop`). Force a mode with `SGC_AGENT_MODE=<mode>`.
+sgc auto-detects an LLM backend per priority: `SGC_FORCE_INLINE=1` → **inline** (deterministic heuristics, no network) · `ANTHROPIC_API_KEY` → **anthropic-sdk** (direct API + prompt caching) · `OPENROUTER_API_KEY` → **openrouter** · `claude` binary in PATH → **claude-cli** (subscription-friendly) · otherwise **file-poll** (you fulfill prompts manually via `sgc agent-loop`). Force a mode with `SGC_AGENT_MODE=<mode>`.
+
+**Where your code goes.** In `anthropic-sdk` and `openrouter` modes, each subagent's prompt — which includes your task text, source excerpts and diffs — is sent to that provider (Anthropic, or `openrouter.ai` and whichever upstream it routes to). `openrouter` mode activates on nothing more than the env var being set, so sgc prints a one-time stderr notice when it does. `claude-cli` mode goes through your local `claude` binary and its own account; `inline` and `file-poll` send nothing anywhere. If you are reviewing code that must not leave the machine, use `SGC_FORCE_INLINE=1` or unset the keys.
 
 ## Architecture
 

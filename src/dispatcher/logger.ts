@@ -37,7 +37,9 @@ export interface LlmRequestPayload {
 }
 
 export interface LlmResponsePayload {
-  outcome: "success" | "timeout" | "error" | "schema_violation"
+  /** "interrupted" mirrors spawn.end's vocabulary: the call was cut short by a
+   *  SIGINT/SIGTERM drain rather than by any answer from the provider (P2-4). */
+  outcome: "success" | "timeout" | "error" | "schema_violation" | "interrupted"
   latency_ms: number
   input_tokens?: number
   output_tokens?: number
@@ -61,6 +63,20 @@ export interface LlmAgentContext {
    * drain can reap the child instead of orphaning it. No-op if unset.
    */
   registerAbort?: (abort: () => void) => void
+  /**
+   * P2-4: register a Tier-2 closer for an llm.request that is now in flight.
+   * A SIGINT/SIGTERM drain calls it with outcome="interrupted" to emit the
+   * matching llm.response before the process exits.
+   *
+   * Necessary because registerAbort alone cannot close Tier 2: abort() rejects
+   * the in-flight call *asynchronously*, and the drain calls process.exit()
+   * synchronously right after, so the agent's own catch → emitResponse is never
+   * scheduled. That left `llm.request` orphaned — the precise §13 Tier-2
+   * violation the v1.17.0 drain was built to fix, but only closed for Tier 1.
+   *
+   * The closer MUST be idempotent: the agent may already have answered.
+   */
+  registerLlmClose?: (close: (outcome: LlmResponsePayload["outcome"]) => void) => void
 }
 
 function defaultNdjsonSink(stateRoot: string): (e: EventRecord) => void {

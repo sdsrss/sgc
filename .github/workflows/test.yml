@@ -7,6 +7,42 @@ on:
     branches: [main]
 
 jobs:
+  # P2-12 (audit v1.31.8): the two install-surface promises had no CI behind
+  # them. package.json says `engines.node: >=18` and the README sells "one
+  # command, npx/global, node ≥ 18" — but every job ran Node 24 only, and
+  # tests/e2e/npm-isolated-install.test.sh existed while being wired into
+  # nothing. Both claims were asserted, never tested. This job tests them: it
+  # packs the real tarball, installs it into a clean tree, and drives the
+  # shipped bundle under the OLDEST Node we advertise.
+  npm-install-node18:
+    name: npm consumer install (node 18 — the floor we advertise)
+    runs-on: ubuntu-latest
+    env:
+      # The bundle never launches a browser here; skip the ~100MB chromium
+      # fetch (playwright is optional and lazily imported).
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node 18 (engines floor)
+        uses: actions/setup-node@v5
+        with:
+          node-version: "18"
+
+      - name: Setup Bun (build only — consumers never need it)
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.5"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Isolated npm-consumer install + run (e2e)
+        # Packs, installs into a temp tree, then runs `--version` and `doctor`
+        # off the installed bin — the exact path an `npm i -g @sdsrs/sgc` user
+        # takes. Fails loudly if the bundle needs anything Node 18 lacks.
+        run: bash tests/e2e/npm-isolated-install.test.sh
+
   dispatcher-eval:
     name: dispatcher + eval
     runs-on: ubuntu-latest

@@ -12,6 +12,7 @@ import {
 } from "../../src/dispatcher/state"
 import type { Logger } from "../../src/dispatcher/logger"
 import type { DedupStamp, SolutionEntry } from "../../src/dispatcher/types"
+import { seedRelatedSpawn } from "../fixtures/related-spawn"
 
 let tmp: string
 beforeEach(() => {
@@ -85,6 +86,8 @@ describe("prior-art render — no dangling ': ' on empty-body solution", () => {
   }
   test("surfaced prior-art line ends at the score, not a trailing colon", async () => {
     ensureSgcStructure(tmp)
+    // §3 (P2-6): the stamp's compound.related spawn must exist on disk.
+    seedRelatedSpawn(tmp, STAMP.compound_related_spawn_id)
     // 4th arg "" → frontmatter-only solution (the empty-body case)
     writeSolution(emptyBodySolution(), "npe-login-auth", STAMP, "", tmp)
     const res = await runPlan(

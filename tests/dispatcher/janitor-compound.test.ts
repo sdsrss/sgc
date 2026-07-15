@@ -171,7 +171,13 @@ describe("ship → janitor → compound integration (Invariant §6)", () => {
 
   test("L1 ship → janitor writes 'skip' decision (§6: every decision logged)", async () => {
     await l1Ready()
-    const r = await runShip({ stateRoot: tmp, log: () => {} })
+    // P2-1: inject the diff count. Without it, runShip falls back to
+    // gitDiffLineCount(), which runs `git diff --numstat HEAD` with no cwd —
+    // i.e. against the SGC REPO ITSELF, not this tmp fixture. The janitor's
+    // CE-5 gate then reads the test author's uncommitted working tree, so the
+    // suite goes red or green depending on what happens to be unstaged. CI
+    // never caught it (clean checkout, big diff → the value the tests wanted).
+    const r = await runShip({ stateRoot: tmp, diffLineCount: () => 150, log: () => {} })
     expect(r.janitorDecision?.decision).toBe("skip")
     expect(r.janitorDecision?.reason_code).toBe("default_conservative")
     expect(r.compoundAction).toBeUndefined()  // skip doesn't invoke compound
@@ -185,7 +191,9 @@ describe("ship → janitor → compound integration (Invariant §6)", () => {
 
   test("L2 ship → janitor decides 'compound' + runCompound writes entry", async () => {
     await l2Ready()
-    const r = await runShip({ stateRoot: tmp, log: () => {} })
+    // P2-1: ≥ MIN_REUSABLE_DIFF_LINES, injected — see the L1 test above for why
+    // the git fallback must never decide a test's outcome.
+    const r = await runShip({ stateRoot: tmp, diffLineCount: () => 150, log: () => {} })
     expect(r.janitorDecision?.decision).toBe("compound")
     expect(r.janitorDecision?.reason_code).toBe("L2_plus_success")
     expect(r.compoundAction).toBe("compound")

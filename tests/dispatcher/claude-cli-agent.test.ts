@@ -91,11 +91,16 @@ describe("runClaudeCliAgent — success paths", () => {
     expect(out.level).toBe("L1")
   })
 
-  test("passes prompt text as argv (inspectable via runner)", async () => {
+  // P2-10: this test used to assert `argv[4] === promptText`, i.e. it pinned
+  // the vulnerability in place — the prompt (diffs, source, intent) rode the
+  // command line, where /proc/<pid>/cmdline exposes it to every local user.
+  // The contract is now: flags on argv, prompt on stdin.
+  test("passes flags as argv and the prompt over stdin (inspectable via runner)", async () => {
     const manifest = getSubagentManifest("classifier.level")!
-    const recorded: { argv?: string[] } = {}
-    const runner: SubprocessRunner = async (argv) => {
+    const recorded: { argv?: string[]; stdin?: string } = {}
+    const runner: SubprocessRunner = async (argv, _timeoutMs, _onSpawn, stdin) => {
       recorded.argv = argv
+      recorded.stdin = stdin
       return {
         stdout: fakeJson({ result: "level: L0\nrationale: typo fix\naffected_readers_candidates: [x]" }),
         stderr: "",
@@ -106,8 +111,8 @@ describe("runClaudeCliAgent — success paths", () => {
     const promptText = "specific prompt text for inspection"
     const ppath = writePrompt(promptText)
     await runClaudeCliAgent(ppath, manifest, runner)
-    expect(recorded.argv?.slice(0, 4)).toEqual(["claude", "-p", "--output-format", "json"])
-    expect(recorded.argv?.[4]).toBe(promptText)
+    expect(recorded.argv).toEqual(["claude", "-p", "--output-format", "json"])
+    expect(recorded.stdin).toBe(promptText)
   })
 })
 

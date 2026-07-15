@@ -27,12 +27,15 @@ import {
   writeSolution,
 } from "../../src/dispatcher/state"
 import type { DedupStamp, SolutionEntry } from "../../src/dispatcher/types"
+import { seedRelatedSpawn } from "../fixtures/related-spawn"
 
 let stateRoot: string
 
 beforeEach(() => {
   stateRoot = mkdtempSync(join(tmpdir(), "sgc-canary-promote-"))
   ensureSgcStructure(stateRoot)
+  // §3 (P2-6): the seed stamp's compound.related spawn must exist on disk.
+  seedRelatedSpawn(stateRoot)
 })
 
 afterEach(() => {

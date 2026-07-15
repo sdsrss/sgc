@@ -108,9 +108,35 @@ export interface SimilarityCandidate {
 }
 
 /**
+ * P2-9: `problem` outweighs `tags`, because the two are not equally trustworthy.
+ *
+ * Tags are produced by substring-matching a fixed 13-word candidate list
+ * (agents/compound.ts) — a heuristic label, noisy by construction. `problem` is
+ * the entry's actual content. Averaging them equally let the noise cast half
+ * the vote: an identical problem with partially divergent tags scored
+ * (1.0 + 0.5) / 2 = 0.75, below the 0.85 gate, and a duplicate was written into
+ * the corpus researcher.history mines.
+ *
+ * Weights (not the 0.85 threshold, which is contractual and unchanged) follow
+ * from two rules the numbers must satisfy:
+ *
+ *   1. An identical problem is a duplicate whatever the tags say. Tags get no
+ *      veto: 0.9 × 1.0 = 0.9 ≥ 0.85 even with zero tag overlap.
+ *   2. Identical tags can never carry two unrelated problems over the gate —
+ *      the more dangerous direction, since a false merge destroys knowledge
+ *      silently: 0.9 × 0.05 + 0.1 × 1.0 = 0.145, nowhere near 0.85.
+ *
+ * Between those poles tags only nudge the middle band (problem ≈ 0.8–0.9),
+ * which is the most a 13-word substring heuristic has earned.
+ */
+const PROBLEM_WEIGHT = 0.9
+const TAG_WEIGHT = 0.1
+
+/**
  * Similarity score in [0, 1].
  *   - exact signature match → 1.0
- *   - else → average(jaccard(tags), jaccard(problem_tokens))
+ *   - else → weighted mean of jaccard(tags) and jaccard(problem_tokens),
+ *     renormalized over whichever components carry signal (see ALG-1 below)
  */
 export function similarity(
   candidate: SimilarityCandidate,
@@ -144,11 +170,22 @@ export function similarity(
   // deduped information-free entries; excluding it (rather than scoring it 0)
   // avoids the inverse error of dragging a real tagless-but-identical-problem
   // duplicate below threshold. All-empty candidate → no components → 0.
-  const components: number[] = []
-  if (candTagSet.size > 0 || exTagSet.size > 0) components.push(jaccard(candTagSet, exTagSet))
-  if (candProb.size > 0 || exProb.size > 0) components.push(jaccard(candProb, exProb))
+  //
+  // P2-9: the surviving components are combined by WEIGHT, then renormalized
+  // over the weights actually present — so dropping a no-signal component
+  // redistributes its vote rather than silently shrinking the score. With one
+  // component present the renormalization makes it decide alone, exactly as the
+  // plain average did.
+  const components: { value: number; weight: number }[] = []
+  if (candTagSet.size > 0 || exTagSet.size > 0) {
+    components.push({ value: jaccard(candTagSet, exTagSet), weight: TAG_WEIGHT })
+  }
+  if (candProb.size > 0 || exProb.size > 0) {
+    components.push({ value: jaccard(candProb, exProb), weight: PROBLEM_WEIGHT })
+  }
   if (components.length === 0) return 0
-  return components.reduce((sum, c) => sum + c, 0) / components.length
+  const totalWeight = components.reduce((sum, c) => sum + c.weight, 0)
+  return components.reduce((sum, c) => sum + c.value * c.weight, 0) / totalWeight
 }
 
 export interface BestMatch {

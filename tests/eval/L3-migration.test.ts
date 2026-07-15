@@ -151,6 +151,11 @@ describe("L3 migration scenario (eval §12)", () => {
     const ship = await runShip({
       stateRoot: tmp,
       readConfirmation: async () => "yes",
+      // P2-1: pin the CE-5 diff signal. The fallback shells out to
+      // `git diff --numstat HEAD` with no cwd — the SGC REPO's working tree,
+      // not this fixture — so the janitor assertion below would hinge on
+      // whatever the test author happens to have unstaged.
+      diffLineCount: () => 150,
       log: () => {},
     })
     expect(ship.shipPath).not.toBeNull()

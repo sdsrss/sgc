@@ -41,6 +41,27 @@ export function spawnCapture(
   })
 }
 
+/** Sync spawn + capture, argv form (never a shell). Mirrors spawnCapture's
+ *  soft-null contract: a spawn error or non-zero exit resolves to the captured
+ *  streams plus an exitCode, never throws. Use this instead of `execSync` with
+ *  an interpolated string whenever any component of the command is caller- or
+ *  operator-supplied — argv arrays cannot be broken out of with `;`, `$()`,
+ *  backticks, or `&&`. */
+export function spawnCaptureSync(
+  argv: string[],
+  opts: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
+): CaptureResult {
+  if (!argv[0]) return { stdout: "", stderr: "empty argv", exitCode: -1 }
+  const r = spawnSync(argv[0]!, argv.slice(1), {
+    cwd: opts.cwd,
+    env: opts.env,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  })
+  if (r.error) return { stdout: r.stdout ?? "", stderr: String(r.error), exitCode: -1 }
+  return { stdout: r.stdout ?? "", stderr: r.stderr ?? "", exitCode: r.status ?? -1 }
+}
+
 /** Resolve an executable on PATH. Replaces Bun.which. */
 export function whichSync(bin: string): string | null {
   const cmd = process.platform === "win32" ? "where" : "which"

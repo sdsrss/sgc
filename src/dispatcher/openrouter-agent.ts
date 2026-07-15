@@ -32,6 +32,37 @@ const DEFAULT_MODEL = "anthropic/claude-opus-4.7"
 const MAX_TOKENS_CAP = 8192
 
 /**
+ * P2-11: disclose third-party egress at runtime, once per process.
+ *
+ * Setting OPENROUTER_API_KEY auto-activates this mode (spawn.ts's ROUTES
+ * ladder), and every subagent's prompt — task input YAML, i.e. the user's
+ * diffs and source — is POSTed to openrouter.ai. That was documented only in
+ * this file's header comment, which is not where anyone is looking when they
+ * export a key into a shell profile and forget about it months later. For a
+ * tool that exists to review proprietary code, silent egress on a stale env var
+ * is a default that has to speak up.
+ *
+ * stderr, not stdout: `--json` consumers must stay parseable. Once per process:
+ * a per-spawn line would be noise the operator learns to ignore.
+ */
+let egressNoticeShown = false
+
+function noticeThirdPartyEgress(model: string): void {
+  if (egressNoticeShown) return
+  egressNoticeShown = true
+  console.error(
+    `[sgc] OPENROUTER_API_KEY is set → subagents run on openrouter.ai (model: ${model}). ` +
+      `Prompt content (your task text, code and diffs) is sent to that third party. ` +
+      `Unset OPENROUTER_API_KEY, or set SGC_FORCE_INLINE=1, to keep everything local.`,
+  )
+}
+
+/** Test-only: re-arm the once-per-process notice. */
+export function __resetEgressNoticeForTests(): void {
+  egressNoticeShown = false
+}
+
+/**
  * Extract a YAML body from an LLM response, with layered recovery so a model
  * that drops the language tag or omits a closing fence does not hard-fail
  * (P2-1 audit: OpenRouter parsing had no recovery path).
@@ -79,6 +110,8 @@ export async function runOpenRouterAgent(
   messages.push({ role: "user", content: userPart })
 
   const model = process.env["SGC_OPENROUTER_MODEL"] ?? DEFAULT_MODEL
+  // P2-11: say out loud that this prompt is leaving for a third party.
+  noticeThirdPartyEgress(model)
 
   const body = {
     model,
@@ -112,13 +145,19 @@ export async function runOpenRouterAgent(
   ctx?.registerAbort?.(() => controller.abort())
 
   const startTs = Date.now()
+  // Declared before emitResponse so the drain-registered closer (below) can set
+  // them; `outcome` is what the closer overwrites with "interrupted".
   let outcome: LlmResponsePayload["outcome"] = "error"
   let errorClass: string | undefined
   let usageInput: number | undefined
   let usageOutput: number | undefined
 
+  // P2-4: §13 Tier 2 must fire exactly once per llm.request — the signal drain
+  // may close this call concurrently with the agent's own error path.
+  let responded = false
   const emitResponse = (): void => {
-    if (!ctx) return
+    if (!ctx || responded) return
+    responded = true
     const resPayload: LlmResponsePayload = {
       outcome,
       latency_ms: Date.now() - startTs,
@@ -135,6 +174,14 @@ export async function runOpenRouterAgent(
       payload: resPayload as unknown as Record<string, unknown>,
     })
   }
+
+  // P2-4: let a signal drain close Tier 2 for this in-flight request. The
+  // once-guard above makes it a no-op if we already answered.
+  ctx?.registerLlmClose?.((oc) => {
+    outcome = oc
+    errorClass ??= "interrupted"
+    emitResponse()
+  })
 
   let response: Response
   try {

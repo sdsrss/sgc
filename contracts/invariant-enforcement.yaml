@@ -65,7 +65,14 @@ invariants:
     tests: ["tests/dispatcher/schema.test.ts", "tests/dispatcher/solutions-state.test.ts"]
   "8":
     title: "Scope Tokens Are Computed At Spawn, Not Requested At Runtime"
-    mechanism: "spawn-time scope computation from capabilities.yaml manifest"
+    mechanism: >-
+      spawn-time scope computation from capabilities.yaml manifest + ScopeViolation
+      on forbidden-token manifests; no runtime elevation channel exists. NOT syscall
+      interception: for LLM-backed subagents the pinned set is advisory prompt context
+      (their tool use runs out-of-process — `claude -p` or the provider side — so sgc
+      cannot intercept it); backed by dispatcher-owned input gating + post-hoc output
+      validation (§9 shape, §1 leak scan). See sgc-invariants.md §8 "What it does NOT
+      enforce, and why".
     enforced_at: "spawn"
     machine_enforced: true
     tests: ["tests/dispatcher/capabilities.test.ts", "tests/dispatcher/spawn.test.ts"]

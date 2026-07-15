@@ -132,8 +132,12 @@ export async function runAnthropicSdkAgent(
   let usageCacheRead: number | undefined
   let usageCacheCreation: number | undefined
 
+  // P2-4: §13 Tier 2 fires exactly once — the signal drain may close this call
+  // concurrently with the agent's own error path.
+  let responded = false
   const emitResponse = (): void => {
-    if (!ctx) return
+    if (!ctx || responded) return
+    responded = true
     const resPayload: LlmResponsePayload = {
       outcome,
       latency_ms: Date.now() - startTs,
@@ -152,6 +156,13 @@ export async function runAnthropicSdkAgent(
       payload: resPayload as unknown as Record<string, unknown>,
     })
   }
+
+  // P2-4: let a signal drain close Tier 2 for this in-flight request.
+  ctx?.registerLlmClose?.((oc) => {
+    outcome = oc
+    errorClass ??= "interrupted"
+    emitResponse()
+  })
 
   try {
     const createArgs: Anthropic.MessageCreateParamsNonStreaming = {

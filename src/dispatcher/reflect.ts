@@ -313,11 +313,22 @@ export function formatReport(report: ReflectReport): string {
   lines.push(`Matched preventions: ${report.candidates.length}`)
   // CE-4: the three counters are NOT interchangeable reuse signals.
   //   overlap  = keyword-overlap of this decision vs the prevention (recall match)
-  //   applied  = L3 adversarial-validated applications (strongest reuse signal)
+  //   applied  = times an L3 pre-mortem CITED this ref in a failure mode's
+  //              early_signal (P2-7: NOT validation — see the caveat below)
   //   surfaced = L2+ plans where this solution was meaningfully surfaced (≥0.5)
   //   [discussed]/[silent] = whether THIS decision's pre-mortem engaged it
   lines.push(
-    "Legend: overlap=recall match · applied=L3-validated reuse · surfaced=L2 meaningful surfacing · [discussed]=engaged in this pre-mortem",
+    "Legend: overlap=recall match · applied=cited by an L3 pre-mortem · surfaced=L2 meaningful surfacing · [discussed]=engaged in this pre-mortem",
+  )
+  // P2-7: state the limitation where the number is read, not in a docblock
+  // nobody opens. planner.adversarial is HANDED these refs as prompt input and
+  // `applied` counts how many it echoed back in early_signal — output measured
+  // against its own input. A model that dutifully cites everything it was given
+  // raises this number without preventing anything. It is a salience signal,
+  // not evidence the solution paid off; treat it as weaker than `surfaced`,
+  // which at least reflects an independent keyword match.
+  lines.push(
+    "Caveat: `applied` counts refs the pre-mortem echoed from its own input (it was given them) — salience, not proof of prevention.",
   )
   for (const c of report.candidates) {
     const tag = c.discussed ? "[discussed]" : "[silent]    "

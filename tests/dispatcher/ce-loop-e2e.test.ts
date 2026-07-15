@@ -29,6 +29,7 @@ import {
   selectSurfacedRefs,
 } from "../../src/dispatcher/applied-tracker"
 import type { FailureMode } from "../../src/dispatcher/agents/planner-adversarial"
+import { seedRelatedSpawn } from "../fixtures/related-spawn"
 
 const STAMP: DedupStamp = {
   compound_related_spawn_id: "01CE3STAMP000000000000-compound.related",
@@ -71,6 +72,8 @@ let stateRoot: string
 beforeEach(() => {
   stateRoot = mkdtempSync(join(tmpdir(), "sgc-ce3-"))
   ensureSgcStructure(stateRoot)
+  // §3 (P2-6): STAMP's cited compound.related spawn must exist on disk.
+  seedRelatedSpawn(stateRoot, STAMP.compound_related_spawn_id)
 })
 afterEach(() => {
   rmSync(stateRoot, { recursive: true, force: true })

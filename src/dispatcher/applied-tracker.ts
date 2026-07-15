@@ -92,6 +92,27 @@ export function selectSurfacedRefs(
   )
 }
 
+/**
+ * Refs that an L3 pre-mortem cited in a failure mode's `early_signal`.
+ *
+ * P2-7 — read this before treating the result as evidence of anything:
+ * `prior_preventions` is the SAME list preventions.ts injected into
+ * planner.adversarial's prompt. This scans that agent's output for the refs it
+ * was handed, so the measurement is circular: an adversarial model that
+ * dutifully cites each prevention it was given drives `applied_in` up
+ * monotonically without a single failure having been prevented. It measures
+ * prompt salience — whether the ref was echoed — not reuse that paid off.
+ *
+ * It was previously surfaced as "L3-validated reuse (strongest reuse signal)",
+ * ranked above `surfaced`. That inverted the real ordering: `surfaced` at least
+ * rests on an independent keyword match, while this rests on the model quoting
+ * its own input. `sgc reflect` now prints the caveat next to the number.
+ *
+ * An honest independent signal would anchor on something the LLM does not
+ * author — e.g. the ref appearing in the shipped diff or in a test added for
+ * the task. That is a data-flow change (the diff is not available here), left
+ * deliberately undone rather than faked.
+ */
 export function extractAppliedSolutionRefs(
   failure_modes: readonly FailureMode[],
   prior_preventions: readonly PriorPrevention[],

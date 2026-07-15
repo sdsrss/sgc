@@ -12,9 +12,10 @@ import {
   writeSolution,
 } from "../../src/dispatcher/state"
 import type { DedupStamp, SolutionEntry } from "../../src/dispatcher/types"
+import { FIXTURE_RELATED_SPAWN_ID, seedRelatedSpawn } from "../fixtures/related-spawn"
 
 const OK_STAMP: DedupStamp = {
-  compound_related_spawn_id: "01TESTSTAMP0000000000-compound.related",
+  compound_related_spawn_id: FIXTURE_RELATED_SPAWN_ID,
   threshold_met_or_forced: true,
   reason: "new_entry",
 }
@@ -23,6 +24,9 @@ let tmp: string
 beforeEach(() => {
   tmp = mkdtempSync(join(tmpdir(), "sgc-solutions-"))
   ensureSgcStructure(tmp)
+  // §3 (P2-6) verifies a stamp's provenance, so OK_STAMP's cited spawn must
+  // actually exist on disk — as it would after a real compound.related run.
+  seedRelatedSpawn(tmp)
 })
 afterEach(() => {
   rmSync(tmp, { recursive: true, force: true })
@@ -272,7 +276,9 @@ describe("writeSolution — §3 dedup stamp enforcement (audit C1)", () => {
 
   test("user_forced stamp is accepted", () => {
     const forcedStamp: DedupStamp = {
-      compound_related_spawn_id: "01X-compound.related",
+      // Cites the seeded spawn: --force bypasses the dedup *threshold*, not the
+      // requirement that compound.related actually ran (§3 provenance, P2-6).
+      compound_related_spawn_id: FIXTURE_RELATED_SPAWN_ID,
       threshold_met_or_forced: true,
       reason: "user_forced",
     }

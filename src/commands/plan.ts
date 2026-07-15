@@ -22,7 +22,9 @@ import {
   PRE_MORTEM_SENTINEL_END,
 } from "../dispatcher/spawn"
 import {
+  applyHeuristicFloor,
   classifierLevel,
+  LEVEL_RANK,
   type ClassifierOutput,
 } from "../dispatcher/agents/classifier-level"
 import { plannerEng, type PlannerEngOutput } from "../dispatcher/agents/planner-eng"
@@ -114,9 +116,13 @@ export interface PlanOptions {
   /** CE-6 test hook: override the planner.adversarial inline stub output.
    *  Production path unchanged — undefined by default. Requires SGC_FORCE_INLINE=1. */
   adversarialOverride?: PlannerAdversarialOutput
+  /** P1-3 test hook: override the classifier.level inline stub output, standing
+   *  in for an LLM verdict so the deterministic heuristic floor is observable
+   *  on the inline path (where the stub otherwise IS the heuristic, making the
+   *  floor an unobservable no-op). Production path unchanged — undefined by
+   *  default. Requires SGC_FORCE_INLINE=1. */
+  classifierOverride?: ClassifierOutput
 }
-
-const LEVEL_RANK: Record<Level, number> = { L0: 0, L1: 1, L2: 2, L3: 3 }
 
 function generateTaskId(): string {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase()
@@ -351,12 +357,30 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
   const classRes = await spawn<unknown, ClassifierOutput>(
     "classifier.level",
     { user_request: taskDescription },
-    { stateRoot, inlineStub: (i) => classifierLevel(i as { user_request: string }), logger, taskId },
+    {
+      stateRoot,
+      inlineStub: (i) =>
+        opts.classifierOverride ?? classifierLevel(i as { user_request: string }),
+      logger,
+      taskId,
+    },
   )
   // Invariant §11: rationale must be concrete (D-1.2).
   validateClassifierRationale(classRes.output.rationale)
-  let level = classRes.output.level
-  log(`classifier verdict: ${level} — ${classRes.output.rationale}`)
+  // P1-3 (audit v1.31.8): in LLM mode the deterministic heuristic never ran, so
+  // the HARD escalation rules were advisory prompt text and one under-
+  // classifying verdict skipped every downstream gate. Floor it here — the LLM
+  // may escalate, never downgrade. No-op on the inline path (the stub IS the
+  // heuristic).
+  const classified = applyHeuristicFloor(classRes.output, { user_request: taskDescription })
+  if (classified.level !== classRes.output.level) {
+    log(
+      `classifier verdict ${classRes.output.level} raised to ${classified.level} ` +
+        `by the deterministic heuristic floor (HARD escalation rule)`,
+    )
+  }
+  let level = classified.level
+  log(`classifier verdict: ${level} — ${classified.rationale}`)
 
   // Step 2: level confirmation (upgrade-only per skill rule)
   if (opts.forceLevel) {
@@ -781,7 +805,12 @@ async function runPlanCore(taskDescription: string, opts: PlanOptions = {}): Pro
       fused_verdict: fusedVerdict,
       body:
         fusedSection +
-        `## Classifier rationale\n\n${classRes.output.rationale}\n\n` +
+        // P1-3: the FLOORED rationale, not the raw verdict. `level` in the
+        // frontmatter is post-floor, so recording the pre-floor rationale here
+        // would file an L3 intent alongside the reasoning for calling it L0 —
+        // an immutable (§2) record contradicting itself. The floored rationale
+        // embeds both verdicts, so the escalation stays auditable.
+        `## Classifier rationale\n\n${classified.rationale}\n\n` +
         (plannerEngOut
           ? `## Planner.eng verdict\n\n${plannerEngOut.verdict}\n\n` +
             (plannerEngOut.concerns.length

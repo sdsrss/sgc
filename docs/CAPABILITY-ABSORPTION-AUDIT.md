@@ -7,6 +7,42 @@
 
 ---
 
+> ## ⚠️ 过时快照 —— 本文的核心定位结论已被**有意推翻**（back-annotated 2026-07-15）
+>
+> 本文是 **v1.18.0 时点快照**（2026-05-29，基线 `5eb0821`）。当前 **v1.34.0**（`196359e`），相隔 16 个 minor。
+> 下文保留原样作历史记录，**但以下四处若照做会造成实际损害**，逐条列出：
+>
+> **1. §0 发现 #1 + §7 建议 R5 —— 定位已反转，R5 必须不做。**
+> 本文断言"sgc 的实际模型是 **coexist + 委派其余**，而**不是**熔成替代性超级插件"。这在 v1.18.0 时为真，
+> 但 **Roadmap Phase 1 有意反转了它**：`docs/ROADMAP.md:5` 现在的北极星是"**full-replacement super-plugin，
+> 无需安装 sp/gs**"，doc 部分 SHIPPED v1.24.1、runtime 部分 SHIPPED `82558e0`。
+> 因此 §7 第 7 条 **R5「未做」：「README 顶部一句话固化『coexist 而非替代』」——请勿执行**。
+> 那正是 Phase 1 花了两个版本移除的措辞；照做等于撤销已发版工作。**该项标记为 superseded，不是 backlog。**
+>
+> **2. §6 R2 是事实错误（不是过时，是当时就写反了）。**
+> R2 称 `plugins/sgc/agents/<cat>/<name>.md`"**不是** Claude Code subagent，易被误读为可被 CC 直接调度"。
+> **实为相反**：Claude Code 对插件的 `agents/` 目录**递归扫描**，嵌套文件成为可调度 subagent，
+> 且**文件正文作为其 LLM system prompt 运行**。`agents/reviewer/security.md` 注册为 `sgc:reviewer:security`。
+> 依据：Claude Code 官方文档 `https://code.claude.com/docs/en/sub-agents.md`（"Plugin `agents/` directories are
+> also scanned recursively … a file at `agents/review/security.md` in plugin `my-plugin` registers as
+> `my-plugin:review:security`"）— 2026-07-15 逐字核对原文，非二手转述。
+> R2 的建议"在 plugin README 标注边界"会**固化一条假边界**。这条同时也是 v1.34.0（M4）双执行器改写的由来。
+>
+> **3. §7 第 5 条 Rec 4 的「待办：回填上游 gstack commit」已无对象。**
+> vendored browse 整棵树在 `8baf535`（v1.29.1）删除，`contracts/vendored-components.yaml` 亦已不存在。
+> 组件被移除比回填 provenance 更彻底 —— 该待办**作废，非遗漏**。
+>
+> **4. §7 第 8 条 R3-原「sp 缺席时的 native TDD-lite fallback」仍未做，但已被重新定性。**
+> Phase 2a（TDD-ledger, SHIPPED v1.25.0）**有意选择了"记录而非代跑"**：`docs/ROADMAP.md` → Phase 2 · 条目 2a
+> 明写 "sgc *records* the loop, sp (if present) *runs* it"。所以 R3-原不是被实现了，是被一个明确的设计决策绕开了。
+> 附注一处真实张力，供未来定夺（本横幅不替其拍板）：北极星说"无需安装 sp"，而 ledger 模型下 sp 缺席时无人代跑 TDD。
+>
+> **仍然成立的部分**：§1–§5 的吸收弧逐条核验（CE 6/6、GS-N 7/7）、R0/R1/Rec 1–3 的闭合记录、
+> §5 四化操作化 —— 这些是当时的实证，未被后续版本推翻。四化的**当前**数字请以 `sgc metrics` 实时输出为准，
+> 不要引用本文的历史值。
+
+---
+
 ## 0. 结论速览（直接回答四个问题）
 
 | 你的问题 | 结论 | 一句话依据 |
@@ -173,10 +209,10 @@ sgc discover → sgc plan (L0-L3 分级) → sgc work → sgc land → sgc compo
 |---|---|---|---|---|
 | **R0** | **✅ RESOLVED 2026-05-29** | **`plugins/sgc/browse/` 是 vendored gstack browse 源码**（29+ 文件：`browser-manager`/`cdp-inspector`/`sidebar-agent`/`cookie-picker`…，`package.json` `build:browse` 编译它，测试名为 `gstack-update-check`/`gstack-config`/`gstack-learnings-search`），其 **64 个测试在裸 `bun test` 下全红**（`bin/gstack-learnings-search` 等 fixture 未一并 vendored）。根因：CI 门禁本就只跑 `bun test tests/dispatcher [tests/eval]`，从不含 browse；只有裸 `bun test`（无路径）误扫上游 vendored 套件。声明张力：POSITIONING:46-48 "no gstack source copied" 只在 **GS-N 吸收弧（dispatcher 命令）** 范围成立，browse 是范围外的独立 vendored 副本。 | 实测：`bun test tests/dispatcher` = 946/0 绿（EXIT=0）；裸 `bun test` 经 root 排除后不再扫 browse | **已修**：(1) 新增 `bunfig.toml` `[test] root="tests"` → 裸 `bun test` 对齐 CI 门禁、排除 browse（实测显式指定 browse 路径已发现 0 测试）；(2) `package.json` test 脚本显式化为 `bun test tests/`；(3) POSITIONING 新增 "Vendored components" 节 + 限定吸收弧声明、README browse 行加 vendored 注记，消除张力 |
 | **R1** | **✅ RESOLVED v1.24.0（2026-06-04 复核）** | ~~"独立插件"是两步安装：`/plugin install` 只装 markdown，CLI 需另装 npm/clone~~ → **已闭合**：v1.24.0 起 `/plugin install` 自带自包含 Node CLI bundle（`plugins/sgc/bin/sgc.mjs`），单步安装、单命令即用 | `README.md:29`（"no separate `npm install`"）、`plugins/sgc/bin/sgc.mjs`、记忆 `project_sgc_plugin_packaging.md` | **已修**：v1.24.0 把 CLI bundle 进插件（dual-channel：plugin 经 `$CLAUDE_PLUGIN_ROOT` + npm bin→同一 bundle），bundling 方案已落地 |
-| R2 | 低 | `plugins/sgc/agents/<cat>/<name>.md` 是 sgc 内部 agent，**不是** Claude Code subagent，易被误读为可被 CC 直接调度 | 记忆 `project_sgc_plugin_packaging.md` | 在 plugin README 标注边界 |
+| ~~R2~~ | ❌ **本条写反了**（更正 2026-07-15） | ~~`plugins/sgc/agents/<cat>/<name>.md` 是 sgc 内部 agent，**不是** Claude Code subagent，易被误读为可被 CC 直接调度~~ → **实为相反**：CC **递归扫描**插件 `agents/`，这些文件**就是**可调度 subagent（`agents/reviewer/security.md` → `sgc:reviewer:security`），且**正文即其 LLM system prompt**。"易被误读"的是本条自己 | Claude Code 官方文档 `sub-agents.md`（2026-07-15 逐字核对原文）；v1.34.0 (M4) 双执行器改写 | 原建议"在 plugin README 标注边界"会**固化一条假边界 —— 勿执行**。已由 M4 改为每条描述点名执行器 |
 | R3 | 低（设计选择，**部分收窄** v1.19.0） | sp 缺席时，sgc 的 native fallback 现覆盖 systematic-debugging（`sgc debug`）+ verification-before-completion（`sgc work --done` close-gate，Tier 1）；**TDD / 深度规划仍委派**（有意 Non-goal） | `delegation.ts`、POSITIONING 委派表、`src/commands/work.ts` | verification gate 已补（v1.19.0）；TDD-lite 仍可选评估，深度规划维持委派 |
 | R4 | 低 | 旧语料（pre-CE-1 minimal frontmatter）曾导致 dedup 崩溃，已修（v1.12.1 防御 coerce） | CHANGELOG:634 | 已闭合，保留为回归测试 |
-| R5 | 信息 | 心智模型差异：用户可能预期"三合一替代超级插件"，实际是"coexist + 选择性吸收 + 委派" | POSITIONING Non-goals | 本报告 §0 已澄清 |
+| ~~R5~~ | ⚠️ **已被 Phase 1 有意反转**（2026-07-15） | ~~心智模型差异：用户可能预期"三合一替代超级插件"，实际是"coexist + 选择性吸收 + 委派"~~ → 用户的那个预期**现在才是对的**：北极星已改为 full-replacement super-plugin（`docs/ROADMAP.md:5`） | ROADMAP Phase 1（doc SHIPPED v1.24.1 / runtime `82558e0`） | **勿执行**原建议 —— 见顶部横幅 |
 
 ---
 
@@ -189,12 +225,19 @@ sgc discover → sgc plan (L0-L3 分级) → sgc work → sgc land → sgc compo
 2. ~~**Rec 1（高）**：修正 §5.1 高估 + 四化操作化~~ — **✅ 已修**（§5 改为可度量指标表；§5.1 改为"12/13 机器强制、§12 procedural、分散时点"；新增 `contracts/invariant-enforcement.yaml`）。
 3. ~~**Rec 2（高）**：隔离 LLM-eval flake~~ — **✅ 已修**（`npm test`=`tests/dispatcher` 确定性 946/0；新增 `test:eval` / `test:all` lane）。
 4. ~~**Rec 3（高）**：把审核固化进 `sgc doctor`~~ — **✅ 已修**（新增 check D bunfig-root / E npm-files / F vendored-provenance / G invariant→test 映射；实测 41 OK·0 fail；+5 TDD 测试，doctor 套件 10/10）。
-5. ~~**Rec 4（中）**：browse vendored 根因治理~~ — **✅ 部分修**（`contracts/vendored-components.yaml` 记录 provenance + 标注 upstream_ref=unknown 为债务 + cso dependency-audit 盲区；**待办**：回填上游 gstack commit、评估改 build-time fetch/真依赖）。
+5. ~~**Rec 4（中）**：browse vendored 根因治理~~ — **✅ 已全闭**（更新 2026-07-15）。原记为"部分修 + 待办：回填上游 gstack commit / 评估改 build-time fetch"。**该待办已作废，非遗漏**：vendored browse 整棵树删除于 `8baf535`（v1.29.1），`contracts/vendored-components.yaml` 亦已不存在 —— 组件被移除，比回填 provenance 更彻底。`sgc qa` 的真浏览器冒烟已改由 Playwright 承担（v1.29.0）。
 6. ~~**R1（中）**：降低两步安装摩擦——CLI bundling~~ — **✅ 已修（v1.24.0，2026-06-04 复核）**：`/plugin install` 自带自包含 Node CLI bundle（`plugins/sgc/bin/sgc.mjs`），两步安装降为单步、单命令即用。
-7. **R5（沟通，未做）**：README 顶部一句话固化"coexist 而非替代"。
-8. **R3-原（可选，未做）**：sp 缺席时的 native TDD-lite fallback。
+7. ~~**R5（沟通，未做）**：README 顶部一句话固化"coexist 而非替代"~~ — ⛔ **superseded，勿执行**（2026-07-15）。Phase 1 已**有意**反转定位；照做等于撤销 v1.24.1 + `82558e0` 两个版本的已发版工作。这不是 backlog，是反向指令。详见顶部横幅。
+8. **R3-原（可选，未做）**：sp 缺席时的 native TDD-lite fallback — ℹ️ **仍未做，但已被重新定性**（2026-07-15）。Phase 2a TDD-ledger（SHIPPED v1.25.0）**有意**选了"记录而非代跑"（`docs/ROADMAP.md` → Phase 2 · 条目 2a："sgc *records* the loop, sp (if present) *runs* it"）。即：不是被实现了，是被一个明确的设计决策绕开了。详见顶部横幅第 4 条。
 
 > ✅ 测试诚实声明（更新）：默认 `npm test` 现为 **确定性 946/0（EXIT=0）**；LLM-eval 2 flake 已隔离到 `test:eval`、browse 64 fail 已经 bunfig 隔离——三者均不再污染默认门禁信号。残留债务：vendored browse 上游版本未知（Rec 4 待办）、4 个**与本任务无关的** pre-existing `tsc` strict 报错（`debug/dedup/loop/spawn-interrupt.test.ts`）。
+>
+> > **⚠️ 本行三项残留债务均已不成立（2026-07-15 当场复核，非援引）**：
+> > 1. `946/0` 是 v1.18.0 时点值。v1.34.0 实测 `SGC_FORCE_INLINE=1 bun test tests/` → **1433 pass / 38 skip / 0 fail**（`Ran 1471 tests`，1433+38=1471 自洽）。
+> > 2. "vendored browse 上游版本未知"——browse 已整棵删除（`8baf535`，v1.29.1），债务连同组件一起消失。
+> > 3. "4 个 pre-existing `tsc` strict 报错"——**已不存在**：`npm run typecheck` 实测 **exit 0**。
+> >
+> > 提醒（这是本仓库付过学费的坑）：bun 的 `Ran N tests` 是**执行数**，不是 pass 数；两者相减无意义。v1.33.0 的 CHANGELOG 曾因此发出过一个错数字，已于 v1.34.0 更正。引用测试数请以实跑输出为准，并让加法自洽。
 
 ---
 

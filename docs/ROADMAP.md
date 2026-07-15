@@ -23,14 +23,16 @@ Guiding constraints (carry into every phase):
 
 ---
 
-## Phase 1 (remaining) — runtime interop surface
+## Phase 1 — runtime interop surface ✅ CLOSED (back-annotated 2026-07-15)
 
-The *docs* now say super-plugin; the *runtime* surface still talks like a delegation layer in places. Close that gap.
+> This section sat headed "(remaining)" with three open items while the Status list above already
+> declared Phase 1 shipped — the roadmap contradicted itself. Re-verified against 1a/1b/1c's own
+> acceptance criteria at `196359e` (v1.34.0), *not* inferred from the Status list. All three hold.
 
-- **1a. Reframe the delegation surface.** Audit `src/dispatcher/delegation.ts` and every command-output string that surfaces an sp/gs "delegate / recommended" message. Reword to "optional richer path (if installed)" — consistent with the aligned docs. Behavior unchanged; framing only.
-- **1b. Residual-string sweep.** `grep` the whole repo for stale claims: `coexist`, `NOT a replacement`, `ships separately`, `CLI ships separately`, `delegate to`, `规范层 + 知识引擎` (as the *sole* identity). Hit list likely includes `.claude-plugin/marketplace.json`, skill `SKILL.md` descriptions, agent prompt templates, `sgc.ts` header/`--help`.
-- **1c. Self-description parity.** Confirm `sgc --help`, `sgc.ts` header, and `sgc doctor` self-description read as super-plugin.
-- **Acceptance:** grep finds no stale coexist/not-a-replacement/ships-separately claims; the delegation surface reads as optional interop, not obligation.
+- **1a. Reframe the delegation surface.** ✅ SHIPPED — framing-only commit `82558e0`: `delegation.ts` hint reasons + `sgc.ts` header/`--help` + `marketplace.json` reworded to "sgc-native default, sp/gs optional richer path".
+- **1b. Residual-string sweep.** ✅ VERIFIED by grep 2026-07-15 — **no live positioning claim remains**. Every residual hit of `coexist` / `NOT a replacement` / `ships separately` / `规范层 + 知识引擎` is one of: **CHANGELOG history** (immutable record, correctly left alone), **this bullet's own pattern list** (self-reference), or **`docs/CAPABILITY-ABSORPTION-AUDIT.md`** — a v1.18.0-era snapshot that asserted the *opposite* positioning and now carries a supersession banner. The two `delegate to` hits (`plugins/sgc/agents/janitor/compound.md:38`, `src/dispatcher/dedup.ts:97`) are internal function-delegation prose, not positioning.
+- **1c. Self-description parity.** ✅ VERIFIED — `sgc --help` at v1.34.0 emits: *"SGC — self-contained engineering super-plugin: plan, execute, review, QA, security, ship, and compound knowledge (L0–L3, standalone, no other plugins required)"*.
+- **Acceptance:** ✅ met.
 
 ## Phase 2 — native capability closure (the 融汇贯通 core)
 
@@ -55,8 +57,8 @@ Operationalize each 化 as a metric with a baseline, and surface honestly (no ba
 
 ## Cross-cutting debt (address opportunistically)
 
-- **doctor `bundleParityCheck` is content-only** — it does not check file mode; CI's `git diff --exit-code` is the backstop (this gap caused the v1.24.0 mode-drift release snag). Consider adding mode to the doctor check.
-- **No cross-machine knowledge sync** — `.sgc/solutions/` is per-machine; a `sgc solutions sync` / local-team partition is future work.
+- ~~**doctor `bundleParityCheck` is content-only** — it does not check file mode~~ → ✅ **CLOSED; the account was stale, not the code** (back-annotated 2026-07-15). The check reads the **git-recorded** mode — deliberately not the working-tree FS mode, which `build:cli` may already have chmod'd to 0o755 locally, masking the very drift we're hunting — and **fails** on 100644: `src/commands/doctor.ts:406-414`, helper `bundleExecBitOk` at `:113-119`. Its OK line reads `✓ committed bundle matches source rebuild (content + exec bit)`, and the docblock at `:101-107` names the v1.24.0 mode-drift snag as the motivation. Untracked / non-repo checkouts return `null` → skipped rather than failed.
+- **No cross-machine knowledge sync** — `.sgc/solutions/` is per-machine; a `sgc solutions sync` / local-team partition is future work. **With the line above closed, this is the only open item left on the roadmap** (Phase 0–3 complete, every Phase-2 item shipped or explicitly won't-do).
 
 ## Release reminders (every phase)
 

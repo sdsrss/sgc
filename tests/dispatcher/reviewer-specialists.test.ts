@@ -1,12 +1,17 @@
 import { describe, expect, test } from "bun:test"
 import {
   DIFF_CONDITIONAL_SPECIALISTS,
+  INFRA,
+  MIGRATION,
+  PERFORMANCE,
+  SECURITY,
   matchSpecialists,
   reviewerInfra,
   reviewerMigration,
   reviewerPerformance,
   reviewerSecurity,
 } from "../../src/dispatcher/agents/reviewer-specialists"
+import { buildPattern } from "../../src/dispatcher/agents/terms"
 import { computeSubagentTokens } from "../../src/dispatcher/capabilities"
 
 describe("reviewer-specialists — manifest wiring", () => {
@@ -77,23 +82,83 @@ describe("M5 — every matcher term is reachable through its trigger", () => {
   }
 })
 
-describe("M5 — regex-source pins (edit a pattern → update the probes above)", () => {
-  const PINS: Record<string, string> = {
+// The probe corpus both equivalence blocks below run against. Every alternation
+// term of every matcher and every trigger as they shipped at 95d0421, plus the
+// near-misses that distinguish a bounded term from an unbounded one
+// ("indexOf" must NOT match `index`; "O(n)x" is the only thing the old big-O
+// pattern could match) and inputs that must match nothing.
+const EQUIV_PROBES = [
+  "auth", "jwt", "token", "session", "crypto", "password", "secret",
+  "signature", "encrypt", "decrypt", "verifyAuth", "signJwt", "signToken",
+  "verifyAuthToken(x)", "encryptPayload(y)", "auth_token",
+  "ALTER TABLE users", "DROP TABLE t", "CREATE TABLE t", "ALTER COLUMN c",
+  "RENAME COLUMN c", "migration", "backfill", "ALTERTABLE",
+  "cache", "cached", "caching", "index", "indexOf(z)", "reindexed",
+  "memoize(f)", "memoise(f)", "debounce(fn,300)", "throttle(x)",
+  "O(n)", "O(n^2)", "// O(n) scan", "O(n)x", "n+1", "benchmark",
+  "p95", "p99", "p97", "perf", "performance",
+  "Dockerfile", "FROM node:20-alpine", "kubectl", "k8s ", "k8sx", "terraform",
+  "helm", "argo", "fly.toml", "render.yaml", "vercel.json", "github/workflows",
+  "const x = 1", "", "  ",
+] as const
+
+// The refactor's only real risk is a silent change to what `sgc review` flags.
+// These two blocks are what stands between it and that: FROZEN holds the four
+// sources copied verbatim from 95d0421 (verified against git, not retyped from
+// memory), and every probe must agree. If one disagrees, the term list is wrong
+// — do NOT edit the frozen literal to match the new build.
+describe("Task 2 — rebuilt matchers are equivalent to the v1.35.0 hand-written ones", () => {
+  const FROZEN: Record<string, RegExp> = {
     "reviewer.security":
-      "(auth|jwt|token|session|crypto|password|secret|signature|encrypt|decrypt)",
+      /(auth|jwt|token|session|crypto|password|secret|signature|encrypt|decrypt|verifyAuth|signJwt|signToken)/i,
     "reviewer.migration":
-      "(migration|ALTER\\s+TABLE|DROP\\s+TABLE|CREATE\\s+TABLE|ALTER\\s+COLUMN|RENAME\\s+COLUMN|backfill)",
+      /\b(ALTER\s+TABLE|DROP\s+TABLE|CREATE\s+TABLE|ALTER\s+COLUMN|RENAME\s+COLUMN|migration|backfill)\b/i,
     "reviewer.performance":
-      "(perf|performance|cache|caching|memoi[sz]e|index|benchmark|n\\+1|O\\(n\\^?\\d*\\)|p9[59]|debounce|throttle)",
+      /\b(cache|cach(ed|ing)|index|memoi[sz]e|debounce|throttle|n\+1|benchmark|p9[59])\b|O\(n\^?\d*\)/i,
     "reviewer.infra":
-      "(Dockerfile|FROM\\s+\\w|kubectl|k8s\\b|terraform|helm|fly\\.toml|vercel\\.json|render\\.yaml|github\\/workflows|argo)",
+      /(Dockerfile|FROM\s+\w|kubectl|k8s\b|terraform|helm|argo|fly\.toml|render\.yaml|vercel\.json|github\/workflows)/i,
+  }
+  for (const def of [SECURITY, MIGRATION, PERFORMANCE, INFRA]) {
+    test(`${def.name} — built pattern agrees with the frozen one on every probe`, () => {
+      const frozen = FROZEN[def.name]
+      expect(frozen).toBeDefined()
+      for (const p of EQUIV_PROBES) {
+        expect(`${def.name} ${JSON.stringify(p)} → ${def.pattern.test(p)}`)
+          .toBe(`${def.name} ${JSON.stringify(p)} → ${(frozen as RegExp).test(p)}`)
+      }
+    })
+    test(`${def.name} — pattern is literally built from its terms`, () => {
+      expect(def.pattern.source).toBe(buildPattern(def.terms).source)
+    })
+  }
+})
+
+// Replaces M5's trigger-source pins. Those compared `.source` strings, which the
+// term-list rebuild legitimately reorders (buildPattern emits bounded terms
+// first) — so a source pin would now fail on a refactor that changed nothing.
+// What must not change is which diffs SPAWN a specialist, and that is a separate
+// path from the matcher above: the trigger decides spawn, the matcher decides
+// report. Probing behaviour instead of source pins the property that matters and
+// survives the rebuild.
+describe("Task 2 — rebuilt triggers spawn on exactly what they spawned on at v1.35.0", () => {
+  const FROZEN_TRIGGERS: Record<string, RegExp> = {
+    "reviewer.security":
+      /(auth|jwt|token|session|crypto|password|secret|signature|encrypt|decrypt)/i,
+    "reviewer.migration":
+      /(migration|ALTER\s+TABLE|DROP\s+TABLE|CREATE\s+TABLE|ALTER\s+COLUMN|RENAME\s+COLUMN|backfill)/i,
+    "reviewer.performance":
+      /(perf|performance|cache|caching|memoi[sz]e|index|benchmark|n\+1|O\(n\^?\d*\)|p9[59]|debounce|throttle)/i,
+    "reviewer.infra":
+      /(Dockerfile|FROM\s+\w|kubectl|k8s\b|terraform|helm|fly\.toml|vercel\.json|render\.yaml|github\/workflows|argo)/i,
   }
   for (const spec of DIFF_CONDITIONAL_SPECIALISTS) {
-    const pin = PINS[spec.name]
-    test(`${spec.name} trigger source is pinned`, () => {
-      // A missing pin must fail, not silently pass against undefined.
-      expect(pin).toBeDefined()
-      expect(spec.trigger.source).toBe(pin as string)
+    test(`${spec.name} — trigger agrees with the frozen one on every probe`, () => {
+      const frozen = FROZEN_TRIGGERS[spec.name]
+      expect(frozen).toBeDefined()
+      for (const p of EQUIV_PROBES) {
+        expect(`${spec.name} ${JSON.stringify(p)} → ${spec.trigger.test(p)}`)
+          .toBe(`${spec.name} ${JSON.stringify(p)} → ${(frozen as RegExp).test(p)}`)
+      }
     })
   }
 })

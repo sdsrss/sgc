@@ -18,6 +18,7 @@
 // asserting the opposite.
 
 import type { Finding, Severity, Verdict } from "../types"
+import { buildPattern, type Term } from "./terms"
 
 export interface ReviewerSpecialistInput {
   diff: string
@@ -37,8 +38,11 @@ function addedLines(diff: string): string[] {
     .filter((l) => l.startsWith("+") && !l.startsWith("+++"))
 }
 
-interface SpecialistDef {
+export interface SpecialistDef {
   name: string
+  /** The single source: this matcher's regex AND the term list its agent
+   *  description advertises are both built from these. See ./terms. */
+  terms: readonly Term[]
   pattern: RegExp
   severity: Severity
   describe: (line: string) => string
@@ -64,9 +68,31 @@ function reviewBy(def: SpecialistDef, input: ReviewerSpecialistInput): ReviewerS
 // loose (no word boundaries) so camelCase identifiers like `signJwt`
 // or `verifyAuthToken` still match — false positives are acceptable
 // for a keyword-match stub; precision is the LLM path's job.
-const SECURITY: SpecialistDef = {
+// `verifyAuth|signJwt|signToken` are redundant — each contains an earlier
+// unbounded term (`auth`, `jwt`, `token`), so nothing matches through them that
+// would not match anyway. They are kept because dropping them would change the
+// advertised term list, which is a decision about the description, not about
+// this refactor. Removing them is a separate, deliberate change.
+export const SECURITY_TERMS: readonly Term[] = [
+  { display: "auth", re: "auth", wordBounded: false },
+  { display: "jwt", re: "jwt", wordBounded: false },
+  { display: "token", re: "token", wordBounded: false },
+  { display: "session", re: "session", wordBounded: false },
+  { display: "crypto", re: "crypto", wordBounded: false },
+  { display: "password", re: "password", wordBounded: false },
+  { display: "secret", re: "secret", wordBounded: false },
+  { display: "signature", re: "signature", wordBounded: false },
+  { display: "encrypt", re: "encrypt", wordBounded: false },
+  { display: "decrypt", re: "decrypt", wordBounded: false },
+  { display: "verifyAuth", re: "verifyAuth", wordBounded: false },
+  { display: "signJwt", re: "signJwt", wordBounded: false },
+  { display: "signToken", re: "signToken", wordBounded: false },
+]
+
+export const SECURITY: SpecialistDef = {
   name: "reviewer.security",
-  pattern: /(auth|jwt|token|session|crypto|password|secret|signature|encrypt|decrypt|verifyAuth|signJwt|signToken)/i,
+  terms: SECURITY_TERMS,
+  pattern: buildPattern(SECURITY_TERMS),
   severity: "medium",
   describe: (line) => `security-sensitive change in added line: ${line}`,
 }
@@ -78,9 +104,20 @@ export function reviewerSecurity(input: ReviewerSpecialistInput): ReviewerSpecia
 // reviewer.migration — schema-DDL patterns + filename hint (migrations/).
 // At L2+ a migration touches durable state; the stub flags any DDL-shaped
 // addition for explicit human review of rollback + lock behaviour.
-const MIGRATION: SpecialistDef = {
+export const MIGRATION_TERMS: readonly Term[] = [
+  { display: "ALTER TABLE", re: String.raw`ALTER\s+TABLE`, wordBounded: true },
+  { display: "DROP TABLE", re: String.raw`DROP\s+TABLE`, wordBounded: true },
+  { display: "CREATE TABLE", re: String.raw`CREATE\s+TABLE`, wordBounded: true },
+  { display: "ALTER COLUMN", re: String.raw`ALTER\s+COLUMN`, wordBounded: true },
+  { display: "RENAME COLUMN", re: String.raw`RENAME\s+COLUMN`, wordBounded: true },
+  { display: "migration", re: "migration", wordBounded: true },
+  { display: "backfill", re: "backfill", wordBounded: true },
+]
+
+export const MIGRATION: SpecialistDef = {
   name: "reviewer.migration",
-  pattern: /\b(ALTER\s+TABLE|DROP\s+TABLE|CREATE\s+TABLE|ALTER\s+COLUMN|RENAME\s+COLUMN|migration|backfill)\b/i,
+  terms: MIGRATION_TERMS,
+  pattern: buildPattern(MIGRATION_TERMS),
   severity: "high",
   describe: (line) => `migration-shaped change requires explicit rollback + concurrency review: ${line}`,
 }
@@ -100,9 +137,26 @@ export function reviewerMigration(input: ReviewerSpecialistInput): ReviewerSpeci
 // already documents; it was handled there and missed here. Keeping \b on the
 // word terms preserves their strictness (`index` still must not match
 // `indexOf`) — only the parenthesised term is exempted.
-const PERFORMANCE: SpecialistDef = {
+export const PERFORMANCE_TERMS: readonly Term[] = [
+  { display: "cache", re: "cache", wordBounded: true },
+  { display: "cached/caching", re: "cach(ed|ing)", wordBounded: true },
+  { display: "index", re: "index", wordBounded: true },
+  { display: "memoize", re: "memoi[sz]e", wordBounded: true },
+  { display: "debounce", re: "debounce", wordBounded: true },
+  { display: "throttle", re: "throttle", wordBounded: true },
+  { display: "n+1", re: String.raw`n\+1`, wordBounded: true },
+  { display: "benchmark", re: "benchmark", wordBounded: true },
+  { display: "p95/p99", re: "p9[59]", wordBounded: true },
+  // NOT word-bounded — the trailing \b after the literal ')' is what made big-O
+  // detection dead through v1.35.0. Now a property of the data, not something
+  // each matcher has to remember.
+  { display: "O(n…)", re: String.raw`O\(n\^?\d*\)`, wordBounded: false },
+]
+
+export const PERFORMANCE: SpecialistDef = {
   name: "reviewer.performance",
-  pattern: /\b(cache|cach(ed|ing)|index|memoi[sz]e|debounce|throttle|n\+1|benchmark|p9[59])\b|O\(n\^?\d*\)/i,
+  terms: PERFORMANCE_TERMS,
+  pattern: buildPattern(PERFORMANCE_TERMS),
   severity: "medium",
   describe: (line) => `performance-touching change in added line: ${line}`,
 }
@@ -116,9 +170,27 @@ export function reviewerPerformance(input: ReviewerSpecialistInput): ReviewerSpe
 // own runtime; stub flags any added line referencing these surfaces.
 // Loose pattern (no end-boundary): "FROM node:20-alpine" includes a "-"
 // which breaks \b — so we just look for the surface name fragment.
-const INFRA: SpecialistDef = {
+export const INFRA_TERMS: readonly Term[] = [
+  { display: "Dockerfile", re: "Dockerfile", wordBounded: false },
+  { display: "FROM <image>", re: String.raw`FROM\s+\w`, wordBounded: false },
+  { display: "kubectl", re: "kubectl", wordBounded: false },
+  // The \b lives inside `re`, not in `wordBounded`: only the END of k8s is
+  // bounded ("k8sx" must not match), while the start must stay free so
+  // "--k8s-context" still does.
+  { display: "k8s", re: String.raw`k8s\b`, wordBounded: false },
+  { display: "terraform", re: "terraform", wordBounded: false },
+  { display: "helm", re: "helm", wordBounded: false },
+  { display: "argo", re: "argo", wordBounded: false },
+  { display: "fly.toml", re: String.raw`fly\.toml`, wordBounded: false },
+  { display: "render.yaml", re: String.raw`render\.yaml`, wordBounded: false },
+  { display: "vercel.json", re: String.raw`vercel\.json`, wordBounded: false },
+  { display: "github/workflows", re: String.raw`github\/workflows`, wordBounded: false },
+]
+
+export const INFRA: SpecialistDef = {
   name: "reviewer.infra",
-  pattern: /(Dockerfile|FROM\s+\w|kubectl|k8s\b|terraform|helm|argo|fly\.toml|render\.yaml|vercel\.json|github\/workflows)/i,
+  terms: INFRA_TERMS,
+  pattern: buildPattern(INFRA_TERMS),
   severity: "high",
   describe: (line) => `infra-shaped change requires deploy + rollback review: ${line}`,
 }
@@ -154,34 +226,57 @@ export interface SpecialistDescriptor {
  * never runs. Three had drifted (`debounce`, `throttle` here; `argo` in INFRA)
  * while agent descriptions advertised them as live coverage.
  *
+ * That invariant is now STRUCTURAL, not just tested: each trigger is built from
+ * its own matcher's term list, so a matcher-only term can no longer be written.
+ * The M5 reachability test stays anyway — its job from here is to fail on the
+ * refactor that stops building them from one list.
+ *
  * Order matches the priority spec (security > migration > performance >
  * infra). At most all 4 can spawn; aggregate verdict is worst-of (per
  * runReview's existing severity ordering).
  */
+
+/**
+ * Terms that SPAWN reviewer.performance but that its matcher never reports on —
+ * the width the docblock above calls deliberate, made explicit. A diff saying
+ * "perf" gets a performance reviewer; that reviewer then finds nothing to report
+ * unless a real matcher term is present, which is the expected outcome, not a
+ * clean bill of health.
+ */
+const PERFORMANCE_TRIGGER_ONLY: readonly Term[] = [
+  { display: "perf", re: "perf", wordBounded: false },
+  { display: "performance", re: "performance", wordBounded: false },
+]
+
+/**
+ * A trigger tests the whole diff — file headers, context lines, removed lines —
+ * so it drops the matchers' word boundaries by design: `index` must not match
+ * `indexOf` in an added line the matcher REPORTS on, but a diff mentioning
+ * `indexOf` anywhere is reason enough to SPAWN the reviewer. Boundaries written
+ * into a term's `re` (INFRA's `k8s\b`) are preserved — only the `wordBounded`
+ * wrapper is dropped.
+ */
+const unbound = (ts: readonly Term[]): Term[] => ts.map((t) => ({ ...t, wordBounded: false }))
+
 export const DIFF_CONDITIONAL_SPECIALISTS: readonly SpecialistDescriptor[] = [
   {
     name: "reviewer.security",
-    // Loose matching — same rationale as the agents themselves: snake_case
-    // ("auth_token") and camelCase ("signJwt") identifiers should trigger.
-    trigger: /(auth|jwt|token|session|crypto|password|secret|signature|encrypt|decrypt)/i,
+    trigger: buildPattern(unbound(SECURITY_TERMS)),
     agent: reviewerSecurity,
   },
   {
     name: "reviewer.migration",
-    trigger: /(migration|ALTER\s+TABLE|DROP\s+TABLE|CREATE\s+TABLE|ALTER\s+COLUMN|RENAME\s+COLUMN|backfill)/i,
+    trigger: buildPattern(unbound(MIGRATION_TERMS)),
     agent: reviewerMigration,
   },
   {
     name: "reviewer.performance",
-    // M5: +debounce +throttle (matcher-only → unreachable), and O(n) widened to
-    // O\(n\^?\d*\) so it spawns on "O(n^2)" the way the matcher now reports it.
-    trigger: /(perf|performance|cache|caching|memoi[sz]e|index|benchmark|n\+1|O\(n\^?\d*\)|p9[59]|debounce|throttle)/i,
+    trigger: buildPattern(unbound([...PERFORMANCE_TERMS, ...PERFORMANCE_TRIGGER_ONLY])),
     agent: reviewerPerformance,
   },
   {
     name: "reviewer.infra",
-    // M5: +argo (matcher-only → unreachable).
-    trigger: /(Dockerfile|FROM\s+\w|kubectl|k8s\b|terraform|helm|fly\.toml|vercel\.json|render\.yaml|github\/workflows|argo)/i,
+    trigger: buildPattern(unbound(INFRA_TERMS)),
     agent: reviewerInfra,
   },
 ] as const

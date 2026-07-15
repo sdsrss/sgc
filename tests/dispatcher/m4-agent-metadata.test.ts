@@ -31,6 +31,11 @@ import {
   type AgentMdFile,
   type ManifestLookup,
 } from "../../src/commands/doctor"
+import {
+  PERFORMANCE,
+  matchSpecialists,
+  reviewerPerformance,
+} from "../../src/dispatcher/agents/reviewer-specialists"
 import { getCapabilities, getSubagentManifest } from "../../src/dispatcher/schema"
 
 const ROOT = resolve(import.meta.dir, "../..")
@@ -65,13 +70,32 @@ describe("M4 · descriptions the honesty pass got wrong", () => {
   })
 
   test("performance.md does not present its spawn trigger as a finding", () => {
-    const impl = readFileSync(resolve(ROOT, "src/dispatcher/agents/reviewer-specialists.ts"), "utf8")
-    // `perf` lives in the DIFF_CONDITIONAL_SPECIALISTS trigger, NOT in PERFORMANCE.pattern —
-    // so a line containing only "perf" spawns the reviewer and is then never
-    // flagged by it. Pin that asymmetry so the description cannot re-conflate.
-    const pattern = /const PERFORMANCE: SpecialistDef = \{[\s\S]*?pattern: (\/.*?\/i),/.exec(impl)?.[1] ?? ""
-    expect(pattern).not.toContain("perf|")
-    expect(pattern).toContain("cache")
+    // `perf` lives in the DIFF_CONDITIONAL_SPECIALISTS trigger, NOT in
+    // PERFORMANCE.pattern — so a line containing only "perf" spawns the reviewer
+    // and is then never flagged by it. Pin that asymmetry so the description
+    // cannot re-conflate.
+    //
+    // This asserted the asymmetry by regex-scraping this file's SOURCE TEXT for
+    // `pattern: /…/i,` until v1.36.0 made the pattern a buildPattern() call. That
+    // scraper deserved to break: it read the source the way the descriptions it
+    // polices read the source — as prose — and it fell back to `?? ""`, so its
+    // `not.toContain("perf|")` half would have passed against an empty string no
+    // matter what the code did. Asserting behaviour instead is both the fix and
+    // the point of the exercise.
+    const perfDiff = "--- a/x.ts\n+++ b/x.ts\n+  // perf work here\n"
+
+    // Spawns on `perf`…
+    expect(matchSpecialists(perfDiff).map((s) => s.name)).toContain("reviewer.performance")
+    // …and then reports nothing about it. That is the asymmetry, end to end —
+    // the old scraper only ever pinned the matcher half.
+    expect(reviewerPerformance({ diff: perfDiff, intent: "" }).findings).toHaveLength(0)
+    expect(PERFORMANCE.pattern.test("perf")).toBe(false)
+    expect(PERFORMANCE.terms.some((t) => t.display === "perf")).toBe(false)
+
+    // While a real term still is matched — otherwise the assertions above pass
+    // against a matcher that matches nothing at all.
+    expect(PERFORMANCE.pattern.test("cache")).toBe(true)
+    expect(PERFORMANCE.terms.some((t) => t.display === "cache")).toBe(true)
 
     const d = descOf("plugins/sgc/agents/reviewer/performance.md")
     expect(d).not.toMatch(/mentioning perf\b|perf\/cache/i)

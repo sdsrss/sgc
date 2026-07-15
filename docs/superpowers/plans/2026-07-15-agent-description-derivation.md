@@ -1210,7 +1210,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 **Files:**
 - Modify: all 9 `plugins/sgc/agents/**/*.md` (via the generator, not by hand)
 
-- [ ] **Step 1: Capture the capability sentences BEFORE regenerating**
+- [x] **Step 1: Capture the capability sentences BEFORE regenerating**
 
 ```bash
 cd /mnt/data_ssd/dev/projects/sgc
@@ -1221,12 +1221,12 @@ done > /tmp/capability-before.txt
 cat /tmp/capability-before.txt
 ```
 
-- [ ] **Step 2: Run the generator**
+- [x] **Step 2: Run the generator**
 
 Run: `SGC_FORCE_INLINE=1 bun run src/sgc.ts doctor --write-descriptions`
 Expected: `wrote CLI-fact clause for: …` listing the ids that changed.
 
-- [ ] **Step 3: Verify NO capability sentence changed**
+- [x] **Step 3: Verify NO capability sentence changed**
 
 ```bash
 for f in plugins/sgc/agents/reviewer/{security,tests,performance,maintainability,migration,infra,adversarial,spec}.md plugins/sgc/agents/janitor/archive.md; do
@@ -1238,12 +1238,12 @@ diff /tmp/capability-before.txt /tmp/capability-after.txt && echo "✓ capabilit
 
 Expected: no diff. **If any capability sentence changed, stop** — `rewriteCliFact` is over-reaching and Task 6 needs fixing, not the file.
 
-- [ ] **Step 4: Read the diff by eye**
+- [x] **Step 4: Read the diff by eye**
 
 Run: `git diff plugins/sgc/agents/`
 Read every changed description in full. A generated clause that is accurate but unreadable is still a routing signal — if it reads badly, the template in Task 4 is wrong, not the file.
 
-- [ ] **Step 5: Add the real-9-files pin (moved here from Task 5 — it cannot pass before the generator runs)**
+- [x] **Step 5: Add the real-9-files pin (moved here from Task 5 — it cannot pass before the generator runs)**
 
 Add to `tests/dispatcher/agent-facts.test.ts`:
 
@@ -1255,7 +1255,7 @@ test("THE REAL 9 FILES are in sync with the derivation", () => {
 })
 ```
 
-- [ ] **Step 6: doctor and full suite green**
+- [x] **Step 6: doctor and full suite green**
 
 **The `71 OK / 0 warn / 0 fail` this step originally expected was computed from the 95d0421 baseline and is stale — Task 2 already moved `src/` past the bundle, so the bundle-hash warn (Global Constraints) has been live since then and doesn't clear here.** After regeneration expect **70 OK / 1 warn / 0 fail**: the 7 fails collapse into check (O)'s single ✓ (69 + 1 = 70), the 1 warn is the stale bundle and stays until Task 9 rebuilds it with bun 1.3.5. `0 fail` is the number that actually matters and must hold.
 
@@ -1265,7 +1265,7 @@ SGC_FORCE_INLINE=1 bun test tests/              # expect 0 fail
 npm run typecheck                                # expect exit 0
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add plugins/sgc/agents/ tests/dispatcher/agent-facts.test.ts

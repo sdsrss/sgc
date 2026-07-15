@@ -785,27 +785,182 @@ var init_prompt = __esm(() => {
   kCancel = Symbol.for("cancel");
 });
 
+// src/dispatcher/file-lock.ts
+import { randomBytes } from "node:crypto";
+import { closeSync, openSync, readFileSync, unlinkSync, writeSync } from "node:fs";
+function currentBootId() {
+  try {
+    return readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim() || null;
+  } catch {
+    return null;
+  }
+}
+function defaultIsAlive(pid) {
+  if (!Number.isFinite(pid) || pid <= 0)
+    return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err.code === "EPERM";
+  }
+}
+function acquireFileLock(lockPath, opts = {}) {
+  const now = opts.now ?? Date.now;
+  const isAlive = opts.isAlive ?? defaultIsAlive;
+  const staleMs = opts.staleMs ?? DEFAULT_STALE_MS;
+  const bootIdOf = opts.bootId ?? currentBootId;
+  const myBoot = bootIdOf();
+  for (let attempt = 0;attempt < 2; attempt++) {
+    try {
+      const fd = openSync(lockPath, "wx");
+      const nonce = randomBytes(8).toString("hex");
+      const ours = `${process.pid}
+${now()}
+${nonce}
+${myBoot ?? ""}
+`;
+      try {
+        writeSync(fd, ours);
+      } finally {
+        closeSync(fd);
+      }
+      let released = false;
+      return () => {
+        if (released)
+          return;
+        released = true;
+        try {
+          if (readFileSync(lockPath, "utf8") !== ours)
+            return;
+          unlinkSync(lockPath);
+        } catch {}
+      };
+    } catch (err) {
+      if (err.code !== "EEXIST")
+        throw err;
+      let holderPid = Number.NaN;
+      let ts = Number.NaN;
+      let holderBoot = null;
+      let inspected = null;
+      try {
+        inspected = readFileSync(lockPath, "utf8");
+        const parts = inspected.split(`
+`);
+        holderPid = Number.parseInt(parts[0] ?? "", 10);
+        ts = Number.parseInt(parts[1] ?? "", 10);
+        holderBoot = (parts[3] ?? "").trim() || null;
+      } catch {}
+      const rebooted = holderBoot !== null && myBoot !== null && holderBoot !== myBoot;
+      const holderDead = rebooted ? true : Number.isFinite(holderPid) ? !isAlive(holderPid) : null;
+      const ageStale = Number.isFinite(ts) ? now() - ts > staleMs : true;
+      const reclaim = holderDead === true || holderDead === null && ageStale;
+      if (reclaim) {
+        try {
+          if (inspected !== null && readFileSync(lockPath, "utf8") !== inspected) {
+            continue;
+          }
+          unlinkSync(lockPath);
+        } catch {}
+        continue;
+      }
+      throw new LockHeldError(holderPid, lockPath);
+    }
+  }
+  throw new LockHeldError(Number.NaN, lockPath);
+}
+async function withFileLock(lockPath, fn, opts = {}) {
+  const retries = opts.retries ?? 50;
+  const retryDelayMs = opts.retryDelayMs ?? 40;
+  let release;
+  for (let attempt = 0;; attempt++) {
+    try {
+      release = acquireFileLock(lockPath, opts);
+      break;
+    } catch (err) {
+      if (err instanceof LockHeldError && attempt < retries) {
+        await new Promise((r3) => setTimeout(r3, retryDelayMs));
+        continue;
+      }
+      throw err;
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
+}
+var LockHeldError, DEFAULT_STALE_MS = 30000;
+var init_file_lock = __esm(() => {
+  LockHeldError = class LockHeldError extends Error {
+    holderPid;
+    lockPath;
+    constructor(holderPid, lockPath) {
+      super(`lock held by pid=${holderPid} at ${lockPath}`);
+      this.holderPid = holderPid;
+      this.lockPath = lockPath;
+      this.name = "LockHeldError";
+    }
+  };
+});
+
 // src/dispatcher/logger.ts
 import { appendFileSync, mkdirSync, renameSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+function configuredMaxBytes() {
+  const raw = process.env["SGC_EVENTS_MAX_BYTES"];
+  if (!raw)
+    return EVENTS_MAX_BYTES;
+  const n2 = Number.parseInt(raw, 10);
+  return Number.isFinite(n2) && n2 > 0 ? n2 : EVENTS_MAX_BYTES;
+}
 function defaultNdjsonSink(stateRoot, maxBytes) {
   const path = resolve(stateRoot, "progress/events.ndjson");
   const rotated = `${path}.1`;
+  const rotateLock = `${path}.rotate.lock`;
   mkdirSync(dirname(path), { recursive: true });
   let bytes = 0;
   try {
     bytes = statSync(path).size;
   } catch {}
+  const rotateIfNeeded = (lineLen) => {
+    if (bytes + lineLen <= maxBytes)
+      return;
+    let actual;
+    try {
+      actual = statSync(path).size;
+    } catch {
+      bytes = 0;
+      return;
+    }
+    if (actual + lineLen <= maxBytes) {
+      bytes = actual;
+      return;
+    }
+    let release = null;
+    try {
+      release = acquireFileLock(rotateLock);
+    } catch {
+      return;
+    }
+    try {
+      const recheck = statSync(path).size;
+      if (recheck + lineLen > maxBytes) {
+        renameSync(path, rotated);
+        bytes = 0;
+      } else {
+        bytes = recheck;
+      }
+    } catch {} finally {
+      release();
+    }
+  };
   return (e2) => {
     try {
       const line = JSON.stringify(e2) + `
 `;
-      if (bytes + line.length > maxBytes) {
-        try {
-          renameSync(path, rotated);
-          bytes = 0;
-        } catch {}
-      }
+      rotateIfNeeded(line.length);
       appendFileSync(path, line, "utf8");
       bytes += line.length;
     } catch (err) {
@@ -816,7 +971,7 @@ function defaultNdjsonSink(stateRoot, maxBytes) {
 function createLogger(opts = {}) {
   const stateRoot = opts.stateRoot ?? process.env["SGC_STATE_ROOT"] ?? ".sgc";
   const say = opts.say ?? ((m2) => console.log(m2));
-  const sink = opts.eventSink ?? defaultNdjsonSink(stateRoot, opts.maxBytes ?? EVENTS_MAX_BYTES);
+  const sink = opts.eventSink ?? defaultNdjsonSink(stateRoot, opts.maxBytes ?? configuredMaxBytes());
   return {
     say,
     event(partial) {
@@ -834,7 +989,9 @@ function createLogger(opts = {}) {
   };
 }
 var EVENTS_MAX_BYTES = 1e7;
-var init_logger = () => {};
+var init_logger = __esm(() => {
+  init_file_lock();
+});
 
 // src/dispatcher/dedup.ts
 import { createHash } from "node:crypto";
@@ -4092,7 +4249,7 @@ var init_types = __esm(() => {
 });
 
 // src/dispatcher/fingerprint.ts
-import { existsSync as existsSync2, readdirSync as readdirSync2, readFileSync, statSync as statSync2 } from "node:fs";
+import { existsSync as existsSync2, readdirSync as readdirSync2, readFileSync as readFileSync2, statSync as statSync2 } from "node:fs";
 import { join, resolve as resolve3 } from "node:path";
 import { createHash as createHash2 } from "node:crypto";
 function isFingerprintable(line) {
@@ -4126,7 +4283,7 @@ function isDir(path) {
 }
 function safeReadFile(path) {
   try {
-    return readFileSync(path, "utf8");
+    return readFileSync2(path, "utf8");
   } catch {
     return null;
   }
@@ -4214,13 +4371,13 @@ var init_fingerprint = __esm(() => {
 import {
   existsSync as existsSync3,
   mkdirSync as mkdirSync2,
-  readFileSync as readFileSync2,
+  readFileSync as readFileSync3,
   readdirSync as readdirSync3,
   renameSync as renameSync2,
-  unlinkSync,
+  unlinkSync as unlinkSync2,
   writeFileSync
 } from "node:fs";
-import { randomBytes } from "node:crypto";
+import { randomBytes as randomBytes2 } from "node:crypto";
 import { dirname as dirname2, join as join2, resolve as resolve4 } from "node:path";
 function resolveStateRoot(custom) {
   return resolve4(custom ?? process.env["SGC_STATE_ROOT"] ?? DEFAULT_STATE_DIR);
@@ -4233,7 +4390,7 @@ function ensureDefaultStateGitignored(custom) {
   const giPath = resolve4(".gitignore");
   let content = "";
   try {
-    content = readFileSync2(giPath, "utf8");
+    content = readFileSync3(giPath, "utf8");
   } catch {}
   const alreadyIgnored = content.split(/\r?\n/).map((l2) => l2.trim()).some((l2) => l2 === ".sgc" || l2 === ".sgc/" || l2 === "/.sgc" || l2 === "/.sgc/");
   if (alreadyIgnored)
@@ -4280,13 +4437,13 @@ ${trimmedBody}`;
 }
 function writeAtomic(path, content) {
   mkdirSync2(dirname2(path), { recursive: true });
-  const tmp = `${path}.tmp.${process.pid}.${Date.now()}.${atomicWriteSeq++}.${randomBytes(4).toString("hex")}`;
+  const tmp = `${path}.tmp.${process.pid}.${Date.now()}.${atomicWriteSeq++}.${randomBytes2(4).toString("hex")}`;
   writeFileSync(tmp, content, "utf8");
   try {
     renameSync2(tmp, path);
   } catch (err) {
     try {
-      unlinkSync(tmp);
+      unlinkSync2(tmp);
     } catch {}
     throw err;
   }
@@ -4380,7 +4537,7 @@ function readIntent(taskId, stateRoot) {
   if (!existsSync3(path)) {
     throw new StateError("NotFound", `intent.md not found for ${taskId}`);
   }
-  const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"), path);
+  const { data, body } = parseFrontmatter(readFileSync3(path, "utf8"), path);
   return { ...data, body };
 }
 function validateShip(ship) {
@@ -4427,7 +4584,7 @@ function readCurrentTask(stateRoot) {
   const path = progressPath("current-task", stateRoot);
   if (!existsSync3(path))
     return null;
-  const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"), path);
+  const { data, body } = parseFrontmatter(readFileSync3(path, "utf8"), path);
   return { task: data, body };
 }
 function validateFeatureList(list) {
@@ -4463,7 +4620,7 @@ function readFeatureList(stateRoot) {
   const path = progressPath("feature-list", stateRoot);
   if (!existsSync3(path))
     return null;
-  const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"), path);
+  const { data, body } = parseFrontmatter(readFileSync3(path, "utf8"), path);
   return { list: data, body };
 }
 function validateHandoff(handoff) {
@@ -4487,7 +4644,7 @@ function readHandoff(stateRoot) {
   const path = progressPath("handoff", stateRoot);
   if (!existsSync3(path))
     return null;
-  const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"), path);
+  const { data, body } = parseFrontmatter(readFileSync3(path, "utf8"), path);
   return { handoff: data, body };
 }
 function validateReview(report) {
@@ -4583,7 +4740,7 @@ function writeSolution(entry, slug, dedupStamp, body = "", stateRoot) {
   let finalEntry = entry;
   let finalBody = body;
   if (existsSync3(path)) {
-    const existing = parseFrontmatter(readFileSync2(path, "utf8"));
+    const existing = parseFrontmatter(readFileSync3(path, "utf8"));
     const mergedTasks = Array.from(new Set([...existing.data.source_task_ids ?? [], ...entry.source_task_ids]));
     const mergedWdw = [
       ...existing.data.what_didnt_work ?? [],
@@ -4627,7 +4784,7 @@ function listSolutions(stateRoot) {
     for (const f3 of files) {
       const fpath = resolve4(catDir, f3);
       try {
-        const { data, body } = parseFrontmatter(readFileSync2(fpath, "utf8"));
+        const { data, body } = parseFrontmatter(readFileSync3(fpath, "utf8"));
         out.push({
           category: cat,
           slug: f3.replace(/\.md$/, ""),
@@ -4673,7 +4830,7 @@ function listReviewsForStage(taskId, stage, stateRoot) {
   const reports = [];
   for (const f3 of files) {
     try {
-      const text = readFileSync2(resolve4(dir, f3), "utf8");
+      const text = readFileSync3(resolve4(dir, f3), "utf8");
       const { data } = parseFrontmatter(text);
       reports.push(data);
     } catch {}
@@ -8013,7 +8170,7 @@ Write only the YAML above. No prose outside the YAML block.
 var init_reviewer_correctness = () => {};
 
 // src/dispatcher/embedded-data.ts
-import { readFileSync as readFileSync3 } from "node:fs";
+import { readFileSync as readFileSync4 } from "node:fs";
 import { resolve as resolve6, dirname as dirname3 } from "node:path";
 import { fileURLToPath } from "node:url";
 function listEmbeddedPromptKeys() {
@@ -8041,7 +8198,7 @@ function readPrompt(relPath) {
 }
 function readDisk(path, label, envVar) {
   try {
-    return readFileSync3(path, "utf8");
+    return readFileSync4(path, "utf8");
   } catch (err) {
     const e2 = err;
     if (e2.code === "ENOENT") {
@@ -8176,7 +8333,7 @@ var init_capabilities = __esm(() => {
 
 // src/dispatcher/claude-cli-agent.ts
 import { spawn } from "node:child_process";
-import { readFileSync as readFileSync4 } from "node:fs";
+import { readFileSync as readFileSync5 } from "node:fs";
 function extractYamlBody(resultText) {
   const fenced = /```(?:yaml|yml)?\s*\n([\s\S]*?)\n```/.exec(resultText);
   if (fenced)
@@ -8187,7 +8344,7 @@ function extractYamlBody(resultText) {
   return resultText.trim();
 }
 async function runClaudeCliAgent(promptPath2, manifest, runner = defaultRunner, ctx) {
-  const promptText = readFileSync4(promptPath2, "utf8");
+  const promptText = readFileSync5(promptPath2, "utf8");
   const timeoutMs = (manifest.timeout_s ?? 60) * 1000;
   const argv2 = ["claude", "-p", "--output-format", "json"];
   const model = "claude-cli";
@@ -13426,7 +13583,7 @@ var init_sdk = __esm(() => {
 });
 
 // src/dispatcher/anthropic-sdk-agent.ts
-import { readFileSync as readFileSync5 } from "node:fs";
+import { readFileSync as readFileSync6 } from "node:fs";
 function splitPrompt(text) {
   const markerRe = /\r?\n##[ \t]+Input[ \t]*\r?\n/;
   const match = markerRe.exec(text);
@@ -13439,7 +13596,7 @@ function splitPrompt(text) {
   };
 }
 async function runAnthropicSdkAgent(promptPath2, manifest, clientFactory, ctx) {
-  const promptText = readFileSync5(promptPath2, "utf8");
+  const promptText = readFileSync6(promptPath2, "utf8");
   const { systemPart, userPart } = splitPrompt(promptText);
   const client = clientFactory ? clientFactory() : new Anthropic;
   const maxTokens = Math.min(manifest.token_budget ?? 4096, MAX_TOKENS_CAP);
@@ -13575,7 +13732,7 @@ var init_anthropic_sdk_agent = __esm(() => {
 });
 
 // src/dispatcher/openrouter-agent.ts
-import { readFileSync as readFileSync6 } from "node:fs";
+import { readFileSync as readFileSync7 } from "node:fs";
 function noticeThirdPartyEgress(model) {
   if (egressNoticeShown)
     return;
@@ -13598,7 +13755,7 @@ async function runOpenRouterAgent(promptPath2, manifest, fetchFn, ctx) {
   if (!apiKey) {
     throw new OpenRouterError("OPENROUTER_API_KEY not set");
   }
-  const promptText = readFileSync6(promptPath2, "utf8");
+  const promptText = readFileSync7(promptPath2, "utf8");
   const { systemPart, userPart } = splitPrompt(promptText);
   const maxTokens = Math.min(manifest.token_budget ?? 4096, MAX_TOKENS_CAP2);
   const timeoutMs = (manifest.timeout_s ?? 60) * 1000;
@@ -13736,7 +13893,7 @@ var init_openrouter_agent = __esm(() => {
 });
 
 // src/dispatcher/spawn.ts
-import { existsSync as existsSync6, readFileSync as readFileSync7 } from "node:fs";
+import { existsSync as existsSync6, readFileSync as readFileSync8 } from "node:fs";
 import { resolve as resolve7 } from "node:path";
 function clampTimeout(rawMs) {
   return Math.max(MIN_TIMEOUT_MS, Math.min(MAX_TIMEOUT_MS, rawMs));
@@ -13936,7 +14093,7 @@ async function pollForResult(resultPath2, timeoutMs, intervalMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (existsSync6(resultPath2)) {
-      const text = readFileSync7(resultPath2, "utf8");
+      const text = readFileSync8(resultPath2, "utf8");
       const { data } = parseFrontmatter(text);
       return data;
     }
@@ -14294,113 +14451,6 @@ var init_discover = __esm(() => {
   init_clarifier_discover2();
   init_state();
   init_logger();
-});
-
-// src/dispatcher/file-lock.ts
-import { randomBytes as randomBytes2 } from "node:crypto";
-import { closeSync, openSync, readFileSync as readFileSync8, unlinkSync as unlinkSync2, writeSync } from "node:fs";
-function defaultIsAlive(pid) {
-  if (!Number.isFinite(pid) || pid <= 0)
-    return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return err.code === "EPERM";
-  }
-}
-function acquireFileLock(lockPath, opts = {}) {
-  const now = opts.now ?? Date.now;
-  const isAlive = opts.isAlive ?? defaultIsAlive;
-  const staleMs = opts.staleMs ?? DEFAULT_STALE_MS;
-  for (let attempt = 0;attempt < 2; attempt++) {
-    try {
-      const fd = openSync(lockPath, "wx");
-      const nonce = randomBytes2(8).toString("hex");
-      const ours = `${process.pid}
-${now()}
-${nonce}
-`;
-      try {
-        writeSync(fd, ours);
-      } finally {
-        closeSync(fd);
-      }
-      let released = false;
-      return () => {
-        if (released)
-          return;
-        released = true;
-        try {
-          if (readFileSync8(lockPath, "utf8") !== ours)
-            return;
-          unlinkSync2(lockPath);
-        } catch {}
-      };
-    } catch (err) {
-      if (err.code !== "EEXIST")
-        throw err;
-      let holderPid = Number.NaN;
-      let ts = Number.NaN;
-      let inspected = null;
-      try {
-        inspected = readFileSync8(lockPath, "utf8");
-        const parts = inspected.split(`
-`);
-        holderPid = Number.parseInt(parts[0] ?? "", 10);
-        ts = Number.parseInt(parts[1] ?? "", 10);
-      } catch {}
-      const holderDead = Number.isFinite(holderPid) ? !isAlive(holderPid) : null;
-      const ageStale = Number.isFinite(ts) ? now() - ts > staleMs : true;
-      const reclaim = holderDead === true || holderDead === null && ageStale;
-      if (reclaim) {
-        try {
-          if (inspected !== null && readFileSync8(lockPath, "utf8") !== inspected) {
-            continue;
-          }
-          unlinkSync2(lockPath);
-        } catch {}
-        continue;
-      }
-      throw new LockHeldError(holderPid, lockPath);
-    }
-  }
-  throw new LockHeldError(Number.NaN, lockPath);
-}
-async function withFileLock(lockPath, fn, opts = {}) {
-  const retries = opts.retries ?? 50;
-  const retryDelayMs = opts.retryDelayMs ?? 40;
-  let release;
-  for (let attempt = 0;; attempt++) {
-    try {
-      release = acquireFileLock(lockPath, opts);
-      break;
-    } catch (err) {
-      if (err instanceof LockHeldError && attempt < retries) {
-        await new Promise((r3) => setTimeout(r3, retryDelayMs));
-        continue;
-      }
-      throw err;
-    }
-  }
-  try {
-    return await fn();
-  } finally {
-    release();
-  }
-}
-var LockHeldError, DEFAULT_STALE_MS = 30000;
-var init_file_lock = __esm(() => {
-  LockHeldError = class LockHeldError extends Error {
-    holderPid;
-    lockPath;
-    constructor(holderPid, lockPath) {
-      super(`lock held by pid=${holderPid} at ${lockPath}`);
-      this.holderPid = holderPid;
-      this.lockPath = lockPath;
-      this.name = "LockHeldError";
-    }
-  };
 });
 
 // src/dispatcher/plan-jobs.ts
@@ -16562,9 +16612,9 @@ function reviewerInfra(input) {
   return reviewBy(INFRA, input);
 }
 function matchSpecialists(diff) {
-  return L3_SPECIALISTS.filter((s2) => s2.trigger.test(diff));
+  return DIFF_CONDITIONAL_SPECIALISTS.filter((s2) => s2.trigger.test(diff));
 }
-var SECURITY, MIGRATION, PERFORMANCE, INFRA, L3_SPECIALISTS;
+var SECURITY, MIGRATION, PERFORMANCE, INFRA, DIFF_CONDITIONAL_SPECIALISTS;
 var init_reviewer_specialists = __esm(() => {
   SECURITY = {
     name: "reviewer.security",
@@ -16590,7 +16640,7 @@ var init_reviewer_specialists = __esm(() => {
     severity: "high",
     describe: (line) => `infra-shaped change requires deploy + rollback review: ${line}`
   };
-  L3_SPECIALISTS = [
+  DIFF_CONDITIONAL_SPECIALISTS = [
     {
       name: "reviewer.security",
       trigger: /(auth|jwt|token|session|crypto|password|secret|signature|encrypt|decrypt)/i,
@@ -19083,6 +19133,14 @@ async function runAgentLoop(opts = {}) {
     validateOutputShape(manifest, parsed);
     const leak = scanOutputForLeak(agentName, parsed, getFingerprintsCached(root4));
     if (leak.hit) {
+      logger.event({
+        task_id: null,
+        spawn_id: opts.submit,
+        agent: agentName,
+        event_type: "submit.rejected",
+        level: "error",
+        payload: { reason: "invariant_1_output_leak", match_count: leak.count }
+      });
       throw new Error(`Invariant §1 violation (output leak): submitted result for ${agentName} contains ${leak.count} line(s) matching solutions/ content. ` + `Sample(s): ${leak.samples.map((s2) => `"${s2}"`).join(", ")}. ` + `Reviewers and qa agents must stay amnesiac to past solutions — see sgc-invariants.md §1.`);
     }
     writeAtomic(rp, serializeFrontmatter(parsed, ""));
@@ -20112,11 +20170,12 @@ async function runLoop(task, opts) {
     }
   }
   let releaseExecLock;
+  const execLockPath = runExecLockPath(stateRoot2, run.run_id);
   try {
-    releaseExecLock = acquireFileLock(runExecLockPath(stateRoot2, run.run_id));
+    releaseExecLock = acquireFileLock(execLockPath);
   } catch (err) {
     if (err instanceof LockHeldError) {
-      throw new LoopError("ConcurrentRunActive", `loop run ${run.run_id} is already in progress (holder pid=${err.holderPid}). Wait for it to finish or park, then resume.`, { run_id: run.run_id, active_pid: err.holderPid });
+      throw new LoopError("ConcurrentRunActive", `loop run ${run.run_id} is already in progress (holder pid=${err.holderPid}, lock=${execLockPath}). ` + `Wait for it to finish or park, then resume. If that pid is not an sgc run — a reboot can leave the ` + `lock behind — delete ${execLockPath} and resume.`, { run_id: run.run_id, active_pid: err.holderPid, lock_path: execLockPath });
     }
     throw err;
   }
@@ -20153,6 +20212,7 @@ async function runLoop(task, opts) {
         run.last_updated_at = entry.started_at;
         delete run.failed_step;
         delete run.error;
+        delete run.error_code;
         writeRun(runFilePath, run);
         const pauseReason = stepName === "work" ? "paused_work" : stepName === "qa" ? "paused_qa" : "paused_ship";
         return { run, terminal_reason: pauseReason };
@@ -20189,6 +20249,7 @@ async function runLoop(task, opts) {
         run.last_updated_at = entry.completed_at;
         delete run.failed_step;
         delete run.error;
+        delete run.error_code;
         writeRun(runFilePath, run);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -20198,6 +20259,10 @@ async function runLoop(task, opts) {
         run.status = "failed";
         run.failed_step = stepName;
         run.error = msg;
+        if (err instanceof LoopError)
+          run.error_code = err.code;
+        else
+          delete run.error_code;
         run.last_updated_at = entry.completed_at;
         run.current_step = stepName;
         writeRun(runFilePath, run);
@@ -20209,6 +20274,7 @@ async function runLoop(task, opts) {
     run.last_updated_at = new Date(now()).toISOString();
     delete run.failed_step;
     delete run.error;
+    delete run.error_code;
     writeRun(runFilePath, run);
     return { run, terminal_reason: "complete" };
   } finally {
@@ -20271,7 +20337,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.33.0",
+    version: "1.34.0",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -20551,7 +20617,7 @@ function readmeScorecardDrift(readme, live) {
   }
   return drifts;
 }
-function agentMetadataDrift(files, lookup) {
+function agentMetadataDrift(files, lookup, manifestIds = []) {
   const drifts = [];
   for (const f3 of files) {
     const entry = lookup(f3.id);
@@ -20559,18 +20625,44 @@ function agentMetadataDrift(files, lookup) {
       drifts.push(`${f3.id}: ${f3.file} has no manifest entry (orphan registry file)`);
       continue;
     }
-    const desc = (/description:\s*"([^"]*)"/.exec(f3.text)?.[1] ?? "").toLowerCase();
-    const slotOnly = entry.status === "slot-only";
-    const heuristic = !entry.prompt_path;
-    if (slotOnly && !/(not implemented|slot-only|never dispatched|not wired)/.test(desc)) {
-      drifts.push(`${f3.id}: manifest says status slot-only (never dispatched) but ${f3.file} advertises it as working`);
+    let desc;
+    try {
+      desc = readFrontmatterDescription(f3.text).toLowerCase();
+    } catch (err) {
+      drifts.push(`${f3.id}: ${f3.file} frontmatter does not parse (${String(err).slice(0, 80)})`);
       continue;
     }
-    if (!slotOnly && heuristic && !/(heuristic|keyword match|deterministic|not llm-backed|rule-based)/.test(desc)) {
+    const slotOnly = entry.status === "slot-only";
+    const heuristic = !entry.prompt_path;
+    if (slotOnly) {
+      if (!/(not implemented|slot-only|never dispatched|not wired)/.test(desc)) {
+        drifts.push(`${f3.id}: manifest says status slot-only (never dispatched) but ${f3.file} advertises it as working`);
+      } else if (/dispatched by/.test(desc)) {
+        drifts.push(`${f3.id}: ${f3.file} is slot-only yet still says "dispatched by" — a disclaimer elsewhere does not undo it`);
+      }
+      continue;
+    }
+    if (heuristic && !/(heuristic|keyword match|deterministic|not llm-backed|rule-based|not implemented)/.test(desc)) {
       drifts.push(`${f3.id}: manifest says prompt_path null (not LLM-backed) but ${f3.file} does not disclose it`);
     }
   }
+  const present = new Set(files.map((f3) => f3.id));
+  for (const id of manifestIds) {
+    if (present.has(id) || REGISTRY_EXEMPT_IDS.has(id))
+      continue;
+    drifts.push(`${id}: manifested but has no registry file under plugins/sgc/agents/ (missing)`);
+  }
   return drifts;
+}
+function readFrontmatterDescription(text) {
+  const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1];
+  if (block === undefined)
+    throw new Error("no frontmatter block");
+  const parsed = load(block);
+  if (typeof parsed !== "object" || parsed === null)
+    throw new Error("frontmatter is not a mapping");
+  const d2 = parsed["description"];
+  return typeof d2 === "string" ? d2 : "";
 }
 function readAgentMdFiles(root4) {
   const dir = resolve17(root4, "plugins", "sgc", "agents");
@@ -20946,21 +21038,21 @@ async function runDoctor(opts = {}) {
   log("");
   log("=== agent registry ↔ manifest ===");
   {
-    const files = readAgentMdFiles(root4);
-    if (files.length === 0) {
-      emit({ severity: "ok", msg: "  ⓘ agent registry check skipped (no plugins/sgc/agents/ — npm channel)" });
-    } else {
-      try {
-        const drifts = agentMetadataDrift(files, (id) => getSubagentManifest(id) ?? null);
+    try {
+      const files = readAgentMdFiles(root4);
+      if (files.length === 0) {
+        emit({ severity: "ok", msg: "  ⓘ agent registry check skipped (no plugins/sgc/agents/ — npm channel)" });
+      } else {
+        const drifts = agentMetadataDrift(files, (id) => getSubagentManifest(id) ?? null, Object.keys(getCapabilities().subagents));
         if (drifts.length === 0) {
-          emit({ severity: "ok", msg: `  ✓ ${files.length} agent descriptions match manifest reality` });
+          emit({ severity: "ok", msg: `  ✓ ${files.length} agent descriptions wired to manifest (disclosure checked, not accuracy)` });
         } else {
           for (const d2 of drifts)
             emit({ severity: "fail", msg: `  ✗ agent metadata drift — ${d2}` });
         }
-      } catch (e2) {
-        emit({ severity: "fail", msg: `  ✗ agent registry check error: ${e2.message.slice(0, 80)}` });
       }
+    } catch (e2) {
+      emit({ severity: "fail", msg: `  ✗ agent registry check error: ${e2.message.slice(0, 80)}` });
     }
   }
   log("");
@@ -21013,7 +21105,7 @@ async function runDoctor(opts = {}) {
   log(`${ok} OK · ${warn} warn · ${fail} fail`);
   return { ok, warn, fail, rows };
 }
-var moduleDir2, repoRoot;
+var moduleDir2, repoRoot, REGISTRY_EXEMPT_IDS;
 var init_doctor = __esm(() => {
   init_subprocess();
   init_js_yaml();
@@ -21022,6 +21114,12 @@ var init_doctor = __esm(() => {
   init_metrics();
   moduleDir2 = dirname6(fileURLToPath3(import.meta.url));
   repoRoot = resolve17(moduleDir2, "..", "..");
+  REGISTRY_EXEMPT_IDS = new Set([
+    "reviewer.migration",
+    "reviewer.infra",
+    "clarifier.discover",
+    "planner.decompose"
+  ]);
 });
 
 // src/dispatcher/reflect.ts
@@ -22763,6 +22861,9 @@ function reportSlug(stamp) {
   const rand = Math.random().toString(36).slice(2, 8);
   return `${stamp.date}-${stamp.time}-${rand}`;
 }
+function isDocPath(rel) {
+  return /\.mdx?$/i.test(rel) || /(^|\/)docs?\//.test(rel);
+}
 function isExcludedPath(rel) {
   if (SCAN_EXCLUDE_PREFIXES.some((ex) => rel.startsWith(ex)))
     return true;
@@ -22787,9 +22888,17 @@ function listScanFiles(repoRoot2) {
   const files = raw.split(/\r?\n/).map((s2) => s2.trim()).filter((s2) => s2.length > 0).filter((p) => !isExcludedPath(p));
   return { files, warnings };
 }
+function maxScanBytes() {
+  const raw = process.env.SGC_CSO_MAX_SCAN_BYTES;
+  if (!raw)
+    return DEFAULT_MAX_SCAN_BYTES;
+  const n2 = Number.parseInt(raw, 10);
+  return Number.isFinite(n2) && n2 > 0 ? n2 : DEFAULT_MAX_SCAN_BYTES;
+}
 function scanSecrets(repoRoot2) {
   const { files, warnings } = listScanFiles(repoRoot2);
   const findings = [];
+  const capBytes = maxScanBytes();
   for (const rel of files) {
     const abs = resolve24(repoRoot2, rel);
     if (!existsSync23(abs))
@@ -22802,8 +22911,8 @@ function scanSecrets(repoRoot2) {
     }
     if (!stat5.isFile())
       continue;
-    if (stat5.size > MAX_SCAN_BYTES) {
-      warnings.push(`${rel}: ${stat5.size} bytes exceeds ${MAX_SCAN_BYTES} scan cap, skipped`);
+    if (stat5.size > capBytes) {
+      warnings.push(`${rel}: ${stat5.size} bytes exceeds ${capBytes} scan cap, skipped`);
       continue;
     }
     let content;
@@ -22812,12 +22921,17 @@ function scanSecrets(repoRoot2) {
     } catch {
       continue;
     }
-    for (const { name, re } of SECRET_PATTERNS) {
+    const inDocs = isDocPath(rel);
+    for (const { name, re, commonInDocs } of SECRET_PATTERNS) {
       const m2 = re.exec(content);
-      if (m2) {
-        const line = content.slice(0, m2.index).split(/\r?\n/).length;
-        findings.push(`${rel}:${line} matches ${name}`);
+      if (!m2)
+        continue;
+      const line = content.slice(0, m2.index).split(/\r?\n/).length;
+      if (commonInDocs && inDocs) {
+        warnings.push(`${rel}:${line} matches ${name} — documentation, treated as an example; confirm it is not live`);
+        continue;
       }
+      findings.push(`${rel}:${line} matches ${name}`);
     }
   }
   const verdict = findings.length > 0 ? "fail" : warnings.length > 0 ? "warn" : "pass";
@@ -23064,21 +23178,29 @@ async function runCso(opts = {}) {
   log(`report: ${mdPath}`);
   return { report, reportPath: mdPath, lastReportPath };
 }
-var SECRET_PATTERNS, SCAN_EXCLUDE_PREFIXES, SCAN_EXCLUDE_PATTERNS, MAX_SCAN_BYTES = 200000, ANOMALY_TAIL_BYTES = 2000000;
+var SECRET_PATTERNS, SCAN_EXCLUDE_PREFIXES, SCAN_EXCLUDE_PATTERNS, DEFAULT_MAX_SCAN_BYTES = 2000000, ANOMALY_TAIL_BYTES = 2000000;
 var init_cso = __esm(() => {
   init_state();
   init_logger();
   SECRET_PATTERNS = [
     { name: "AWS access key", re: /AKIA[0-9A-Z]{16}/ },
     { name: "private key block", re: /-----BEGIN (RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----/ },
-    { name: "GitHub PAT", re: /gh[ps]_[A-Za-z0-9]{36,}/ },
-    { name: "OpenAI API key", re: /sk-[A-Za-z0-9]{20,}/ },
+    { name: "GitHub token", re: /gh[pousr]_[A-Za-z0-9]{36,}/ },
+    { name: "GitHub fine-grained PAT", re: /github_pat_[A-Za-z0-9_]{22,}/ },
+    { name: "OpenAI API key", re: /sk-(?:proj-|svcacct-|admin-)?[A-Za-z0-9_-]{20,}/ },
     { name: "Slack token", re: /xox[abprs]-[A-Za-z0-9-]{10,}/ },
+    { name: "Slack app-level token", re: /xapp-[0-9]-[A-Za-z0-9-]{20,}/ },
     { name: "Stripe live key", re: /(?:sk|rk)_live_[A-Za-z0-9]{16,}/ },
-    { name: "JWT", re: /eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{20,}/ },
-    { name: "Google API key", re: /AIza[A-Za-z0-9_-]{35}/ },
+    { name: "Stripe webhook secret", re: /whsec_[A-Za-z0-9]{32,}/ },
+    { name: "JWT", re: /eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{20,}/, commonInDocs: true },
+    { name: "Google API key", re: /AIza[A-Za-z0-9_-]{35}/, commonInDocs: true },
+    { name: "Google OAuth client secret", re: /GOCSPX-[A-Za-z0-9_-]{24,}/ },
     { name: "npm token", re: /npm_[A-Za-z0-9]{36}/ },
-    { name: "Slack webhook URL", re: /hooks\.slack\.com\/services\/T[A-Za-z0-9]{8,}\/B[A-Za-z0-9]{8,}\/[A-Za-z0-9]{20,}/ },
+    {
+      name: "Slack webhook URL",
+      re: /hooks\.slack\.com\/(?:services|triggers)\/T[A-Za-z0-9]{8,}\/[A-Za-z0-9]{8,}\/[A-Za-z0-9]{20,}/,
+      commonInDocs: true
+    },
     {
       name: "generic api-key/password assignment",
       re: /\b(?:api[_-]?key|api[_-]?secret|access[_-]?token|password|secret[_-]?key|private[_-]?key)\s*[=:]\s*["'][^"'\s]{16,}["']/i
@@ -24506,7 +24628,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.33.0",
+  version: "1.34.0",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {

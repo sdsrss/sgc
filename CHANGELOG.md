@@ -1,11 +1,143 @@
 # Changelog
 
+## v1.34.0 — 2026-07-15 — code-review follow-up: the fixes that needed fixing
+
+An independent three-lens code review of the M3 batch (`284bdaa..0150910`) found
+0 Critical and 11 Important issues. Every claim was reproduced before acting on
+it. Test suite 1372 → 1433 (+61).
+
+The theme is uncomfortable and worth naming: **M3's own theme failed on M3's own
+deliverable.** M3 was the batch that rewrote agent descriptions to stop them
+overclaiming — and it shipped two fresh overclaims, which its new drift gate
+passed because that gate tests for magic words, not accuracy. Four of the eleven
+findings are the same shape: a thing that promised more than it delivered.
+
+### Upgrade notes
+
+- **`sgc cso` now scans files up to 2MB (was 200KB), so it may fail a ship it
+  previously passed.** In this repo the only file the old cap ever excluded was
+  `plugins/sgc/bin/sgc.mjs` — the one code file `files[]` publishes. Scanning it
+  costs 4ms. Revert with `SGC_CSO_MAX_SCAN_BYTES=200000`.
+- **`sgc cso` now detects OpenAI's current key formats** (`sk-proj-`,
+  `sk-svcacct-`). The old pattern matched neither, while its comment claimed it
+  caught OpenAI. Also added: Stripe `whsec_`, Slack `xapp-` and Workflow Builder
+  webhooks, Google `GOCSPX-`, GitHub `github_pat_` / `gho_` / `ghu_` / `ghr_`.
+- **JWTs, Google API keys and Slack webhook URLs now warn instead of failing
+  inside `.md` and `docs/`.** jwt.io's front-page token, Slack's own docs URL and
+  Google's docs key all failed the gate — the exact thing the `sk_test_`
+  exclusion exists to prevent. Note the narrow scope: README.md and CHANGELOG.md
+  ship in `files[]`, so a value that is never legitimate in prose (Stripe live,
+  npm token, AWS) still fails there.
+- **`.sgc/progress/events.ndjson` rotation is sizeable via
+  `SGC_EVENTS_MAX_BYTES`.**
+- **A loop run whose lock was orphaned by a reboot is now resumable** on Linux.
+  Locks gain a boot-id line; a lock from a previous boot is reclaimed instead of
+  held forever by whatever now owns that pid. Elsewhere the refusal at least
+  names the lock file so it can be deleted by hand.
+- **`LoopRun` gained `error_code`**, so CI can tell `L3NeedsConfirmation` from a
+  planner crash without regexing prose.
+
+### Fixed
+
+- **The secret scan skipped the only file we publish.** `MAX_SCAN_BYTES` was
+  200KB; the bundle is 974KB. Worse, it is *generated* — bundlers inline
+  `process.env.X` at build time, so a secret can live in the bundle while `src/`
+  (which was scanned) is clean. The v1.33.0 reasoning for keeping the skip was
+  sound as far as it went — this repo tracks its own bundle, so failing on
+  oversize files would fail `sgc cso` on sgc forever, and a gate that always
+  fails is an ignored gate. But "the proposed fix is harmful" was allowed to
+  close the item while the underlying concern went unanswered. Raising the cap
+  answers both. `sgc cso` on this repo: `warn` (1 skipped file) → `pass`.
+- **`sk-[A-Za-z0-9]{20,}` never matched an OpenAI key issued since 2024.**
+  `proj` is four characters before the `-` breaks the class.
+- **The §1 leak scan on `agent-loop --submit` fired silently.** spawn()'s
+  equivalent rejection is visible to `sgc tail` as `spawn.end{outcome:"error"}`;
+  this path only threw. So a §1 violation arriving through the one path with no
+  live poller — the entire reason `--submit` exists — left no audit trace. Now
+  emits `submit.rejected` with the agent, the spawn id and a match count. Count,
+  not content: the samples are the solution text the agent was not allowed to
+  see, and copying them into the event stream would leak them a second time.
+- **Two live event sinks destroyed the generation rotation exists to keep.**
+  Each sink counted its own writes but renamed a shared file, so a sink with a
+  stale-high counter renamed a freshly-rotated, near-empty file over the full
+  generation another had just preserved. Measured: 12 events across two sinks,
+  **1** still readable. The counter is now only a trigger — crossing it buys one
+  `stat`, and the real size decides; the rename is serialized by a lock. Zero
+  syscalls per write on the common path, unchanged.
+- **A reboot wedged a loop run permanently.** Reclaim only fell back to age when
+  the pid was *unparseable*, so a well-formed lock whose pid is alive was never
+  reclaimed at any age. That was fine when the claim lock lived milliseconds; the
+  P3-6 exec lock lives for minutes, and after a reboot the recorded pid is very
+  likely alive again because low pids get handed out early. `--resume` said "wait
+  for pid 1 to finish or park"; pid 1 never finishes or parks.
+- **`L3NeedsConfirmation` was a contract that did not exist.** Declared, thrown,
+  documented — and dropped by the step handler, which kept only `err.message`.
+  Zero consumers could branch on it.
+- **`reviewer/maintainability.md` advertised analysis that does not exist.** It
+  claimed "size/shape signals (long functions, large files)". The code flags long
+  *lines* (>120 chars) and suppression markers. It invented two capabilities and
+  omitted the one real check.
+- **`janitor/archive.md` described an implementation with no code behind it.**
+  No module, no subcommand, no caller. It escaped P3-2's relabelling because its
+  manifest status is `manual-only` rather than `slot-only`, so only the weaker
+  disclosure obligation applied — and "deterministic" satisfied it.
+- **The agent descriptions named no executor, and these files have two.**
+  `sgc review` resolves `reviewer.security` to a regex over `auth|jwt|token`;
+  Claude Code's plugin registry runs *the file's body*, which is a 93-line
+  offensive-security prompt. P3-2's "NOT LLM-backed" was true of the first and
+  false of the second, steering Claude away from a capability that does exist.
+  Every description now says which executor it is describing.
+- **`reviewer-specialists.ts` still said L3 four releases after the gate moved.**
+  Phase 2c lowered it to L2+ in v1.27.0. P3-3 fixed `review.ts`'s header and
+  `SKILL.md` and left the file they link to asserting the opposite. `L3_SPECIALISTS`
+  → `DIFF_CONDITIONAL_SPECIALISTS`.
+- **doctor check (N) is honest about its ceiling.** It enforces wiring and
+  disclosure, not accuracy — it cannot read an implementation and judge prose. It
+  now says so, in the docblock and in its own OK line ("disclosure checked, not
+  accuracy"). Tightened where a check *can* help: the manifest→file direction now
+  exists (it found four ids manifested with no registry file, where the review
+  predicted two); frontmatter is parsed as YAML rather than regexed for
+  double-quoted single-line values; a slot-only agent may not also say
+  "dispatched by"; `readAgentMdFiles` moved inside the try that exists to report
+  its failures.
+- **P3-7's promised crash-mid-write test now exists.** That row shipped ✅ with
+  the multiprocess lock test and a docblock; the second half of its own stated
+  acceptance quietly became prose. `state.ts`'s claim that a reader sees the
+  whole old file or the whole new one, never a torn write, was asserted and never
+  demonstrated. Now: a real process rewrites a 400KB document in a loop, SIGKILL
+  at 12 randomized points, reader integrity checked each time — and the test
+  asserts the writer actually *progressed*, so it cannot pass against an
+  implementation with no tmp+rename.
+- **The mutual-exclusion assertion in `loop-resume-lock.test.ts` was vacuous.**
+  `expect(reviewCalls).toBe(1)` compared against a counter the second runner
+  could never touch — it held with or without the lock. Both runners now share
+  one counter.
+
+### Not fixed (recorded, not dropped)
+
+- Rotation that keeps failing re-attempts the rename on every write. Degraded
+  state only.
+- spawn() writes a result to disk *before* scanning it, so `--submit` is now
+  stricter than the path it was made to match. Content is already in
+  `solutions/`; hygiene, not a hole.
+- `getFingerprintsCached` fail-opens on an unreadable `solutions/`. Pre-existing
+  and shared with the spawn path.
+- Agent frontmatter `name:` is not validated against the path-derived id. They
+  agree today; nothing holds them together.
+
 ## v1.33.0 — 2026-07-15 — audit v1.31.8 remediation, batch M3: the audit is closed
 
 Closes the v1.31.8 audit: **27 of 28 findings fixed, 1 judged a false report**
 (see "Not fixed" below). With v1.32.0's 16, that is every P1, every P2, and
-every P3 the audit raised. Test suite 1269 → 1410 (+141 regression tests) across
+every P3 the audit raised. Test suite 1269 → 1372 (+103 regression tests) across
 the three batches.
+
+> **Corrected in v1.34.0**: this paragraph shipped saying "1269 → 1410 (+141)".
+> 1410 was bun's `Ran N tests` line — the number of tests *executed* — while 1269
+> was a *pass* count, so the subtraction compared two different quantities. The
+> real figures, re-measured on each commit in a clean worktree: 1269 pass at the
+> audit baseline, 1339 at v1.32.0, 1372 at v1.33.0. v1.32.0's own "+70" was
+> right; only this line was wrong.
 
 ### Upgrade notes
 

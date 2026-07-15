@@ -968,7 +968,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: `deriveCliFact`, `CLI_FACT_MARKER`, `DERIVED_AGENT_IDS`, `AgentMdFile`.
 - Produces: `export function rewriteCliFact(text: string, id: string): string` — pure, returns the new file text.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `tests/dispatcher/agent-facts.test.ts`:
 
@@ -1005,12 +1005,12 @@ describe("--write-descriptions — regenerates the fact, never the capability", 
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `SGC_FORCE_INLINE=1 bun test tests/dispatcher/agent-facts.test.ts`
 Expected: FAIL — `rewriteCliFact` is not exported.
 
-- [ ] **Step 3: Implement `rewriteCliFact`**
+- [x] **Step 3: Implement `rewriteCliFact`**
 
 In `src/commands/doctor.ts`:
 
@@ -1045,12 +1045,12 @@ import { load as yamlLoad, dump as yamlDump } from "js-yaml"
 
 Note `readFrontmatterDescription` (`doctor.ts:308`) is module-private and NOT exported — `cliFactDrift` and `rewriteCliFact` both live in `doctor.ts`, so they can call it directly. Also note `agentMetadataDrift` lowercases its result (`.toLowerCase()`) because it is keyword-sniffing; **`cliFactDrift` must NOT lowercase** — it compares bytes.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `SGC_FORCE_INLINE=1 bun test tests/dispatcher/agent-facts.test.ts`
 Expected: all pass except `THE REAL 9 FILES are in sync` (Task 8).
 
-- [ ] **Step 5: Wire the flag**
+- [x] **Step 5: Wire the flag**
 
 In `src/commands/doctor.ts`, add `writeDescriptions?: boolean` to `DoctorOptions`, and at the top of `runDoctor`, before any check runs:
 
@@ -1084,7 +1084,7 @@ then pass it through: `writeDescriptions: args["--write-descriptions"] === true`
 
 Confirm the exact option shape by reading the neighbouring flags in `src/sgc.ts` before editing — match the file's existing style rather than this sketch.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 npm run typecheck   # expect exit 0

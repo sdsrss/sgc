@@ -1113,7 +1113,7 @@ assert that check (O) *catches* things — so the RED is: disable check (O) and 
 one of them fail. Step 2 does exactly that. A test you never saw fail proves nothing, and
 this task's entire purpose is to prove a gate works.
 
-- [ ] **Step 1: Write the tests**
+- [x] **Step 1: Write the tests**
 
 ```ts
 describe("Task 7 — every M4/M5 defect class now requires editing code to reproduce", () => {
@@ -1166,7 +1166,7 @@ describe("Task 7 — every M4/M5 defect class now requires editing code to repro
 })
 ```
 
-- [ ] **Step 2: Prove the RED — disable the gate and watch all 7 fail**
+- [x] **Step 2: Prove the RED — disable the gate and watch all 7 fail**
 
 Temporarily neuter `cliFactDrift` in `src/commands/doctor.ts` by making it return early:
 
@@ -1192,7 +1192,7 @@ expect(mangled).not.toBe(deriveCliFact(id))   // the replace actually landed
 
 Add that line to every test in this describe block before its `cliFactDrift` assertion.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add tests/dispatcher/agent-facts.test.ts

@@ -879,13 +879,16 @@ function similarity(candidate, existing) {
   const candProb = tokenize(candidate.problem);
   const exProb = tokenize(existing.problem);
   const components = [];
-  if (candTagSet.size > 0 || exTagSet.size > 0)
-    components.push(jaccard(candTagSet, exTagSet));
-  if (candProb.size > 0 || exProb.size > 0)
-    components.push(jaccard(candProb, exProb));
+  if (candTagSet.size > 0 || exTagSet.size > 0) {
+    components.push({ value: jaccard(candTagSet, exTagSet), weight: TAG_WEIGHT });
+  }
+  if (candProb.size > 0 || exProb.size > 0) {
+    components.push({ value: jaccard(candProb, exProb), weight: PROBLEM_WEIGHT });
+  }
   if (components.length === 0)
     return 0;
-  return components.reduce((sum, c3) => sum + c3, 0) / components.length;
+  const totalWeight = components.reduce((sum, c3) => sum + c3.weight, 0);
+  return components.reduce((sum, c3) => sum + c3.value * c3.weight, 0) / totalWeight;
 }
 function findBestMatch(candidate, existing) {
   let best = null;
@@ -901,7 +904,7 @@ function findBestMatch(candidate, existing) {
   }
   return best;
 }
-var DEDUP_THRESHOLD = 0.85, STOPWORDS, SEGMENTER;
+var DEDUP_THRESHOLD = 0.85, STOPWORDS, SEGMENTER, PROBLEM_WEIGHT = 0.9, TAG_WEIGHT = 0.1;
 var init_dedup = __esm(() => {
   STOPWORDS = new Set([
     "the",
@@ -942,2279 +945,221 @@ var init_dedup = __esm(() => {
   SEGMENTER = new Intl.Segmenter([], { granularity: "word" });
 });
 
-// node_modules/js-yaml/dist/js-yaml.mjs
-function isNothing(subject) {
-  return typeof subject === "undefined" || subject === null;
-}
-function isObject(subject) {
-  return typeof subject === "object" && subject !== null;
-}
-function toArray2(sequence) {
-  if (Array.isArray(sequence))
-    return sequence;
-  else if (isNothing(sequence))
-    return [];
-  return [sequence];
-}
-function extend(target, source) {
-  var index, length, key, sourceKeys;
-  if (source) {
-    sourceKeys = Object.keys(source);
-    for (index = 0, length = sourceKeys.length;index < length; index += 1) {
-      key = sourceKeys[index];
-      target[key] = source[key];
-    }
-  }
-  return target;
-}
-function repeat(string, count) {
-  var result = "", cycle;
-  for (cycle = 0;cycle < count; cycle += 1) {
-    result += string;
-  }
-  return result;
-}
-function isNegativeZero(number) {
-  return number === 0 && Number.NEGATIVE_INFINITY === 1 / number;
-}
-function formatError(exception, compact) {
-  var where = "", message = exception.reason || "(unknown reason)";
-  if (!exception.mark)
-    return message;
-  if (exception.mark.name) {
-    where += 'in "' + exception.mark.name + '" ';
-  }
-  where += "(" + (exception.mark.line + 1) + ":" + (exception.mark.column + 1) + ")";
-  if (!compact && exception.mark.snippet) {
-    where += `
-
-` + exception.mark.snippet;
-  }
-  return message + " " + where;
-}
-function YAMLException$1(reason, mark) {
-  Error.call(this);
-  this.name = "YAMLException";
-  this.reason = reason;
-  this.mark = mark;
-  this.message = formatError(this, false);
-  if (Error.captureStackTrace) {
-    Error.captureStackTrace(this, this.constructor);
-  } else {
-    this.stack = new Error().stack || "";
-  }
-}
-function getLine(buffer, lineStart, lineEnd, position, maxLineLength) {
-  var head = "";
-  var tail = "";
-  var maxHalfLength = Math.floor(maxLineLength / 2) - 1;
-  if (position - lineStart > maxHalfLength) {
-    head = " ... ";
-    lineStart = position - maxHalfLength + head.length;
-  }
-  if (lineEnd - position > maxHalfLength) {
-    tail = " ...";
-    lineEnd = position + maxHalfLength - tail.length;
+// src/dispatcher/spawn-protocol.ts
+import { existsSync, readdirSync } from "node:fs";
+import { resolve as resolve2 } from "node:path";
+function parseSpawnId(spawnId) {
+  const dashIdx = spawnId.indexOf("-");
+  if (dashIdx === -1) {
+    throw new Error(`invalid spawn_id: no dash in ${spawnId}`);
   }
   return {
-    str: head + buffer.slice(lineStart, lineEnd).replace(/\t/g, "→") + tail,
-    pos: position - lineStart + head.length
+    ulid: spawnId.slice(0, dashIdx),
+    agentName: spawnId.slice(dashIdx + 1)
   };
 }
-function padStart(string, max) {
-  return common.repeat(" ", max - string.length) + string;
+function promptPath(spawnId, stateRoot) {
+  return resolve2(stateRoot, "progress/agent-prompts", `${spawnId}.md`);
 }
-function makeSnippet(mark, options) {
-  options = Object.create(options || null);
-  if (!mark.buffer)
-    return null;
-  if (!options.maxLength)
-    options.maxLength = 79;
-  if (typeof options.indent !== "number")
-    options.indent = 1;
-  if (typeof options.linesBefore !== "number")
-    options.linesBefore = 3;
-  if (typeof options.linesAfter !== "number")
-    options.linesAfter = 2;
-  var re = /\r?\n|\r|\0/g;
-  var lineStarts = [0];
-  var lineEnds = [];
-  var match;
-  var foundLineNo = -1;
-  while (match = re.exec(mark.buffer)) {
-    lineEnds.push(match.index);
-    lineStarts.push(match.index + match[0].length);
-    if (mark.position <= match.index && foundLineNo < 0) {
-      foundLineNo = lineStarts.length - 2;
-    }
-  }
-  if (foundLineNo < 0)
-    foundLineNo = lineStarts.length - 1;
-  var result = "", i2, line;
-  var lineNoLength = Math.min(mark.line + options.linesAfter, lineEnds.length).toString().length;
-  var maxLineLength = options.maxLength - (options.indent + lineNoLength + 3);
-  for (i2 = 1;i2 <= options.linesBefore; i2++) {
-    if (foundLineNo - i2 < 0)
-      break;
-    line = getLine(mark.buffer, lineStarts[foundLineNo - i2], lineEnds[foundLineNo - i2], mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo - i2]), maxLineLength);
-    result = common.repeat(" ", options.indent) + padStart((mark.line - i2 + 1).toString(), lineNoLength) + " | " + line.str + `
-` + result;
-  }
-  line = getLine(mark.buffer, lineStarts[foundLineNo], lineEnds[foundLineNo], mark.position, maxLineLength);
-  result += common.repeat(" ", options.indent) + padStart((mark.line + 1).toString(), lineNoLength) + " | " + line.str + `
-`;
-  result += common.repeat("-", options.indent + lineNoLength + 3 + line.pos) + "^" + `
-`;
-  for (i2 = 1;i2 <= options.linesAfter; i2++) {
-    if (foundLineNo + i2 >= lineEnds.length)
-      break;
-    line = getLine(mark.buffer, lineStarts[foundLineNo + i2], lineEnds[foundLineNo + i2], mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo + i2]), maxLineLength);
-    result += common.repeat(" ", options.indent) + padStart((mark.line + i2 + 1).toString(), lineNoLength) + " | " + line.str + `
-`;
-  }
-  return result.replace(/\n$/, "");
+function resultPath(spawnId, stateRoot) {
+  return resolve2(stateRoot, "progress/agent-results", `${spawnId}.md`);
 }
-function compileStyleAliases(map) {
-  var result = {};
-  if (map !== null) {
-    Object.keys(map).forEach(function(style) {
-      map[style].forEach(function(alias) {
-        result[String(alias)] = style;
-      });
-    });
-  }
-  return result;
-}
-function Type$1(tag, options) {
-  options = options || {};
-  Object.keys(options).forEach(function(name) {
-    if (TYPE_CONSTRUCTOR_OPTIONS.indexOf(name) === -1) {
-      throw new exception('Unknown option "' + name + '" is met in definition of "' + tag + '" YAML type.');
-    }
-  });
-  this.options = options;
-  this.tag = tag;
-  this.kind = options["kind"] || null;
-  this.resolve = options["resolve"] || function() {
-    return true;
-  };
-  this.construct = options["construct"] || function(data) {
-    return data;
-  };
-  this.instanceOf = options["instanceOf"] || null;
-  this.predicate = options["predicate"] || null;
-  this.represent = options["represent"] || null;
-  this.representName = options["representName"] || null;
-  this.defaultStyle = options["defaultStyle"] || null;
-  this.multi = options["multi"] || false;
-  this.styleAliases = compileStyleAliases(options["styleAliases"] || null);
-  if (YAML_NODE_KINDS.indexOf(this.kind) === -1) {
-    throw new exception('Unknown kind "' + this.kind + '" is specified for "' + tag + '" YAML type.');
-  }
-}
-function compileList(schema, name) {
-  var result = [];
-  schema[name].forEach(function(currentType) {
-    var newIndex = result.length;
-    result.forEach(function(previousType, previousIndex) {
-      if (previousType.tag === currentType.tag && previousType.kind === currentType.kind && previousType.multi === currentType.multi) {
-        newIndex = previousIndex;
-      }
-    });
-    result[newIndex] = currentType;
-  });
-  return result;
-}
-function compileMap() {
-  var result = {
-    scalar: {},
-    sequence: {},
-    mapping: {},
-    fallback: {},
-    multi: {
-      scalar: [],
-      sequence: [],
-      mapping: [],
-      fallback: []
-    }
-  }, index, length;
-  function collectType(type2) {
-    if (type2.multi) {
-      result.multi[type2.kind].push(type2);
-      result.multi["fallback"].push(type2);
-    } else {
-      result[type2.kind][type2.tag] = result["fallback"][type2.tag] = type2;
-    }
-  }
-  for (index = 0, length = arguments.length;index < length; index += 1) {
-    arguments[index].forEach(collectType);
-  }
-  return result;
-}
-function Schema$1(definition) {
-  return this.extend(definition);
-}
-function resolveYamlNull(data) {
-  if (data === null)
-    return true;
-  var max = data.length;
-  return max === 1 && data === "~" || max === 4 && (data === "null" || data === "Null" || data === "NULL");
-}
-function constructYamlNull() {
-  return null;
-}
-function isNull(object) {
-  return object === null;
-}
-function resolveYamlBoolean(data) {
-  if (data === null)
-    return false;
-  var max = data.length;
-  return max === 4 && (data === "true" || data === "True" || data === "TRUE") || max === 5 && (data === "false" || data === "False" || data === "FALSE");
-}
-function constructYamlBoolean(data) {
-  return data === "true" || data === "True" || data === "TRUE";
-}
-function isBoolean(object) {
-  return Object.prototype.toString.call(object) === "[object Boolean]";
-}
-function isHexCode(c3) {
-  return 48 <= c3 && c3 <= 57 || 65 <= c3 && c3 <= 70 || 97 <= c3 && c3 <= 102;
-}
-function isOctCode(c3) {
-  return 48 <= c3 && c3 <= 55;
-}
-function isDecCode(c3) {
-  return 48 <= c3 && c3 <= 57;
-}
-function resolveYamlInteger(data) {
-  if (data === null)
-    return false;
-  var max = data.length, index = 0, hasDigits = false, ch;
-  if (!max)
-    return false;
-  ch = data[index];
-  if (ch === "-" || ch === "+") {
-    ch = data[++index];
-  }
-  if (ch === "0") {
-    if (index + 1 === max)
-      return true;
-    ch = data[++index];
-    if (ch === "b") {
-      index++;
-      for (;index < max; index++) {
-        ch = data[index];
-        if (ch === "_")
-          continue;
-        if (ch !== "0" && ch !== "1")
-          return false;
-        hasDigits = true;
-      }
-      return hasDigits && ch !== "_";
-    }
-    if (ch === "x") {
-      index++;
-      for (;index < max; index++) {
-        ch = data[index];
-        if (ch === "_")
-          continue;
-        if (!isHexCode(data.charCodeAt(index)))
-          return false;
-        hasDigits = true;
-      }
-      return hasDigits && ch !== "_";
-    }
-    if (ch === "o") {
-      index++;
-      for (;index < max; index++) {
-        ch = data[index];
-        if (ch === "_")
-          continue;
-        if (!isOctCode(data.charCodeAt(index)))
-          return false;
-        hasDigits = true;
-      }
-      return hasDigits && ch !== "_";
-    }
-  }
-  if (ch === "_")
-    return false;
-  for (;index < max; index++) {
-    ch = data[index];
-    if (ch === "_")
-      continue;
-    if (!isDecCode(data.charCodeAt(index))) {
-      return false;
-    }
-    hasDigits = true;
-  }
-  if (!hasDigits || ch === "_")
-    return false;
-  return true;
-}
-function constructYamlInteger(data) {
-  var value = data, sign = 1, ch;
-  if (value.indexOf("_") !== -1) {
-    value = value.replace(/_/g, "");
-  }
-  ch = value[0];
-  if (ch === "-" || ch === "+") {
-    if (ch === "-")
-      sign = -1;
-    value = value.slice(1);
-    ch = value[0];
-  }
-  if (value === "0")
-    return 0;
-  if (ch === "0") {
-    if (value[1] === "b")
-      return sign * parseInt(value.slice(2), 2);
-    if (value[1] === "x")
-      return sign * parseInt(value.slice(2), 16);
-    if (value[1] === "o")
-      return sign * parseInt(value.slice(2), 8);
-  }
-  return sign * parseInt(value, 10);
-}
-function isInteger(object) {
-  return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 === 0 && !common.isNegativeZero(object));
-}
-function resolveYamlFloat(data) {
-  if (data === null)
-    return false;
-  if (!YAML_FLOAT_PATTERN.test(data) || data[data.length - 1] === "_") {
-    return false;
-  }
-  return true;
-}
-function constructYamlFloat(data) {
-  var value, sign;
-  value = data.replace(/_/g, "").toLowerCase();
-  sign = value[0] === "-" ? -1 : 1;
-  if ("+-".indexOf(value[0]) >= 0) {
-    value = value.slice(1);
-  }
-  if (value === ".inf") {
-    return sign === 1 ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
-  } else if (value === ".nan") {
-    return NaN;
-  }
-  return sign * parseFloat(value, 10);
-}
-function representYamlFloat(object, style) {
-  var res;
-  if (isNaN(object)) {
-    switch (style) {
-      case "lowercase":
-        return ".nan";
-      case "uppercase":
-        return ".NAN";
-      case "camelcase":
-        return ".NaN";
-    }
-  } else if (Number.POSITIVE_INFINITY === object) {
-    switch (style) {
-      case "lowercase":
-        return ".inf";
-      case "uppercase":
-        return ".INF";
-      case "camelcase":
-        return ".Inf";
-    }
-  } else if (Number.NEGATIVE_INFINITY === object) {
-    switch (style) {
-      case "lowercase":
-        return "-.inf";
-      case "uppercase":
-        return "-.INF";
-      case "camelcase":
-        return "-.Inf";
-    }
-  } else if (common.isNegativeZero(object)) {
-    return "-0.0";
-  }
-  res = object.toString(10);
-  return SCIENTIFIC_WITHOUT_DOT.test(res) ? res.replace("e", ".e") : res;
-}
-function isFloat(object) {
-  return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 !== 0 || common.isNegativeZero(object));
-}
-function resolveYamlTimestamp(data) {
-  if (data === null)
-    return false;
-  if (YAML_DATE_REGEXP.exec(data) !== null)
-    return true;
-  if (YAML_TIMESTAMP_REGEXP.exec(data) !== null)
-    return true;
-  return false;
-}
-function constructYamlTimestamp(data) {
-  var match, year, month, day, hour, minute, second, fraction = 0, delta = null, tz_hour, tz_minute, date;
-  match = YAML_DATE_REGEXP.exec(data);
-  if (match === null)
-    match = YAML_TIMESTAMP_REGEXP.exec(data);
-  if (match === null)
-    throw new Error("Date resolve error");
-  year = +match[1];
-  month = +match[2] - 1;
-  day = +match[3];
-  if (!match[4]) {
-    return new Date(Date.UTC(year, month, day));
-  }
-  hour = +match[4];
-  minute = +match[5];
-  second = +match[6];
-  if (match[7]) {
-    fraction = match[7].slice(0, 3);
-    while (fraction.length < 3) {
-      fraction += "0";
-    }
-    fraction = +fraction;
-  }
-  if (match[9]) {
-    tz_hour = +match[10];
-    tz_minute = +(match[11] || 0);
-    delta = (tz_hour * 60 + tz_minute) * 60000;
-    if (match[9] === "-")
-      delta = -delta;
-  }
-  date = new Date(Date.UTC(year, month, day, hour, minute, second, fraction));
-  if (delta)
-    date.setTime(date.getTime() - delta);
-  return date;
-}
-function representYamlTimestamp(object) {
-  return object.toISOString();
-}
-function resolveYamlMerge(data) {
-  return data === "<<" || data === null;
-}
-function resolveYamlBinary(data) {
-  if (data === null)
-    return false;
-  var code, idx, bitlen = 0, max = data.length, map2 = BASE64_MAP;
-  for (idx = 0;idx < max; idx++) {
-    code = map2.indexOf(data.charAt(idx));
-    if (code > 64)
-      continue;
-    if (code < 0)
-      return false;
-    bitlen += 6;
-  }
-  return bitlen % 8 === 0;
-}
-function constructYamlBinary(data) {
-  var idx, tailbits, input = data.replace(/[\r\n=]/g, ""), max = input.length, map2 = BASE64_MAP, bits = 0, result = [];
-  for (idx = 0;idx < max; idx++) {
-    if (idx % 4 === 0 && idx) {
-      result.push(bits >> 16 & 255);
-      result.push(bits >> 8 & 255);
-      result.push(bits & 255);
-    }
-    bits = bits << 6 | map2.indexOf(input.charAt(idx));
-  }
-  tailbits = max % 4 * 6;
-  if (tailbits === 0) {
-    result.push(bits >> 16 & 255);
-    result.push(bits >> 8 & 255);
-    result.push(bits & 255);
-  } else if (tailbits === 18) {
-    result.push(bits >> 10 & 255);
-    result.push(bits >> 2 & 255);
-  } else if (tailbits === 12) {
-    result.push(bits >> 4 & 255);
-  }
-  return new Uint8Array(result);
-}
-function representYamlBinary(object) {
-  var result = "", bits = 0, idx, tail, max = object.length, map2 = BASE64_MAP;
-  for (idx = 0;idx < max; idx++) {
-    if (idx % 3 === 0 && idx) {
-      result += map2[bits >> 18 & 63];
-      result += map2[bits >> 12 & 63];
-      result += map2[bits >> 6 & 63];
-      result += map2[bits & 63];
-    }
-    bits = (bits << 8) + object[idx];
-  }
-  tail = max % 3;
-  if (tail === 0) {
-    result += map2[bits >> 18 & 63];
-    result += map2[bits >> 12 & 63];
-    result += map2[bits >> 6 & 63];
-    result += map2[bits & 63];
-  } else if (tail === 2) {
-    result += map2[bits >> 10 & 63];
-    result += map2[bits >> 4 & 63];
-    result += map2[bits << 2 & 63];
-    result += map2[64];
-  } else if (tail === 1) {
-    result += map2[bits >> 2 & 63];
-    result += map2[bits << 4 & 63];
-    result += map2[64];
-    result += map2[64];
-  }
-  return result;
-}
-function isBinary(obj) {
-  return Object.prototype.toString.call(obj) === "[object Uint8Array]";
-}
-function resolveYamlOmap(data) {
-  if (data === null)
-    return true;
-  var objectKeys = [], index, length, pair, pairKey, pairHasKey, object = data;
-  for (index = 0, length = object.length;index < length; index += 1) {
-    pair = object[index];
-    pairHasKey = false;
-    if (_toString$2.call(pair) !== "[object Object]")
-      return false;
-    for (pairKey in pair) {
-      if (_hasOwnProperty$3.call(pair, pairKey)) {
-        if (!pairHasKey)
-          pairHasKey = true;
-        else
-          return false;
-      }
-    }
-    if (!pairHasKey)
-      return false;
-    if (objectKeys.indexOf(pairKey) === -1)
-      objectKeys.push(pairKey);
-    else
-      return false;
-  }
-  return true;
-}
-function constructYamlOmap(data) {
-  return data !== null ? data : [];
-}
-function resolveYamlPairs(data) {
-  if (data === null)
-    return true;
-  var index, length, pair, keys, result, object = data;
-  result = new Array(object.length);
-  for (index = 0, length = object.length;index < length; index += 1) {
-    pair = object[index];
-    if (_toString$1.call(pair) !== "[object Object]")
-      return false;
-    keys = Object.keys(pair);
-    if (keys.length !== 1)
-      return false;
-    result[index] = [keys[0], pair[keys[0]]];
-  }
-  return true;
-}
-function constructYamlPairs(data) {
-  if (data === null)
+function listAllSpawns(stateRoot) {
+  const promptsDir = resolve2(stateRoot, "progress/agent-prompts");
+  if (!existsSync(promptsDir))
     return [];
-  var index, length, pair, keys, result, object = data;
-  result = new Array(object.length);
-  for (index = 0, length = object.length;index < length; index += 1) {
-    pair = object[index];
-    keys = Object.keys(pair);
-    result[index] = [keys[0], pair[keys[0]]];
+  return readdirSync(promptsDir).filter((f3) => f3.endsWith(".md")).sort().map((f3) => {
+    const spawnId = f3.slice(0, -3);
+    const { agentName } = parseSpawnId(spawnId);
+    const pp = promptPath(spawnId, stateRoot);
+    const rp = resultPath(spawnId, stateRoot);
+    return {
+      spawnId,
+      agentName,
+      promptPath: pp,
+      resultPath: rp,
+      hasResult: existsSync(rp)
+    };
+  });
+}
+function listPendingSpawns(stateRoot) {
+  return listAllSpawns(stateRoot).filter((s2) => !s2.hasResult);
+}
+var init_spawn_protocol = () => {};
+
+// node_modules/js-yaml/dist/js-yaml.mjs
+function getDefaultExportFromCjs2(x2) {
+  return x2 && x2.__esModule && Object.prototype.hasOwnProperty.call(x2, "default") ? x2["default"] : x2;
+}
+function requireCommon() {
+  if (hasRequiredCommon)
+    return common;
+  hasRequiredCommon = 1;
+  function isNothing(subject) {
+    return typeof subject === "undefined" || subject === null;
   }
-  return result;
-}
-function resolveYamlSet(data) {
-  if (data === null)
-    return true;
-  var key, object = data;
-  for (key in object) {
-    if (_hasOwnProperty$2.call(object, key)) {
-      if (object[key] !== null)
-        return false;
-    }
+  function isObject(subject) {
+    return typeof subject === "object" && subject !== null;
   }
-  return true;
-}
-function constructYamlSet(data) {
-  return data !== null ? data : {};
-}
-function _class(obj) {
-  return Object.prototype.toString.call(obj);
-}
-function is_EOL(c3) {
-  return c3 === 10 || c3 === 13;
-}
-function is_WHITE_SPACE(c3) {
-  return c3 === 9 || c3 === 32;
-}
-function is_WS_OR_EOL(c3) {
-  return c3 === 9 || c3 === 32 || c3 === 10 || c3 === 13;
-}
-function is_FLOW_INDICATOR(c3) {
-  return c3 === 44 || c3 === 91 || c3 === 93 || c3 === 123 || c3 === 125;
-}
-function fromHexCode(c3) {
-  var lc;
-  if (48 <= c3 && c3 <= 57) {
-    return c3 - 48;
+  function toArray2(sequence) {
+    if (Array.isArray(sequence))
+      return sequence;
+    else if (isNothing(sequence))
+      return [];
+    return [sequence];
   }
-  lc = c3 | 32;
-  if (97 <= lc && lc <= 102) {
-    return lc - 97 + 10;
-  }
-  return -1;
-}
-function escapedHexLen(c3) {
-  if (c3 === 120) {
-    return 2;
-  }
-  if (c3 === 117) {
-    return 4;
-  }
-  if (c3 === 85) {
-    return 8;
-  }
-  return 0;
-}
-function fromDecimalCode(c3) {
-  if (48 <= c3 && c3 <= 57) {
-    return c3 - 48;
-  }
-  return -1;
-}
-function simpleEscapeSequence(c3) {
-  return c3 === 48 ? "\x00" : c3 === 97 ? "\x07" : c3 === 98 ? "\b" : c3 === 116 ? "\t" : c3 === 9 ? "\t" : c3 === 110 ? `
-` : c3 === 118 ? "\v" : c3 === 102 ? "\f" : c3 === 114 ? "\r" : c3 === 101 ? "\x1B" : c3 === 32 ? " " : c3 === 34 ? '"' : c3 === 47 ? "/" : c3 === 92 ? "\\" : c3 === 78 ? "" : c3 === 95 ? " " : c3 === 76 ? "\u2028" : c3 === 80 ? "\u2029" : "";
-}
-function charFromCodepoint(c3) {
-  if (c3 <= 65535) {
-    return String.fromCharCode(c3);
-  }
-  return String.fromCharCode((c3 - 65536 >> 10) + 55296, (c3 - 65536 & 1023) + 56320);
-}
-function setProperty(object, key, value) {
-  if (key === "__proto__") {
-    Object.defineProperty(object, key, {
-      configurable: true,
-      enumerable: true,
-      writable: true,
-      value
-    });
-  } else {
-    object[key] = value;
-  }
-}
-function State$1(input, options) {
-  this.input = input;
-  this.filename = options["filename"] || null;
-  this.schema = options["schema"] || _default;
-  this.onWarning = options["onWarning"] || null;
-  this.legacy = options["legacy"] || false;
-  this.json = options["json"] || false;
-  this.listener = options["listener"] || null;
-  this.implicitTypes = this.schema.compiledImplicit;
-  this.typeMap = this.schema.compiledTypeMap;
-  this.length = input.length;
-  this.position = 0;
-  this.line = 0;
-  this.lineStart = 0;
-  this.lineIndent = 0;
-  this.firstTabInLine = -1;
-  this.documents = [];
-}
-function generateError(state, message) {
-  var mark = {
-    name: state.filename,
-    buffer: state.input.slice(0, -1),
-    position: state.position,
-    line: state.line,
-    column: state.position - state.lineStart
-  };
-  mark.snippet = snippet(mark);
-  return new exception(message, mark);
-}
-function throwError(state, message) {
-  throw generateError(state, message);
-}
-function throwWarning(state, message) {
-  if (state.onWarning) {
-    state.onWarning.call(null, generateError(state, message));
-  }
-}
-function captureSegment(state, start, end, checkJson) {
-  var _position, _length, _character, _result;
-  if (start < end) {
-    _result = state.input.slice(start, end);
-    if (checkJson) {
-      for (_position = 0, _length = _result.length;_position < _length; _position += 1) {
-        _character = _result.charCodeAt(_position);
-        if (!(_character === 9 || 32 <= _character && _character <= 1114111)) {
-          throwError(state, "expected valid JSON character");
-        }
-      }
-    } else if (PATTERN_NON_PRINTABLE.test(_result)) {
-      throwError(state, "the stream contains non-printable characters");
-    }
-    state.result += _result;
-  }
-}
-function mergeMappings(state, destination, source, overridableKeys) {
-  var sourceKeys, key, index, quantity;
-  if (!common.isObject(source)) {
-    throwError(state, "cannot merge mappings; the provided source object is unacceptable");
-  }
-  sourceKeys = Object.keys(source);
-  for (index = 0, quantity = sourceKeys.length;index < quantity; index += 1) {
-    key = sourceKeys[index];
-    if (!_hasOwnProperty$1.call(destination, key)) {
-      setProperty(destination, key, source[key]);
-      overridableKeys[key] = true;
-    }
-  }
-}
-function storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, valueNode, startLine, startLineStart, startPos) {
-  var index, quantity;
-  if (Array.isArray(keyNode)) {
-    keyNode = Array.prototype.slice.call(keyNode);
-    for (index = 0, quantity = keyNode.length;index < quantity; index += 1) {
-      if (Array.isArray(keyNode[index])) {
-        throwError(state, "nested arrays are not supported inside keys");
-      }
-      if (typeof keyNode === "object" && _class(keyNode[index]) === "[object Object]") {
-        keyNode[index] = "[object Object]";
+  function extend(target, source) {
+    if (source) {
+      const sourceKeys = Object.keys(source);
+      for (let index = 0, length = sourceKeys.length;index < length; index += 1) {
+        const key = sourceKeys[index];
+        target[key] = source[key];
       }
     }
+    return target;
   }
-  if (typeof keyNode === "object" && _class(keyNode) === "[object Object]") {
-    keyNode = "[object Object]";
+  function repeat(string, count) {
+    let result = "";
+    for (let cycle = 0;cycle < count; cycle += 1) {
+      result += string;
+    }
+    return result;
   }
-  keyNode = String(keyNode);
-  if (_result === null) {
-    _result = {};
+  function isNegativeZero(number) {
+    return number === 0 && Number.NEGATIVE_INFINITY === 1 / number;
   }
-  if (keyTag === "tag:yaml.org,2002:merge") {
-    if (Array.isArray(valueNode)) {
-      for (index = 0, quantity = valueNode.length;index < quantity; index += 1) {
-        mergeMappings(state, _result, valueNode[index], overridableKeys);
-      }
+  common.isNothing = isNothing;
+  common.isObject = isObject;
+  common.toArray = toArray2;
+  common.repeat = repeat;
+  common.isNegativeZero = isNegativeZero;
+  common.extend = extend;
+  return common;
+}
+function requireException() {
+  if (hasRequiredException)
+    return exception;
+  hasRequiredException = 1;
+  function formatError(exception2, compact) {
+    let where = "";
+    const message = exception2.reason || "(unknown reason)";
+    if (!exception2.mark)
+      return message;
+    if (exception2.mark.name) {
+      where += 'in "' + exception2.mark.name + '" ';
+    }
+    where += "(" + (exception2.mark.line + 1) + ":" + (exception2.mark.column + 1) + ")";
+    if (!compact && exception2.mark.snippet) {
+      where += `
+
+` + exception2.mark.snippet;
+    }
+    return message + " " + where;
+  }
+  function YAMLException2(reason, mark) {
+    Error.call(this);
+    this.name = "YAMLException";
+    this.reason = reason;
+    this.mark = mark;
+    this.message = formatError(this, false);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, this.constructor);
     } else {
-      mergeMappings(state, _result, valueNode, overridableKeys);
+      this.stack = new Error().stack || "";
     }
-  } else {
-    if (!state.json && !_hasOwnProperty$1.call(overridableKeys, keyNode) && _hasOwnProperty$1.call(_result, keyNode)) {
-      state.line = startLine || state.line;
-      state.lineStart = startLineStart || state.lineStart;
-      state.position = startPos || state.position;
-      throwError(state, "duplicated mapping key");
-    }
-    setProperty(_result, keyNode, valueNode);
-    delete overridableKeys[keyNode];
-  }
-  return _result;
-}
-function readLineBreak(state) {
-  var ch;
-  ch = state.input.charCodeAt(state.position);
-  if (ch === 10) {
-    state.position++;
-  } else if (ch === 13) {
-    state.position++;
-    if (state.input.charCodeAt(state.position) === 10) {
-      state.position++;
-    }
-  } else {
-    throwError(state, "a line break is expected");
-  }
-  state.line += 1;
-  state.lineStart = state.position;
-  state.firstTabInLine = -1;
-}
-function skipSeparationSpace(state, allowComments, checkIndent) {
-  var lineBreaks = 0, ch = state.input.charCodeAt(state.position);
-  while (ch !== 0) {
-    while (is_WHITE_SPACE(ch)) {
-      if (ch === 9 && state.firstTabInLine === -1) {
-        state.firstTabInLine = state.position;
-      }
-      ch = state.input.charCodeAt(++state.position);
-    }
-    if (allowComments && ch === 35) {
-      do {
-        ch = state.input.charCodeAt(++state.position);
-      } while (ch !== 10 && ch !== 13 && ch !== 0);
-    }
-    if (is_EOL(ch)) {
-      readLineBreak(state);
-      ch = state.input.charCodeAt(state.position);
-      lineBreaks++;
-      state.lineIndent = 0;
-      while (ch === 32) {
-        state.lineIndent++;
-        ch = state.input.charCodeAt(++state.position);
-      }
-    } else {
-      break;
-    }
-  }
-  if (checkIndent !== -1 && lineBreaks !== 0 && state.lineIndent < checkIndent) {
-    throwWarning(state, "deficient indentation");
-  }
-  return lineBreaks;
-}
-function testDocumentSeparator(state) {
-  var _position = state.position, ch;
-  ch = state.input.charCodeAt(_position);
-  if ((ch === 45 || ch === 46) && ch === state.input.charCodeAt(_position + 1) && ch === state.input.charCodeAt(_position + 2)) {
-    _position += 3;
-    ch = state.input.charCodeAt(_position);
-    if (ch === 0 || is_WS_OR_EOL(ch)) {
-      return true;
-    }
-  }
-  return false;
-}
-function writeFoldedLines(state, count) {
-  if (count === 1) {
-    state.result += " ";
-  } else if (count > 1) {
-    state.result += common.repeat(`
-`, count - 1);
-  }
-}
-function readPlainScalar(state, nodeIndent, withinFlowCollection) {
-  var preceding, following, captureStart, captureEnd, hasPendingContent, _line, _lineStart, _lineIndent, _kind = state.kind, _result = state.result, ch;
-  ch = state.input.charCodeAt(state.position);
-  if (is_WS_OR_EOL(ch) || is_FLOW_INDICATOR(ch) || ch === 35 || ch === 38 || ch === 42 || ch === 33 || ch === 124 || ch === 62 || ch === 39 || ch === 34 || ch === 37 || ch === 64 || ch === 96) {
-    return false;
-  }
-  if (ch === 63 || ch === 45) {
-    following = state.input.charCodeAt(state.position + 1);
-    if (is_WS_OR_EOL(following) || withinFlowCollection && is_FLOW_INDICATOR(following)) {
-      return false;
-    }
-  }
-  state.kind = "scalar";
-  state.result = "";
-  captureStart = captureEnd = state.position;
-  hasPendingContent = false;
-  while (ch !== 0) {
-    if (ch === 58) {
-      following = state.input.charCodeAt(state.position + 1);
-      if (is_WS_OR_EOL(following) || withinFlowCollection && is_FLOW_INDICATOR(following)) {
-        break;
-      }
-    } else if (ch === 35) {
-      preceding = state.input.charCodeAt(state.position - 1);
-      if (is_WS_OR_EOL(preceding)) {
-        break;
-      }
-    } else if (state.position === state.lineStart && testDocumentSeparator(state) || withinFlowCollection && is_FLOW_INDICATOR(ch)) {
-      break;
-    } else if (is_EOL(ch)) {
-      _line = state.line;
-      _lineStart = state.lineStart;
-      _lineIndent = state.lineIndent;
-      skipSeparationSpace(state, false, -1);
-      if (state.lineIndent >= nodeIndent) {
-        hasPendingContent = true;
-        ch = state.input.charCodeAt(state.position);
-        continue;
-      } else {
-        state.position = captureEnd;
-        state.line = _line;
-        state.lineStart = _lineStart;
-        state.lineIndent = _lineIndent;
-        break;
-      }
-    }
-    if (hasPendingContent) {
-      captureSegment(state, captureStart, captureEnd, false);
-      writeFoldedLines(state, state.line - _line);
-      captureStart = captureEnd = state.position;
-      hasPendingContent = false;
-    }
-    if (!is_WHITE_SPACE(ch)) {
-      captureEnd = state.position + 1;
-    }
-    ch = state.input.charCodeAt(++state.position);
-  }
-  captureSegment(state, captureStart, captureEnd, false);
-  if (state.result) {
-    return true;
-  }
-  state.kind = _kind;
-  state.result = _result;
-  return false;
-}
-function readSingleQuotedScalar(state, nodeIndent) {
-  var ch, captureStart, captureEnd;
-  ch = state.input.charCodeAt(state.position);
-  if (ch !== 39) {
-    return false;
-  }
-  state.kind = "scalar";
-  state.result = "";
-  state.position++;
-  captureStart = captureEnd = state.position;
-  while ((ch = state.input.charCodeAt(state.position)) !== 0) {
-    if (ch === 39) {
-      captureSegment(state, captureStart, state.position, true);
-      ch = state.input.charCodeAt(++state.position);
-      if (ch === 39) {
-        captureStart = state.position;
-        state.position++;
-        captureEnd = state.position;
-      } else {
-        return true;
-      }
-    } else if (is_EOL(ch)) {
-      captureSegment(state, captureStart, captureEnd, true);
-      writeFoldedLines(state, skipSeparationSpace(state, false, nodeIndent));
-      captureStart = captureEnd = state.position;
-    } else if (state.position === state.lineStart && testDocumentSeparator(state)) {
-      throwError(state, "unexpected end of the document within a single quoted scalar");
-    } else {
-      state.position++;
-      captureEnd = state.position;
-    }
-  }
-  throwError(state, "unexpected end of the stream within a single quoted scalar");
-}
-function readDoubleQuotedScalar(state, nodeIndent) {
-  var captureStart, captureEnd, hexLength, hexResult, tmp, ch;
-  ch = state.input.charCodeAt(state.position);
-  if (ch !== 34) {
-    return false;
-  }
-  state.kind = "scalar";
-  state.result = "";
-  state.position++;
-  captureStart = captureEnd = state.position;
-  while ((ch = state.input.charCodeAt(state.position)) !== 0) {
-    if (ch === 34) {
-      captureSegment(state, captureStart, state.position, true);
-      state.position++;
-      return true;
-    } else if (ch === 92) {
-      captureSegment(state, captureStart, state.position, true);
-      ch = state.input.charCodeAt(++state.position);
-      if (is_EOL(ch)) {
-        skipSeparationSpace(state, false, nodeIndent);
-      } else if (ch < 256 && simpleEscapeCheck[ch]) {
-        state.result += simpleEscapeMap[ch];
-        state.position++;
-      } else if ((tmp = escapedHexLen(ch)) > 0) {
-        hexLength = tmp;
-        hexResult = 0;
-        for (;hexLength > 0; hexLength--) {
-          ch = state.input.charCodeAt(++state.position);
-          if ((tmp = fromHexCode(ch)) >= 0) {
-            hexResult = (hexResult << 4) + tmp;
-          } else {
-            throwError(state, "expected hexadecimal character");
-          }
-        }
-        state.result += charFromCodepoint(hexResult);
-        state.position++;
-      } else {
-        throwError(state, "unknown escape sequence");
-      }
-      captureStart = captureEnd = state.position;
-    } else if (is_EOL(ch)) {
-      captureSegment(state, captureStart, captureEnd, true);
-      writeFoldedLines(state, skipSeparationSpace(state, false, nodeIndent));
-      captureStart = captureEnd = state.position;
-    } else if (state.position === state.lineStart && testDocumentSeparator(state)) {
-      throwError(state, "unexpected end of the document within a double quoted scalar");
-    } else {
-      state.position++;
-      captureEnd = state.position;
-    }
-  }
-  throwError(state, "unexpected end of the stream within a double quoted scalar");
-}
-function readFlowCollection(state, nodeIndent) {
-  var readNext = true, _line, _lineStart, _pos, _tag = state.tag, _result, _anchor = state.anchor, following, terminator, isPair, isExplicitPair, isMapping, overridableKeys = Object.create(null), keyNode, keyTag, valueNode, ch;
-  ch = state.input.charCodeAt(state.position);
-  if (ch === 91) {
-    terminator = 93;
-    isMapping = false;
-    _result = [];
-  } else if (ch === 123) {
-    terminator = 125;
-    isMapping = true;
-    _result = {};
-  } else {
-    return false;
-  }
-  if (state.anchor !== null) {
-    state.anchorMap[state.anchor] = _result;
-  }
-  ch = state.input.charCodeAt(++state.position);
-  while (ch !== 0) {
-    skipSeparationSpace(state, true, nodeIndent);
-    ch = state.input.charCodeAt(state.position);
-    if (ch === terminator) {
-      state.position++;
-      state.tag = _tag;
-      state.anchor = _anchor;
-      state.kind = isMapping ? "mapping" : "sequence";
-      state.result = _result;
-      return true;
-    } else if (!readNext) {
-      throwError(state, "missed comma between flow collection entries");
-    } else if (ch === 44) {
-      throwError(state, "expected the node content, but found ','");
-    }
-    keyTag = keyNode = valueNode = null;
-    isPair = isExplicitPair = false;
-    if (ch === 63) {
-      following = state.input.charCodeAt(state.position + 1);
-      if (is_WS_OR_EOL(following)) {
-        isPair = isExplicitPair = true;
-        state.position++;
-        skipSeparationSpace(state, true, nodeIndent);
-      }
-    }
-    _line = state.line;
-    _lineStart = state.lineStart;
-    _pos = state.position;
-    composeNode(state, nodeIndent, CONTEXT_FLOW_IN, false, true);
-    keyTag = state.tag;
-    keyNode = state.result;
-    skipSeparationSpace(state, true, nodeIndent);
-    ch = state.input.charCodeAt(state.position);
-    if ((isExplicitPair || state.line === _line) && ch === 58) {
-      isPair = true;
-      ch = state.input.charCodeAt(++state.position);
-      skipSeparationSpace(state, true, nodeIndent);
-      composeNode(state, nodeIndent, CONTEXT_FLOW_IN, false, true);
-      valueNode = state.result;
-    }
-    if (isMapping) {
-      storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, valueNode, _line, _lineStart, _pos);
-    } else if (isPair) {
-      _result.push(storeMappingPair(state, null, overridableKeys, keyTag, keyNode, valueNode, _line, _lineStart, _pos));
-    } else {
-      _result.push(keyNode);
-    }
-    skipSeparationSpace(state, true, nodeIndent);
-    ch = state.input.charCodeAt(state.position);
-    if (ch === 44) {
-      readNext = true;
-      ch = state.input.charCodeAt(++state.position);
-    } else {
-      readNext = false;
-    }
-  }
-  throwError(state, "unexpected end of the stream within a flow collection");
-}
-function readBlockScalar(state, nodeIndent) {
-  var captureStart, folding, chomping = CHOMPING_CLIP, didReadContent = false, detectedIndent = false, textIndent = nodeIndent, emptyLines = 0, atMoreIndented = false, tmp, ch;
-  ch = state.input.charCodeAt(state.position);
-  if (ch === 124) {
-    folding = false;
-  } else if (ch === 62) {
-    folding = true;
-  } else {
-    return false;
-  }
-  state.kind = "scalar";
-  state.result = "";
-  while (ch !== 0) {
-    ch = state.input.charCodeAt(++state.position);
-    if (ch === 43 || ch === 45) {
-      if (CHOMPING_CLIP === chomping) {
-        chomping = ch === 43 ? CHOMPING_KEEP : CHOMPING_STRIP;
-      } else {
-        throwError(state, "repeat of a chomping mode identifier");
-      }
-    } else if ((tmp = fromDecimalCode(ch)) >= 0) {
-      if (tmp === 0) {
-        throwError(state, "bad explicit indentation width of a block scalar; it cannot be less than one");
-      } else if (!detectedIndent) {
-        textIndent = nodeIndent + tmp - 1;
-        detectedIndent = true;
-      } else {
-        throwError(state, "repeat of an indentation width identifier");
-      }
-    } else {
-      break;
-    }
-  }
-  if (is_WHITE_SPACE(ch)) {
-    do {
-      ch = state.input.charCodeAt(++state.position);
-    } while (is_WHITE_SPACE(ch));
-    if (ch === 35) {
-      do {
-        ch = state.input.charCodeAt(++state.position);
-      } while (!is_EOL(ch) && ch !== 0);
-    }
-  }
-  while (ch !== 0) {
-    readLineBreak(state);
-    state.lineIndent = 0;
-    ch = state.input.charCodeAt(state.position);
-    while ((!detectedIndent || state.lineIndent < textIndent) && ch === 32) {
-      state.lineIndent++;
-      ch = state.input.charCodeAt(++state.position);
-    }
-    if (!detectedIndent && state.lineIndent > textIndent) {
-      textIndent = state.lineIndent;
-    }
-    if (is_EOL(ch)) {
-      emptyLines++;
-      continue;
-    }
-    if (state.lineIndent < textIndent) {
-      if (chomping === CHOMPING_KEEP) {
-        state.result += common.repeat(`
-`, didReadContent ? 1 + emptyLines : emptyLines);
-      } else if (chomping === CHOMPING_CLIP) {
-        if (didReadContent) {
-          state.result += `
-`;
-        }
-      }
-      break;
-    }
-    if (folding) {
-      if (is_WHITE_SPACE(ch)) {
-        atMoreIndented = true;
-        state.result += common.repeat(`
-`, didReadContent ? 1 + emptyLines : emptyLines);
-      } else if (atMoreIndented) {
-        atMoreIndented = false;
-        state.result += common.repeat(`
-`, emptyLines + 1);
-      } else if (emptyLines === 0) {
-        if (didReadContent) {
-          state.result += " ";
-        }
-      } else {
-        state.result += common.repeat(`
-`, emptyLines);
-      }
-    } else {
-      state.result += common.repeat(`
-`, didReadContent ? 1 + emptyLines : emptyLines);
-    }
-    didReadContent = true;
-    detectedIndent = true;
-    emptyLines = 0;
-    captureStart = state.position;
-    while (!is_EOL(ch) && ch !== 0) {
-      ch = state.input.charCodeAt(++state.position);
-    }
-    captureSegment(state, captureStart, state.position, false);
-  }
-  return true;
-}
-function readBlockSequence(state, nodeIndent) {
-  var _line, _tag = state.tag, _anchor = state.anchor, _result = [], following, detected = false, ch;
-  if (state.firstTabInLine !== -1)
-    return false;
-  if (state.anchor !== null) {
-    state.anchorMap[state.anchor] = _result;
-  }
-  ch = state.input.charCodeAt(state.position);
-  while (ch !== 0) {
-    if (state.firstTabInLine !== -1) {
-      state.position = state.firstTabInLine;
-      throwError(state, "tab characters must not be used in indentation");
-    }
-    if (ch !== 45) {
-      break;
-    }
-    following = state.input.charCodeAt(state.position + 1);
-    if (!is_WS_OR_EOL(following)) {
-      break;
-    }
-    detected = true;
-    state.position++;
-    if (skipSeparationSpace(state, true, -1)) {
-      if (state.lineIndent <= nodeIndent) {
-        _result.push(null);
-        ch = state.input.charCodeAt(state.position);
-        continue;
-      }
-    }
-    _line = state.line;
-    composeNode(state, nodeIndent, CONTEXT_BLOCK_IN, false, true);
-    _result.push(state.result);
-    skipSeparationSpace(state, true, -1);
-    ch = state.input.charCodeAt(state.position);
-    if ((state.line === _line || state.lineIndent > nodeIndent) && ch !== 0) {
-      throwError(state, "bad indentation of a sequence entry");
-    } else if (state.lineIndent < nodeIndent) {
-      break;
-    }
-  }
-  if (detected) {
-    state.tag = _tag;
-    state.anchor = _anchor;
-    state.kind = "sequence";
-    state.result = _result;
-    return true;
-  }
-  return false;
-}
-function readBlockMapping(state, nodeIndent, flowIndent) {
-  var following, allowCompact, _line, _keyLine, _keyLineStart, _keyPos, _tag = state.tag, _anchor = state.anchor, _result = {}, overridableKeys = Object.create(null), keyTag = null, keyNode = null, valueNode = null, atExplicitKey = false, detected = false, ch;
-  if (state.firstTabInLine !== -1)
-    return false;
-  if (state.anchor !== null) {
-    state.anchorMap[state.anchor] = _result;
-  }
-  ch = state.input.charCodeAt(state.position);
-  while (ch !== 0) {
-    if (!atExplicitKey && state.firstTabInLine !== -1) {
-      state.position = state.firstTabInLine;
-      throwError(state, "tab characters must not be used in indentation");
-    }
-    following = state.input.charCodeAt(state.position + 1);
-    _line = state.line;
-    if ((ch === 63 || ch === 58) && is_WS_OR_EOL(following)) {
-      if (ch === 63) {
-        if (atExplicitKey) {
-          storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
-          keyTag = keyNode = valueNode = null;
-        }
-        detected = true;
-        atExplicitKey = true;
-        allowCompact = true;
-      } else if (atExplicitKey) {
-        atExplicitKey = false;
-        allowCompact = true;
-      } else {
-        throwError(state, "incomplete explicit mapping pair; a key node is missed; or followed by a non-tabulated empty line");
-      }
-      state.position += 1;
-      ch = following;
-    } else {
-      _keyLine = state.line;
-      _keyLineStart = state.lineStart;
-      _keyPos = state.position;
-      if (!composeNode(state, flowIndent, CONTEXT_FLOW_OUT, false, true)) {
-        break;
-      }
-      if (state.line === _line) {
-        ch = state.input.charCodeAt(state.position);
-        while (is_WHITE_SPACE(ch)) {
-          ch = state.input.charCodeAt(++state.position);
-        }
-        if (ch === 58) {
-          ch = state.input.charCodeAt(++state.position);
-          if (!is_WS_OR_EOL(ch)) {
-            throwError(state, "a whitespace character is expected after the key-value separator within a block mapping");
-          }
-          if (atExplicitKey) {
-            storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
-            keyTag = keyNode = valueNode = null;
-          }
-          detected = true;
-          atExplicitKey = false;
-          allowCompact = false;
-          keyTag = state.tag;
-          keyNode = state.result;
-        } else if (detected) {
-          throwError(state, "can not read an implicit mapping pair; a colon is missed");
-        } else {
-          state.tag = _tag;
-          state.anchor = _anchor;
-          return true;
-        }
-      } else if (detected) {
-        throwError(state, "can not read a block mapping entry; a multiline key may not be an implicit key");
-      } else {
-        state.tag = _tag;
-        state.anchor = _anchor;
-        return true;
-      }
-    }
-    if (state.line === _line || state.lineIndent > nodeIndent) {
-      if (atExplicitKey) {
-        _keyLine = state.line;
-        _keyLineStart = state.lineStart;
-        _keyPos = state.position;
-      }
-      if (composeNode(state, nodeIndent, CONTEXT_BLOCK_OUT, true, allowCompact)) {
-        if (atExplicitKey) {
-          keyNode = state.result;
-        } else {
-          valueNode = state.result;
-        }
-      }
-      if (!atExplicitKey) {
-        storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, valueNode, _keyLine, _keyLineStart, _keyPos);
-        keyTag = keyNode = valueNode = null;
-      }
-      skipSeparationSpace(state, true, -1);
-      ch = state.input.charCodeAt(state.position);
-    }
-    if ((state.line === _line || state.lineIndent > nodeIndent) && ch !== 0) {
-      throwError(state, "bad indentation of a mapping entry");
-    } else if (state.lineIndent < nodeIndent) {
-      break;
-    }
-  }
-  if (atExplicitKey) {
-    storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
-  }
-  if (detected) {
-    state.tag = _tag;
-    state.anchor = _anchor;
-    state.kind = "mapping";
-    state.result = _result;
-  }
-  return detected;
-}
-function readTagProperty(state) {
-  var _position, isVerbatim = false, isNamed = false, tagHandle, tagName, ch;
-  ch = state.input.charCodeAt(state.position);
-  if (ch !== 33)
-    return false;
-  if (state.tag !== null) {
-    throwError(state, "duplication of a tag property");
-  }
-  ch = state.input.charCodeAt(++state.position);
-  if (ch === 60) {
-    isVerbatim = true;
-    ch = state.input.charCodeAt(++state.position);
-  } else if (ch === 33) {
-    isNamed = true;
-    tagHandle = "!!";
-    ch = state.input.charCodeAt(++state.position);
-  } else {
-    tagHandle = "!";
-  }
-  _position = state.position;
-  if (isVerbatim) {
-    do {
-      ch = state.input.charCodeAt(++state.position);
-    } while (ch !== 0 && ch !== 62);
-    if (state.position < state.length) {
-      tagName = state.input.slice(_position, state.position);
-      ch = state.input.charCodeAt(++state.position);
-    } else {
-      throwError(state, "unexpected end of the stream within a verbatim tag");
-    }
-  } else {
-    while (ch !== 0 && !is_WS_OR_EOL(ch)) {
-      if (ch === 33) {
-        if (!isNamed) {
-          tagHandle = state.input.slice(_position - 1, state.position + 1);
-          if (!PATTERN_TAG_HANDLE.test(tagHandle)) {
-            throwError(state, "named tag handle cannot contain such characters");
-          }
-          isNamed = true;
-          _position = state.position + 1;
-        } else {
-          throwError(state, "tag suffix cannot contain exclamation marks");
-        }
-      }
-      ch = state.input.charCodeAt(++state.position);
-    }
-    tagName = state.input.slice(_position, state.position);
-    if (PATTERN_FLOW_INDICATORS.test(tagName)) {
-      throwError(state, "tag suffix cannot contain flow indicator characters");
-    }
-  }
-  if (tagName && !PATTERN_TAG_URI.test(tagName)) {
-    throwError(state, "tag name cannot contain such characters: " + tagName);
-  }
-  try {
-    tagName = decodeURIComponent(tagName);
-  } catch (err) {
-    throwError(state, "tag name is malformed: " + tagName);
-  }
-  if (isVerbatim) {
-    state.tag = tagName;
-  } else if (_hasOwnProperty$1.call(state.tagMap, tagHandle)) {
-    state.tag = state.tagMap[tagHandle] + tagName;
-  } else if (tagHandle === "!") {
-    state.tag = "!" + tagName;
-  } else if (tagHandle === "!!") {
-    state.tag = "tag:yaml.org,2002:" + tagName;
-  } else {
-    throwError(state, 'undeclared tag handle "' + tagHandle + '"');
-  }
-  return true;
-}
-function readAnchorProperty(state) {
-  var _position, ch;
-  ch = state.input.charCodeAt(state.position);
-  if (ch !== 38)
-    return false;
-  if (state.anchor !== null) {
-    throwError(state, "duplication of an anchor property");
-  }
-  ch = state.input.charCodeAt(++state.position);
-  _position = state.position;
-  while (ch !== 0 && !is_WS_OR_EOL(ch) && !is_FLOW_INDICATOR(ch)) {
-    ch = state.input.charCodeAt(++state.position);
-  }
-  if (state.position === _position) {
-    throwError(state, "name of an anchor node must contain at least one character");
-  }
-  state.anchor = state.input.slice(_position, state.position);
-  return true;
-}
-function readAlias(state) {
-  var _position, alias, ch;
-  ch = state.input.charCodeAt(state.position);
-  if (ch !== 42)
-    return false;
-  ch = state.input.charCodeAt(++state.position);
-  _position = state.position;
-  while (ch !== 0 && !is_WS_OR_EOL(ch) && !is_FLOW_INDICATOR(ch)) {
-    ch = state.input.charCodeAt(++state.position);
-  }
-  if (state.position === _position) {
-    throwError(state, "name of an alias node must contain at least one character");
-  }
-  alias = state.input.slice(_position, state.position);
-  if (!_hasOwnProperty$1.call(state.anchorMap, alias)) {
-    throwError(state, 'unidentified alias "' + alias + '"');
-  }
-  state.result = state.anchorMap[alias];
-  skipSeparationSpace(state, true, -1);
-  return true;
-}
-function composeNode(state, parentIndent, nodeContext, allowToSeek, allowCompact) {
-  var allowBlockStyles, allowBlockScalars, allowBlockCollections, indentStatus = 1, atNewLine = false, hasContent = false, typeIndex, typeQuantity, typeList, type2, flowIndent, blockIndent;
-  if (state.listener !== null) {
-    state.listener("open", state);
-  }
-  state.tag = null;
-  state.anchor = null;
-  state.kind = null;
-  state.result = null;
-  allowBlockStyles = allowBlockScalars = allowBlockCollections = CONTEXT_BLOCK_OUT === nodeContext || CONTEXT_BLOCK_IN === nodeContext;
-  if (allowToSeek) {
-    if (skipSeparationSpace(state, true, -1)) {
-      atNewLine = true;
-      if (state.lineIndent > parentIndent) {
-        indentStatus = 1;
-      } else if (state.lineIndent === parentIndent) {
-        indentStatus = 0;
-      } else if (state.lineIndent < parentIndent) {
-        indentStatus = -1;
-      }
-    }
-  }
-  if (indentStatus === 1) {
-    while (readTagProperty(state) || readAnchorProperty(state)) {
-      if (skipSeparationSpace(state, true, -1)) {
-        atNewLine = true;
-        allowBlockCollections = allowBlockStyles;
-        if (state.lineIndent > parentIndent) {
-          indentStatus = 1;
-        } else if (state.lineIndent === parentIndent) {
-          indentStatus = 0;
-        } else if (state.lineIndent < parentIndent) {
-          indentStatus = -1;
-        }
-      } else {
-        allowBlockCollections = false;
-      }
-    }
-  }
-  if (allowBlockCollections) {
-    allowBlockCollections = atNewLine || allowCompact;
-  }
-  if (indentStatus === 1 || CONTEXT_BLOCK_OUT === nodeContext) {
-    if (CONTEXT_FLOW_IN === nodeContext || CONTEXT_FLOW_OUT === nodeContext) {
-      flowIndent = parentIndent;
-    } else {
-      flowIndent = parentIndent + 1;
-    }
-    blockIndent = state.position - state.lineStart;
-    if (indentStatus === 1) {
-      if (allowBlockCollections && (readBlockSequence(state, blockIndent) || readBlockMapping(state, blockIndent, flowIndent)) || readFlowCollection(state, flowIndent)) {
-        hasContent = true;
-      } else {
-        if (allowBlockScalars && readBlockScalar(state, flowIndent) || readSingleQuotedScalar(state, flowIndent) || readDoubleQuotedScalar(state, flowIndent)) {
-          hasContent = true;
-        } else if (readAlias(state)) {
-          hasContent = true;
-          if (state.tag !== null || state.anchor !== null) {
-            throwError(state, "alias node should not have any properties");
-          }
-        } else if (readPlainScalar(state, flowIndent, CONTEXT_FLOW_IN === nodeContext)) {
-          hasContent = true;
-          if (state.tag === null) {
-            state.tag = "?";
-          }
-        }
-        if (state.anchor !== null) {
-          state.anchorMap[state.anchor] = state.result;
-        }
-      }
-    } else if (indentStatus === 0) {
-      hasContent = allowBlockCollections && readBlockSequence(state, blockIndent);
-    }
-  }
-  if (state.tag === null) {
-    if (state.anchor !== null) {
-      state.anchorMap[state.anchor] = state.result;
-    }
-  } else if (state.tag === "?") {
-    if (state.result !== null && state.kind !== "scalar") {
-      throwError(state, 'unacceptable node kind for !<?> tag; it should be "scalar", not "' + state.kind + '"');
-    }
-    for (typeIndex = 0, typeQuantity = state.implicitTypes.length;typeIndex < typeQuantity; typeIndex += 1) {
-      type2 = state.implicitTypes[typeIndex];
-      if (type2.resolve(state.result)) {
-        state.result = type2.construct(state.result);
-        state.tag = type2.tag;
-        if (state.anchor !== null) {
-          state.anchorMap[state.anchor] = state.result;
-        }
-        break;
-      }
-    }
-  } else if (state.tag !== "!") {
-    if (_hasOwnProperty$1.call(state.typeMap[state.kind || "fallback"], state.tag)) {
-      type2 = state.typeMap[state.kind || "fallback"][state.tag];
-    } else {
-      type2 = null;
-      typeList = state.typeMap.multi[state.kind || "fallback"];
-      for (typeIndex = 0, typeQuantity = typeList.length;typeIndex < typeQuantity; typeIndex += 1) {
-        if (state.tag.slice(0, typeList[typeIndex].tag.length) === typeList[typeIndex].tag) {
-          type2 = typeList[typeIndex];
-          break;
-        }
-      }
-    }
-    if (!type2) {
-      throwError(state, "unknown tag !<" + state.tag + ">");
-    }
-    if (state.result !== null && type2.kind !== state.kind) {
-      throwError(state, "unacceptable node kind for !<" + state.tag + '> tag; it should be "' + type2.kind + '", not "' + state.kind + '"');
-    }
-    if (!type2.resolve(state.result, state.tag)) {
-      throwError(state, "cannot resolve a node with !<" + state.tag + "> explicit tag");
-    } else {
-      state.result = type2.construct(state.result, state.tag);
-      if (state.anchor !== null) {
-        state.anchorMap[state.anchor] = state.result;
-      }
-    }
-  }
-  if (state.listener !== null) {
-    state.listener("close", state);
-  }
-  return state.tag !== null || state.anchor !== null || hasContent;
-}
-function readDocument(state) {
-  var documentStart = state.position, _position, directiveName, directiveArgs, hasDirectives = false, ch;
-  state.version = null;
-  state.checkLineBreaks = state.legacy;
-  state.tagMap = Object.create(null);
-  state.anchorMap = Object.create(null);
-  while ((ch = state.input.charCodeAt(state.position)) !== 0) {
-    skipSeparationSpace(state, true, -1);
-    ch = state.input.charCodeAt(state.position);
-    if (state.lineIndent > 0 || ch !== 37) {
-      break;
-    }
-    hasDirectives = true;
-    ch = state.input.charCodeAt(++state.position);
-    _position = state.position;
-    while (ch !== 0 && !is_WS_OR_EOL(ch)) {
-      ch = state.input.charCodeAt(++state.position);
-    }
-    directiveName = state.input.slice(_position, state.position);
-    directiveArgs = [];
-    if (directiveName.length < 1) {
-      throwError(state, "directive name must not be less than one character in length");
-    }
-    while (ch !== 0) {
-      while (is_WHITE_SPACE(ch)) {
-        ch = state.input.charCodeAt(++state.position);
-      }
-      if (ch === 35) {
-        do {
-          ch = state.input.charCodeAt(++state.position);
-        } while (ch !== 0 && !is_EOL(ch));
-        break;
-      }
-      if (is_EOL(ch))
-        break;
-      _position = state.position;
-      while (ch !== 0 && !is_WS_OR_EOL(ch)) {
-        ch = state.input.charCodeAt(++state.position);
-      }
-      directiveArgs.push(state.input.slice(_position, state.position));
-    }
-    if (ch !== 0)
-      readLineBreak(state);
-    if (_hasOwnProperty$1.call(directiveHandlers, directiveName)) {
-      directiveHandlers[directiveName](state, directiveName, directiveArgs);
-    } else {
-      throwWarning(state, 'unknown document directive "' + directiveName + '"');
-    }
-  }
-  skipSeparationSpace(state, true, -1);
-  if (state.lineIndent === 0 && state.input.charCodeAt(state.position) === 45 && state.input.charCodeAt(state.position + 1) === 45 && state.input.charCodeAt(state.position + 2) === 45) {
-    state.position += 3;
-    skipSeparationSpace(state, true, -1);
-  } else if (hasDirectives) {
-    throwError(state, "directives end mark is expected");
-  }
-  composeNode(state, state.lineIndent - 1, CONTEXT_BLOCK_OUT, false, true);
-  skipSeparationSpace(state, true, -1);
-  if (state.checkLineBreaks && PATTERN_NON_ASCII_LINE_BREAKS.test(state.input.slice(documentStart, state.position))) {
-    throwWarning(state, "non-ASCII line breaks are interpreted as content");
-  }
-  state.documents.push(state.result);
-  if (state.position === state.lineStart && testDocumentSeparator(state)) {
-    if (state.input.charCodeAt(state.position) === 46) {
-      state.position += 3;
-      skipSeparationSpace(state, true, -1);
-    }
-    return;
-  }
-  if (state.position < state.length - 1) {
-    throwError(state, "end of the stream or a document separator is expected");
-  } else {
-    return;
-  }
-}
-function loadDocuments(input, options) {
-  input = String(input);
-  options = options || {};
-  if (input.length !== 0) {
-    if (input.charCodeAt(input.length - 1) !== 10 && input.charCodeAt(input.length - 1) !== 13) {
-      input += `
-`;
-    }
-    if (input.charCodeAt(0) === 65279) {
-      input = input.slice(1);
-    }
-  }
-  var state = new State$1(input, options);
-  var nullpos = input.indexOf("\x00");
-  if (nullpos !== -1) {
-    state.position = nullpos;
-    throwError(state, "null byte is not allowed in input");
-  }
-  state.input += "\x00";
-  while (state.input.charCodeAt(state.position) === 32) {
-    state.lineIndent += 1;
-    state.position += 1;
-  }
-  while (state.position < state.length - 1) {
-    readDocument(state);
-  }
-  return state.documents;
-}
-function loadAll$1(input, iterator, options) {
-  if (iterator !== null && typeof iterator === "object" && typeof options === "undefined") {
-    options = iterator;
-    iterator = null;
-  }
-  var documents = loadDocuments(input, options);
-  if (typeof iterator !== "function") {
-    return documents;
-  }
-  for (var index = 0, length = documents.length;index < length; index += 1) {
-    iterator(documents[index]);
-  }
-}
-function load$1(input, options) {
-  var documents = loadDocuments(input, options);
-  if (documents.length === 0) {
-    return;
-  } else if (documents.length === 1) {
-    return documents[0];
-  }
-  throw new exception("expected a single document in the stream, but found more");
-}
-function compileStyleMap(schema2, map2) {
-  var result, keys, index, length, tag, style, type2;
-  if (map2 === null)
-    return {};
-  result = {};
-  keys = Object.keys(map2);
-  for (index = 0, length = keys.length;index < length; index += 1) {
-    tag = keys[index];
-    style = String(map2[tag]);
-    if (tag.slice(0, 2) === "!!") {
-      tag = "tag:yaml.org,2002:" + tag.slice(2);
-    }
-    type2 = schema2.compiledTypeMap["fallback"][tag];
-    if (type2 && _hasOwnProperty.call(type2.styleAliases, style)) {
-      style = type2.styleAliases[style];
-    }
-    result[tag] = style;
-  }
-  return result;
-}
-function encodeHex(character) {
-  var string, handle, length;
-  string = character.toString(16).toUpperCase();
-  if (character <= 255) {
-    handle = "x";
-    length = 2;
-  } else if (character <= 65535) {
-    handle = "u";
-    length = 4;
-  } else if (character <= 4294967295) {
-    handle = "U";
-    length = 8;
-  } else {
-    throw new exception("code point within a string may not be greater than 0xFFFFFFFF");
-  }
-  return "\\" + handle + common.repeat("0", length - string.length) + string;
-}
-function State(options) {
-  this.schema = options["schema"] || _default;
-  this.indent = Math.max(1, options["indent"] || 2);
-  this.noArrayIndent = options["noArrayIndent"] || false;
-  this.skipInvalid = options["skipInvalid"] || false;
-  this.flowLevel = common.isNothing(options["flowLevel"]) ? -1 : options["flowLevel"];
-  this.styleMap = compileStyleMap(this.schema, options["styles"] || null);
-  this.sortKeys = options["sortKeys"] || false;
-  this.lineWidth = options["lineWidth"] || 80;
-  this.noRefs = options["noRefs"] || false;
-  this.noCompatMode = options["noCompatMode"] || false;
-  this.condenseFlow = options["condenseFlow"] || false;
-  this.quotingType = options["quotingType"] === '"' ? QUOTING_TYPE_DOUBLE : QUOTING_TYPE_SINGLE;
-  this.forceQuotes = options["forceQuotes"] || false;
-  this.replacer = typeof options["replacer"] === "function" ? options["replacer"] : null;
-  this.implicitTypes = this.schema.compiledImplicit;
-  this.explicitTypes = this.schema.compiledExplicit;
-  this.tag = null;
-  this.result = "";
-  this.duplicates = [];
-  this.usedDuplicates = null;
-}
-function indentString(string, spaces) {
-  var ind = common.repeat(" ", spaces), position = 0, next = -1, result = "", line, length = string.length;
-  while (position < length) {
-    next = string.indexOf(`
-`, position);
-    if (next === -1) {
-      line = string.slice(position);
-      position = length;
-    } else {
-      line = string.slice(position, next + 1);
-      position = next + 1;
-    }
-    if (line.length && line !== `
-`)
-      result += ind;
-    result += line;
-  }
-  return result;
-}
-function generateNextLine(state, level) {
-  return `
-` + common.repeat(" ", state.indent * level);
-}
-function testImplicitResolving(state, str2) {
-  var index, length, type2;
-  for (index = 0, length = state.implicitTypes.length;index < length; index += 1) {
-    type2 = state.implicitTypes[index];
-    if (type2.resolve(str2)) {
-      return true;
-    }
-  }
-  return false;
-}
-function isWhitespace(c3) {
-  return c3 === CHAR_SPACE || c3 === CHAR_TAB;
-}
-function isPrintable(c3) {
-  return 32 <= c3 && c3 <= 126 || 161 <= c3 && c3 <= 55295 && c3 !== 8232 && c3 !== 8233 || 57344 <= c3 && c3 <= 65533 && c3 !== CHAR_BOM || 65536 <= c3 && c3 <= 1114111;
-}
-function isNsCharOrWhitespace(c3) {
-  return isPrintable(c3) && c3 !== CHAR_BOM && c3 !== CHAR_CARRIAGE_RETURN && c3 !== CHAR_LINE_FEED;
-}
-function isPlainSafe(c3, prev, inblock) {
-  var cIsNsCharOrWhitespace = isNsCharOrWhitespace(c3);
-  var cIsNsChar = cIsNsCharOrWhitespace && !isWhitespace(c3);
-  return (inblock ? cIsNsCharOrWhitespace : cIsNsCharOrWhitespace && c3 !== CHAR_COMMA && c3 !== CHAR_LEFT_SQUARE_BRACKET && c3 !== CHAR_RIGHT_SQUARE_BRACKET && c3 !== CHAR_LEFT_CURLY_BRACKET && c3 !== CHAR_RIGHT_CURLY_BRACKET) && c3 !== CHAR_SHARP && !(prev === CHAR_COLON && !cIsNsChar) || isNsCharOrWhitespace(prev) && !isWhitespace(prev) && c3 === CHAR_SHARP || prev === CHAR_COLON && cIsNsChar;
-}
-function isPlainSafeFirst(c3) {
-  return isPrintable(c3) && c3 !== CHAR_BOM && !isWhitespace(c3) && c3 !== CHAR_MINUS && c3 !== CHAR_QUESTION && c3 !== CHAR_COLON && c3 !== CHAR_COMMA && c3 !== CHAR_LEFT_SQUARE_BRACKET && c3 !== CHAR_RIGHT_SQUARE_BRACKET && c3 !== CHAR_LEFT_CURLY_BRACKET && c3 !== CHAR_RIGHT_CURLY_BRACKET && c3 !== CHAR_SHARP && c3 !== CHAR_AMPERSAND && c3 !== CHAR_ASTERISK && c3 !== CHAR_EXCLAMATION && c3 !== CHAR_VERTICAL_LINE && c3 !== CHAR_EQUALS && c3 !== CHAR_GREATER_THAN && c3 !== CHAR_SINGLE_QUOTE && c3 !== CHAR_DOUBLE_QUOTE && c3 !== CHAR_PERCENT && c3 !== CHAR_COMMERCIAL_AT && c3 !== CHAR_GRAVE_ACCENT;
-}
-function isPlainSafeLast(c3) {
-  return !isWhitespace(c3) && c3 !== CHAR_COLON;
-}
-function codePointAt(string, pos) {
-  var first = string.charCodeAt(pos), second;
-  if (first >= 55296 && first <= 56319 && pos + 1 < string.length) {
-    second = string.charCodeAt(pos + 1);
-    if (second >= 56320 && second <= 57343) {
-      return (first - 55296) * 1024 + second - 56320 + 65536;
-    }
-  }
-  return first;
-}
-function needIndentIndicator(string) {
-  var leadingSpaceRe = /^\n* /;
-  return leadingSpaceRe.test(string);
-}
-function chooseScalarStyle(string, singleLineOnly, indentPerLevel, lineWidth, testAmbiguousType, quotingType, forceQuotes, inblock) {
-  var i3;
-  var char = 0;
-  var prevChar = null;
-  var hasLineBreak = false;
-  var hasFoldableLine = false;
-  var shouldTrackWidth = lineWidth !== -1;
-  var previousLineBreak = -1;
-  var plain = isPlainSafeFirst(codePointAt(string, 0)) && isPlainSafeLast(codePointAt(string, string.length - 1));
-  if (singleLineOnly || forceQuotes) {
-    for (i3 = 0;i3 < string.length; char >= 65536 ? i3 += 2 : i3++) {
-      char = codePointAt(string, i3);
-      if (!isPrintable(char)) {
-        return STYLE_DOUBLE;
-      }
-      plain = plain && isPlainSafe(char, prevChar, inblock);
-      prevChar = char;
-    }
-  } else {
-    for (i3 = 0;i3 < string.length; char >= 65536 ? i3 += 2 : i3++) {
-      char = codePointAt(string, i3);
-      if (char === CHAR_LINE_FEED) {
-        hasLineBreak = true;
-        if (shouldTrackWidth) {
-          hasFoldableLine = hasFoldableLine || i3 - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ";
-          previousLineBreak = i3;
-        }
-      } else if (!isPrintable(char)) {
-        return STYLE_DOUBLE;
-      }
-      plain = plain && isPlainSafe(char, prevChar, inblock);
-      prevChar = char;
-    }
-    hasFoldableLine = hasFoldableLine || shouldTrackWidth && (i3 - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ");
-  }
-  if (!hasLineBreak && !hasFoldableLine) {
-    if (plain && !forceQuotes && !testAmbiguousType(string)) {
-      return STYLE_PLAIN;
-    }
-    return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
-  }
-  if (indentPerLevel > 9 && needIndentIndicator(string)) {
-    return STYLE_DOUBLE;
-  }
-  if (!forceQuotes) {
-    return hasFoldableLine ? STYLE_FOLDED : STYLE_LITERAL;
-  }
-  return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
-}
-function writeScalar(state, string, level, iskey, inblock) {
-  state.dump = function() {
-    if (string.length === 0) {
-      return state.quotingType === QUOTING_TYPE_DOUBLE ? '""' : "''";
-    }
-    if (!state.noCompatMode) {
-      if (DEPRECATED_BOOLEANS_SYNTAX.indexOf(string) !== -1 || DEPRECATED_BASE60_SYNTAX.test(string)) {
-        return state.quotingType === QUOTING_TYPE_DOUBLE ? '"' + string + '"' : "'" + string + "'";
-      }
-    }
-    var indent = state.indent * Math.max(1, level);
-    var lineWidth = state.lineWidth === -1 ? -1 : Math.max(Math.min(state.lineWidth, 40), state.lineWidth - indent);
-    var singleLineOnly = iskey || state.flowLevel > -1 && level >= state.flowLevel;
-    function testAmbiguity(string2) {
-      return testImplicitResolving(state, string2);
-    }
-    switch (chooseScalarStyle(string, singleLineOnly, state.indent, lineWidth, testAmbiguity, state.quotingType, state.forceQuotes && !iskey, inblock)) {
-      case STYLE_PLAIN:
-        return string;
-      case STYLE_SINGLE:
-        return "'" + string.replace(/'/g, "''") + "'";
-      case STYLE_LITERAL:
-        return "|" + blockHeader(string, state.indent) + dropEndingNewline(indentString(string, indent));
-      case STYLE_FOLDED:
-        return ">" + blockHeader(string, state.indent) + dropEndingNewline(indentString(foldString(string, lineWidth), indent));
-      case STYLE_DOUBLE:
-        return '"' + escapeString(string) + '"';
-      default:
-        throw new exception("impossible error: invalid scalar style");
-    }
-  }();
-}
-function blockHeader(string, indentPerLevel) {
-  var indentIndicator = needIndentIndicator(string) ? String(indentPerLevel) : "";
-  var clip = string[string.length - 1] === `
-`;
-  var keep = clip && (string[string.length - 2] === `
-` || string === `
-`);
-  var chomp = keep ? "+" : clip ? "" : "-";
-  return indentIndicator + chomp + `
-`;
-}
-function dropEndingNewline(string) {
-  return string[string.length - 1] === `
-` ? string.slice(0, -1) : string;
-}
-function foldString(string, width) {
-  var lineRe = /(\n+)([^\n]*)/g;
-  var result = function() {
-    var nextLF = string.indexOf(`
-`);
-    nextLF = nextLF !== -1 ? nextLF : string.length;
-    lineRe.lastIndex = nextLF;
-    return foldLine(string.slice(0, nextLF), width);
-  }();
-  var prevMoreIndented = string[0] === `
-` || string[0] === " ";
-  var moreIndented;
-  var match;
-  while (match = lineRe.exec(string)) {
-    var prefix = match[1], line = match[2];
-    moreIndented = line[0] === " ";
-    result += prefix + (!prevMoreIndented && !moreIndented && line !== "" ? `
-` : "") + foldLine(line, width);
-    prevMoreIndented = moreIndented;
-  }
-  return result;
-}
-function foldLine(line, width) {
-  if (line === "" || line[0] === " ")
-    return line;
-  var breakRe = / [^ ]/g;
-  var match;
-  var start = 0, end, curr = 0, next = 0;
-  var result = "";
-  while (match = breakRe.exec(line)) {
-    next = match.index;
-    if (next - start > width) {
-      end = curr > start ? curr : next;
-      result += `
-` + line.slice(start, end);
-      start = end + 1;
-    }
-    curr = next;
-  }
-  result += `
-`;
-  if (line.length - start > width && curr > start) {
-    result += line.slice(start, curr) + `
-` + line.slice(curr + 1);
-  } else {
-    result += line.slice(start);
-  }
-  return result.slice(1);
-}
-function escapeString(string) {
-  var result = "";
-  var char = 0;
-  var escapeSeq;
-  for (var i3 = 0;i3 < string.length; char >= 65536 ? i3 += 2 : i3++) {
-    char = codePointAt(string, i3);
-    escapeSeq = ESCAPE_SEQUENCES[char];
-    if (!escapeSeq && isPrintable(char)) {
-      result += string[i3];
-      if (char >= 65536)
-        result += string[i3 + 1];
-    } else {
-      result += escapeSeq || encodeHex(char);
-    }
-  }
-  return result;
-}
-function writeFlowSequence(state, level, object) {
-  var _result = "", _tag = state.tag, index, length, value;
-  for (index = 0, length = object.length;index < length; index += 1) {
-    value = object[index];
-    if (state.replacer) {
-      value = state.replacer.call(object, String(index), value);
-    }
-    if (writeNode(state, level, value, false, false) || typeof value === "undefined" && writeNode(state, level, null, false, false)) {
-      if (_result !== "")
-        _result += "," + (!state.condenseFlow ? " " : "");
-      _result += state.dump;
-    }
-  }
-  state.tag = _tag;
-  state.dump = "[" + _result + "]";
-}
-function writeBlockSequence(state, level, object, compact) {
-  var _result = "", _tag = state.tag, index, length, value;
-  for (index = 0, length = object.length;index < length; index += 1) {
-    value = object[index];
-    if (state.replacer) {
-      value = state.replacer.call(object, String(index), value);
-    }
-    if (writeNode(state, level + 1, value, true, true, false, true) || typeof value === "undefined" && writeNode(state, level + 1, null, true, true, false, true)) {
-      if (!compact || _result !== "") {
-        _result += generateNextLine(state, level);
-      }
-      if (state.dump && CHAR_LINE_FEED === state.dump.charCodeAt(0)) {
-        _result += "-";
-      } else {
-        _result += "- ";
-      }
-      _result += state.dump;
-    }
-  }
-  state.tag = _tag;
-  state.dump = _result || "[]";
-}
-function writeFlowMapping(state, level, object) {
-  var _result = "", _tag = state.tag, objectKeyList = Object.keys(object), index, length, objectKey, objectValue, pairBuffer;
-  for (index = 0, length = objectKeyList.length;index < length; index += 1) {
-    pairBuffer = "";
-    if (_result !== "")
-      pairBuffer += ", ";
-    if (state.condenseFlow)
-      pairBuffer += '"';
-    objectKey = objectKeyList[index];
-    objectValue = object[objectKey];
-    if (state.replacer) {
-      objectValue = state.replacer.call(object, objectKey, objectValue);
-    }
-    if (!writeNode(state, level, objectKey, false, false)) {
-      continue;
-    }
-    if (state.dump.length > 1024)
-      pairBuffer += "? ";
-    pairBuffer += state.dump + (state.condenseFlow ? '"' : "") + ":" + (state.condenseFlow ? "" : " ");
-    if (!writeNode(state, level, objectValue, false, false)) {
-      continue;
-    }
-    pairBuffer += state.dump;
-    _result += pairBuffer;
-  }
-  state.tag = _tag;
-  state.dump = "{" + _result + "}";
-}
-function writeBlockMapping(state, level, object, compact) {
-  var _result = "", _tag = state.tag, objectKeyList = Object.keys(object), index, length, objectKey, objectValue, explicitPair, pairBuffer;
-  if (state.sortKeys === true) {
-    objectKeyList.sort();
-  } else if (typeof state.sortKeys === "function") {
-    objectKeyList.sort(state.sortKeys);
-  } else if (state.sortKeys) {
-    throw new exception("sortKeys must be a boolean or a function");
-  }
-  for (index = 0, length = objectKeyList.length;index < length; index += 1) {
-    pairBuffer = "";
-    if (!compact || _result !== "") {
-      pairBuffer += generateNextLine(state, level);
-    }
-    objectKey = objectKeyList[index];
-    objectValue = object[objectKey];
-    if (state.replacer) {
-      objectValue = state.replacer.call(object, objectKey, objectValue);
-    }
-    if (!writeNode(state, level + 1, objectKey, true, true, true)) {
-      continue;
-    }
-    explicitPair = state.tag !== null && state.tag !== "?" || state.dump && state.dump.length > 1024;
-    if (explicitPair) {
-      if (state.dump && CHAR_LINE_FEED === state.dump.charCodeAt(0)) {
-        pairBuffer += "?";
-      } else {
-        pairBuffer += "? ";
-      }
-    }
-    pairBuffer += state.dump;
-    if (explicitPair) {
-      pairBuffer += generateNextLine(state, level);
-    }
-    if (!writeNode(state, level + 1, objectValue, true, explicitPair)) {
-      continue;
-    }
-    if (state.dump && CHAR_LINE_FEED === state.dump.charCodeAt(0)) {
-      pairBuffer += ":";
-    } else {
-      pairBuffer += ": ";
-    }
-    pairBuffer += state.dump;
-    _result += pairBuffer;
-  }
-  state.tag = _tag;
-  state.dump = _result || "{}";
-}
-function detectType(state, object, explicit) {
-  var _result, typeList, index, length, type2, style;
-  typeList = explicit ? state.explicitTypes : state.implicitTypes;
-  for (index = 0, length = typeList.length;index < length; index += 1) {
-    type2 = typeList[index];
-    if ((type2.instanceOf || type2.predicate) && (!type2.instanceOf || typeof object === "object" && object instanceof type2.instanceOf) && (!type2.predicate || type2.predicate(object))) {
-      if (explicit) {
-        if (type2.multi && type2.representName) {
-          state.tag = type2.representName(object);
-        } else {
-          state.tag = type2.tag;
-        }
-      } else {
-        state.tag = "?";
-      }
-      if (type2.represent) {
-        style = state.styleMap[type2.tag] || type2.defaultStyle;
-        if (_toString.call(type2.represent) === "[object Function]") {
-          _result = type2.represent(object, style);
-        } else if (_hasOwnProperty.call(type2.represent, style)) {
-          _result = type2.represent[style](object, style);
-        } else {
-          throw new exception("!<" + type2.tag + '> tag resolver accepts not "' + style + '" style');
-        }
-        state.dump = _result;
-      }
-      return true;
-    }
-  }
-  return false;
-}
-function writeNode(state, level, object, block, compact, iskey, isblockseq) {
-  state.tag = null;
-  state.dump = object;
-  if (!detectType(state, object, false)) {
-    detectType(state, object, true);
-  }
-  var type2 = _toString.call(state.dump);
-  var inblock = block;
-  var tagStr;
-  if (block) {
-    block = state.flowLevel < 0 || state.flowLevel > level;
-  }
-  var objectOrArray = type2 === "[object Object]" || type2 === "[object Array]", duplicateIndex, duplicate;
-  if (objectOrArray) {
-    duplicateIndex = state.duplicates.indexOf(object);
-    duplicate = duplicateIndex !== -1;
-  }
-  if (state.tag !== null && state.tag !== "?" || duplicate || state.indent !== 2 && level > 0) {
-    compact = false;
-  }
-  if (duplicate && state.usedDuplicates[duplicateIndex]) {
-    state.dump = "*ref_" + duplicateIndex;
-  } else {
-    if (objectOrArray && duplicate && !state.usedDuplicates[duplicateIndex]) {
-      state.usedDuplicates[duplicateIndex] = true;
-    }
-    if (type2 === "[object Object]") {
-      if (block && Object.keys(state.dump).length !== 0) {
-        writeBlockMapping(state, level, state.dump, compact);
-        if (duplicate) {
-          state.dump = "&ref_" + duplicateIndex + state.dump;
-        }
-      } else {
-        writeFlowMapping(state, level, state.dump);
-        if (duplicate) {
-          state.dump = "&ref_" + duplicateIndex + " " + state.dump;
-        }
-      }
-    } else if (type2 === "[object Array]") {
-      if (block && state.dump.length !== 0) {
-        if (state.noArrayIndent && !isblockseq && level > 0) {
-          writeBlockSequence(state, level - 1, state.dump, compact);
-        } else {
-          writeBlockSequence(state, level, state.dump, compact);
-        }
-        if (duplicate) {
-          state.dump = "&ref_" + duplicateIndex + state.dump;
-        }
-      } else {
-        writeFlowSequence(state, level, state.dump);
-        if (duplicate) {
-          state.dump = "&ref_" + duplicateIndex + " " + state.dump;
-        }
-      }
-    } else if (type2 === "[object String]") {
-      if (state.tag !== "?") {
-        writeScalar(state, state.dump, level, iskey, inblock);
-      }
-    } else if (type2 === "[object Undefined]") {
-      return false;
-    } else {
-      if (state.skipInvalid)
-        return false;
-      throw new exception("unacceptable kind of an object to dump " + type2);
-    }
-    if (state.tag !== null && state.tag !== "?") {
-      tagStr = encodeURI(state.tag[0] === "!" ? state.tag.slice(1) : state.tag).replace(/!/g, "%21");
-      if (state.tag[0] === "!") {
-        tagStr = "!" + tagStr;
-      } else if (tagStr.slice(0, 18) === "tag:yaml.org,2002:") {
-        tagStr = "!!" + tagStr.slice(18);
-      } else {
-        tagStr = "!<" + tagStr + ">";
-      }
-      state.dump = tagStr + " " + state.dump;
-    }
-  }
-  return true;
-}
-function getDuplicateReferences(object, state) {
-  var objects = [], duplicatesIndexes = [], index, length;
-  inspectNode(object, objects, duplicatesIndexes);
-  for (index = 0, length = duplicatesIndexes.length;index < length; index += 1) {
-    state.duplicates.push(objects[duplicatesIndexes[index]]);
-  }
-  state.usedDuplicates = new Array(length);
-}
-function inspectNode(object, objects, duplicatesIndexes) {
-  var objectKeyList, index, length;
-  if (object !== null && typeof object === "object") {
-    index = objects.indexOf(object);
-    if (index !== -1) {
-      if (duplicatesIndexes.indexOf(index) === -1) {
-        duplicatesIndexes.push(index);
-      }
-    } else {
-      objects.push(object);
-      if (Array.isArray(object)) {
-        for (index = 0, length = object.length;index < length; index += 1) {
-          inspectNode(object[index], objects, duplicatesIndexes);
-        }
-      } else {
-        objectKeyList = Object.keys(object);
-        for (index = 0, length = objectKeyList.length;index < length; index += 1) {
-          inspectNode(object[objectKeyList[index]], objects, duplicatesIndexes);
-        }
-      }
-    }
-  }
-}
-function dump$1(input, options) {
-  options = options || {};
-  var state = new State(options);
-  if (!state.noRefs)
-    getDuplicateReferences(input, state);
-  var value = input;
-  if (state.replacer) {
-    value = state.replacer.call({ "": value }, "", value);
   }
-  if (writeNode(state, 0, value, true, true))
-    return state.dump + `
-`;
-  return "";
-}
-function renamed(from, to) {
-  return function() {
-    throw new Error("Function yaml." + from + " is removed in js-yaml 4. " + "Use yaml." + to + " instead, which is now safe by default.");
-  };
-}
-var isNothing_1, isObject_1, toArray_1, repeat_1, isNegativeZero_1, extend_1, common, exception, snippet, TYPE_CONSTRUCTOR_OPTIONS, YAML_NODE_KINDS, type, schema, str, seq, map, failsafe, _null, bool, int, YAML_FLOAT_PATTERN, SCIENTIFIC_WITHOUT_DOT, float, json, core, YAML_DATE_REGEXP, YAML_TIMESTAMP_REGEXP, timestamp, merge, BASE64_MAP = `ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=
-\r`, binary, _hasOwnProperty$3, _toString$2, omap, _toString$1, pairs, _hasOwnProperty$2, set, _default, _hasOwnProperty$1, CONTEXT_FLOW_IN = 1, CONTEXT_FLOW_OUT = 2, CONTEXT_BLOCK_IN = 3, CONTEXT_BLOCK_OUT = 4, CHOMPING_CLIP = 1, CHOMPING_STRIP = 2, CHOMPING_KEEP = 3, PATTERN_NON_PRINTABLE, PATTERN_NON_ASCII_LINE_BREAKS, PATTERN_FLOW_INDICATORS, PATTERN_TAG_HANDLE, PATTERN_TAG_URI, simpleEscapeCheck, simpleEscapeMap, i2, directiveHandlers, loadAll_1, load_1, loader, _toString, _hasOwnProperty, CHAR_BOM = 65279, CHAR_TAB = 9, CHAR_LINE_FEED = 10, CHAR_CARRIAGE_RETURN = 13, CHAR_SPACE = 32, CHAR_EXCLAMATION = 33, CHAR_DOUBLE_QUOTE = 34, CHAR_SHARP = 35, CHAR_PERCENT = 37, CHAR_AMPERSAND = 38, CHAR_SINGLE_QUOTE = 39, CHAR_ASTERISK = 42, CHAR_COMMA = 44, CHAR_MINUS = 45, CHAR_COLON = 58, CHAR_EQUALS = 61, CHAR_GREATER_THAN = 62, CHAR_QUESTION = 63, CHAR_COMMERCIAL_AT = 64, CHAR_LEFT_SQUARE_BRACKET = 91, CHAR_RIGHT_SQUARE_BRACKET = 93, CHAR_GRAVE_ACCENT = 96, CHAR_LEFT_CURLY_BRACKET = 123, CHAR_VERTICAL_LINE = 124, CHAR_RIGHT_CURLY_BRACKET = 125, ESCAPE_SEQUENCES, DEPRECATED_BOOLEANS_SYNTAX, DEPRECATED_BASE60_SYNTAX, QUOTING_TYPE_SINGLE = 1, QUOTING_TYPE_DOUBLE = 2, STYLE_PLAIN = 1, STYLE_SINGLE = 2, STYLE_LITERAL = 3, STYLE_FOLDED = 4, STYLE_DOUBLE = 5, dump_1, dumper, load, loadAll, dump, safeLoad, safeLoadAll, safeDump;
-var init_js_yaml = __esm(() => {
-  /*! js-yaml 4.1.1 https://github.com/nodeca/js-yaml @license MIT */
-  isNothing_1 = isNothing;
-  isObject_1 = isObject;
-  toArray_1 = toArray2;
-  repeat_1 = repeat;
-  isNegativeZero_1 = isNegativeZero;
-  extend_1 = extend;
-  common = {
-    isNothing: isNothing_1,
-    isObject: isObject_1,
-    toArray: toArray_1,
-    repeat: repeat_1,
-    isNegativeZero: isNegativeZero_1,
-    extend: extend_1
-  };
-  YAMLException$1.prototype = Object.create(Error.prototype);
-  YAMLException$1.prototype.constructor = YAMLException$1;
-  YAMLException$1.prototype.toString = function toString(compact) {
+  YAMLException2.prototype = Object.create(Error.prototype);
+  YAMLException2.prototype.constructor = YAMLException2;
+  YAMLException2.prototype.toString = function toString(compact) {
     return this.name + ": " + formatError(this, compact);
   };
-  exception = YAMLException$1;
+  exception = YAMLException2;
+  return exception;
+}
+function requireSnippet() {
+  if (hasRequiredSnippet)
+    return snippet;
+  hasRequiredSnippet = 1;
+  const common2 = requireCommon();
+  function getLine(buffer, lineStart, lineEnd, position, maxLineLength) {
+    let head = "";
+    let tail = "";
+    const maxHalfLength = Math.floor(maxLineLength / 2) - 1;
+    if (position - lineStart > maxHalfLength) {
+      head = " ... ";
+      lineStart = position - maxHalfLength + head.length;
+    }
+    if (lineEnd - position > maxHalfLength) {
+      tail = " ...";
+      lineEnd = position + maxHalfLength - tail.length;
+    }
+    return {
+      str: head + buffer.slice(lineStart, lineEnd).replace(/\t/g, "→") + tail,
+      pos: position - lineStart + head.length
+    };
+  }
+  function padStart(string, max) {
+    return common2.repeat(" ", max - string.length) + string;
+  }
+  function makeSnippet(mark, options) {
+    options = Object.create(options || null);
+    if (!mark.buffer)
+      return null;
+    if (!options.maxLength)
+      options.maxLength = 79;
+    if (typeof options.indent !== "number")
+      options.indent = 1;
+    if (typeof options.linesBefore !== "number")
+      options.linesBefore = 3;
+    if (typeof options.linesAfter !== "number")
+      options.linesAfter = 2;
+    const re = /\r?\n|\r|\0/g;
+    const lineStarts = [0];
+    const lineEnds = [];
+    let match;
+    let foundLineNo = -1;
+    while (match = re.exec(mark.buffer)) {
+      lineEnds.push(match.index);
+      lineStarts.push(match.index + match[0].length);
+      if (mark.position <= match.index && foundLineNo < 0) {
+        foundLineNo = lineStarts.length - 2;
+      }
+    }
+    if (foundLineNo < 0)
+      foundLineNo = lineStarts.length - 1;
+    let result = "";
+    const lineNoLength = Math.min(mark.line + options.linesAfter, lineEnds.length).toString().length;
+    const maxLineLength = options.maxLength - (options.indent + lineNoLength + 3);
+    for (let i2 = 1;i2 <= options.linesBefore; i2++) {
+      if (foundLineNo - i2 < 0)
+        break;
+      const line2 = getLine(mark.buffer, lineStarts[foundLineNo - i2], lineEnds[foundLineNo - i2], mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo - i2]), maxLineLength);
+      result = common2.repeat(" ", options.indent) + padStart((mark.line - i2 + 1).toString(), lineNoLength) + " | " + line2.str + `
+` + result;
+    }
+    const line = getLine(mark.buffer, lineStarts[foundLineNo], lineEnds[foundLineNo], mark.position, maxLineLength);
+    result += common2.repeat(" ", options.indent) + padStart((mark.line + 1).toString(), lineNoLength) + " | " + line.str + `
+`;
+    result += common2.repeat("-", options.indent + lineNoLength + 3 + line.pos) + `^
+`;
+    for (let i2 = 1;i2 <= options.linesAfter; i2++) {
+      if (foundLineNo + i2 >= lineEnds.length)
+        break;
+      const line2 = getLine(mark.buffer, lineStarts[foundLineNo + i2], lineEnds[foundLineNo + i2], mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo + i2]), maxLineLength);
+      result += common2.repeat(" ", options.indent) + padStart((mark.line + i2 + 1).toString(), lineNoLength) + " | " + line2.str + `
+`;
+    }
+    return result.replace(/\n$/, "");
+  }
   snippet = makeSnippet;
-  TYPE_CONSTRUCTOR_OPTIONS = [
+  return snippet;
+}
+function requireType() {
+  if (hasRequiredType)
+    return type;
+  hasRequiredType = 1;
+  const YAMLException2 = requireException();
+  const TYPE_CONSTRUCTOR_OPTIONS = [
     "kind",
     "multi",
     "resolve",
@@ -3226,16 +1171,104 @@ var init_js_yaml = __esm(() => {
     "defaultStyle",
     "styleAliases"
   ];
-  YAML_NODE_KINDS = [
+  const YAML_NODE_KINDS = [
     "scalar",
     "sequence",
     "mapping"
   ];
-  type = Type$1;
-  Schema$1.prototype.extend = function extend2(definition) {
-    var implicit = [];
-    var explicit = [];
-    if (definition instanceof type) {
+  function compileStyleAliases(map2) {
+    const result = {};
+    if (map2 !== null) {
+      Object.keys(map2).forEach(function(style) {
+        map2[style].forEach(function(alias) {
+          result[String(alias)] = style;
+        });
+      });
+    }
+    return result;
+  }
+  function Type2(tag, options) {
+    options = options || {};
+    Object.keys(options).forEach(function(name) {
+      if (TYPE_CONSTRUCTOR_OPTIONS.indexOf(name) === -1) {
+        throw new YAMLException2('Unknown option "' + name + '" is met in definition of "' + tag + '" YAML type.');
+      }
+    });
+    this.options = options;
+    this.tag = tag;
+    this.kind = options["kind"] || null;
+    this.resolve = options["resolve"] || function() {
+      return true;
+    };
+    this.construct = options["construct"] || function(data) {
+      return data;
+    };
+    this.instanceOf = options["instanceOf"] || null;
+    this.predicate = options["predicate"] || null;
+    this.represent = options["represent"] || null;
+    this.representName = options["representName"] || null;
+    this.defaultStyle = options["defaultStyle"] || null;
+    this.multi = options["multi"] || false;
+    this.styleAliases = compileStyleAliases(options["styleAliases"] || null);
+    if (YAML_NODE_KINDS.indexOf(this.kind) === -1) {
+      throw new YAMLException2('Unknown kind "' + this.kind + '" is specified for "' + tag + '" YAML type.');
+    }
+  }
+  type = Type2;
+  return type;
+}
+function requireSchema() {
+  if (hasRequiredSchema)
+    return schema;
+  hasRequiredSchema = 1;
+  const YAMLException2 = requireException();
+  const Type2 = requireType();
+  function compileList(schema2, name) {
+    const result = [];
+    schema2[name].forEach(function(currentType) {
+      let newIndex = result.length;
+      result.forEach(function(previousType, previousIndex) {
+        if (previousType.tag === currentType.tag && previousType.kind === currentType.kind && previousType.multi === currentType.multi) {
+          newIndex = previousIndex;
+        }
+      });
+      result[newIndex] = currentType;
+    });
+    return result;
+  }
+  function compileMap() {
+    const result = {
+      scalar: {},
+      sequence: {},
+      mapping: {},
+      fallback: {},
+      multi: {
+        scalar: [],
+        sequence: [],
+        mapping: [],
+        fallback: []
+      }
+    };
+    function collectType(type2) {
+      if (type2.multi) {
+        result.multi[type2.kind].push(type2);
+        result.multi["fallback"].push(type2);
+      } else {
+        result[type2.kind][type2.tag] = result["fallback"][type2.tag] = type2;
+      }
+    }
+    for (let index = 0, length = arguments.length;index < length; index += 1) {
+      arguments[index].forEach(collectType);
+    }
+    return result;
+  }
+  function Schema2(definition) {
+    return this.extend(definition);
+  }
+  Schema2.prototype.extend = function extend(definition) {
+    let implicit = [];
+    let explicit = [];
+    if (definition instanceof Type2) {
       explicit.push(definition);
     } else if (Array.isArray(definition)) {
       explicit = explicit.concat(definition);
@@ -3245,25 +1278,25 @@ var init_js_yaml = __esm(() => {
       if (definition.explicit)
         explicit = explicit.concat(definition.explicit);
     } else {
-      throw new exception("Schema.extend argument should be a Type, [ Type ], " + "or a schema definition ({ implicit: [...], explicit: [...] })");
+      throw new YAMLException2("Schema.extend argument should be a Type, [ Type ], or a schema definition ({ implicit: [...], explicit: [...] })");
     }
-    implicit.forEach(function(type$1) {
-      if (!(type$1 instanceof type)) {
-        throw new exception("Specified list of YAML types (or a single Type object) contains a non-Type object.");
+    implicit.forEach(function(type2) {
+      if (!(type2 instanceof Type2)) {
+        throw new YAMLException2("Specified list of YAML types (or a single Type object) contains a non-Type object.");
       }
-      if (type$1.loadKind && type$1.loadKind !== "scalar") {
-        throw new exception("There is a non-scalar type in the implicit list of a schema. Implicit resolving of such types is not supported.");
+      if (type2.loadKind && type2.loadKind !== "scalar") {
+        throw new YAMLException2("There is a non-scalar type in the implicit list of a schema. Implicit resolving of such types is not supported.");
       }
-      if (type$1.multi) {
-        throw new exception("There is a multi type in the implicit list of a schema. Multi tags can only be listed as explicit.");
-      }
-    });
-    explicit.forEach(function(type$1) {
-      if (!(type$1 instanceof type)) {
-        throw new exception("Specified list of YAML types (or a single Type object) contains a non-Type object.");
+      if (type2.multi) {
+        throw new YAMLException2("There is a multi type in the implicit list of a schema. Multi tags can only be listed as explicit.");
       }
     });
-    var result = Object.create(Schema$1.prototype);
+    explicit.forEach(function(type2) {
+      if (!(type2 instanceof Type2)) {
+        throw new YAMLException2("Specified list of YAML types (or a single Type object) contains a non-Type object.");
+      }
+    });
+    const result = Object.create(Schema2.prototype);
     result.implicit = (this.implicit || []).concat(implicit);
     result.explicit = (this.explicit || []).concat(explicit);
     result.compiledImplicit = compileList(result, "implicit");
@@ -3271,33 +1304,80 @@ var init_js_yaml = __esm(() => {
     result.compiledTypeMap = compileMap(result.compiledImplicit, result.compiledExplicit);
     return result;
   };
-  schema = Schema$1;
-  str = new type("tag:yaml.org,2002:str", {
+  schema = Schema2;
+  return schema;
+}
+function requireStr() {
+  if (hasRequiredStr)
+    return str;
+  hasRequiredStr = 1;
+  const Type2 = requireType();
+  str = new Type2("tag:yaml.org,2002:str", {
     kind: "scalar",
     construct: function(data) {
       return data !== null ? data : "";
     }
   });
-  seq = new type("tag:yaml.org,2002:seq", {
+  return str;
+}
+function requireSeq() {
+  if (hasRequiredSeq)
+    return seq;
+  hasRequiredSeq = 1;
+  const Type2 = requireType();
+  seq = new Type2("tag:yaml.org,2002:seq", {
     kind: "sequence",
     construct: function(data) {
       return data !== null ? data : [];
     }
   });
-  map = new type("tag:yaml.org,2002:map", {
+  return seq;
+}
+function requireMap() {
+  if (hasRequiredMap)
+    return map;
+  hasRequiredMap = 1;
+  const Type2 = requireType();
+  map = new Type2("tag:yaml.org,2002:map", {
     kind: "mapping",
     construct: function(data) {
       return data !== null ? data : {};
     }
   });
-  failsafe = new schema({
+  return map;
+}
+function requireFailsafe() {
+  if (hasRequiredFailsafe)
+    return failsafe;
+  hasRequiredFailsafe = 1;
+  const Schema2 = requireSchema();
+  failsafe = new Schema2({
     explicit: [
-      str,
-      seq,
-      map
+      requireStr(),
+      requireSeq(),
+      requireMap()
     ]
   });
-  _null = new type("tag:yaml.org,2002:null", {
+  return failsafe;
+}
+function require_null() {
+  if (hasRequired_null)
+    return _null;
+  hasRequired_null = 1;
+  const Type2 = requireType();
+  function resolveYamlNull(data) {
+    if (data === null)
+      return true;
+    const max = data.length;
+    return max === 1 && data === "~" || max === 4 && (data === "null" || data === "Null" || data === "NULL");
+  }
+  function constructYamlNull() {
+    return null;
+  }
+  function isNull(object) {
+    return object === null;
+  }
+  _null = new Type2("tag:yaml.org,2002:null", {
     kind: "scalar",
     resolve: resolveYamlNull,
     construct: constructYamlNull,
@@ -3321,7 +1401,26 @@ var init_js_yaml = __esm(() => {
     },
     defaultStyle: "lowercase"
   });
-  bool = new type("tag:yaml.org,2002:bool", {
+  return _null;
+}
+function requireBool() {
+  if (hasRequiredBool)
+    return bool;
+  hasRequiredBool = 1;
+  const Type2 = requireType();
+  function resolveYamlBoolean(data) {
+    if (data === null)
+      return false;
+    const max = data.length;
+    return max === 4 && (data === "true" || data === "True" || data === "TRUE") || max === 5 && (data === "false" || data === "False" || data === "FALSE");
+  }
+  function constructYamlBoolean(data) {
+    return data === "true" || data === "True" || data === "TRUE";
+  }
+  function isBoolean(object) {
+    return Object.prototype.toString.call(object) === "[object Boolean]";
+  }
+  bool = new Type2("tag:yaml.org,2002:bool", {
     kind: "scalar",
     resolve: resolveYamlBoolean,
     construct: constructYamlBoolean,
@@ -3339,7 +1438,107 @@ var init_js_yaml = __esm(() => {
     },
     defaultStyle: "lowercase"
   });
-  int = new type("tag:yaml.org,2002:int", {
+  return bool;
+}
+function requireInt() {
+  if (hasRequiredInt)
+    return int;
+  hasRequiredInt = 1;
+  const common2 = requireCommon();
+  const Type2 = requireType();
+  function isHexCode(c3) {
+    return c3 >= 48 && c3 <= 57 || c3 >= 65 && c3 <= 70 || c3 >= 97 && c3 <= 102;
+  }
+  function isOctCode(c3) {
+    return c3 >= 48 && c3 <= 55;
+  }
+  function isDecCode(c3) {
+    return c3 >= 48 && c3 <= 57;
+  }
+  function resolveYamlInteger(data) {
+    if (data === null)
+      return false;
+    const max = data.length;
+    let index = 0;
+    let hasDigits = false;
+    if (!max)
+      return false;
+    let ch = data[index];
+    if (ch === "-" || ch === "+") {
+      ch = data[++index];
+    }
+    if (ch === "0") {
+      if (index + 1 === max)
+        return true;
+      ch = data[++index];
+      if (ch === "b") {
+        index++;
+        for (;index < max; index++) {
+          ch = data[index];
+          if (ch !== "0" && ch !== "1")
+            return false;
+          hasDigits = true;
+        }
+        return hasDigits && isFinite(parseYamlInteger(data));
+      }
+      if (ch === "x") {
+        index++;
+        for (;index < max; index++) {
+          if (!isHexCode(data.charCodeAt(index)))
+            return false;
+          hasDigits = true;
+        }
+        return hasDigits && isFinite(parseYamlInteger(data));
+      }
+      if (ch === "o") {
+        index++;
+        for (;index < max; index++) {
+          if (!isOctCode(data.charCodeAt(index)))
+            return false;
+          hasDigits = true;
+        }
+        return hasDigits && isFinite(parseYamlInteger(data));
+      }
+    }
+    for (;index < max; index++) {
+      if (!isDecCode(data.charCodeAt(index))) {
+        return false;
+      }
+      hasDigits = true;
+    }
+    if (!hasDigits)
+      return false;
+    return isFinite(parseYamlInteger(data));
+  }
+  function parseYamlInteger(data) {
+    let value = data;
+    let sign = 1;
+    let ch = value[0];
+    if (ch === "-" || ch === "+") {
+      if (ch === "-")
+        sign = -1;
+      value = value.slice(1);
+      ch = value[0];
+    }
+    if (value === "0")
+      return 0;
+    if (ch === "0") {
+      if (value[1] === "b")
+        return sign * parseInt(value.slice(2), 2);
+      if (value[1] === "x")
+        return sign * parseInt(value.slice(2), 16);
+      if (value[1] === "o")
+        return sign * parseInt(value.slice(2), 8);
+    }
+    return sign * parseInt(value, 10);
+  }
+  function constructYamlInteger(data) {
+    return parseYamlInteger(data);
+  }
+  function isInteger(object) {
+    return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 === 0 && !common2.isNegativeZero(object));
+  }
+  int = new Type2("tag:yaml.org,2002:int", {
     kind: "scalar",
     resolve: resolveYamlInteger,
     construct: constructYamlInteger,
@@ -3366,9 +1565,79 @@ var init_js_yaml = __esm(() => {
       hexadecimal: [16, "hex"]
     }
   });
-  YAML_FLOAT_PATTERN = new RegExp("^(?:[-+]?(?:[0-9][0-9_]*)(?:\\.[0-9_]*)?(?:[eE][-+]?[0-9]+)?" + "|\\.[0-9_]+(?:[eE][-+]?[0-9]+)?" + "|[-+]?\\.(?:inf|Inf|INF)" + "|\\.(?:nan|NaN|NAN))$");
-  SCIENTIFIC_WITHOUT_DOT = /^[-+]?[0-9]+e/;
-  float = new type("tag:yaml.org,2002:float", {
+  return int;
+}
+function requireFloat() {
+  if (hasRequiredFloat)
+    return float;
+  hasRequiredFloat = 1;
+  const common2 = requireCommon();
+  const Type2 = requireType();
+  const YAML_FLOAT_PATTERN = new RegExp("^(?:[-+]?(?:[0-9]+)(?:\\.[0-9]*)?(?:[eE][-+]?[0-9]+)?|\\.[0-9]+(?:[eE][-+]?[0-9]+)?|[-+]?\\.(?:inf|Inf|INF)|\\.(?:nan|NaN|NAN))$");
+  const YAML_FLOAT_SPECIAL_PATTERN = new RegExp("^(?:[-+]?\\.(?:inf|Inf|INF)|\\.(?:nan|NaN|NAN))$");
+  function resolveYamlFloat(data) {
+    if (data === null)
+      return false;
+    if (!YAML_FLOAT_PATTERN.test(data)) {
+      return false;
+    }
+    if (isFinite(parseFloat(data, 10))) {
+      return true;
+    }
+    return YAML_FLOAT_SPECIAL_PATTERN.test(data);
+  }
+  function constructYamlFloat(data) {
+    let value = data.toLowerCase();
+    const sign = value[0] === "-" ? -1 : 1;
+    if ("+-".indexOf(value[0]) >= 0) {
+      value = value.slice(1);
+    }
+    if (value === ".inf") {
+      return sign === 1 ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+    } else if (value === ".nan") {
+      return NaN;
+    }
+    return sign * parseFloat(value, 10);
+  }
+  const SCIENTIFIC_WITHOUT_DOT = /^[-+]?[0-9]+e/;
+  function representYamlFloat(object, style) {
+    if (isNaN(object)) {
+      switch (style) {
+        case "lowercase":
+          return ".nan";
+        case "uppercase":
+          return ".NAN";
+        case "camelcase":
+          return ".NaN";
+      }
+    } else if (Number.POSITIVE_INFINITY === object) {
+      switch (style) {
+        case "lowercase":
+          return ".inf";
+        case "uppercase":
+          return ".INF";
+        case "camelcase":
+          return ".Inf";
+      }
+    } else if (Number.NEGATIVE_INFINITY === object) {
+      switch (style) {
+        case "lowercase":
+          return "-.inf";
+        case "uppercase":
+          return "-.INF";
+        case "camelcase":
+          return "-.Inf";
+      }
+    } else if (common2.isNegativeZero(object)) {
+      return "-0.0";
+    }
+    const res = object.toString(10);
+    return SCIENTIFIC_WITHOUT_DOT.test(res) ? res.replace("e", ".e") : res;
+  }
+  function isFloat(object) {
+    return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 !== 0 || common2.isNegativeZero(object));
+  }
+  float = new Type2("tag:yaml.org,2002:float", {
     kind: "scalar",
     resolve: resolveYamlFloat,
     construct: constructYamlFloat,
@@ -3376,93 +1645,587 @@ var init_js_yaml = __esm(() => {
     represent: representYamlFloat,
     defaultStyle: "lowercase"
   });
-  json = failsafe.extend({
+  return float;
+}
+function requireJson() {
+  if (hasRequiredJson)
+    return json;
+  hasRequiredJson = 1;
+  json = requireFailsafe().extend({
     implicit: [
-      _null,
-      bool,
-      int,
-      float
+      require_null(),
+      requireBool(),
+      requireInt(),
+      requireFloat()
     ]
   });
-  core = json;
-  YAML_DATE_REGEXP = new RegExp("^([0-9][0-9][0-9][0-9])" + "-([0-9][0-9])" + "-([0-9][0-9])$");
-  YAML_TIMESTAMP_REGEXP = new RegExp("^([0-9][0-9][0-9][0-9])" + "-([0-9][0-9]?)" + "-([0-9][0-9]?)" + "(?:[Tt]|[ \\t]+)" + "([0-9][0-9]?)" + ":([0-9][0-9])" + ":([0-9][0-9])" + "(?:\\.([0-9]*))?" + "(?:[ \\t]*(Z|([-+])([0-9][0-9]?)" + "(?::([0-9][0-9]))?))?$");
-  timestamp = new type("tag:yaml.org,2002:timestamp", {
+  return json;
+}
+function requireCore() {
+  if (hasRequiredCore)
+    return core;
+  hasRequiredCore = 1;
+  core = requireJson();
+  return core;
+}
+function requireTimestamp() {
+  if (hasRequiredTimestamp)
+    return timestamp;
+  hasRequiredTimestamp = 1;
+  const Type2 = requireType();
+  const YAML_DATE_REGEXP = new RegExp("^([0-9][0-9][0-9][0-9])-([0-9][0-9])-([0-9][0-9])$");
+  const YAML_TIMESTAMP_REGEXP = new RegExp("^([0-9][0-9][0-9][0-9])-([0-9][0-9]?)-([0-9][0-9]?)(?:[Tt]|[ \\t]+)([0-9][0-9]?):([0-9][0-9]):([0-9][0-9])(?:\\.([0-9]*))?(?:[ \\t]*(Z|([-+])([0-9][0-9]?)(?::([0-9][0-9]))?))?$");
+  function resolveYamlTimestamp(data) {
+    if (data === null)
+      return false;
+    if (YAML_DATE_REGEXP.exec(data) !== null)
+      return true;
+    if (YAML_TIMESTAMP_REGEXP.exec(data) !== null)
+      return true;
+    return false;
+  }
+  function constructYamlTimestamp(data) {
+    let fraction = 0;
+    let delta = null;
+    let match = YAML_DATE_REGEXP.exec(data);
+    if (match === null)
+      match = YAML_TIMESTAMP_REGEXP.exec(data);
+    if (match === null)
+      throw new Error("Date resolve error");
+    const year = +match[1];
+    const month = +match[2] - 1;
+    const day = +match[3];
+    if (!match[4]) {
+      return new Date(Date.UTC(year, month, day));
+    }
+    const hour = +match[4];
+    const minute = +match[5];
+    const second = +match[6];
+    if (match[7]) {
+      fraction = match[7].slice(0, 3);
+      while (fraction.length < 3) {
+        fraction += "0";
+      }
+      fraction = +fraction;
+    }
+    if (match[9]) {
+      const tzHour = +match[10];
+      const tzMinute = +(match[11] || 0);
+      delta = (tzHour * 60 + tzMinute) * 60000;
+      if (match[9] === "-")
+        delta = -delta;
+    }
+    const date = new Date(Date.UTC(year, month, day, hour, minute, second, fraction));
+    if (delta)
+      date.setTime(date.getTime() - delta);
+    return date;
+  }
+  function representYamlTimestamp(object) {
+    return object.toISOString();
+  }
+  timestamp = new Type2("tag:yaml.org,2002:timestamp", {
     kind: "scalar",
     resolve: resolveYamlTimestamp,
     construct: constructYamlTimestamp,
     instanceOf: Date,
     represent: representYamlTimestamp
   });
-  merge = new type("tag:yaml.org,2002:merge", {
+  return timestamp;
+}
+function requireMerge() {
+  if (hasRequiredMerge)
+    return merge;
+  hasRequiredMerge = 1;
+  const Type2 = requireType();
+  function resolveYamlMerge(data) {
+    return data === "<<" || data === null;
+  }
+  merge = new Type2("tag:yaml.org,2002:merge", {
     kind: "scalar",
     resolve: resolveYamlMerge
   });
-  binary = new type("tag:yaml.org,2002:binary", {
+  return merge;
+}
+function requireBinary() {
+  if (hasRequiredBinary)
+    return binary;
+  hasRequiredBinary = 1;
+  const Type2 = requireType();
+  const BASE64_MAP = `ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=
+\r`;
+  function resolveYamlBinary(data) {
+    if (data === null)
+      return false;
+    let bitlen = 0;
+    const max = data.length;
+    const map2 = BASE64_MAP;
+    for (let idx = 0;idx < max; idx++) {
+      const code = map2.indexOf(data.charAt(idx));
+      if (code > 64)
+        continue;
+      if (code < 0)
+        return false;
+      bitlen += 6;
+    }
+    return bitlen % 8 === 0;
+  }
+  function constructYamlBinary(data) {
+    const input = data.replace(/[\r\n=]/g, "");
+    const max = input.length;
+    const map2 = BASE64_MAP;
+    let bits = 0;
+    const result = [];
+    for (let idx = 0;idx < max; idx++) {
+      if (idx % 4 === 0 && idx) {
+        result.push(bits >> 16 & 255);
+        result.push(bits >> 8 & 255);
+        result.push(bits & 255);
+      }
+      bits = bits << 6 | map2.indexOf(input.charAt(idx));
+    }
+    const tailbits = max % 4 * 6;
+    if (tailbits === 0) {
+      result.push(bits >> 16 & 255);
+      result.push(bits >> 8 & 255);
+      result.push(bits & 255);
+    } else if (tailbits === 18) {
+      result.push(bits >> 10 & 255);
+      result.push(bits >> 2 & 255);
+    } else if (tailbits === 12) {
+      result.push(bits >> 4 & 255);
+    }
+    return new Uint8Array(result);
+  }
+  function representYamlBinary(object) {
+    let result = "";
+    let bits = 0;
+    const max = object.length;
+    const map2 = BASE64_MAP;
+    for (let idx = 0;idx < max; idx++) {
+      if (idx % 3 === 0 && idx) {
+        result += map2[bits >> 18 & 63];
+        result += map2[bits >> 12 & 63];
+        result += map2[bits >> 6 & 63];
+        result += map2[bits & 63];
+      }
+      bits = (bits << 8) + object[idx];
+    }
+    const tail = max % 3;
+    if (tail === 0) {
+      result += map2[bits >> 18 & 63];
+      result += map2[bits >> 12 & 63];
+      result += map2[bits >> 6 & 63];
+      result += map2[bits & 63];
+    } else if (tail === 2) {
+      result += map2[bits >> 10 & 63];
+      result += map2[bits >> 4 & 63];
+      result += map2[bits << 2 & 63];
+      result += map2[64];
+    } else if (tail === 1) {
+      result += map2[bits >> 2 & 63];
+      result += map2[bits << 4 & 63];
+      result += map2[64];
+      result += map2[64];
+    }
+    return result;
+  }
+  function isBinary(obj) {
+    return Object.prototype.toString.call(obj) === "[object Uint8Array]";
+  }
+  binary = new Type2("tag:yaml.org,2002:binary", {
     kind: "scalar",
     resolve: resolveYamlBinary,
     construct: constructYamlBinary,
     predicate: isBinary,
     represent: representYamlBinary
   });
-  _hasOwnProperty$3 = Object.prototype.hasOwnProperty;
-  _toString$2 = Object.prototype.toString;
-  omap = new type("tag:yaml.org,2002:omap", {
+  return binary;
+}
+function requireOmap() {
+  if (hasRequiredOmap)
+    return omap;
+  hasRequiredOmap = 1;
+  const Type2 = requireType();
+  const _hasOwnProperty = Object.prototype.hasOwnProperty;
+  const _toString = Object.prototype.toString;
+  function resolveYamlOmap(data) {
+    if (data === null)
+      return true;
+    const objectKeys = [];
+    const object = data;
+    for (let index = 0, length = object.length;index < length; index += 1) {
+      const pair = object[index];
+      let pairHasKey = false;
+      if (_toString.call(pair) !== "[object Object]")
+        return false;
+      let pairKey;
+      for (pairKey in pair) {
+        if (_hasOwnProperty.call(pair, pairKey)) {
+          if (!pairHasKey)
+            pairHasKey = true;
+          else
+            return false;
+        }
+      }
+      if (!pairHasKey)
+        return false;
+      if (objectKeys.indexOf(pairKey) === -1)
+        objectKeys.push(pairKey);
+      else
+        return false;
+    }
+    return true;
+  }
+  function constructYamlOmap(data) {
+    return data !== null ? data : [];
+  }
+  omap = new Type2("tag:yaml.org,2002:omap", {
     kind: "sequence",
     resolve: resolveYamlOmap,
     construct: constructYamlOmap
   });
-  _toString$1 = Object.prototype.toString;
-  pairs = new type("tag:yaml.org,2002:pairs", {
+  return omap;
+}
+function requirePairs() {
+  if (hasRequiredPairs)
+    return pairs;
+  hasRequiredPairs = 1;
+  const Type2 = requireType();
+  const _toString = Object.prototype.toString;
+  function resolveYamlPairs(data) {
+    if (data === null)
+      return true;
+    const object = data;
+    const result = new Array(object.length);
+    for (let index = 0, length = object.length;index < length; index += 1) {
+      const pair = object[index];
+      if (_toString.call(pair) !== "[object Object]")
+        return false;
+      const keys = Object.keys(pair);
+      if (keys.length !== 1)
+        return false;
+      result[index] = [keys[0], pair[keys[0]]];
+    }
+    return true;
+  }
+  function constructYamlPairs(data) {
+    if (data === null)
+      return [];
+    const object = data;
+    const result = new Array(object.length);
+    for (let index = 0, length = object.length;index < length; index += 1) {
+      const pair = object[index];
+      const keys = Object.keys(pair);
+      result[index] = [keys[0], pair[keys[0]]];
+    }
+    return result;
+  }
+  pairs = new Type2("tag:yaml.org,2002:pairs", {
     kind: "sequence",
     resolve: resolveYamlPairs,
     construct: constructYamlPairs
   });
-  _hasOwnProperty$2 = Object.prototype.hasOwnProperty;
-  set = new type("tag:yaml.org,2002:set", {
+  return pairs;
+}
+function requireSet() {
+  if (hasRequiredSet)
+    return set;
+  hasRequiredSet = 1;
+  const Type2 = requireType();
+  const _hasOwnProperty = Object.prototype.hasOwnProperty;
+  function resolveYamlSet(data) {
+    if (data === null)
+      return true;
+    const object = data;
+    for (const key in object) {
+      if (_hasOwnProperty.call(object, key)) {
+        if (object[key] !== null)
+          return false;
+      }
+    }
+    return true;
+  }
+  function constructYamlSet(data) {
+    return data !== null ? data : {};
+  }
+  set = new Type2("tag:yaml.org,2002:set", {
     kind: "mapping",
     resolve: resolveYamlSet,
     construct: constructYamlSet
   });
-  _default = core.extend({
+  return set;
+}
+function require_default() {
+  if (hasRequired_default)
+    return _default;
+  hasRequired_default = 1;
+  _default = requireCore().extend({
     implicit: [
-      timestamp,
-      merge
+      requireTimestamp(),
+      requireMerge()
     ],
     explicit: [
-      binary,
-      omap,
-      pairs,
-      set
+      requireBinary(),
+      requireOmap(),
+      requirePairs(),
+      requireSet()
     ]
   });
-  _hasOwnProperty$1 = Object.prototype.hasOwnProperty;
-  PATTERN_NON_PRINTABLE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x84\x86-\x9F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/;
-  PATTERN_NON_ASCII_LINE_BREAKS = /[\x85\u2028\u2029]/;
-  PATTERN_FLOW_INDICATORS = /[,\[\]\{\}]/;
-  PATTERN_TAG_HANDLE = /^(?:!|!!|![a-z\-]+!)$/i;
-  PATTERN_TAG_URI = /^(?:!|[^,\[\]\{\}])(?:%[0-9a-f]{2}|[0-9a-z\-#;\/\?:@&=\+\$,_\.!~\*'\(\)\[\]])*$/i;
-  simpleEscapeCheck = new Array(256);
-  simpleEscapeMap = new Array(256);
-  for (i2 = 0;i2 < 256; i2++) {
+  return _default;
+}
+function requireLoader() {
+  if (hasRequiredLoader)
+    return loader;
+  hasRequiredLoader = 1;
+  const common2 = requireCommon();
+  const YAMLException2 = requireException();
+  const makeSnippet = requireSnippet();
+  const DEFAULT_SCHEMA2 = require_default();
+  const _hasOwnProperty = Object.prototype.hasOwnProperty;
+  const CONTEXT_FLOW_IN = 1;
+  const CONTEXT_FLOW_OUT = 2;
+  const CONTEXT_BLOCK_IN = 3;
+  const CONTEXT_BLOCK_OUT = 4;
+  const CHOMPING_CLIP = 1;
+  const CHOMPING_STRIP = 2;
+  const CHOMPING_KEEP = 3;
+  const PATTERN_NON_PRINTABLE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x84\x86-\x9F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/;
+  const PATTERN_NON_ASCII_LINE_BREAKS = /[\x85\u2028\u2029]/;
+  const PATTERN_FLOW_INDICATORS = /[,\[\]{}]/;
+  const PATTERN_TAG_HANDLE = /^(?:!|!!|![0-9A-Za-z-]+!)$/;
+  const PATTERN_TAG_URI = /^(?:!|[^,\[\]{}])(?:%[0-9a-f]{2}|[0-9a-z\-#;/?:@&=+$,_.!~*'()\[\]])*$/i;
+  function _class(obj) {
+    return Object.prototype.toString.call(obj);
+  }
+  function isEol(c3) {
+    return c3 === 10 || c3 === 13;
+  }
+  function isWhiteSpace(c3) {
+    return c3 === 9 || c3 === 32;
+  }
+  function isWsOrEol(c3) {
+    return c3 === 9 || c3 === 32 || c3 === 10 || c3 === 13;
+  }
+  function isFlowIndicator(c3) {
+    return c3 === 44 || c3 === 91 || c3 === 93 || c3 === 123 || c3 === 125;
+  }
+  function fromHexCode(c3) {
+    if (c3 >= 48 && c3 <= 57) {
+      return c3 - 48;
+    }
+    const lc = c3 | 32;
+    if (lc >= 97 && lc <= 102) {
+      return lc - 97 + 10;
+    }
+    return -1;
+  }
+  function escapedHexLen(c3) {
+    if (c3 === 120) {
+      return 2;
+    }
+    if (c3 === 117) {
+      return 4;
+    }
+    if (c3 === 85) {
+      return 8;
+    }
+    return 0;
+  }
+  function fromDecimalCode(c3) {
+    if (c3 >= 48 && c3 <= 57) {
+      return c3 - 48;
+    }
+    return -1;
+  }
+  function simpleEscapeSequence(c3) {
+    switch (c3) {
+      case 48:
+        return "\x00";
+      case 97:
+        return "\x07";
+      case 98:
+        return "\b";
+      case 116:
+        return "\t";
+      case 9:
+        return "\t";
+      case 110:
+        return `
+`;
+      case 118:
+        return "\v";
+      case 102:
+        return "\f";
+      case 114:
+        return "\r";
+      case 101:
+        return "\x1B";
+      case 32:
+        return " ";
+      case 34:
+        return '"';
+      case 47:
+        return "/";
+      case 92:
+        return "\\";
+      case 78:
+        return "";
+      case 95:
+        return " ";
+      case 76:
+        return "\u2028";
+      case 80:
+        return "\u2029";
+      default:
+        return "";
+    }
+  }
+  function charFromCodepoint(c3) {
+    if (c3 <= 65535) {
+      return String.fromCharCode(c3);
+    }
+    return String.fromCharCode((c3 - 65536 >> 10) + 55296, (c3 - 65536 & 1023) + 56320);
+  }
+  function setProperty(object, key, value) {
+    if (key === "__proto__") {
+      Object.defineProperty(object, key, {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value
+      });
+    } else {
+      object[key] = value;
+    }
+  }
+  const simpleEscapeCheck = new Array(256);
+  const simpleEscapeMap = new Array(256);
+  for (let i2 = 0;i2 < 256; i2++) {
     simpleEscapeCheck[i2] = simpleEscapeSequence(i2) ? 1 : 0;
     simpleEscapeMap[i2] = simpleEscapeSequence(i2);
   }
-  directiveHandlers = {
+  function State(input, options) {
+    this.input = input;
+    this.filename = options["filename"] || null;
+    this.schema = options["schema"] || DEFAULT_SCHEMA2;
+    this.onWarning = options["onWarning"] || null;
+    this.legacy = options["legacy"] || false;
+    this.json = options["json"] || false;
+    this.listener = options["listener"] || null;
+    this.maxDepth = typeof options["maxDepth"] === "number" ? options["maxDepth"] : 100;
+    this.maxTotalMergeKeys = typeof options["maxTotalMergeKeys"] === "number" ? options["maxTotalMergeKeys"] : 1e4;
+    this.implicitTypes = this.schema.compiledImplicit;
+    this.typeMap = this.schema.compiledTypeMap;
+    this.length = input.length;
+    this.position = 0;
+    this.line = 0;
+    this.lineStart = 0;
+    this.lineIndent = 0;
+    this.depth = 0;
+    this.totalMergeKeys = 0;
+    this.firstTabInLine = -1;
+    this.documents = [];
+    this.anchorMapTransactions = [];
+  }
+  function generateError(state, message) {
+    const mark = {
+      name: state.filename,
+      buffer: state.input.slice(0, -1),
+      position: state.position,
+      line: state.line,
+      column: state.position - state.lineStart
+    };
+    mark.snippet = makeSnippet(mark);
+    return new YAMLException2(message, mark);
+  }
+  function throwError(state, message) {
+    throw generateError(state, message);
+  }
+  function throwWarning(state, message) {
+    if (state.onWarning) {
+      state.onWarning.call(null, generateError(state, message));
+    }
+  }
+  function storeAnchor(state, name, value) {
+    const transactions = state.anchorMapTransactions;
+    if (transactions.length !== 0) {
+      const transaction = transactions[transactions.length - 1];
+      if (!_hasOwnProperty.call(transaction, name)) {
+        transaction[name] = {
+          existed: _hasOwnProperty.call(state.anchorMap, name),
+          value: state.anchorMap[name]
+        };
+      }
+    }
+    state.anchorMap[name] = value;
+  }
+  function beginAnchorTransaction(state) {
+    state.anchorMapTransactions.push(/* @__PURE__ */ Object.create(null));
+  }
+  function commitAnchorTransaction(state) {
+    const transaction = state.anchorMapTransactions.pop();
+    const transactions = state.anchorMapTransactions;
+    if (transactions.length === 0)
+      return;
+    const parent = transactions[transactions.length - 1];
+    const names = Object.keys(transaction);
+    for (let index = 0, length = names.length;index < length; index += 1) {
+      const name = names[index];
+      if (!_hasOwnProperty.call(parent, name)) {
+        parent[name] = transaction[name];
+      }
+    }
+  }
+  function rollbackAnchorTransaction(state) {
+    const transaction = state.anchorMapTransactions.pop();
+    const names = Object.keys(transaction);
+    for (let index = names.length - 1;index >= 0; index -= 1) {
+      const entry = transaction[names[index]];
+      if (entry.existed) {
+        state.anchorMap[names[index]] = entry.value;
+      } else {
+        delete state.anchorMap[names[index]];
+      }
+    }
+  }
+  function snapshotState(state) {
+    return {
+      position: state.position,
+      line: state.line,
+      lineStart: state.lineStart,
+      lineIndent: state.lineIndent,
+      firstTabInLine: state.firstTabInLine,
+      tag: state.tag,
+      anchor: state.anchor,
+      kind: state.kind,
+      result: state.result
+    };
+  }
+  function restoreState(state, snapshot) {
+    state.position = snapshot.position;
+    state.line = snapshot.line;
+    state.lineStart = snapshot.lineStart;
+    state.lineIndent = snapshot.lineIndent;
+    state.firstTabInLine = snapshot.firstTabInLine;
+    state.tag = snapshot.tag;
+    state.anchor = snapshot.anchor;
+    state.kind = snapshot.kind;
+    state.result = snapshot.result;
+  }
+  const directiveHandlers = {
     YAML: function handleYamlDirective(state, name, args) {
-      var match, major, minor;
       if (state.version !== null) {
         throwError(state, "duplication of %YAML directive");
       }
       if (args.length !== 1) {
         throwError(state, "YAML directive accepts exactly one argument");
       }
-      match = /^([0-9]+)\.([0-9]+)$/.exec(args[0]);
+      const match = /^([0-9]+)\.([0-9]+)$/.exec(args[0]);
       if (match === null) {
         throwError(state, "ill-formed argument of the YAML directive");
       }
-      major = parseInt(match[1], 10);
-      minor = parseInt(match[2], 10);
+      const major = parseInt(match[1], 10);
+      const minor = parseInt(match[2], 10);
       if (major !== 1) {
         throwError(state, "unacceptable YAML version of the document");
       }
@@ -3473,16 +2236,16 @@ var init_js_yaml = __esm(() => {
       }
     },
     TAG: function handleTagDirective(state, name, args) {
-      var handle, prefix;
+      let prefix;
       if (args.length !== 2) {
         throwError(state, "TAG directive accepts exactly two arguments");
       }
-      handle = args[0];
+      const handle = args[0];
       prefix = args[1];
       if (!PATTERN_TAG_HANDLE.test(handle)) {
         throwError(state, "ill-formed tag handle (first argument) of the TAG directive");
       }
-      if (_hasOwnProperty$1.call(state.tagMap, handle)) {
+      if (_hasOwnProperty.call(state.tagMap, handle)) {
         throwError(state, 'there is a previously declared suffix for "' + handle + '" tag handle');
       }
       if (!PATTERN_TAG_URI.test(prefix)) {
@@ -3496,15 +2259,1134 @@ var init_js_yaml = __esm(() => {
       state.tagMap[handle] = prefix;
     }
   };
-  loadAll_1 = loadAll$1;
-  load_1 = load$1;
-  loader = {
-    loadAll: loadAll_1,
-    load: load_1
-  };
-  _toString = Object.prototype.toString;
-  _hasOwnProperty = Object.prototype.hasOwnProperty;
-  ESCAPE_SEQUENCES = {};
+  function captureSegment(state, start, end, checkJson) {
+    if (start < end) {
+      const _result = state.input.slice(start, end);
+      if (checkJson) {
+        for (let _position = 0, _length = _result.length;_position < _length; _position += 1) {
+          const _character = _result.charCodeAt(_position);
+          if (!(_character === 9 || _character >= 32 && _character <= 1114111)) {
+            throwError(state, "expected valid JSON character");
+          }
+        }
+      } else if (PATTERN_NON_PRINTABLE.test(_result)) {
+        throwError(state, "the stream contains non-printable characters");
+      }
+      state.result += _result;
+    }
+  }
+  function mergeMappings(state, destination, source, overridableKeys) {
+    if (!common2.isObject(source)) {
+      throwError(state, "cannot merge mappings; the provided source object is unacceptable");
+    }
+    const sourceKeys = Object.keys(source);
+    for (let index = 0, quantity = sourceKeys.length;index < quantity; index += 1) {
+      const key = sourceKeys[index];
+      if (state.maxTotalMergeKeys !== -1 && ++state.totalMergeKeys > state.maxTotalMergeKeys) {
+        throwError(state, "merge keys exceeded maxTotalMergeKeys (" + state.maxTotalMergeKeys + ")");
+      }
+      if (!_hasOwnProperty.call(destination, key)) {
+        setProperty(destination, key, source[key]);
+        overridableKeys[key] = true;
+      }
+    }
+  }
+  function storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, valueNode, startLine, startLineStart, startPos) {
+    if (Array.isArray(keyNode)) {
+      keyNode = Array.prototype.slice.call(keyNode);
+      for (let index = 0, quantity = keyNode.length;index < quantity; index += 1) {
+        if (Array.isArray(keyNode[index])) {
+          throwError(state, "nested arrays are not supported inside keys");
+        }
+        if (typeof keyNode === "object" && _class(keyNode[index]) === "[object Object]") {
+          keyNode[index] = "[object Object]";
+        }
+      }
+    }
+    if (typeof keyNode === "object" && _class(keyNode) === "[object Object]") {
+      keyNode = "[object Object]";
+    }
+    keyNode = String(keyNode);
+    if (_result === null) {
+      _result = {};
+    }
+    if (keyTag === "tag:yaml.org,2002:merge") {
+      if (Array.isArray(valueNode)) {
+        for (let index = 0, quantity = valueNode.length;index < quantity; index += 1) {
+          mergeMappings(state, _result, valueNode[index], overridableKeys);
+        }
+      } else {
+        mergeMappings(state, _result, valueNode, overridableKeys);
+      }
+    } else {
+      if (!state.json && !_hasOwnProperty.call(overridableKeys, keyNode) && _hasOwnProperty.call(_result, keyNode)) {
+        state.line = startLine || state.line;
+        state.lineStart = startLineStart || state.lineStart;
+        state.position = startPos || state.position;
+        throwError(state, "duplicated mapping key");
+      }
+      setProperty(_result, keyNode, valueNode);
+      delete overridableKeys[keyNode];
+    }
+    return _result;
+  }
+  function readLineBreak(state) {
+    const ch = state.input.charCodeAt(state.position);
+    if (ch === 10) {
+      state.position++;
+    } else if (ch === 13) {
+      state.position++;
+      if (state.input.charCodeAt(state.position) === 10) {
+        state.position++;
+      }
+    } else {
+      throwError(state, "a line break is expected");
+    }
+    state.line += 1;
+    state.lineStart = state.position;
+    state.firstTabInLine = -1;
+  }
+  function skipSeparationSpace(state, allowComments, checkIndent) {
+    let lineBreaks = 0;
+    let ch = state.input.charCodeAt(state.position);
+    while (ch !== 0) {
+      while (isWhiteSpace(ch)) {
+        if (ch === 9 && state.firstTabInLine === -1) {
+          state.firstTabInLine = state.position;
+        }
+        ch = state.input.charCodeAt(++state.position);
+      }
+      if (allowComments && ch === 35) {
+        do {
+          ch = state.input.charCodeAt(++state.position);
+        } while (ch !== 10 && ch !== 13 && ch !== 0);
+      }
+      if (isEol(ch)) {
+        readLineBreak(state);
+        ch = state.input.charCodeAt(state.position);
+        lineBreaks++;
+        state.lineIndent = 0;
+        while (ch === 32) {
+          state.lineIndent++;
+          ch = state.input.charCodeAt(++state.position);
+        }
+      } else {
+        break;
+      }
+    }
+    if (checkIndent !== -1 && lineBreaks !== 0 && state.lineIndent < checkIndent) {
+      throwWarning(state, "deficient indentation");
+    }
+    return lineBreaks;
+  }
+  function testDocumentSeparator(state) {
+    let _position = state.position;
+    let ch = state.input.charCodeAt(_position);
+    if ((ch === 45 || ch === 46) && ch === state.input.charCodeAt(_position + 1) && ch === state.input.charCodeAt(_position + 2)) {
+      _position += 3;
+      ch = state.input.charCodeAt(_position);
+      if (ch === 0 || isWsOrEol(ch)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  function writeFoldedLines(state, count) {
+    if (count === 1) {
+      state.result += " ";
+    } else if (count > 1) {
+      state.result += common2.repeat(`
+`, count - 1);
+    }
+  }
+  function readPlainScalar(state, nodeIndent, withinFlowCollection) {
+    let captureStart;
+    let captureEnd;
+    let hasPendingContent;
+    let _line;
+    let _lineStart;
+    let _lineIndent;
+    const _kind = state.kind;
+    const _result = state.result;
+    let ch = state.input.charCodeAt(state.position);
+    if (isWsOrEol(ch) || isFlowIndicator(ch) || ch === 35 || ch === 38 || ch === 42 || ch === 33 || ch === 124 || ch === 62 || ch === 39 || ch === 34 || ch === 37 || ch === 64 || ch === 96) {
+      return false;
+    }
+    if (ch === 63 || ch === 45) {
+      const following = state.input.charCodeAt(state.position + 1);
+      if (isWsOrEol(following) || withinFlowCollection && isFlowIndicator(following)) {
+        return false;
+      }
+    }
+    state.kind = "scalar";
+    state.result = "";
+    captureStart = captureEnd = state.position;
+    hasPendingContent = false;
+    while (ch !== 0) {
+      if (ch === 58) {
+        const following = state.input.charCodeAt(state.position + 1);
+        if (isWsOrEol(following) || withinFlowCollection && isFlowIndicator(following)) {
+          break;
+        }
+      } else if (ch === 35) {
+        const preceding = state.input.charCodeAt(state.position - 1);
+        if (isWsOrEol(preceding)) {
+          break;
+        }
+      } else if (state.position === state.lineStart && testDocumentSeparator(state) || withinFlowCollection && isFlowIndicator(ch)) {
+        break;
+      } else if (isEol(ch)) {
+        _line = state.line;
+        _lineStart = state.lineStart;
+        _lineIndent = state.lineIndent;
+        skipSeparationSpace(state, false, -1);
+        if (state.lineIndent >= nodeIndent) {
+          hasPendingContent = true;
+          ch = state.input.charCodeAt(state.position);
+          continue;
+        } else {
+          state.position = captureEnd;
+          state.line = _line;
+          state.lineStart = _lineStart;
+          state.lineIndent = _lineIndent;
+          break;
+        }
+      }
+      if (hasPendingContent) {
+        captureSegment(state, captureStart, captureEnd, false);
+        writeFoldedLines(state, state.line - _line);
+        captureStart = captureEnd = state.position;
+        hasPendingContent = false;
+      }
+      if (!isWhiteSpace(ch)) {
+        captureEnd = state.position + 1;
+      }
+      ch = state.input.charCodeAt(++state.position);
+    }
+    captureSegment(state, captureStart, captureEnd, false);
+    if (state.result) {
+      return true;
+    }
+    state.kind = _kind;
+    state.result = _result;
+    return false;
+  }
+  function readSingleQuotedScalar(state, nodeIndent) {
+    let captureStart;
+    let captureEnd;
+    let ch = state.input.charCodeAt(state.position);
+    if (ch !== 39) {
+      return false;
+    }
+    state.kind = "scalar";
+    state.result = "";
+    state.position++;
+    captureStart = captureEnd = state.position;
+    while ((ch = state.input.charCodeAt(state.position)) !== 0) {
+      if (ch === 39) {
+        captureSegment(state, captureStart, state.position, true);
+        ch = state.input.charCodeAt(++state.position);
+        if (ch === 39) {
+          captureStart = state.position;
+          state.position++;
+          captureEnd = state.position;
+        } else {
+          return true;
+        }
+      } else if (isEol(ch)) {
+        captureSegment(state, captureStart, captureEnd, true);
+        writeFoldedLines(state, skipSeparationSpace(state, false, nodeIndent));
+        captureStart = captureEnd = state.position;
+      } else if (state.position === state.lineStart && testDocumentSeparator(state)) {
+        throwError(state, "unexpected end of the document within a single quoted scalar");
+      } else {
+        state.position++;
+        if (!isWhiteSpace(ch)) {
+          captureEnd = state.position;
+        }
+      }
+    }
+    throwError(state, "unexpected end of the stream within a single quoted scalar");
+  }
+  function readDoubleQuotedScalar(state, nodeIndent) {
+    let captureStart;
+    let captureEnd;
+    let tmp;
+    let ch = state.input.charCodeAt(state.position);
+    if (ch !== 34) {
+      return false;
+    }
+    state.kind = "scalar";
+    state.result = "";
+    state.position++;
+    captureStart = captureEnd = state.position;
+    while ((ch = state.input.charCodeAt(state.position)) !== 0) {
+      if (ch === 34) {
+        captureSegment(state, captureStart, state.position, true);
+        state.position++;
+        return true;
+      } else if (ch === 92) {
+        captureSegment(state, captureStart, state.position, true);
+        ch = state.input.charCodeAt(++state.position);
+        if (isEol(ch)) {
+          skipSeparationSpace(state, false, nodeIndent);
+        } else if (ch < 256 && simpleEscapeCheck[ch]) {
+          state.result += simpleEscapeMap[ch];
+          state.position++;
+        } else if ((tmp = escapedHexLen(ch)) > 0) {
+          let hexLength = tmp;
+          let hexResult = 0;
+          for (;hexLength > 0; hexLength--) {
+            ch = state.input.charCodeAt(++state.position);
+            if ((tmp = fromHexCode(ch)) >= 0) {
+              hexResult = (hexResult << 4) + tmp;
+            } else {
+              throwError(state, "expected hexadecimal character");
+            }
+          }
+          state.result += charFromCodepoint(hexResult);
+          state.position++;
+        } else {
+          throwError(state, "unknown escape sequence");
+        }
+        captureStart = captureEnd = state.position;
+      } else if (isEol(ch)) {
+        captureSegment(state, captureStart, captureEnd, true);
+        writeFoldedLines(state, skipSeparationSpace(state, false, nodeIndent));
+        captureStart = captureEnd = state.position;
+      } else if (state.position === state.lineStart && testDocumentSeparator(state)) {
+        throwError(state, "unexpected end of the document within a double quoted scalar");
+      } else {
+        state.position++;
+        if (!isWhiteSpace(ch)) {
+          captureEnd = state.position;
+        }
+      }
+    }
+    throwError(state, "unexpected end of the stream within a double quoted scalar");
+  }
+  function readFlowCollection(state, nodeIndent) {
+    let readNext = true;
+    let _line;
+    let _lineStart;
+    let _pos;
+    const _tag = state.tag;
+    let _result;
+    const _anchor = state.anchor;
+    let terminator;
+    let isPair;
+    let isExplicitPair;
+    let isMapping;
+    const overridableKeys = /* @__PURE__ */ Object.create(null);
+    let keyNode;
+    let keyTag;
+    let valueNode;
+    let ch = state.input.charCodeAt(state.position);
+    if (ch === 91) {
+      terminator = 93;
+      isMapping = false;
+      _result = [];
+    } else if (ch === 123) {
+      terminator = 125;
+      isMapping = true;
+      _result = {};
+    } else {
+      return false;
+    }
+    if (state.anchor !== null) {
+      storeAnchor(state, state.anchor, _result);
+    }
+    ch = state.input.charCodeAt(++state.position);
+    while (ch !== 0) {
+      skipSeparationSpace(state, true, nodeIndent);
+      ch = state.input.charCodeAt(state.position);
+      if (ch === terminator) {
+        state.position++;
+        state.tag = _tag;
+        state.anchor = _anchor;
+        state.kind = isMapping ? "mapping" : "sequence";
+        state.result = _result;
+        return true;
+      } else if (!readNext) {
+        throwError(state, "missed comma between flow collection entries");
+      } else if (ch === 44) {
+        throwError(state, "expected the node content, but found ','");
+      }
+      keyTag = keyNode = valueNode = null;
+      isPair = isExplicitPair = false;
+      if (ch === 63) {
+        const following = state.input.charCodeAt(state.position + 1);
+        if (isWsOrEol(following)) {
+          isPair = isExplicitPair = true;
+          state.position++;
+          skipSeparationSpace(state, true, nodeIndent);
+        }
+      }
+      _line = state.line;
+      _lineStart = state.lineStart;
+      _pos = state.position;
+      composeNode(state, nodeIndent, CONTEXT_FLOW_IN, false, true);
+      keyTag = state.tag;
+      keyNode = state.result;
+      skipSeparationSpace(state, true, nodeIndent);
+      ch = state.input.charCodeAt(state.position);
+      if ((isExplicitPair || state.line === _line) && ch === 58) {
+        isPair = true;
+        ch = state.input.charCodeAt(++state.position);
+        skipSeparationSpace(state, true, nodeIndent);
+        composeNode(state, nodeIndent, CONTEXT_FLOW_IN, false, true);
+        valueNode = state.result;
+      }
+      if (isMapping) {
+        storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, valueNode, _line, _lineStart, _pos);
+      } else if (isPair) {
+        _result.push(storeMappingPair(state, null, overridableKeys, keyTag, keyNode, valueNode, _line, _lineStart, _pos));
+      } else {
+        _result.push(keyNode);
+      }
+      skipSeparationSpace(state, true, nodeIndent);
+      ch = state.input.charCodeAt(state.position);
+      if (ch === 44) {
+        readNext = true;
+        ch = state.input.charCodeAt(++state.position);
+      } else {
+        readNext = false;
+      }
+    }
+    throwError(state, "unexpected end of the stream within a flow collection");
+  }
+  function readBlockScalar(state, nodeIndent) {
+    let folding;
+    let chomping = CHOMPING_CLIP;
+    let didReadContent = false;
+    let detectedIndent = false;
+    let textIndent = nodeIndent;
+    let emptyLines = 0;
+    let atMoreIndented = false;
+    let tmp;
+    let ch = state.input.charCodeAt(state.position);
+    if (ch === 124) {
+      folding = false;
+    } else if (ch === 62) {
+      folding = true;
+    } else {
+      return false;
+    }
+    state.kind = "scalar";
+    state.result = "";
+    while (ch !== 0) {
+      ch = state.input.charCodeAt(++state.position);
+      if (ch === 43 || ch === 45) {
+        if (CHOMPING_CLIP === chomping) {
+          chomping = ch === 43 ? CHOMPING_KEEP : CHOMPING_STRIP;
+        } else {
+          throwError(state, "repeat of a chomping mode identifier");
+        }
+      } else if ((tmp = fromDecimalCode(ch)) >= 0) {
+        if (tmp === 0) {
+          throwError(state, "bad explicit indentation width of a block scalar; it cannot be less than one");
+        } else if (!detectedIndent) {
+          textIndent = nodeIndent + tmp - 1;
+          detectedIndent = true;
+        } else {
+          throwError(state, "repeat of an indentation width identifier");
+        }
+      } else {
+        break;
+      }
+    }
+    if (isWhiteSpace(ch)) {
+      do {
+        ch = state.input.charCodeAt(++state.position);
+      } while (isWhiteSpace(ch));
+      if (ch === 35) {
+        do {
+          ch = state.input.charCodeAt(++state.position);
+        } while (!isEol(ch) && ch !== 0);
+      }
+    }
+    while (ch !== 0) {
+      readLineBreak(state);
+      state.lineIndent = 0;
+      ch = state.input.charCodeAt(state.position);
+      while ((!detectedIndent || state.lineIndent < textIndent) && ch === 32) {
+        state.lineIndent++;
+        ch = state.input.charCodeAt(++state.position);
+      }
+      if (!detectedIndent && state.lineIndent > textIndent) {
+        textIndent = state.lineIndent;
+      }
+      if (isEol(ch)) {
+        emptyLines++;
+        continue;
+      }
+      if (!detectedIndent && textIndent === 0) {
+        throwError(state, "missing indentation for block scalar");
+      }
+      if (state.lineIndent < textIndent) {
+        if (chomping === CHOMPING_KEEP) {
+          state.result += common2.repeat(`
+`, didReadContent ? 1 + emptyLines : emptyLines);
+        } else if (chomping === CHOMPING_CLIP) {
+          if (didReadContent) {
+            state.result += `
+`;
+          }
+        }
+        break;
+      }
+      if (folding) {
+        if (isWhiteSpace(ch)) {
+          atMoreIndented = true;
+          state.result += common2.repeat(`
+`, didReadContent ? 1 + emptyLines : emptyLines);
+        } else if (atMoreIndented) {
+          atMoreIndented = false;
+          state.result += common2.repeat(`
+`, emptyLines + 1);
+        } else if (emptyLines === 0) {
+          if (didReadContent) {
+            state.result += " ";
+          }
+        } else {
+          state.result += common2.repeat(`
+`, emptyLines);
+        }
+      } else {
+        state.result += common2.repeat(`
+`, didReadContent ? 1 + emptyLines : emptyLines);
+      }
+      didReadContent = true;
+      detectedIndent = true;
+      emptyLines = 0;
+      const captureStart = state.position;
+      while (!isEol(ch) && ch !== 0) {
+        ch = state.input.charCodeAt(++state.position);
+      }
+      captureSegment(state, captureStart, state.position, false);
+    }
+    return true;
+  }
+  function readBlockSequence(state, nodeIndent) {
+    const _tag = state.tag;
+    const _anchor = state.anchor;
+    const _result = [];
+    let detected = false;
+    if (state.firstTabInLine !== -1)
+      return false;
+    if (state.anchor !== null) {
+      storeAnchor(state, state.anchor, _result);
+    }
+    let ch = state.input.charCodeAt(state.position);
+    while (ch !== 0) {
+      if (state.firstTabInLine !== -1) {
+        state.position = state.firstTabInLine;
+        throwError(state, "tab characters must not be used in indentation");
+      }
+      if (ch !== 45) {
+        break;
+      }
+      const following = state.input.charCodeAt(state.position + 1);
+      if (!isWsOrEol(following)) {
+        break;
+      }
+      detected = true;
+      state.position++;
+      if (skipSeparationSpace(state, true, -1)) {
+        if (state.lineIndent <= nodeIndent) {
+          _result.push(null);
+          ch = state.input.charCodeAt(state.position);
+          continue;
+        }
+      }
+      const _line = state.line;
+      composeNode(state, nodeIndent, CONTEXT_BLOCK_IN, false, true);
+      _result.push(state.result);
+      skipSeparationSpace(state, true, -1);
+      ch = state.input.charCodeAt(state.position);
+      if ((state.line === _line || state.lineIndent > nodeIndent) && ch !== 0) {
+        throwError(state, "bad indentation of a sequence entry");
+      } else if (state.lineIndent < nodeIndent) {
+        break;
+      }
+    }
+    if (detected) {
+      state.tag = _tag;
+      state.anchor = _anchor;
+      state.kind = "sequence";
+      state.result = _result;
+      return true;
+    }
+    return false;
+  }
+  function readBlockMapping(state, nodeIndent, flowIndent) {
+    let allowCompact;
+    let _keyLine;
+    let _keyLineStart;
+    let _keyPos;
+    const _tag = state.tag;
+    const _anchor = state.anchor;
+    const _result = {};
+    const overridableKeys = /* @__PURE__ */ Object.create(null);
+    let keyTag = null;
+    let keyNode = null;
+    let valueNode = null;
+    let atExplicitKey = false;
+    let detected = false;
+    if (state.firstTabInLine !== -1)
+      return false;
+    if (state.anchor !== null) {
+      storeAnchor(state, state.anchor, _result);
+    }
+    let ch = state.input.charCodeAt(state.position);
+    while (ch !== 0) {
+      if (!atExplicitKey && state.firstTabInLine !== -1) {
+        state.position = state.firstTabInLine;
+        throwError(state, "tab characters must not be used in indentation");
+      }
+      const following = state.input.charCodeAt(state.position + 1);
+      const _line = state.line;
+      if ((ch === 63 || ch === 58) && isWsOrEol(following)) {
+        if (ch === 63) {
+          if (atExplicitKey) {
+            storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
+            keyTag = keyNode = valueNode = null;
+          }
+          detected = true;
+          atExplicitKey = true;
+          allowCompact = true;
+        } else if (atExplicitKey) {
+          atExplicitKey = false;
+          allowCompact = true;
+        } else {
+          throwError(state, "incomplete explicit mapping pair; a key node is missed; or followed by a non-tabulated empty line");
+        }
+        state.position += 1;
+        ch = following;
+      } else {
+        _keyLine = state.line;
+        _keyLineStart = state.lineStart;
+        _keyPos = state.position;
+        if (!composeNode(state, flowIndent, CONTEXT_FLOW_OUT, false, true)) {
+          break;
+        }
+        if (state.line === _line) {
+          ch = state.input.charCodeAt(state.position);
+          while (isWhiteSpace(ch)) {
+            ch = state.input.charCodeAt(++state.position);
+          }
+          if (ch === 58) {
+            ch = state.input.charCodeAt(++state.position);
+            if (!isWsOrEol(ch)) {
+              throwError(state, "a whitespace character is expected after the key-value separator within a block mapping");
+            }
+            if (atExplicitKey) {
+              storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
+              keyTag = keyNode = valueNode = null;
+            }
+            detected = true;
+            atExplicitKey = false;
+            allowCompact = false;
+            keyTag = state.tag;
+            keyNode = state.result;
+          } else if (detected) {
+            throwError(state, "can not read an implicit mapping pair; a colon is missed");
+          } else {
+            state.tag = _tag;
+            state.anchor = _anchor;
+            return true;
+          }
+        } else if (detected) {
+          throwError(state, "can not read a block mapping entry; a multiline key may not be an implicit key");
+        } else {
+          state.tag = _tag;
+          state.anchor = _anchor;
+          return true;
+        }
+      }
+      if (state.line === _line || state.lineIndent > nodeIndent) {
+        if (atExplicitKey) {
+          _keyLine = state.line;
+          _keyLineStart = state.lineStart;
+          _keyPos = state.position;
+        }
+        if (composeNode(state, nodeIndent, CONTEXT_BLOCK_OUT, true, allowCompact)) {
+          if (atExplicitKey) {
+            keyNode = state.result;
+          } else {
+            valueNode = state.result;
+          }
+        }
+        if (!atExplicitKey) {
+          storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, valueNode, _keyLine, _keyLineStart, _keyPos);
+          keyTag = keyNode = valueNode = null;
+        }
+        skipSeparationSpace(state, true, -1);
+        ch = state.input.charCodeAt(state.position);
+      }
+      if ((state.line === _line || state.lineIndent > nodeIndent) && ch !== 0) {
+        throwError(state, "bad indentation of a mapping entry");
+      } else if (state.lineIndent < nodeIndent) {
+        break;
+      }
+    }
+    if (atExplicitKey) {
+      storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
+    }
+    if (detected) {
+      state.tag = _tag;
+      state.anchor = _anchor;
+      state.kind = "mapping";
+      state.result = _result;
+    }
+    return detected;
+  }
+  function readTagProperty(state) {
+    let isVerbatim = false;
+    let isNamed = false;
+    let tagHandle;
+    let tagName;
+    let ch = state.input.charCodeAt(state.position);
+    if (ch !== 33)
+      return false;
+    if (state.tag !== null) {
+      throwError(state, "duplication of a tag property");
+    }
+    ch = state.input.charCodeAt(++state.position);
+    if (ch === 60) {
+      isVerbatim = true;
+      ch = state.input.charCodeAt(++state.position);
+    } else if (ch === 33) {
+      isNamed = true;
+      tagHandle = "!!";
+      ch = state.input.charCodeAt(++state.position);
+    } else {
+      tagHandle = "!";
+    }
+    let _position = state.position;
+    if (isVerbatim) {
+      do {
+        ch = state.input.charCodeAt(++state.position);
+      } while (ch !== 0 && ch !== 62);
+      if (state.position < state.length) {
+        tagName = state.input.slice(_position, state.position);
+        ch = state.input.charCodeAt(++state.position);
+      } else {
+        throwError(state, "unexpected end of the stream within a verbatim tag");
+      }
+    } else {
+      while (ch !== 0 && !isWsOrEol(ch)) {
+        if (ch === 33) {
+          if (!isNamed) {
+            tagHandle = state.input.slice(_position - 1, state.position + 1);
+            if (!PATTERN_TAG_HANDLE.test(tagHandle)) {
+              throwError(state, "named tag handle cannot contain such characters");
+            }
+            isNamed = true;
+            _position = state.position + 1;
+          } else {
+            throwError(state, "tag suffix cannot contain exclamation marks");
+          }
+        }
+        ch = state.input.charCodeAt(++state.position);
+      }
+      tagName = state.input.slice(_position, state.position);
+      if (PATTERN_FLOW_INDICATORS.test(tagName)) {
+        throwError(state, "tag suffix cannot contain flow indicator characters");
+      }
+    }
+    if (tagName && !PATTERN_TAG_URI.test(tagName)) {
+      throwError(state, "tag name cannot contain such characters: " + tagName);
+    }
+    try {
+      tagName = decodeURIComponent(tagName);
+    } catch (err) {
+      throwError(state, "tag name is malformed: " + tagName);
+    }
+    if (isVerbatim) {
+      state.tag = tagName;
+    } else if (_hasOwnProperty.call(state.tagMap, tagHandle)) {
+      state.tag = state.tagMap[tagHandle] + tagName;
+    } else if (tagHandle === "!") {
+      state.tag = "!" + tagName;
+    } else if (tagHandle === "!!") {
+      state.tag = "tag:yaml.org,2002:" + tagName;
+    } else {
+      throwError(state, 'undeclared tag handle "' + tagHandle + '"');
+    }
+    return true;
+  }
+  function readAnchorProperty(state) {
+    let ch = state.input.charCodeAt(state.position);
+    if (ch !== 38)
+      return false;
+    if (state.anchor !== null) {
+      throwError(state, "duplication of an anchor property");
+    }
+    ch = state.input.charCodeAt(++state.position);
+    const _position = state.position;
+    while (ch !== 0 && !isWsOrEol(ch) && !isFlowIndicator(ch)) {
+      ch = state.input.charCodeAt(++state.position);
+    }
+    if (state.position === _position) {
+      throwError(state, "name of an anchor node must contain at least one character");
+    }
+    state.anchor = state.input.slice(_position, state.position);
+    return true;
+  }
+  function readAlias(state) {
+    let ch = state.input.charCodeAt(state.position);
+    if (ch !== 42)
+      return false;
+    ch = state.input.charCodeAt(++state.position);
+    const _position = state.position;
+    while (ch !== 0 && !isWsOrEol(ch) && !isFlowIndicator(ch)) {
+      ch = state.input.charCodeAt(++state.position);
+    }
+    if (state.position === _position) {
+      throwError(state, "name of an alias node must contain at least one character");
+    }
+    const alias = state.input.slice(_position, state.position);
+    if (!_hasOwnProperty.call(state.anchorMap, alias)) {
+      throwError(state, 'unidentified alias "' + alias + '"');
+    }
+    state.result = state.anchorMap[alias];
+    skipSeparationSpace(state, true, -1);
+    return true;
+  }
+  function tryReadBlockMappingFromProperty(state, propertyStart, nodeIndent, flowIndent) {
+    const fallbackState = snapshotState(state);
+    beginAnchorTransaction(state);
+    restoreState(state, propertyStart);
+    state.tag = null;
+    state.anchor = null;
+    state.kind = null;
+    state.result = null;
+    if (readBlockMapping(state, nodeIndent, flowIndent) && state.kind === "mapping") {
+      commitAnchorTransaction(state);
+      return true;
+    }
+    rollbackAnchorTransaction(state);
+    restoreState(state, fallbackState);
+    return false;
+  }
+  function composeNode(state, parentIndent, nodeContext, allowToSeek, allowCompact) {
+    let allowBlockScalars;
+    let allowBlockCollections;
+    let indentStatus = 1;
+    let atNewLine = false;
+    let hasContent = false;
+    let propertyStart = null;
+    let type2;
+    let flowIndent;
+    let blockIndent;
+    if (state.depth >= state.maxDepth) {
+      throwError(state, "nesting exceeded maxDepth (" + state.maxDepth + ")");
+    }
+    state.depth += 1;
+    if (state.listener !== null) {
+      state.listener("open", state);
+    }
+    state.tag = null;
+    state.anchor = null;
+    state.kind = null;
+    state.result = null;
+    const allowBlockStyles = allowBlockScalars = allowBlockCollections = CONTEXT_BLOCK_OUT === nodeContext || CONTEXT_BLOCK_IN === nodeContext;
+    if (allowToSeek) {
+      if (skipSeparationSpace(state, true, -1)) {
+        atNewLine = true;
+        if (state.lineIndent > parentIndent) {
+          indentStatus = 1;
+        } else if (state.lineIndent === parentIndent) {
+          indentStatus = 0;
+        } else if (state.lineIndent < parentIndent) {
+          indentStatus = -1;
+        }
+      }
+    }
+    if (indentStatus === 1) {
+      while (true) {
+        const ch = state.input.charCodeAt(state.position);
+        const propertyState = snapshotState(state);
+        if (atNewLine && (ch === 33 && state.tag !== null || ch === 38 && state.anchor !== null)) {
+          break;
+        }
+        if (!readTagProperty(state) && !readAnchorProperty(state)) {
+          break;
+        }
+        if (propertyStart === null) {
+          propertyStart = propertyState;
+        }
+        if (skipSeparationSpace(state, true, -1)) {
+          atNewLine = true;
+          allowBlockCollections = allowBlockStyles;
+          if (state.lineIndent > parentIndent) {
+            indentStatus = 1;
+          } else if (state.lineIndent === parentIndent) {
+            indentStatus = 0;
+          } else if (state.lineIndent < parentIndent) {
+            indentStatus = -1;
+          }
+        } else {
+          allowBlockCollections = false;
+        }
+      }
+    }
+    if (allowBlockCollections) {
+      allowBlockCollections = atNewLine || allowCompact;
+    }
+    if (indentStatus === 1 || CONTEXT_BLOCK_OUT === nodeContext) {
+      if (CONTEXT_FLOW_IN === nodeContext || CONTEXT_FLOW_OUT === nodeContext) {
+        flowIndent = parentIndent;
+      } else {
+        flowIndent = parentIndent + 1;
+      }
+      blockIndent = state.position - state.lineStart;
+      if (indentStatus === 1) {
+        if (allowBlockCollections && (readBlockSequence(state, blockIndent) || readBlockMapping(state, blockIndent, flowIndent)) || readFlowCollection(state, flowIndent)) {
+          hasContent = true;
+        } else {
+          const ch = state.input.charCodeAt(state.position);
+          if (propertyStart !== null && allowBlockStyles && !allowBlockCollections && ch !== 124 && ch !== 62 && tryReadBlockMappingFromProperty(state, propertyStart, propertyStart.position - propertyStart.lineStart, flowIndent)) {
+            hasContent = true;
+          } else if (allowBlockScalars && readBlockScalar(state, flowIndent) || readSingleQuotedScalar(state, flowIndent) || readDoubleQuotedScalar(state, flowIndent)) {
+            hasContent = true;
+          } else if (readAlias(state)) {
+            hasContent = true;
+            if (state.tag !== null || state.anchor !== null) {
+              throwError(state, "alias node should not have any properties");
+            }
+          } else if (readPlainScalar(state, flowIndent, CONTEXT_FLOW_IN === nodeContext)) {
+            hasContent = true;
+            if (state.tag === null) {
+              state.tag = "?";
+            }
+          }
+          if (state.anchor !== null) {
+            storeAnchor(state, state.anchor, state.result);
+          }
+        }
+      } else if (indentStatus === 0) {
+        hasContent = allowBlockCollections && readBlockSequence(state, blockIndent);
+      }
+    }
+    if (state.tag === null) {
+      if (state.anchor !== null) {
+        storeAnchor(state, state.anchor, state.result);
+      }
+    } else if (state.tag === "?") {
+      if (state.result !== null && state.kind !== "scalar") {
+        throwError(state, 'unacceptable node kind for !<?> tag; it should be "scalar", not "' + state.kind + '"');
+      }
+      for (let typeIndex = 0, typeQuantity = state.implicitTypes.length;typeIndex < typeQuantity; typeIndex += 1) {
+        type2 = state.implicitTypes[typeIndex];
+        if (type2.resolve(state.result)) {
+          state.result = type2.construct(state.result);
+          state.tag = type2.tag;
+          if (state.anchor !== null) {
+            storeAnchor(state, state.anchor, state.result);
+          }
+          break;
+        }
+      }
+    } else if (state.tag !== "!") {
+      if (_hasOwnProperty.call(state.typeMap[state.kind || "fallback"], state.tag)) {
+        type2 = state.typeMap[state.kind || "fallback"][state.tag];
+      } else {
+        type2 = null;
+        const typeList = state.typeMap.multi[state.kind || "fallback"];
+        for (let typeIndex = 0, typeQuantity = typeList.length;typeIndex < typeQuantity; typeIndex += 1) {
+          if (state.tag.slice(0, typeList[typeIndex].tag.length) === typeList[typeIndex].tag) {
+            type2 = typeList[typeIndex];
+            break;
+          }
+        }
+      }
+      if (!type2) {
+        throwError(state, "unknown tag !<" + state.tag + ">");
+      }
+      if (state.result !== null && type2.kind !== state.kind) {
+        throwError(state, "unacceptable node kind for !<" + state.tag + '> tag; it should be "' + type2.kind + '", not "' + state.kind + '"');
+      }
+      if (!type2.resolve(state.result, state.tag)) {
+        throwError(state, "cannot resolve a node with !<" + state.tag + "> explicit tag");
+      } else {
+        state.result = type2.construct(state.result, state.tag);
+        if (state.anchor !== null) {
+          storeAnchor(state, state.anchor, state.result);
+        }
+      }
+    }
+    if (state.listener !== null) {
+      state.listener("close", state);
+    }
+    state.depth -= 1;
+    return state.tag !== null || state.anchor !== null || hasContent;
+  }
+  function readDocument(state) {
+    const documentStart = state.position;
+    let hasDirectives = false;
+    let ch;
+    state.version = null;
+    state.checkLineBreaks = state.legacy;
+    state.tagMap = /* @__PURE__ */ Object.create(null);
+    state.anchorMap = /* @__PURE__ */ Object.create(null);
+    while ((ch = state.input.charCodeAt(state.position)) !== 0) {
+      skipSeparationSpace(state, true, -1);
+      ch = state.input.charCodeAt(state.position);
+      if (state.lineIndent > 0 || ch !== 37) {
+        break;
+      }
+      hasDirectives = true;
+      ch = state.input.charCodeAt(++state.position);
+      let _position = state.position;
+      while (ch !== 0 && !isWsOrEol(ch)) {
+        ch = state.input.charCodeAt(++state.position);
+      }
+      const directiveName = state.input.slice(_position, state.position);
+      const directiveArgs = [];
+      if (directiveName.length < 1) {
+        throwError(state, "directive name must not be less than one character in length");
+      }
+      while (ch !== 0) {
+        while (isWhiteSpace(ch)) {
+          ch = state.input.charCodeAt(++state.position);
+        }
+        if (ch === 35) {
+          do {
+            ch = state.input.charCodeAt(++state.position);
+          } while (ch !== 0 && !isEol(ch));
+          break;
+        }
+        if (isEol(ch))
+          break;
+        _position = state.position;
+        while (ch !== 0 && !isWsOrEol(ch)) {
+          ch = state.input.charCodeAt(++state.position);
+        }
+        directiveArgs.push(state.input.slice(_position, state.position));
+      }
+      if (ch !== 0)
+        readLineBreak(state);
+      if (_hasOwnProperty.call(directiveHandlers, directiveName)) {
+        directiveHandlers[directiveName](state, directiveName, directiveArgs);
+      } else {
+        throwWarning(state, 'unknown document directive "' + directiveName + '"');
+      }
+    }
+    skipSeparationSpace(state, true, -1);
+    if (state.lineIndent === 0 && state.input.charCodeAt(state.position) === 45 && state.input.charCodeAt(state.position + 1) === 45 && state.input.charCodeAt(state.position + 2) === 45) {
+      state.position += 3;
+      skipSeparationSpace(state, true, -1);
+    } else if (hasDirectives) {
+      throwError(state, "directives end mark is expected");
+    }
+    composeNode(state, state.lineIndent - 1, CONTEXT_BLOCK_OUT, false, true);
+    skipSeparationSpace(state, true, -1);
+    if (state.checkLineBreaks && PATTERN_NON_ASCII_LINE_BREAKS.test(state.input.slice(documentStart, state.position))) {
+      throwWarning(state, "non-ASCII line breaks are interpreted as content");
+    }
+    state.documents.push(state.result);
+    if (state.position === state.lineStart && testDocumentSeparator(state)) {
+      if (state.input.charCodeAt(state.position) === 46) {
+        state.position += 3;
+        skipSeparationSpace(state, true, -1);
+      }
+      return;
+    }
+    if (state.position < state.length - 1) {
+      throwError(state, "end of the stream or a document separator is expected");
+    }
+  }
+  function loadDocuments(input, options) {
+    input = String(input);
+    options = options || {};
+    if (input.length !== 0) {
+      if (input.charCodeAt(input.length - 1) !== 10 && input.charCodeAt(input.length - 1) !== 13) {
+        input += `
+`;
+      }
+      if (input.charCodeAt(0) === 65279) {
+        input = input.slice(1);
+      }
+    }
+    const state = new State(input, options);
+    const nullpos = input.indexOf("\x00");
+    if (nullpos !== -1) {
+      state.position = nullpos;
+      throwError(state, "null byte is not allowed in input");
+    }
+    state.input += "\x00";
+    while (state.input.charCodeAt(state.position) === 32) {
+      state.lineIndent += 1;
+      state.position += 1;
+    }
+    while (state.position < state.length - 1) {
+      readDocument(state);
+    }
+    return state.documents;
+  }
+  function loadAll2(input, iterator, options) {
+    if (iterator !== null && typeof iterator === "object" && typeof options === "undefined") {
+      options = iterator;
+      iterator = null;
+    }
+    const documents = loadDocuments(input, options);
+    if (typeof iterator !== "function") {
+      return documents;
+    }
+    for (let index = 0, length = documents.length;index < length; index += 1) {
+      iterator(documents[index]);
+    }
+  }
+  function load2(input, options) {
+    const documents = loadDocuments(input, options);
+    if (documents.length === 0) {
+      return;
+    } else if (documents.length === 1) {
+      return documents[0];
+    }
+    throw new YAMLException2("expected a single document in the stream, but found more");
+  }
+  loader.loadAll = loadAll2;
+  loader.load = load2;
+  return loader;
+}
+function requireDumper() {
+  if (hasRequiredDumper)
+    return dumper;
+  hasRequiredDumper = 1;
+  const common2 = requireCommon();
+  const YAMLException2 = requireException();
+  const DEFAULT_SCHEMA2 = require_default();
+  const _toString = Object.prototype.toString;
+  const _hasOwnProperty = Object.prototype.hasOwnProperty;
+  const CHAR_BOM = 65279;
+  const CHAR_TAB = 9;
+  const CHAR_LINE_FEED = 10;
+  const CHAR_CARRIAGE_RETURN = 13;
+  const CHAR_SPACE = 32;
+  const CHAR_EXCLAMATION = 33;
+  const CHAR_DOUBLE_QUOTE = 34;
+  const CHAR_SHARP = 35;
+  const CHAR_PERCENT = 37;
+  const CHAR_AMPERSAND = 38;
+  const CHAR_SINGLE_QUOTE = 39;
+  const CHAR_ASTERISK = 42;
+  const CHAR_COMMA = 44;
+  const CHAR_MINUS = 45;
+  const CHAR_COLON = 58;
+  const CHAR_EQUALS = 61;
+  const CHAR_GREATER_THAN = 62;
+  const CHAR_QUESTION = 63;
+  const CHAR_COMMERCIAL_AT = 64;
+  const CHAR_LEFT_SQUARE_BRACKET = 91;
+  const CHAR_RIGHT_SQUARE_BRACKET = 93;
+  const CHAR_GRAVE_ACCENT = 96;
+  const CHAR_LEFT_CURLY_BRACKET = 123;
+  const CHAR_VERTICAL_LINE = 124;
+  const CHAR_RIGHT_CURLY_BRACKET = 125;
+  const ESCAPE_SEQUENCES = {};
   ESCAPE_SEQUENCES[0] = "\\0";
   ESCAPE_SEQUENCES[7] = "\\a";
   ESCAPE_SEQUENCES[8] = "\\b";
@@ -3520,7 +3402,7 @@ var init_js_yaml = __esm(() => {
   ESCAPE_SEQUENCES[160] = "\\_";
   ESCAPE_SEQUENCES[8232] = "\\L";
   ESCAPE_SEQUENCES[8233] = "\\P";
-  DEPRECATED_BOOLEANS_SYNTAX = [
+  const DEPRECATED_BOOLEANS_SYNTAX = [
     "y",
     "Y",
     "yes",
@@ -3538,17 +3420,654 @@ var init_js_yaml = __esm(() => {
     "Off",
     "OFF"
   ];
-  DEPRECATED_BASE60_SYNTAX = /^[-+]?[0-9_]+(?::[0-9_]+)+(?:\.[0-9_]*)?$/;
-  dump_1 = dump$1;
-  dumper = {
-    dump: dump_1
+  const DEPRECATED_BASE60_SYNTAX = /^[-+]?[0-9_]+(?::[0-9_]+)+(?:\.[0-9_]*)?$/;
+  function compileStyleMap(schema2, map2) {
+    if (map2 === null)
+      return {};
+    const result = {};
+    const keys = Object.keys(map2);
+    for (let index = 0, length = keys.length;index < length; index += 1) {
+      let tag = keys[index];
+      let style = String(map2[tag]);
+      if (tag.slice(0, 2) === "!!") {
+        tag = "tag:yaml.org,2002:" + tag.slice(2);
+      }
+      const type2 = schema2.compiledTypeMap["fallback"][tag];
+      if (type2 && _hasOwnProperty.call(type2.styleAliases, style)) {
+        style = type2.styleAliases[style];
+      }
+      result[tag] = style;
+    }
+    return result;
+  }
+  function encodeHex(character) {
+    let handle;
+    let length;
+    const string = character.toString(16).toUpperCase();
+    if (character <= 255) {
+      handle = "x";
+      length = 2;
+    } else if (character <= 65535) {
+      handle = "u";
+      length = 4;
+    } else if (character <= 4294967295) {
+      handle = "U";
+      length = 8;
+    } else {
+      throw new YAMLException2("code point within a string may not be greater than 0xFFFFFFFF");
+    }
+    return "\\" + handle + common2.repeat("0", length - string.length) + string;
+  }
+  const QUOTING_TYPE_SINGLE = 1;
+  const QUOTING_TYPE_DOUBLE = 2;
+  function State(options) {
+    this.schema = options["schema"] || DEFAULT_SCHEMA2;
+    this.indent = Math.max(1, options["indent"] || 2);
+    this.noArrayIndent = options["noArrayIndent"] || false;
+    this.skipInvalid = options["skipInvalid"] || false;
+    this.flowLevel = common2.isNothing(options["flowLevel"]) ? -1 : options["flowLevel"];
+    this.styleMap = compileStyleMap(this.schema, options["styles"] || null);
+    this.sortKeys = options["sortKeys"] || false;
+    this.lineWidth = options["lineWidth"] || 80;
+    this.noRefs = options["noRefs"] || false;
+    this.noCompatMode = options["noCompatMode"] || false;
+    this.condenseFlow = options["condenseFlow"] || false;
+    this.quotingType = options["quotingType"] === '"' ? QUOTING_TYPE_DOUBLE : QUOTING_TYPE_SINGLE;
+    this.forceQuotes = options["forceQuotes"] || false;
+    this.replacer = typeof options["replacer"] === "function" ? options["replacer"] : null;
+    this.implicitTypes = this.schema.compiledImplicit;
+    this.explicitTypes = this.schema.compiledExplicit;
+    this.tag = null;
+    this.result = "";
+    this.duplicates = [];
+    this.usedDuplicates = null;
+  }
+  function indentString(string, spaces) {
+    const ind = common2.repeat(" ", spaces);
+    let position = 0;
+    let result = "";
+    const length = string.length;
+    while (position < length) {
+      let line;
+      const next = string.indexOf(`
+`, position);
+      if (next === -1) {
+        line = string.slice(position);
+        position = length;
+      } else {
+        line = string.slice(position, next + 1);
+        position = next + 1;
+      }
+      if (line.length && line !== `
+`)
+        result += ind;
+      result += line;
+    }
+    return result;
+  }
+  function generateNextLine(state, level) {
+    return `
+` + common2.repeat(" ", state.indent * level);
+  }
+  function testImplicitResolving(state, str2) {
+    for (let index = 0, length = state.implicitTypes.length;index < length; index += 1) {
+      const type2 = state.implicitTypes[index];
+      if (type2.resolve(str2)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  function isWhitespace(c3) {
+    return c3 === CHAR_SPACE || c3 === CHAR_TAB;
+  }
+  function isPrintable(c3) {
+    return c3 >= 32 && c3 <= 126 || c3 >= 161 && c3 <= 55295 && c3 !== 8232 && c3 !== 8233 || c3 >= 57344 && c3 <= 65533 && c3 !== CHAR_BOM || c3 >= 65536 && c3 <= 1114111;
+  }
+  function isNsCharOrWhitespace(c3) {
+    return isPrintable(c3) && c3 !== CHAR_BOM && c3 !== CHAR_CARRIAGE_RETURN && c3 !== CHAR_LINE_FEED;
+  }
+  function isPlainSafe(c3, prev, inblock) {
+    const cIsNsCharOrWhitespace = isNsCharOrWhitespace(c3);
+    const cIsNsChar = cIsNsCharOrWhitespace && !isWhitespace(c3);
+    return (inblock ? cIsNsCharOrWhitespace : cIsNsCharOrWhitespace && c3 !== CHAR_COMMA && c3 !== CHAR_LEFT_SQUARE_BRACKET && c3 !== CHAR_RIGHT_SQUARE_BRACKET && c3 !== CHAR_LEFT_CURLY_BRACKET && c3 !== CHAR_RIGHT_CURLY_BRACKET) && c3 !== CHAR_SHARP && !(prev === CHAR_COLON && !cIsNsChar) || isNsCharOrWhitespace(prev) && !isWhitespace(prev) && c3 === CHAR_SHARP || prev === CHAR_COLON && cIsNsChar;
+  }
+  function isPlainSafeFirst(c3) {
+    return isPrintable(c3) && c3 !== CHAR_BOM && !isWhitespace(c3) && c3 !== CHAR_MINUS && c3 !== CHAR_QUESTION && c3 !== CHAR_COLON && c3 !== CHAR_COMMA && c3 !== CHAR_LEFT_SQUARE_BRACKET && c3 !== CHAR_RIGHT_SQUARE_BRACKET && c3 !== CHAR_LEFT_CURLY_BRACKET && c3 !== CHAR_RIGHT_CURLY_BRACKET && c3 !== CHAR_SHARP && c3 !== CHAR_AMPERSAND && c3 !== CHAR_ASTERISK && c3 !== CHAR_EXCLAMATION && c3 !== CHAR_VERTICAL_LINE && c3 !== CHAR_EQUALS && c3 !== CHAR_GREATER_THAN && c3 !== CHAR_SINGLE_QUOTE && c3 !== CHAR_DOUBLE_QUOTE && c3 !== CHAR_PERCENT && c3 !== CHAR_COMMERCIAL_AT && c3 !== CHAR_GRAVE_ACCENT;
+  }
+  function isPlainSafeLast(c3) {
+    return !isWhitespace(c3) && c3 !== CHAR_COLON;
+  }
+  function codePointAt(string, pos) {
+    const first = string.charCodeAt(pos);
+    let second;
+    if (first >= 55296 && first <= 56319 && pos + 1 < string.length) {
+      second = string.charCodeAt(pos + 1);
+      if (second >= 56320 && second <= 57343) {
+        return (first - 55296) * 1024 + second - 56320 + 65536;
+      }
+    }
+    return first;
+  }
+  function needIndentIndicator(string) {
+    const leadingSpaceRe = /^\n* /;
+    return leadingSpaceRe.test(string);
+  }
+  const STYLE_PLAIN = 1;
+  const STYLE_SINGLE = 2;
+  const STYLE_LITERAL = 3;
+  const STYLE_FOLDED = 4;
+  const STYLE_DOUBLE = 5;
+  function chooseScalarStyle(string, singleLineOnly, indentPerLevel, lineWidth, testAmbiguousType, quotingType, forceQuotes, inblock) {
+    let i2;
+    let char = 0;
+    let prevChar = null;
+    let hasLineBreak = false;
+    let hasFoldableLine = false;
+    const shouldTrackWidth = lineWidth !== -1;
+    let previousLineBreak = -1;
+    let plain = isPlainSafeFirst(codePointAt(string, 0)) && isPlainSafeLast(codePointAt(string, string.length - 1));
+    if (singleLineOnly || forceQuotes) {
+      for (i2 = 0;i2 < string.length; char >= 65536 ? i2 += 2 : i2++) {
+        char = codePointAt(string, i2);
+        if (!isPrintable(char)) {
+          return STYLE_DOUBLE;
+        }
+        plain = plain && isPlainSafe(char, prevChar, inblock);
+        prevChar = char;
+      }
+    } else {
+      for (i2 = 0;i2 < string.length; char >= 65536 ? i2 += 2 : i2++) {
+        char = codePointAt(string, i2);
+        if (char === CHAR_LINE_FEED) {
+          hasLineBreak = true;
+          if (shouldTrackWidth) {
+            hasFoldableLine = hasFoldableLine || i2 - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ";
+            previousLineBreak = i2;
+          }
+        } else if (!isPrintable(char)) {
+          return STYLE_DOUBLE;
+        }
+        plain = plain && isPlainSafe(char, prevChar, inblock);
+        prevChar = char;
+      }
+      hasFoldableLine = hasFoldableLine || shouldTrackWidth && (i2 - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ");
+    }
+    if (!hasLineBreak && !hasFoldableLine) {
+      if (plain && !forceQuotes && !testAmbiguousType(string)) {
+        return STYLE_PLAIN;
+      }
+      return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
+    }
+    if (indentPerLevel > 9 && needIndentIndicator(string)) {
+      return STYLE_DOUBLE;
+    }
+    if (!forceQuotes) {
+      return hasFoldableLine ? STYLE_FOLDED : STYLE_LITERAL;
+    }
+    return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
+  }
+  function writeScalar(state, string, level, iskey, inblock) {
+    state.dump = function() {
+      if (string.length === 0) {
+        return state.quotingType === QUOTING_TYPE_DOUBLE ? '""' : "''";
+      }
+      if (!state.noCompatMode) {
+        if (DEPRECATED_BOOLEANS_SYNTAX.indexOf(string) !== -1 || DEPRECATED_BASE60_SYNTAX.test(string)) {
+          return state.quotingType === QUOTING_TYPE_DOUBLE ? '"' + string + '"' : "'" + string + "'";
+        }
+      }
+      const indent = state.indent * Math.max(1, level);
+      const lineWidth = state.lineWidth === -1 ? -1 : Math.max(Math.min(state.lineWidth, 40), state.lineWidth - indent);
+      const singleLineOnly = iskey || state.flowLevel > -1 && level >= state.flowLevel;
+      function testAmbiguity(string2) {
+        return testImplicitResolving(state, string2);
+      }
+      switch (chooseScalarStyle(string, singleLineOnly, state.indent, lineWidth, testAmbiguity, state.quotingType, state.forceQuotes && !iskey, inblock)) {
+        case STYLE_PLAIN:
+          return string;
+        case STYLE_SINGLE:
+          return "'" + string.replace(/'/g, "''") + "'";
+        case STYLE_LITERAL:
+          return "|" + blockHeader(string, state.indent) + dropEndingNewline(indentString(string, indent));
+        case STYLE_FOLDED:
+          return ">" + blockHeader(string, state.indent) + dropEndingNewline(indentString(foldString(string, lineWidth), indent));
+        case STYLE_DOUBLE:
+          return '"' + escapeString(string) + '"';
+        default:
+          throw new YAMLException2("impossible error: invalid scalar style");
+      }
+    }();
+  }
+  function blockHeader(string, indentPerLevel) {
+    const indentIndicator = needIndentIndicator(string) ? String(indentPerLevel) : "";
+    const clip = string[string.length - 1] === `
+`;
+    const keep = clip && (string[string.length - 2] === `
+` || string === `
+`);
+    const chomp = keep ? "+" : clip ? "" : "-";
+    return indentIndicator + chomp + `
+`;
+  }
+  function dropEndingNewline(string) {
+    return string[string.length - 1] === `
+` ? string.slice(0, -1) : string;
+  }
+  function foldString(string, width) {
+    const lineRe = /(\n+)([^\n]*)/g;
+    let result = function() {
+      let nextLF = string.indexOf(`
+`);
+      nextLF = nextLF !== -1 ? nextLF : string.length;
+      lineRe.lastIndex = nextLF;
+      return foldLine(string.slice(0, nextLF), width);
+    }();
+    let prevMoreIndented = string[0] === `
+` || string[0] === " ";
+    let moreIndented;
+    let match;
+    while (match = lineRe.exec(string)) {
+      const prefix = match[1];
+      const line = match[2];
+      moreIndented = line[0] === " ";
+      result += prefix + (!prevMoreIndented && !moreIndented && line !== "" ? `
+` : "") + foldLine(line, width);
+      prevMoreIndented = moreIndented;
+    }
+    return result;
+  }
+  function foldLine(line, width) {
+    if (line === "" || line[0] === " ")
+      return line;
+    const breakRe = / [^ ]/g;
+    let match;
+    let start = 0;
+    let end;
+    let curr = 0;
+    let next = 0;
+    let result = "";
+    while (match = breakRe.exec(line)) {
+      next = match.index;
+      if (next - start > width) {
+        end = curr > start ? curr : next;
+        result += `
+` + line.slice(start, end);
+        start = end + 1;
+      }
+      curr = next;
+    }
+    result += `
+`;
+    if (line.length - start > width && curr > start) {
+      result += line.slice(start, curr) + `
+` + line.slice(curr + 1);
+    } else {
+      result += line.slice(start);
+    }
+    return result.slice(1);
+  }
+  function escapeString(string) {
+    let result = "";
+    let char = 0;
+    for (let i2 = 0;i2 < string.length; char >= 65536 ? i2 += 2 : i2++) {
+      char = codePointAt(string, i2);
+      const escapeSeq = ESCAPE_SEQUENCES[char];
+      if (!escapeSeq && isPrintable(char)) {
+        result += string[i2];
+        if (char >= 65536)
+          result += string[i2 + 1];
+      } else {
+        result += escapeSeq || encodeHex(char);
+      }
+    }
+    return result;
+  }
+  function writeFlowSequence(state, level, object) {
+    let _result = "";
+    const _tag = state.tag;
+    for (let index = 0, length = object.length;index < length; index += 1) {
+      let value = object[index];
+      if (state.replacer) {
+        value = state.replacer.call(object, String(index), value);
+      }
+      if (writeNode(state, level, value, false, false) || typeof value === "undefined" && writeNode(state, level, null, false, false)) {
+        if (_result !== "")
+          _result += "," + (!state.condenseFlow ? " " : "");
+        _result += state.dump;
+      }
+    }
+    state.tag = _tag;
+    state.dump = "[" + _result + "]";
+  }
+  function writeBlockSequence(state, level, object, compact) {
+    let _result = "";
+    const _tag = state.tag;
+    for (let index = 0, length = object.length;index < length; index += 1) {
+      let value = object[index];
+      if (state.replacer) {
+        value = state.replacer.call(object, String(index), value);
+      }
+      if (writeNode(state, level + 1, value, true, true, false, true) || typeof value === "undefined" && writeNode(state, level + 1, null, true, true, false, true)) {
+        if (!compact || _result !== "") {
+          _result += generateNextLine(state, level);
+        }
+        if (state.dump && CHAR_LINE_FEED === state.dump.charCodeAt(0)) {
+          _result += "-";
+        } else {
+          _result += "- ";
+        }
+        _result += state.dump;
+      }
+    }
+    state.tag = _tag;
+    state.dump = _result || "[]";
+  }
+  function writeFlowMapping(state, level, object) {
+    let _result = "";
+    const _tag = state.tag;
+    const objectKeyList = Object.keys(object);
+    for (let index = 0, length = objectKeyList.length;index < length; index += 1) {
+      let pairBuffer = "";
+      if (_result !== "")
+        pairBuffer += ", ";
+      if (state.condenseFlow)
+        pairBuffer += '"';
+      const objectKey = objectKeyList[index];
+      let objectValue = object[objectKey];
+      if (state.replacer) {
+        objectValue = state.replacer.call(object, objectKey, objectValue);
+      }
+      if (!writeNode(state, level, objectKey, false, false)) {
+        continue;
+      }
+      if (state.dump.length > 1024)
+        pairBuffer += "? ";
+      pairBuffer += state.dump + (state.condenseFlow ? '"' : "") + ":" + (state.condenseFlow ? "" : " ");
+      if (!writeNode(state, level, objectValue, false, false)) {
+        continue;
+      }
+      pairBuffer += state.dump;
+      _result += pairBuffer;
+    }
+    state.tag = _tag;
+    state.dump = "{" + _result + "}";
+  }
+  function writeBlockMapping(state, level, object, compact) {
+    let _result = "";
+    const _tag = state.tag;
+    const objectKeyList = Object.keys(object);
+    if (state.sortKeys === true) {
+      objectKeyList.sort();
+    } else if (typeof state.sortKeys === "function") {
+      objectKeyList.sort(state.sortKeys);
+    } else if (state.sortKeys) {
+      throw new YAMLException2("sortKeys must be a boolean or a function");
+    }
+    for (let index = 0, length = objectKeyList.length;index < length; index += 1) {
+      let pairBuffer = "";
+      if (!compact || _result !== "") {
+        pairBuffer += generateNextLine(state, level);
+      }
+      const objectKey = objectKeyList[index];
+      let objectValue = object[objectKey];
+      if (state.replacer) {
+        objectValue = state.replacer.call(object, objectKey, objectValue);
+      }
+      if (!writeNode(state, level + 1, objectKey, true, true, true)) {
+        continue;
+      }
+      const explicitPair = state.tag !== null && state.tag !== "?" || state.dump && state.dump.length > 1024;
+      if (explicitPair) {
+        if (state.dump && CHAR_LINE_FEED === state.dump.charCodeAt(0)) {
+          pairBuffer += "?";
+        } else {
+          pairBuffer += "? ";
+        }
+      }
+      pairBuffer += state.dump;
+      if (explicitPair) {
+        pairBuffer += generateNextLine(state, level);
+      }
+      if (!writeNode(state, level + 1, objectValue, true, explicitPair)) {
+        continue;
+      }
+      if (state.dump && CHAR_LINE_FEED === state.dump.charCodeAt(0)) {
+        pairBuffer += ":";
+      } else {
+        pairBuffer += ": ";
+      }
+      pairBuffer += state.dump;
+      _result += pairBuffer;
+    }
+    state.tag = _tag;
+    state.dump = _result || "{}";
+  }
+  function detectType(state, object, explicit) {
+    const typeList = explicit ? state.explicitTypes : state.implicitTypes;
+    for (let index = 0, length = typeList.length;index < length; index += 1) {
+      const type2 = typeList[index];
+      if ((type2.instanceOf || type2.predicate) && (!type2.instanceOf || typeof object === "object" && object instanceof type2.instanceOf) && (!type2.predicate || type2.predicate(object))) {
+        if (explicit) {
+          if (type2.multi && type2.representName) {
+            state.tag = type2.representName(object);
+          } else {
+            state.tag = type2.tag;
+          }
+        } else {
+          state.tag = "?";
+        }
+        if (type2.represent) {
+          const style = state.styleMap[type2.tag] || type2.defaultStyle;
+          let _result;
+          if (_toString.call(type2.represent) === "[object Function]") {
+            _result = type2.represent(object, style);
+          } else if (_hasOwnProperty.call(type2.represent, style)) {
+            _result = type2.represent[style](object, style);
+          } else {
+            throw new YAMLException2("!<" + type2.tag + '> tag resolver accepts not "' + style + '" style');
+          }
+          state.dump = _result;
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+  function writeNode(state, level, object, block, compact, iskey, isblockseq) {
+    state.tag = null;
+    state.dump = object;
+    if (!detectType(state, object, false)) {
+      detectType(state, object, true);
+    }
+    const type2 = _toString.call(state.dump);
+    const inblock = block;
+    if (block) {
+      block = state.flowLevel < 0 || state.flowLevel > level;
+    }
+    const objectOrArray = type2 === "[object Object]" || type2 === "[object Array]";
+    let duplicateIndex;
+    let duplicate;
+    if (objectOrArray) {
+      duplicateIndex = state.duplicates.indexOf(object);
+      duplicate = duplicateIndex !== -1;
+    }
+    if (state.tag !== null && state.tag !== "?" || duplicate || state.indent !== 2 && level > 0) {
+      compact = false;
+    }
+    if (duplicate && state.usedDuplicates[duplicateIndex]) {
+      state.dump = "*ref_" + duplicateIndex;
+    } else {
+      if (objectOrArray && duplicate && !state.usedDuplicates[duplicateIndex]) {
+        state.usedDuplicates[duplicateIndex] = true;
+      }
+      if (type2 === "[object Object]") {
+        if (block && Object.keys(state.dump).length !== 0) {
+          writeBlockMapping(state, level, state.dump, compact);
+          if (duplicate) {
+            state.dump = "&ref_" + duplicateIndex + state.dump;
+          }
+        } else {
+          writeFlowMapping(state, level, state.dump);
+          if (duplicate) {
+            state.dump = "&ref_" + duplicateIndex + " " + state.dump;
+          }
+        }
+      } else if (type2 === "[object Array]") {
+        if (block && state.dump.length !== 0) {
+          if (state.noArrayIndent && !isblockseq && level > 0) {
+            writeBlockSequence(state, level - 1, state.dump, compact);
+          } else {
+            writeBlockSequence(state, level, state.dump, compact);
+          }
+          if (duplicate) {
+            state.dump = "&ref_" + duplicateIndex + state.dump;
+          }
+        } else {
+          writeFlowSequence(state, level, state.dump);
+          if (duplicate) {
+            state.dump = "&ref_" + duplicateIndex + " " + state.dump;
+          }
+        }
+      } else if (type2 === "[object String]") {
+        if (state.tag !== "?") {
+          writeScalar(state, state.dump, level, iskey, inblock);
+        }
+      } else if (type2 === "[object Undefined]") {
+        return false;
+      } else {
+        if (state.skipInvalid)
+          return false;
+        throw new YAMLException2("unacceptable kind of an object to dump " + type2);
+      }
+      if (state.tag !== null && state.tag !== "?") {
+        let tagStr = encodeURI(state.tag[0] === "!" ? state.tag.slice(1) : state.tag).replace(/!/g, "%21");
+        if (state.tag[0] === "!") {
+          tagStr = "!" + tagStr;
+        } else if (tagStr.slice(0, 18) === "tag:yaml.org,2002:") {
+          tagStr = "!!" + tagStr.slice(18);
+        } else {
+          tagStr = "!<" + tagStr + ">";
+        }
+        state.dump = tagStr + " " + state.dump;
+      }
+    }
+    return true;
+  }
+  function getDuplicateReferences(object, state) {
+    const objects = [];
+    const duplicatesIndexes = [];
+    inspectNode(object, objects, duplicatesIndexes);
+    const length = duplicatesIndexes.length;
+    for (let index = 0;index < length; index += 1) {
+      state.duplicates.push(objects[duplicatesIndexes[index]]);
+    }
+    state.usedDuplicates = new Array(length);
+  }
+  function inspectNode(object, objects, duplicatesIndexes) {
+    if (object !== null && typeof object === "object") {
+      const index = objects.indexOf(object);
+      if (index !== -1) {
+        if (duplicatesIndexes.indexOf(index) === -1) {
+          duplicatesIndexes.push(index);
+        }
+      } else {
+        objects.push(object);
+        if (Array.isArray(object)) {
+          for (let i2 = 0, length = object.length;i2 < length; i2 += 1) {
+            inspectNode(object[i2], objects, duplicatesIndexes);
+          }
+        } else {
+          const objectKeyList = Object.keys(object);
+          for (let i2 = 0, length = objectKeyList.length;i2 < length; i2 += 1) {
+            inspectNode(object[objectKeyList[i2]], objects, duplicatesIndexes);
+          }
+        }
+      }
+    }
+  }
+  function dump2(input, options) {
+    options = options || {};
+    const state = new State(options);
+    if (!state.noRefs)
+      getDuplicateReferences(input, state);
+    let value = input;
+    if (state.replacer) {
+      value = state.replacer.call({ "": value }, "", value);
+    }
+    if (writeNode(state, 0, value, true, true))
+      return state.dump + `
+`;
+    return "";
+  }
+  dumper.dump = dump2;
+  return dumper;
+}
+function requireJsYaml() {
+  if (hasRequiredJsYaml)
+    return jsYaml;
+  hasRequiredJsYaml = 1;
+  const loader2 = requireLoader();
+  const dumper2 = requireDumper();
+  function renamed(from, to) {
+    return function() {
+      throw new Error("Function yaml." + from + " is removed in js-yaml 4. Use yaml." + to + " instead, which is now safe by default.");
+    };
+  }
+  jsYaml.Type = requireType();
+  jsYaml.Schema = requireSchema();
+  jsYaml.FAILSAFE_SCHEMA = requireFailsafe();
+  jsYaml.JSON_SCHEMA = requireJson();
+  jsYaml.CORE_SCHEMA = requireCore();
+  jsYaml.DEFAULT_SCHEMA = require_default();
+  jsYaml.load = loader2.load;
+  jsYaml.loadAll = loader2.loadAll;
+  jsYaml.dump = dumper2.dump;
+  jsYaml.YAMLException = requireException();
+  jsYaml.types = {
+    binary: requireBinary(),
+    float: requireFloat(),
+    map: requireMap(),
+    null: require_null(),
+    pairs: requirePairs(),
+    set: requireSet(),
+    timestamp: requireTimestamp(),
+    bool: requireBool(),
+    int: requireInt(),
+    merge: requireMerge(),
+    omap: requireOmap(),
+    seq: requireSeq(),
+    str: requireStr()
   };
-  load = loader.load;
-  loadAll = loader.loadAll;
-  dump = dumper.dump;
-  safeLoad = renamed("safeLoad", "load");
-  safeLoadAll = renamed("safeLoadAll", "loadAll");
-  safeDump = renamed("safeDump", "dump");
+  jsYaml.safeLoad = renamed("safeLoad", "load");
+  jsYaml.safeLoadAll = renamed("safeLoadAll", "loadAll");
+  jsYaml.safeDump = renamed("safeDump", "dump");
+  return jsYaml;
+}
+var jsYaml, loader, common, hasRequiredCommon, exception, hasRequiredException, snippet, hasRequiredSnippet, type, hasRequiredType, schema, hasRequiredSchema, str, hasRequiredStr, seq, hasRequiredSeq, map, hasRequiredMap, failsafe, hasRequiredFailsafe, _null, hasRequired_null, bool, hasRequiredBool, int, hasRequiredInt, float, hasRequiredFloat, json, hasRequiredJson, core, hasRequiredCore, timestamp, hasRequiredTimestamp, merge, hasRequiredMerge, binary, hasRequiredBinary, omap, hasRequiredOmap, pairs, hasRequiredPairs, set, hasRequiredSet, _default, hasRequired_default, hasRequiredLoader, dumper, hasRequiredDumper, hasRequiredJsYaml, jsYamlExports, yaml, Type, Schema, FAILSAFE_SCHEMA, JSON_SCHEMA, CORE_SCHEMA, DEFAULT_SCHEMA, load, loadAll, dump, YAMLException, types, safeLoad, safeLoadAll, safeDump;
+var init_js_yaml = __esm(() => {
+  jsYaml = {};
+  loader = {};
+  common = {};
+  dumper = {};
+  jsYamlExports = requireJsYaml();
+  yaml = /* @__PURE__ */ getDefaultExportFromCjs2(jsYamlExports);
+  ({
+    Type,
+    Schema,
+    FAILSAFE_SCHEMA,
+    JSON_SCHEMA,
+    CORE_SCHEMA,
+    DEFAULT_SCHEMA,
+    load,
+    loadAll,
+    dump,
+    YAMLException,
+    types,
+    safeLoad,
+    safeLoadAll,
+    safeDump
+  } = yaml);
 });
 
 // src/dispatcher/types.ts
@@ -3559,8 +4078,8 @@ var init_types = __esm(() => {
 });
 
 // src/dispatcher/fingerprint.ts
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, resolve as resolve2 } from "node:path";
+import { existsSync as existsSync2, readdirSync as readdirSync2, readFileSync, statSync } from "node:fs";
+import { join, resolve as resolve3 } from "node:path";
 import { createHash as createHash2 } from "node:crypto";
 function isFingerprintable(line) {
   const trimmed = line.trim();
@@ -3579,7 +4098,7 @@ function hashLine(line) {
 }
 function safeReaddir(dir) {
   try {
-    return readdirSync(dir);
+    return readdirSync2(dir);
   } catch {
     return [];
   }
@@ -3599,9 +4118,9 @@ function safeReadFile(path) {
   }
 }
 function loadSolutionsFingerprints(stateRoot) {
-  const dir = resolve2(stateRoot, "solutions");
+  const dir = resolve3(stateRoot, "solutions");
   const set2 = new Set;
-  if (!existsSync(dir))
+  if (!existsSync2(dir))
     return set2;
   for (const cat of safeReaddir(dir)) {
     const catPath = join(dir, cat);
@@ -3624,7 +4143,7 @@ function loadSolutionsFingerprints(stateRoot) {
   return set2;
 }
 function getFingerprintsCached(stateRoot) {
-  const key = resolve2(stateRoot);
+  const key = resolve3(stateRoot);
   let v2 = fpCache.get(key);
   if (!v2) {
     v2 = loadSolutionsFingerprints(key);
@@ -3679,25 +4198,25 @@ var init_fingerprint = __esm(() => {
 
 // src/dispatcher/state.ts
 import {
-  existsSync as existsSync2,
+  existsSync as existsSync3,
   mkdirSync as mkdirSync2,
   readFileSync as readFileSync2,
-  readdirSync as readdirSync2,
+  readdirSync as readdirSync3,
   renameSync,
   unlinkSync,
   writeFileSync
 } from "node:fs";
 import { randomBytes } from "node:crypto";
-import { dirname as dirname2, join as join2, resolve as resolve3 } from "node:path";
+import { dirname as dirname2, join as join2, resolve as resolve4 } from "node:path";
 function resolveStateRoot(custom) {
-  return resolve3(custom ?? process.env["SGC_STATE_ROOT"] ?? DEFAULT_STATE_DIR);
+  return resolve4(custom ?? process.env["SGC_STATE_ROOT"] ?? DEFAULT_STATE_DIR);
 }
 function ensureDefaultStateGitignored(custom) {
   if (custom !== undefined || process.env["SGC_STATE_ROOT"])
     return;
-  if (!existsSync2(resolve3(".git")))
+  if (!existsSync3(resolve4(".git")))
     return;
-  const giPath = resolve3(".gitignore");
+  const giPath = resolve4(".gitignore");
   let content = "";
   try {
     content = readFileSync2(giPath, "utf8");
@@ -3720,7 +4239,7 @@ function ensureDefaultStateGitignored(custom) {
 function ensureSgcStructure(stateRoot) {
   const r3 = root(stateRoot);
   for (const layer of LAYERS) {
-    mkdirSync2(resolve3(r3, layer), { recursive: true });
+    mkdirSync2(resolve4(r3, layer), { recursive: true });
   }
   ensureDefaultStateGitignored(stateRoot);
   return r3;
@@ -3737,10 +4256,10 @@ function parseFrontmatter(text, source) {
   return { data, body };
 }
 function serializeFrontmatter(data, body = "") {
-  const yaml = dump(data, { lineWidth: -1, sortKeys: false }).trimEnd();
+  const yaml2 = dump(data, { lineWidth: -1, sortKeys: false }).trimEnd();
   const trimmedBody = body.replace(/^\n+/, "");
   return `---
-${yaml}
+${yaml2}
 ---
 
 ${trimmedBody}`;
@@ -3763,12 +4282,12 @@ function redGreenSlug(title, taskId) {
   return `${base}-${taskId.slice(0, 8).toLowerCase()}`;
 }
 function writeRedGreenCapture(fm, stateRoot) {
-  const dir = resolve3(root(stateRoot), "red-green");
+  const dir = resolve4(root(stateRoot), "red-green");
   mkdirSync2(dir, { recursive: true });
   const baseSlug = redGreenSlug(fm.title, fm.task_id);
   let slug = baseSlug;
   let n2 = 1;
-  while (existsSync2(resolve3(dir, `${slug}.md`))) {
+  while (existsSync3(resolve4(dir, `${slug}.md`))) {
     n2 += 1;
     slug = `${baseSlug}-${n2}`;
     if (n2 > 50)
@@ -3794,7 +4313,7 @@ function writeRedGreenCapture(fm, stateRoot) {
 
 Fill \`prevention_seed:\` with the ` + `reusable safeguard, then run \`sgc compound --from-red-green ${slug}\`.
 `;
-  writeAtomic(resolve3(dir, `${slug}.md`), serializeFrontmatter(data, body));
+  writeAtomic(resolve4(dir, `${slug}.md`), serializeFrontmatter(data, body));
   return slug;
 }
 function wordCount(text) {
@@ -3830,11 +4349,11 @@ function validateIntent(intent) {
   }
 }
 function intentPath(taskId, stateRoot) {
-  return resolve3(root(stateRoot), "decisions", taskId, "intent.md");
+  return resolve4(root(stateRoot), "decisions", taskId, "intent.md");
 }
 function writeIntent(intent, stateRoot) {
   const path = intentPath(intent.task_id, stateRoot);
-  if (existsSync2(path)) {
+  if (existsSync3(path)) {
     throw new StateError("IntentImmutable", `intent.md exists for ${intent.task_id} — Invariant §2 (immutable)`);
   }
   validateIntent(intent);
@@ -3844,7 +4363,7 @@ function writeIntent(intent, stateRoot) {
 }
 function readIntent(taskId, stateRoot) {
   const path = intentPath(taskId, stateRoot);
-  if (!existsSync2(path)) {
+  if (!existsSync3(path)) {
     throw new StateError("NotFound", `intent.md not found for ${taskId}`);
   }
   const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"), path);
@@ -3862,11 +4381,11 @@ function validateShip(ship) {
   }
 }
 function shipPath(taskId, stateRoot) {
-  return resolve3(root(stateRoot), "decisions", taskId, "ship.md");
+  return resolve4(root(stateRoot), "decisions", taskId, "ship.md");
 }
 function writeShip(ship, body = "", stateRoot) {
   const path = shipPath(ship.task_id, stateRoot);
-  if (existsSync2(path)) {
+  if (existsSync3(path)) {
     throw new StateError("ShipImmutable", `ship.md exists for ${ship.task_id}`);
   }
   validateShip(ship);
@@ -3874,7 +4393,7 @@ function writeShip(ship, body = "", stateRoot) {
   return path;
 }
 function progressPath(file, stateRoot) {
-  return resolve3(root(stateRoot), "progress", `${file}.md`);
+  return resolve4(root(stateRoot), "progress", `${file}.md`);
 }
 function validateCurrentTask(task) {
   for (const f3 of REQUIRED_CURRENT_TASK_FIELDS) {
@@ -3892,7 +4411,7 @@ function writeCurrentTask(task, body = "", stateRoot) {
 }
 function readCurrentTask(stateRoot) {
   const path = progressPath("current-task", stateRoot);
-  if (!existsSync2(path))
+  if (!existsSync3(path))
     return null;
   const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"), path);
   return { task: data, body };
@@ -3901,14 +4420,14 @@ function validateFeatureList(list) {
   if (!Array.isArray(list?.features)) {
     throw new StateError("SchemaViolation", "feature-list missing required field: features (array)");
   }
-  for (let i3 = 0;i3 < list.features.length; i3++) {
-    const ft = list.features[i3];
+  for (let i2 = 0;i2 < list.features.length; i2++) {
+    const ft = list.features[i2];
     if (ft === null || typeof ft !== "object") {
-      throw new StateError("SchemaViolation", `feature-list.features[${i3}] is not an object`);
+      throw new StateError("SchemaViolation", `feature-list.features[${i2}] is not an object`);
     }
     for (const f3 of REQUIRED_FEATURE_FIELDS) {
       if (ft[f3] === undefined || ft[f3] === null) {
-        throw new StateError("SchemaViolation", `feature-list.features[${i3}] missing required field: ${f3}`);
+        throw new StateError("SchemaViolation", `feature-list.features[${i2}] missing required field: ${f3}`);
       }
     }
   }
@@ -3928,7 +4447,7 @@ function writePlanDoc(slug, dateIso, content, base) {
 }
 function readFeatureList(stateRoot) {
   const path = progressPath("feature-list", stateRoot);
-  if (!existsSync2(path))
+  if (!existsSync3(path))
     return null;
   const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"), path);
   return { list: data, body };
@@ -3952,7 +4471,7 @@ function writeHandoff(handoff, body = "", stateRoot) {
 }
 function readHandoff(stateRoot) {
   const path = progressPath("handoff", stateRoot);
-  if (!existsSync2(path))
+  if (!existsSync3(path))
     return null;
   const { data, body } = parseFrontmatter(readFileSync2(path, "utf8"), path);
   return { handoff: data, body };
@@ -3973,14 +4492,14 @@ function validateReview(report) {
 }
 function reviewPath(taskId, stage, reviewerId, stateRoot, suffix) {
   const base = suffix ? `${reviewerId}.${suffix}.md` : `${reviewerId}.md`;
-  return resolve3(root(stateRoot), "reviews", taskId, stage, base);
+  return resolve4(root(stateRoot), "reviews", taskId, stage, base);
 }
 function appendReview(report, body = "", stateRoot, suffix) {
   if (suffix !== undefined && !REVIEW_SUFFIX_RE.test(suffix)) {
     throw new StateError("SchemaViolation", `invalid review suffix ${JSON.stringify(suffix)} — must match ${REVIEW_SUFFIX_RE.source}`);
   }
   const path = reviewPath(report.task_id, report.stage, report.reviewer_id, stateRoot, suffix);
-  if (existsSync2(path)) {
+  if (existsSync3(path)) {
     const ref = suffix ? `${report.reviewer_id}.${suffix}` : report.reviewer_id;
     throw new StateError("AppendOnly", `review ${ref} already exists for ${report.task_id}/${report.stage} — append-only per Invariant §6`);
   }
@@ -4009,9 +4528,9 @@ function validateSolution(entry) {
   }
 }
 function solutionPath(category, slug, stateRoot) {
-  return resolve3(root(stateRoot), "solutions", category, `${slug}.md`);
+  return resolve4(root(stateRoot), "solutions", category, `${slug}.md`);
 }
-function validateDedupStamp(stamp) {
+function validateDedupStamp(stamp, stateRoot) {
   if (!stamp || typeof stamp !== "object") {
     throw new StateError("DedupStampMissing", "writeSolution requires a dedup_stamp (Invariant §3). " + "Callers must route through runCompound or construct a stamp from " + "an explicit compound.related spawn.");
   }
@@ -4029,14 +4548,27 @@ function validateDedupStamp(stamp) {
   if (!allowedReasons.includes(stamp.reason)) {
     throw new StateError("DedupStampMissing", `dedup_stamp.reason must be one of ${allowedReasons.join(", ")}`);
   }
+  let agentName;
+  try {
+    agentName = parseSpawnId(stamp.compound_related_spawn_id).agentName;
+  } catch {
+    throw new StateError("DedupStampMissing", `dedup_stamp.compound_related_spawn_id "${stamp.compound_related_spawn_id}" is not a spawn id ` + `(expected "<ulid>-compound.related")`);
+  }
+  if (agentName !== "compound.related") {
+    throw new StateError("DedupStampMissing", `dedup_stamp.compound_related_spawn_id must name a compound.related spawn, got "${agentName}" ` + `(Invariant §3: only compound.related's deterministic verdict authorizes a solutions write)`);
+  }
+  const evidence = resultPath(stamp.compound_related_spawn_id, root(stateRoot));
+  if (!existsSync3(evidence)) {
+    throw new StateError("DedupStampMissing", `dedup_stamp cites compound.related spawn "${stamp.compound_related_spawn_id}" but no result ` + `exists at ${evidence} — the dedup verdict must be earned by running the agent (Invariant §3)`);
+  }
 }
 function writeSolution(entry, slug, dedupStamp, body = "", stateRoot) {
-  validateDedupStamp(dedupStamp);
+  validateDedupStamp(dedupStamp, stateRoot);
   validateSolution(entry);
   const path = solutionPath(entry.category, slug, stateRoot);
   let finalEntry = entry;
   let finalBody = body;
-  if (existsSync2(path)) {
+  if (existsSync3(path)) {
     const existing = parseFrontmatter(readFileSync2(path, "utf8"));
     const mergedTasks = Array.from(new Set([...existing.data.source_task_ids ?? [], ...entry.source_task_ids]));
     const mergedWdw = [
@@ -4058,28 +4590,28 @@ function writeSolution(entry, slug, dedupStamp, body = "", stateRoot) {
   return { path, entry: finalEntry };
 }
 function listSolutions(stateRoot) {
-  const dir = resolve3(root(stateRoot), "solutions");
-  if (!existsSync2(dir))
+  const dir = resolve4(root(stateRoot), "solutions");
+  if (!existsSync3(dir))
     return [];
   const out = [];
   let categories;
   try {
-    categories = readdirSync2(dir, { withFileTypes: true }).filter((e2) => e2.isDirectory()).map((e2) => e2.name);
+    categories = readdirSync3(dir, { withFileTypes: true }).filter((e2) => e2.isDirectory()).map((e2) => e2.name);
   } catch {
     return [];
   }
   for (const cat of categories) {
     if (!SOLUTION_CATEGORIES.has(cat))
       continue;
-    const catDir = resolve3(dir, cat);
+    const catDir = resolve4(dir, cat);
     let files;
     try {
-      files = readdirSync2(catDir).filter((f3) => f3.endsWith(".md"));
+      files = readdirSync3(catDir).filter((f3) => f3.endsWith(".md"));
     } catch {
       continue;
     }
     for (const f3 of files) {
-      const fpath = resolve3(catDir, f3);
+      const fpath = resolve4(catDir, f3);
       try {
         const { data, body } = parseFrontmatter(readFileSync2(fpath, "utf8"));
         out.push({
@@ -4103,11 +4635,11 @@ function validateJanitorDecision(d2) {
   }
 }
 function janitorDecisionPath(taskId, stateRoot) {
-  return resolve3(root(stateRoot), "reviews", taskId, "janitor", "compound-decision.md");
+  return resolve4(root(stateRoot), "reviews", taskId, "janitor", "compound-decision.md");
 }
 function writeJanitorDecision(decision, body = "", stateRoot) {
   const path = janitorDecisionPath(decision.task_id, stateRoot);
-  if (existsSync2(path)) {
+  if (existsSync3(path)) {
     throw new StateError("AppendOnly", `janitor decision already written for ${decision.task_id} (Invariant §6)`);
   }
   validateJanitorDecision(decision);
@@ -4115,19 +4647,19 @@ function writeJanitorDecision(decision, body = "", stateRoot) {
   return path;
 }
 function listReviewsForStage(taskId, stage, stateRoot) {
-  const dir = resolve3(root(stateRoot), "reviews", taskId, stage);
-  if (!existsSync2(dir))
+  const dir = resolve4(root(stateRoot), "reviews", taskId, stage);
+  if (!existsSync3(dir))
     return [];
   let files;
   try {
-    files = readdirSync2(dir).filter((f3) => f3.endsWith(".md"));
+    files = readdirSync3(dir).filter((f3) => f3.endsWith(".md"));
   } catch {
     return [];
   }
   const reports = [];
   for (const f3 of files) {
     try {
-      const text = readFileSync2(resolve3(dir, f3), "utf8");
+      const text = readFileSync2(resolve4(dir, f3), "utf8");
       const { data } = parseFrontmatter(text);
       reports.push(data);
     } catch {}
@@ -4136,6 +4668,7 @@ function listReviewsForStage(taskId, stage, stateRoot) {
 }
 var StateError, DEFAULT_STATE_DIR = ".sgc", root, LAYERS, FRONTMATTER_RE, atomicWriteSeq = 0, RED_GREEN_PLACEHOLDER = "TODO: operator-fill the reusable prevention", REQUIRED_INTENT_FIELDS, WORD_SEGMENTER, REQUIRED_SHIP_FIELDS, REQUIRED_CURRENT_TASK_FIELDS, REQUIRED_FEATURE_FIELDS, REQUIRED_HANDOFF_FIELDS, REQUIRED_REVIEW_FIELDS, REVIEW_SUFFIX_RE, SOLUTION_CATEGORIES, REQUIRED_SOLUTION_FIELDS, REQUIRED_JANITOR_FIELDS;
 var init_state = __esm(() => {
+  init_spawn_protocol();
   init_js_yaml();
   init_types();
   init_fingerprint();
@@ -4266,8 +4799,8 @@ function validateValueAgainstDecl(value, decl, fieldName) {
     const isSimpleForm = innerDecl === "string" || innerDecl === "markdown" || innerDecl === "integer" || innerDecl === "number" || /^enum\[.+\]$/.test(innerDecl);
     if (!isSimpleForm)
       return null;
-    for (let i3 = 0;i3 < value.length; i3++) {
-      const err = validateValueAgainstDecl(value[i3], innerDecl, `${fieldName}[${i3}]`);
+    for (let i2 = 0;i2 < value.length; i2++) {
+      const err = validateValueAgainstDecl(value[i2], innerDecl, `${fieldName}[${i2}]`);
       if (err)
         return err;
     }
@@ -4362,24 +4895,24 @@ function composeArrayObjectValidator(shape) {
     const seen = shape.dedupBy ? new Set : null;
     let dedupedCount = 0;
     const entries = [];
-    for (let i3 = 0;i3 < arr.length; i3++) {
+    for (let i2 = 0;i2 < arr.length; i2++) {
       if (shape.maxLength !== undefined && entries.length >= shape.maxLength)
         break;
-      const e2 = arr[i3];
+      const e2 = arr[i2];
       if (typeof e2 !== "object" || e2 === null) {
-        throw new OutputShapeMismatch(shape.agentName, [`${shape.topField}[${i3}]`], `${shape.topField}[${i3}] not an object`);
+        throw new OutputShapeMismatch(shape.agentName, [`${shape.topField}[${i2}]`], `${shape.topField}[${i2}] not an object`);
       }
       const entry = e2;
       for (const [fieldName, spec] of fieldEntries) {
         const err = checkField(entry[fieldName], spec);
         if (err !== null) {
-          throw new OutputShapeMismatch(shape.agentName, [`${shape.topField}[${i3}].${fieldName}`], `${shape.topField}[${i3}].${fieldName} ${err}`);
+          throw new OutputShapeMismatch(shape.agentName, [`${shape.topField}[${i2}].${fieldName}`], `${shape.topField}[${i2}].${fieldName} ${err}`);
         }
       }
       if (shape.validateEntry) {
-        const err = shape.validateEntry(entry, i3);
+        const err = shape.validateEntry(entry, i2);
         if (err !== null) {
-          throw new OutputShapeMismatch(shape.agentName, [`${shape.topField}[${i3}]`], `${shape.topField}[${i3}].${err}`);
+          throw new OutputShapeMismatch(shape.agentName, [`${shape.topField}[${i2}]`], `${shape.topField}[${i2}].${err}`);
         }
       }
       if (seen !== null) {
@@ -4428,11 +4961,11 @@ var init_validation = __esm(() => {
 });
 
 // src/dispatcher/agents/researcher-history.ts
-import { existsSync as existsSync3 } from "node:fs";
+import { existsSync as existsSync4 } from "node:fs";
 import { readFile, readdir, stat } from "node:fs/promises";
-import { resolve as resolve4 } from "node:path";
+import { resolve as resolve5 } from "node:path";
 async function walkSolutionsCorpus(stateRoot, keywords) {
-  const dir = resolve4(stateRoot, "solutions");
+  const dir = resolve5(stateRoot, "solutions");
   if (keywords.length === 0)
     return [];
   let categories;
@@ -4444,7 +4977,7 @@ async function walkSolutionsCorpus(stateRoot, keywords) {
   }
   const out = [];
   for (const cat of categories) {
-    const catPath = resolve4(dir, cat);
+    const catPath = resolve5(dir, cat);
     let files;
     try {
       const entries = await readdir(catPath, { withFileTypes: true });
@@ -4453,7 +4986,7 @@ async function walkSolutionsCorpus(stateRoot, keywords) {
       continue;
     }
     for (const file of files) {
-      const filePath = resolve4(catPath, file);
+      const filePath = resolve5(catPath, file);
       let raw;
       try {
         const st = await stat(filePath);
@@ -4466,8 +4999,8 @@ async function walkSolutionsCorpus(stateRoot, keywords) {
         continue;
       }
       const text = raw.normalize("NFC");
-      const lower = text.toLowerCase();
-      const hits = keywords.filter((k2) => lower.includes(k2)).length;
+      const corpusTokens = tokenize(text);
+      const hits = keywords.filter((k2) => keywordHitsCorpus(k2, corpusTokens)).length;
       if (hits === 0)
         continue;
       const afterFence = text.replace(/^---[\s\S]*?---\r?\n?/, "").trimStart();
@@ -4504,6 +5037,20 @@ async function preFilterSolutions(intentDraft, stateRoot) {
 function extractKeywords(text) {
   return Array.from(tokenize(text));
 }
+function keywordHitsCorpus(keyword, corpusTokens) {
+  if (corpusTokens.has(keyword))
+    return true;
+  for (const suf of INFLECTIONS) {
+    if (corpusTokens.has(keyword + suf))
+      return true;
+    if (keyword.endsWith(suf)) {
+      const stem = keyword.slice(0, -suf.length);
+      if (stem.length >= 3 && corpusTokens.has(stem))
+        return true;
+    }
+  }
+  return false;
+}
 function scoreRelevance(hitCount, keywordCount) {
   if (keywordCount === 0)
     return 0;
@@ -4528,7 +5075,7 @@ async function researcherHistoryHeuristic(input, opts = {}) {
   if (keywords.length === 0) {
     warnings.push("intent_draft produced no keywords (too short or stopwords only); no scan performed");
   }
-  if (prior_art.length === 0 && keywords.length > 0 && existsSync3(resolve4(stateRoot, "solutions"))) {
+  if (prior_art.length === 0 && keywords.length > 0 && existsSync4(resolve5(stateRoot, "solutions"))) {
     warnings.push("no relevant prior solutions found in .sgc/solutions/");
   }
   return { prior_art, warnings };
@@ -4590,12 +5137,13 @@ function handleCoerceFailure(err, logger, taskId) {
     ]
   };
 }
-var MAX_SOLUTION_FILE_BYTES, researcherHistory;
+var MAX_SOLUTION_FILE_BYTES, INFLECTIONS, researcherHistory;
 var init_researcher_history = __esm(() => {
   init_dedup();
   init_state();
   init_validation();
   MAX_SOLUTION_FILE_BYTES = 256 * 1024;
+  INFLECTIONS = ["s", "es", "ed", "d", "ing", "ings", "er", "ers"];
   researcherHistory = researcherHistoryHeuristic;
 });
 
@@ -4612,7 +5160,7 @@ __export(exports_debug, {
   deriveInvestigationId: () => deriveInvestigationId,
   defaultHeuristic: () => defaultHeuristic
 });
-import { existsSync as existsSync4 } from "node:fs";
+import { existsSync as existsSync5 } from "node:fs";
 import { readFile as readFile2, readdir as readdir2, writeFile, rename, mkdir } from "node:fs/promises";
 import { join as join3 } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -4869,8 +5417,8 @@ function renderInvestigationBody(parts) {
   lines.push("");
   lines.push("## 3 — Hypothesize");
   lines.push("");
-  for (let i3 = 0;i3 < parts.hypothesize.length; i3++) {
-    lines.push(`${i3 + 1}. ${parts.hypothesize[i3]}`);
+  for (let i2 = 0;i2 < parts.hypothesize.length; i2++) {
+    lines.push(`${i2 + 1}. ${parts.hypothesize[i2]}`);
   }
   lines.push("");
   lines.push("## 4 — Implement");
@@ -4910,11 +5458,11 @@ async function writeInvestigation(opts) {
 }
 async function resolveCollisionId(stateRoot, baseId) {
   const dir = join3(stateRoot, "investigations");
-  if (!existsSync4(join3(dir, `${baseId}.md`)))
+  if (!existsSync5(join3(dir, `${baseId}.md`)))
     return baseId;
   for (let n2 = 2;n2 < 100; n2++) {
     const candidate = `${baseId}-${n2}`;
-    if (!existsSync4(join3(dir, `${candidate}.md`)))
+    if (!existsSync5(join3(dir, `${candidate}.md`)))
       return candidate;
   }
   throw new Error(`collision: too many same-minute investigations for ${baseId}`);
@@ -5268,8 +5816,8 @@ async function runDebugStart(opts) {
   stdoutWrite(`## 3 — Hypothesize
 
 `);
-  for (let i3 = 0;i3 < hypothesize.length; i3++) {
-    stdoutWrite(`${i3 + 1}. ${hypothesize[i3]}
+  for (let i2 = 0;i2 < hypothesize.length; i2++) {
+    stdoutWrite(`${i2 + 1}. ${hypothesize[i2]}
 `);
   }
   stderrWrite(`started: ${path}
@@ -5287,14 +5835,14 @@ var init_debug = __esm(() => {
 // src/dispatcher/preprocessor.ts
 function quoteArrayPatterns(input) {
   const out = [];
-  let i3 = 0;
-  while (i3 < input.length) {
-    const start = input.indexOf("array[", i3);
+  let i2 = 0;
+  while (i2 < input.length) {
+    const start = input.indexOf("array[", i2);
     if (start === -1 || !isWordBoundary(input, start)) {
-      out.push(input.slice(i3));
+      out.push(input.slice(i2));
       break;
     }
-    out.push(input.slice(i3, start));
+    out.push(input.slice(i2, start));
     let depth = 0;
     let j = start + "array".length;
     while (j < input.length) {
@@ -5313,7 +5861,7 @@ function quoteArrayPatterns(input) {
       break;
     }
     out.push(`"${input.slice(start, j + 1)}"`);
-    i3 = j + 1;
+    i2 = j + 1;
   }
   return out.join("");
 }
@@ -6284,7 +6832,14 @@ invariants:
     tests: ["tests/dispatcher/schema.test.ts", "tests/dispatcher/solutions-state.test.ts"]
   "8":
     title: "Scope Tokens Are Computed At Spawn, Not Requested At Runtime"
-    mechanism: "spawn-time scope computation from capabilities.yaml manifest"
+    mechanism: >-
+      spawn-time scope computation from capabilities.yaml manifest + ScopeViolation
+      on forbidden-token manifests; no runtime elevation channel exists. NOT syscall
+      interception: for LLM-backed subagents the pinned set is advisory prompt context
+      (their tool use runs out-of-process — \`claude -p\` or the provider side — so sgc
+      cannot intercept it); backed by dispatcher-owned input gating + post-hoc output
+      validation (§9 shape, §1 leak scan). See sgc-invariants.md §8 "What it does NOT
+      enforce, and why".
     enforced_at: "spawn"
     machine_enforced: true
     tests: ["tests/dispatcher/capabilities.test.ts", "tests/dispatcher/spawn.test.ts"]
@@ -6326,7 +6881,7 @@ invariants:
 var init_invariant_enforcement = () => {};
 
 // contracts/sgc-invariants.md
-var sgc_invariants_default = "# SGC System Invariants\n# Version: 0.1\n\nThese are the rules that cannot live in the state schema or the capabilities contract alone, because they are cross-cutting or require semantic judgment. Every invariant is numbered and referenced by the schema files and the evaluation framework. Violating any of these is a spec bug, not a runtime error.\n\n## §1. Generator-Evaluator Separation\n\nNo subagent whose role is to evaluate work (`reviewer.*`, `qa.*`, `/review`, `/qa`) may hold `read:solutions`. This is enforced at two layers: the scope token vocabulary declares `read:solutions` as forbidden for those subagent patterns, and the permission matrix grants solutions as an empty array for `/review` and `/qa`.\n\nThe rationale is not technical, it is epistemic. A reviewer that can read prior solutions will exhibit confirmation bias toward historical judgments. Anthropic's harness paper showed that evaluators optimistically rate their own work; the same bias extends to evaluators who inherit institutional memory from a generator's notebook. The only way to keep `/review` honest is to keep it amnesiac.\n\nConsequence: if a reviewer needs historical context to render a verdict, that is a design smell. Either the intent was underspecified (fix at `/plan`) or the reviewer's scope is wrong (fix the manifest). Do not patch by granting `read:solutions`.\n\n## §2. Decisions Are Immutable\n\nOnce `decisions/{task_id}/intent.md` is written, no actor may modify it. This includes typo fixes and \"clarifying\" edits. If intent changes, the correct action is to create a new task with `parent_decision` pointing to the old one and mark the old one as superseded via the subsequent `ship.md`.\n\nThe rationale is that intent files are the audit surface for \"why did we build this?\" An editable intent is a rewriting of history, which destroys the ability to diagnose regressions in the evaluation framework. The cost of immutability is occasional clutter from superseded tasks; that cost is acceptable.\n\n## §3. Solutions Writes Must Pass Dedup\n\nNo write to `solutions/` may occur without `compound.related` running first and returning a dedup result. The dispatcher enforces this by making `write:solutions` a capability that only activates after a dedup stamp is attached to the write request. A `write:solutions` without a dedup stamp is rejected at the dispatch layer.\n\nThis is the single most important defense against the failure mode where `solutions/` becomes a grep-hostile dump of near-duplicates. Once that failure mode takes hold, `planner.history` and `researcher.history` become noise amplifiers and the entire compound layer stops being an asset.\n\nSimilarity threshold is fixed at 0.85 and is not user-tunable. Making it tunable would mean users lower it the first time dedup inconveniences them. The evaluation framework includes a regression test for this.\n\n### Metadata-only carve-out (CE-6, v1.10.0)\n\n`applied_in: TaskId[]` on solution frontmatter — written by `src/dispatcher/applied-tracker.ts` `recordApplied` from `plan.ts` L3 wire-up — is an **explicit, named exemption** from the dedup write-gate. The rule that binds §3 is \"solution-content changes (intent / prevention / what_didnt_work / source_task_ids / times_referenced) must route through `writeSolution()` with a `dedup_stamp` from `compound.related`\". `applied_in` is audit-trail metadata, not part of the dedup signature, so mutating it does not destabilize the corpus the way duplicated solution content would. `recordApplied` therefore bypasses `writeSolution()` and goes directly through `parseFrontmatter` → spread-preserve-all-other-fields → `serializeFrontmatter` → `writeAtomic`. The regression test `tests/dispatcher/applied-tracker.test.ts` H8 (\"Invariant §3 metadata-only carve-out (CRITICAL)\") is the binding contract: it snapshots every solution-content field before `recordApplied` and asserts byte-for-byte equality after. If that test ever changes shape, the carve-out must be re-evaluated. Future metadata-only fields (anything that does not affect compound-related similarity scoring) may extend this carve-out by the same pattern; new fields that affect dedup MUST route through `writeSolution()`.\n\n## §4. L3 Forbids --auto\n\nAny command invocation at task level L3 with `--auto` or equivalent automation flag is refused at the dispatcher level, with a non-overridable error. L3 tasks require a human signature in `intent.md` and a human confirmation at `/ship`. This is not a default, it is a hard rule.\n\nThe rationale is that L3 is the level at which irreversible architectural decisions live. Automation at L3 means a single miscalibrated classifier run can make an architectural change without human review. The cost of forcing a human in the loop at L3 is minutes per task; the cost of not forcing it is weeks of unwinding.\n\n## §5. Reviewer Overrides Require Human Signature\n\nWhen any reviewer returns `verdict == fail` and the ship gate proceeds anyway, the `override` field in the review report must be populated with `by`, `at`, and `reason`. The reason field has a minimum length of 40 characters to prevent \"ok\" style rubber-stamping. The dispatcher refuses to write a ship.md if a failing review lacks a corresponding populated override.\n\nNo subagent may populate the override field. Overrides are exclusively human.\n\n## §6. Audit-Trail Writes Are Durable (janitor decisions logged · review reports append-only)\n\nTwo faces of one principle: an audit-trail write must survive — never silently skipped, never silently overwritten. Both halves protect the same thing: the ability to later answer \"what was decided, by whom, and when?\"\n\n**(a) Every janitor decision is logged.** `janitor.compound` MUST write a decision report for every task it evaluates, including tasks it decides to skip. This is non-negotiable. The evaluation framework's regression diagnosis depends on being able to answer \"why did this task not generate a solution entry?\" — and the only correct answer is \"because the janitor logged reason X on date Y\". Silent skips are forbidden: a janitor that cannot write its decision must abort the task and surface an error, not default to skip.\n\n**(b) Review / QA / CSO reports are append-only.** Each `reviews/{task_id}/{stage}/{reviewer}.md` (and the analogous `cso/` report) is write-once per `(task, stage, reviewer)` triple — a second write for the same triple is rejected (`StateError(\"AppendOnly\", …)` in `state.ts:appendReview`), never overwritten. A follow-up pass writes a new `<reviewer>.<suffix>.md` via the `--append-as` channel rather than mutating the prior report. Overwriting a verdict would destroy the audit surface the same way a silent janitor skip would.\n\n## §7. Schema Validation Precedes Every Write\n\nThe dispatcher validates every file write against `sgc-state.schema.yaml` before committing. A write that fails validation is rejected with the validation error surfaced to the calling subagent. Subagents may retry with corrected output; they may not disable validation.\n\nThere is no \"validate later\" or \"lenient mode\". If the schema rejects real-world outputs, the schema is wrong and must be fixed; weakening validation is forbidden.\n\n## §8. Scope Tokens Are Computed At Spawn, Not Requested At Runtime\n\nWhen a command invokes a subagent, the dispatcher computes the subagent's scope_token set from the permission matrix and the subagent manifest, and pins that set for the subagent's lifetime. The subagent cannot request additional capabilities during execution. Any file access, git operation, or spawn attempt outside the pinned set causes immediate termination.\n\nThe rationale is that runtime capability elevation is the standard exploit path for prompt injection in agentic systems. Pinning at spawn time and enforcing at the dispatcher closes that path. This is the subagent-layer instance of the scope binding mechanism from CLAUDE.md v3.8.\n\n## §9. No Subagent Writes Outside Its Declared Outputs\n\nA subagent manifest declares its `outputs` field. The dispatcher discards any produced content that does not match the declared output shape. A subagent cannot, for example, write a solution entry as a side effect of producing a review report — even if it holds both tokens by some accident of composition.\n\nThis prevents \"helpful\" subagents from corrupting state they were not invited to touch. The canonical failure case is a reviewer noticing a pattern and trying to append to `solutions/` \"while it's here\"; under §1 that is already impossible, but §9 generalizes the principle.\n\n## §10. Failure of Any Compound Substep Aborts the Whole Compound\n\nThe compound cluster has five subagents. If any of them fails or times out, the entire compound operation is rolled back and no write to `solutions/` occurs. Partial compound writes are forbidden.\n\nThe rationale is that a half-written solution entry is worse than no entry. A solution without the `what_didnt_work` field, for instance, encourages the reader to re-walk dead-end paths. Better to log a janitor skip with reason `compound_cluster_failure` and surface the error for human diagnosis.\n\n## §11. Classifier Must Justify\n\n`classifier.level` must emit both a level and a rationale. The rationale must reference at least one concrete feature of the task (file count, risk keyword, blast radius, etc.) The dispatcher refuses classifications with empty or generic rationales.\n\nThis exists because without a justified classifier, L3 gets silently downgraded to L2 whenever the classifier is uncertain, and that erodes every downstream guarantee in this document.\n\n## §12. The Evaluation Framework Is Authoritative\n\nThe ten-scenario evaluation framework is the conformance test for this entire specification. When the spec and the evaluation framework disagree, the evaluation framework wins and the spec is amended to match. This prevents spec drift from quietly invalidating the test suite.\n\nWhen a new invariant is added to this document, a corresponding regression test is added to the evaluation framework in the same commit. No exceptions.\n\n## §13. Spawn + LLM Event Audit Completeness (two-tier)\n\nEvery call to `spawn()` MUST emit a paired `spawn.start` and `spawn.end` event to `.sgc/progress/events.ndjson` (Tier 1, all modes). The `end` event's `payload.outcome` MUST be one of `success | timeout | error`.\n\nAdditionally, when the resolved mode is `anthropic-sdk` / `openrouter` / `claude-cli` (any LLM-backed mode), the agent MUST emit a paired `llm.request` and `llm.response` event (Tier 2). `llm.response.payload.outcome` MUST be one of `success | timeout | error | schema_violation`.\n\nEmission is guaranteed by `try/finally` blocks:\n1. `src/dispatcher/spawn.ts` — Tier 1 pair (all modes).\n2. `src/dispatcher/anthropic-sdk-agent.ts` — Tier 2 pair.\n3. `src/dispatcher/openrouter-agent.ts` — Tier 2 pair.\n4. `src/dispatcher/claude-cli-agent.ts` — Tier 2 pair.\n\nOther event types (`dedup.scored`, `review.verdict_emitted`, etc.) are voluntary during Phase G; their schemas evolve freely. Commands are expected (soft contract, smoke-tested) to emit at least one high-level event per primary flow.\n\n**Exemption**: event-sink write failure (disk full, permission error) does NOT fail the spawn. The runtime logs the failure to stderr and continues. Invariant §13 is waived for infra-level write failures.\n\n**Schema**: `EventRecord` v1 is defined in `src/dispatcher/logger.ts`. Every event line carries `schema_version: 1`; additive fields must preserve forward-compatibility, breaking changes bump to v2.\n\n---\n\n## Cross-References\n\n- Invariant §1 is enforced by `sgc-capabilities.yaml` scope token `read:solutions` (forbidden_for list) and by the empty `solutions` row in the permission matrix for `/review` and `/qa`.\n- Invariant §2 is enforced by the `editable_after_creation: false` field on `decisions.intent` and `decisions.ship` in `sgc-state.schema.yaml`.\n- Invariant §3 is enforced by the `dedup` block in `solutions` section of `sgc-state.schema.yaml`, plus a dispatcher check.\n- Invariant §4 is a dispatcher-level rule with no schema representation. It must be added to the command parser as the first-priority check.\n- Invariant §5 is enforced by the conditional `override` field in `reviews.report`.\n- Invariant §6 is enforced on two paths: (a) the `janitor_decision` file being a required output of `janitor.compound` in the subagent manifest, and (b) the write-once guard in `state.ts:appendReview` that rejects a second write to the same `(task, stage, reviewer)` triple with `StateError(\"AppendOnly\", …)`.\n- Invariants §7, §8, §9 are dispatcher-level and have no schema representation.\n- Invariant §10 is enforced by `compound.*` subagents running as a transaction; no partial commits.\n- Invariant §11 is enforced by the required `rationale` field on `classifier.level` outputs.\n- Invariant §12 is procedural and enforced by code review discipline.\n- Invariant §13 is enforced by `try/finally` in `src/dispatcher/spawn.ts` (Tier 1) and in each LLM-mode agent file (`anthropic-sdk-agent.ts`, `openrouter-agent.ts`, `claude-cli-agent.ts`) for Tier 2. Regression-tested by `tests/dispatcher/spawn-events.test.ts`, `tests/dispatcher/llm-agent-events.test.ts`, `tests/dispatcher/commands-event-emission.test.ts`, and `tests/eval/invariants.test.ts` (Task 12 scenario).\n";
+var sgc_invariants_default = "# SGC System Invariants\n# Version: 0.1\n\nThese are the rules that cannot live in the state schema or the capabilities contract alone, because they are cross-cutting or require semantic judgment. Every invariant is numbered and referenced by the schema files and the evaluation framework. Violating any of these is a spec bug, not a runtime error.\n\n## §1. Generator-Evaluator Separation\n\nNo subagent whose role is to evaluate work (`reviewer.*`, `qa.*`, `/review`, `/qa`) may hold `read:solutions`. This is enforced at two layers: the scope token vocabulary declares `read:solutions` as forbidden for those subagent patterns, and the permission matrix grants solutions as an empty array for `/review` and `/qa`.\n\nThe rationale is not technical, it is epistemic. A reviewer that can read prior solutions will exhibit confirmation bias toward historical judgments. Anthropic's harness paper showed that evaluators optimistically rate their own work; the same bias extends to evaluators who inherit institutional memory from a generator's notebook. The only way to keep `/review` honest is to keep it amnesiac.\n\nConsequence: if a reviewer needs historical context to render a verdict, that is a design smell. Either the intent was underspecified (fix at `/plan`) or the reviewer's scope is wrong (fix the manifest). Do not patch by granting `read:solutions`.\n\n## §2. Decisions Are Immutable\n\nOnce `decisions/{task_id}/intent.md` is written, no actor may modify it. This includes typo fixes and \"clarifying\" edits. If intent changes, the correct action is to create a new task with `parent_decision` pointing to the old one and mark the old one as superseded via the subsequent `ship.md`.\n\nThe rationale is that intent files are the audit surface for \"why did we build this?\" An editable intent is a rewriting of history, which destroys the ability to diagnose regressions in the evaluation framework. The cost of immutability is occasional clutter from superseded tasks; that cost is acceptable.\n\n## §3. Solutions Writes Must Pass Dedup\n\nNo write to `solutions/` may occur without `compound.related` running first and returning a dedup result. The dispatcher enforces this by making `write:solutions` a capability that only activates after a dedup stamp is attached to the write request. A `write:solutions` without a dedup stamp is rejected at the dispatch layer.\n\nThis is the single most important defense against the failure mode where `solutions/` becomes a grep-hostile dump of near-duplicates. Once that failure mode takes hold, `planner.history` and `researcher.history` become noise amplifiers and the entire compound layer stops being an asset.\n\nSimilarity threshold is fixed at 0.85 and is not user-tunable. Making it tunable would mean users lower it the first time dedup inconveniences them. The evaluation framework includes a regression test for this.\n\n### Metadata-only carve-out (CE-6, v1.10.0)\n\n`applied_in: TaskId[]` on solution frontmatter — written by `src/dispatcher/applied-tracker.ts` `recordApplied` from `plan.ts` L3 wire-up — is an **explicit, named exemption** from the dedup write-gate. The rule that binds §3 is \"solution-content changes (intent / prevention / what_didnt_work / source_task_ids / times_referenced) must route through `writeSolution()` with a `dedup_stamp` from `compound.related`\". `applied_in` is audit-trail metadata, not part of the dedup signature, so mutating it does not destabilize the corpus the way duplicated solution content would. `recordApplied` therefore bypasses `writeSolution()` and goes directly through `parseFrontmatter` → spread-preserve-all-other-fields → `serializeFrontmatter` → `writeAtomic`. The regression test `tests/dispatcher/applied-tracker.test.ts` H8 (\"Invariant §3 metadata-only carve-out (CRITICAL)\") is the binding contract: it snapshots every solution-content field before `recordApplied` and asserts byte-for-byte equality after. If that test ever changes shape, the carve-out must be re-evaluated. Future metadata-only fields (anything that does not affect compound-related similarity scoring) may extend this carve-out by the same pattern; new fields that affect dedup MUST route through `writeSolution()`.\n\n## §4. L3 Forbids --auto\n\nAny command invocation at task level L3 with `--auto` or equivalent automation flag is refused at the dispatcher level, with a non-overridable error. L3 tasks require a human signature in `intent.md` and a human confirmation at `/ship`. This is not a default, it is a hard rule.\n\nThe rationale is that L3 is the level at which irreversible architectural decisions live. Automation at L3 means a single miscalibrated classifier run can make an architectural change without human review. The cost of forcing a human in the loop at L3 is minutes per task; the cost of not forcing it is weeks of unwinding.\n\n## §5. Reviewer Overrides Require Human Signature\n\nWhen any reviewer returns `verdict == fail` and the ship gate proceeds anyway, the `override` field in the review report must be populated with `by`, `at`, and `reason`. The reason field has a minimum length of 40 characters to prevent \"ok\" style rubber-stamping. The dispatcher refuses to write a ship.md if a failing review lacks a corresponding populated override.\n\nNo subagent may populate the override field. Overrides are exclusively human.\n\n## §6. Audit-Trail Writes Are Durable (janitor decisions logged · review reports append-only)\n\nTwo faces of one principle: an audit-trail write must survive — never silently skipped, never silently overwritten. Both halves protect the same thing: the ability to later answer \"what was decided, by whom, and when?\"\n\n**(a) Every janitor decision is logged.** `janitor.compound` MUST write a decision report for every task it evaluates, including tasks it decides to skip. This is non-negotiable. The evaluation framework's regression diagnosis depends on being able to answer \"why did this task not generate a solution entry?\" — and the only correct answer is \"because the janitor logged reason X on date Y\". Silent skips are forbidden: a janitor that cannot write its decision must abort the task and surface an error, not default to skip.\n\n**(b) Review / QA / CSO reports are append-only.** Each `reviews/{task_id}/{stage}/{reviewer}.md` (and the analogous `cso/` report) is write-once per `(task, stage, reviewer)` triple — a second write for the same triple is rejected (`StateError(\"AppendOnly\", …)` in `state.ts:appendReview`), never overwritten. A follow-up pass writes a new `<reviewer>.<suffix>.md` via the `--append-as` channel rather than mutating the prior report. Overwriting a verdict would destroy the audit surface the same way a silent janitor skip would.\n\n## §7. Schema Validation Precedes Every Write\n\nThe dispatcher validates every file write against `sgc-state.schema.yaml` before committing. A write that fails validation is rejected with the validation error surfaced to the calling subagent. Subagents may retry with corrected output; they may not disable validation.\n\nThere is no \"validate later\" or \"lenient mode\". If the schema rejects real-world outputs, the schema is wrong and must be fixed; weakening validation is forbidden.\n\n## §8. Scope Tokens Are Computed At Spawn, Not Requested At Runtime\n\nWhen a command invokes a subagent, the dispatcher computes the subagent's scope_token set from the permission matrix and the subagent manifest, and pins that set for the subagent's lifetime. There is no channel by which a running subagent can request additional capabilities: the set is computed before `spawn.start` and never re-read.\n\nThe rationale is that runtime capability elevation is the standard exploit path for prompt injection in agentic systems. Pinning at spawn time removes the elevation channel.\n\n**What \"pinned\" enforces, precisely.** Three distinct guarantees, none of which is syscall interception:\n\n1. **Spawn-time rejection (machine-enforced).** A manifest that declares a token its permission-matrix row forbids never spawns — `capabilities.ts` throws `ScopeViolation` before any work begins. This is what makes §1's `reviewer/qa cannot read:solutions` real rather than aspirational.\n2. **Input gating (machine-enforced).** The dispatcher controls what enters the subagent: the §1 back-channel gate rejects prior-art/pre-mortem content in the `intent` field before `spawn.start`, and the subagent receives only the input the dispatcher hands it.\n3. **Output validation (machine-enforced).** §9 shape validation rejects undeclared output fields, and the §1 leak scan runs over every subagent's output in all modes.\n\n**What it does NOT enforce, and why.** The pinned token set is delivered to LLM-backed subagents as prompt context — it is *advisory to the model*. sgc does not intercept an LLM subagent's file or git access, and **cannot**: in `claude-cli` mode the model's tool use executes inside a separate `claude -p` process, and in API modes it executes on the provider's side. Neither is inside sgc's process boundary. A prompt-injected LLM subagent that reads a file outside its pinned set is therefore caught — if at all — by the post-hoc output scan (verbatim leaks) rather than prevented at access time; a paraphrase can pass.\n\nThis is a deliberate boundary, not a deferred TODO. Treat §8 as **\"pin + gate the I/O the dispatcher owns + scan what comes back\"**, not as a sandbox. Deterministic subagents (inline stubs, `compound.related`) are the only ones whose access is bounded by construction — which is why the invariants that must not be LLM-bypassable (§3's dedup stamp, the §11 classifier floor) are anchored to deterministic code rather than to §8.\n\n`assertScope` / `assertCanSpawn` / `tokensAllow` in `capabilities.ts` exist for dispatcher-mediated access paths and are exercised by `capabilities.test.ts`; they are not — and cannot be — an interception layer over out-of-process model tool use.\n\nThis is the subagent-layer instance of the scope binding mechanism from CLAUDE.md v3.8.\n\n## §9. No Subagent Writes Outside Its Declared Outputs\n\nA subagent manifest declares its `outputs` field. The dispatcher discards any produced content that does not match the declared output shape. A subagent cannot, for example, write a solution entry as a side effect of producing a review report — even if it holds both tokens by some accident of composition.\n\nThis prevents \"helpful\" subagents from corrupting state they were not invited to touch. The canonical failure case is a reviewer noticing a pattern and trying to append to `solutions/` \"while it's here\"; under §1 that is already impossible, but §9 generalizes the principle.\n\n## §10. Failure of Any Compound Substep Aborts the Whole Compound\n\nThe compound cluster has five subagents. If any of them fails or times out, the entire compound operation is rolled back and no write to `solutions/` occurs. Partial compound writes are forbidden.\n\nThe rationale is that a half-written solution entry is worse than no entry. A solution without the `what_didnt_work` field, for instance, encourages the reader to re-walk dead-end paths. Better to log a janitor skip with reason `compound_cluster_failure` and surface the error for human diagnosis.\n\n## §11. Classifier Must Justify\n\n`classifier.level` must emit both a level and a rationale. The rationale must reference at least one concrete feature of the task (file count, risk keyword, blast radius, etc.) The dispatcher refuses classifications with empty or generic rationales.\n\nThis exists because without a justified classifier, L3 gets silently downgraded to L2 whenever the classifier is uncertain, and that erodes every downstream guarantee in this document.\n\n## §12. The Evaluation Framework Is Authoritative\n\nThe ten-scenario evaluation framework is the conformance test for this entire specification. When the spec and the evaluation framework disagree, the evaluation framework wins and the spec is amended to match. This prevents spec drift from quietly invalidating the test suite.\n\nWhen a new invariant is added to this document, a corresponding regression test is added to the evaluation framework in the same commit. No exceptions.\n\n## §13. Spawn + LLM Event Audit Completeness (two-tier)\n\nEvery call to `spawn()` MUST emit a paired `spawn.start` and `spawn.end` event to `.sgc/progress/events.ndjson` (Tier 1, all modes). The `end` event's `payload.outcome` MUST be one of `success | timeout | error`.\n\nAdditionally, when the resolved mode is `anthropic-sdk` / `openrouter` / `claude-cli` (any LLM-backed mode), the agent MUST emit a paired `llm.request` and `llm.response` event (Tier 2). `llm.response.payload.outcome` MUST be one of `success | timeout | error | schema_violation`.\n\nEmission is guaranteed by `try/finally` blocks:\n1. `src/dispatcher/spawn.ts` — Tier 1 pair (all modes).\n2. `src/dispatcher/anthropic-sdk-agent.ts` — Tier 2 pair.\n3. `src/dispatcher/openrouter-agent.ts` — Tier 2 pair.\n4. `src/dispatcher/claude-cli-agent.ts` — Tier 2 pair.\n\nOther event types (`dedup.scored`, `review.verdict_emitted`, etc.) are voluntary during Phase G; their schemas evolve freely. Commands are expected (soft contract, smoke-tested) to emit at least one high-level event per primary flow.\n\n**Exemption**: event-sink write failure (disk full, permission error) does NOT fail the spawn. The runtime logs the failure to stderr and continues. Invariant §13 is waived for infra-level write failures.\n\n**Schema**: `EventRecord` v1 is defined in `src/dispatcher/logger.ts`. Every event line carries `schema_version: 1`; additive fields must preserve forward-compatibility, breaking changes bump to v2.\n\n---\n\n## Cross-References\n\n- Invariant §1 is enforced by `sgc-capabilities.yaml` scope token `read:solutions` (forbidden_for list) and by the empty `solutions` row in the permission matrix for `/review` and `/qa`.\n- Invariant §2 is enforced by the `editable_after_creation: false` field on `decisions.intent` and `decisions.ship` in `sgc-state.schema.yaml`.\n- Invariant §3 is enforced by the `dedup` block in `solutions` section of `sgc-state.schema.yaml`, plus a dispatcher check.\n- Invariant §4 is a dispatcher-level rule with no schema representation. It must be added to the command parser as the first-priority check.\n- Invariant §5 is enforced by the conditional `override` field in `reviews.report`.\n- Invariant §6 is enforced on two paths: (a) the `janitor_decision` file being a required output of `janitor.compound` in the subagent manifest, and (b) the write-once guard in `state.ts:appendReview` that rejects a second write to the same `(task, stage, reviewer)` triple with `StateError(\"AppendOnly\", …)`.\n- Invariants §7, §8, §9 are dispatcher-level and have no schema representation.\n- Invariant §10 is enforced by `compound.*` subagents running as a transaction; no partial commits.\n- Invariant §11 is enforced by the required `rationale` field on `classifier.level` outputs.\n- Invariant §12 is procedural and enforced by code review discipline.\n- Invariant §13 is enforced by `try/finally` in `src/dispatcher/spawn.ts` (Tier 1) and in each LLM-mode agent file (`anthropic-sdk-agent.ts`, `openrouter-agent.ts`, `claude-cli-agent.ts`) for Tier 2. Regression-tested by `tests/dispatcher/spawn-events.test.ts`, `tests/dispatcher/llm-agent-events.test.ts`, `tests/dispatcher/commands-event-emission.test.ts`, and `tests/eval/invariants.test.ts` (Task 12 scenario).\n";
 var init_sgc_invariants = () => {};
 
 // prompts/clarifier-discover.md
@@ -7445,7 +8000,7 @@ var init_reviewer_correctness = () => {};
 
 // src/dispatcher/embedded-data.ts
 import { readFileSync as readFileSync3 } from "node:fs";
-import { resolve as resolve5, dirname as dirname3 } from "node:path";
+import { resolve as resolve6, dirname as dirname3 } from "node:path";
 import { fileURLToPath } from "node:url";
 function listEmbeddedPromptKeys() {
   return Object.keys(EMBEDDED_PROMPTS);
@@ -7453,22 +8008,22 @@ function listEmbeddedPromptKeys() {
 function readContract(filename) {
   const override = process.env["SGC_CONTRACTS_DIR"];
   if (override)
-    return readDisk(resolve5(override, filename), filename, "SGC_CONTRACTS_DIR");
+    return readDisk(resolve6(override, filename), filename, "SGC_CONTRACTS_DIR");
   const embedded = EMBEDDED_CONTRACTS[filename];
   if (embedded !== undefined)
     return embedded;
-  return readDisk(resolve5(diskContractsDir, filename), filename, "SGC_CONTRACTS_DIR");
+  return readDisk(resolve6(diskContractsDir, filename), filename, "SGC_CONTRACTS_DIR");
 }
 function readPrompt(relPath) {
   const override = process.env["SGC_PROMPTS_DIR"];
   if (override) {
     const base = relPath.replace(/^prompts\//, "");
-    return readDisk(resolve5(override, base), relPath, "SGC_PROMPTS_DIR");
+    return readDisk(resolve6(override, base), relPath, "SGC_PROMPTS_DIR");
   }
   const embedded = EMBEDDED_PROMPTS[relPath];
   if (embedded !== undefined)
     return embedded;
-  return readDisk(resolve5(diskRepoRoot, relPath), relPath, "SGC_PROMPTS_DIR");
+  return readDisk(resolve6(diskRepoRoot, relPath), relPath, "SGC_PROMPTS_DIR");
 }
 function readDisk(path, label, envVar) {
   try {
@@ -7518,8 +8073,8 @@ var init_embedded_data = __esm(() => {
     "prompts/reviewer-correctness.md": reviewer_correctness_default
   };
   moduleDir = dirname3(fileURLToPath(import.meta.url));
-  diskContractsDir = resolve5(moduleDir, "..", "..", "contracts");
-  diskRepoRoot = resolve5(moduleDir, "..", "..");
+  diskContractsDir = resolve6(moduleDir, "..", "..", "contracts");
+  diskRepoRoot = resolve6(moduleDir, "..", "..");
 });
 
 // src/dispatcher/schema.ts
@@ -7605,48 +8160,6 @@ var init_capabilities = __esm(() => {
   };
 });
 
-// src/dispatcher/spawn-protocol.ts
-import { existsSync as existsSync5, readdirSync as readdirSync3 } from "node:fs";
-import { resolve as resolve6 } from "node:path";
-function parseSpawnId(spawnId) {
-  const dashIdx = spawnId.indexOf("-");
-  if (dashIdx === -1) {
-    throw new Error(`invalid spawn_id: no dash in ${spawnId}`);
-  }
-  return {
-    ulid: spawnId.slice(0, dashIdx),
-    agentName: spawnId.slice(dashIdx + 1)
-  };
-}
-function promptPath(spawnId, stateRoot) {
-  return resolve6(stateRoot, "progress/agent-prompts", `${spawnId}.md`);
-}
-function resultPath(spawnId, stateRoot) {
-  return resolve6(stateRoot, "progress/agent-results", `${spawnId}.md`);
-}
-function listAllSpawns(stateRoot) {
-  const promptsDir = resolve6(stateRoot, "progress/agent-prompts");
-  if (!existsSync5(promptsDir))
-    return [];
-  return readdirSync3(promptsDir).filter((f3) => f3.endsWith(".md")).sort().map((f3) => {
-    const spawnId = f3.slice(0, -3);
-    const { agentName } = parseSpawnId(spawnId);
-    const pp = promptPath(spawnId, stateRoot);
-    const rp = resultPath(spawnId, stateRoot);
-    return {
-      spawnId,
-      agentName,
-      promptPath: pp,
-      resultPath: rp,
-      hasResult: existsSync5(rp)
-    };
-  });
-}
-function listPendingSpawns(stateRoot) {
-  return listAllSpawns(stateRoot).filter((s2) => !s2.hasResult);
-}
-var init_spawn_protocol = () => {};
-
 // src/dispatcher/claude-cli-agent.ts
 import { spawn } from "node:child_process";
 import { readFileSync as readFileSync4 } from "node:fs";
@@ -7662,7 +8175,7 @@ function extractYamlBody(resultText) {
 async function runClaudeCliAgent(promptPath2, manifest, runner = defaultRunner, ctx) {
   const promptText = readFileSync4(promptPath2, "utf8");
   const timeoutMs = (manifest.timeout_s ?? 60) * 1000;
-  const argv2 = ["claude", "-p", "--output-format", "json", promptText];
+  const argv2 = ["claude", "-p", "--output-format", "json"];
   const model = "claude-cli";
   if (ctx) {
     const reqPayload = {
@@ -7684,9 +8197,11 @@ async function runClaudeCliAgent(promptPath2, manifest, runner = defaultRunner, 
   let errorClass;
   let usageInput;
   let usageOutput;
+  let responded = false;
   const emitResponse = () => {
-    if (!ctx)
+    if (!ctx || responded)
       return;
+    responded = true;
     const resPayload = {
       outcome,
       latency_ms: Date.now() - startTs,
@@ -7703,7 +8218,12 @@ async function runClaudeCliAgent(promptPath2, manifest, runner = defaultRunner, 
       payload: resPayload
     });
   };
-  const { stdout: stdout2, stderr, exitCode, timedOut } = await runner(argv2, timeoutMs, (kill) => ctx?.registerAbort?.(kill));
+  ctx?.registerLlmClose?.((oc) => {
+    outcome = oc;
+    errorClass ??= "interrupted";
+    emitResponse();
+  });
+  const { stdout: stdout2, stderr, exitCode, timedOut } = await runner(argv2, timeoutMs, (kill) => ctx?.registerAbort?.(kill), promptText);
   if (timedOut) {
     outcome = "timeout";
     errorClass = "ClaudeCliTimeout";
@@ -7751,7 +8271,7 @@ async function runClaudeCliAgent(promptPath2, manifest, runner = defaultRunner, 
   }
   return data;
 }
-var ClaudeCliError, defaultRunner = async (argv2, timeoutMs, onSpawn) => {
+var ClaudeCliError, defaultRunner = async (argv2, timeoutMs, onSpawn, stdin2) => {
   return new Promise((resolveP) => {
     const controller = new AbortController;
     let timedOut = false;
@@ -7760,9 +8280,13 @@ var ClaudeCliError, defaultRunner = async (argv2, timeoutMs, onSpawn) => {
     });
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const child = spawn(argv2[0], argv2.slice(1), {
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: [stdin2 === undefined ? "ignore" : "pipe", "pipe", "pipe"],
       signal: controller.signal
     });
+    if (stdin2 !== undefined) {
+      child.stdin?.on("error", () => {});
+      child.stdin?.end(stdin2);
+    }
     onSpawn?.(() => {
       try {
         child.kill();
@@ -7832,6 +8356,19 @@ function spawnCapture(argv2, opts = {}) {
         resolveP({ stdout: stdout2, stderr, exitCode: code ?? -1 });
     });
   });
+}
+function spawnCaptureSync(argv2, opts = {}) {
+  if (!argv2[0])
+    return { stdout: "", stderr: "empty argv", exitCode: -1 };
+  const r3 = spawnSync2(argv2[0], argv2.slice(1), {
+    cwd: opts.cwd,
+    env: opts.env,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  if (r3.error)
+    return { stdout: r3.stdout ?? "", stderr: String(r3.error), exitCode: -1 };
+  return { stdout: r3.stdout ?? "", stderr: r3.stderr ?? "", exitCode: r3.status ?? -1 };
 }
 function whichSync(bin) {
   const cmd = process.platform === "win32" ? "where" : "which";
@@ -8335,12 +8872,12 @@ class LineDecoder {
 function findNewlineIndex(buffer, startIndex) {
   const newline = 10;
   const carriage = 13;
-  for (let i3 = startIndex ?? 0;i3 < buffer.length; i3++) {
-    if (buffer[i3] === newline) {
-      return { preceding: i3, index: i3 + 1, carriage: false };
+  for (let i2 = startIndex ?? 0;i2 < buffer.length; i2++) {
+    if (buffer[i2] === newline) {
+      return { preceding: i2, index: i2 + 1, carriage: false };
     }
-    if (buffer[i3] === carriage) {
-      return { preceding: i3, index: i3 + 1, carriage: true };
+    if (buffer[i2] === carriage) {
+      return { preceding: i2, index: i2 + 1, carriage: true };
     }
   }
   return null;
@@ -8348,15 +8885,15 @@ function findNewlineIndex(buffer, startIndex) {
 function findDoubleNewlineIndex(buffer) {
   const newline = 10;
   const carriage = 13;
-  for (let i3 = 0;i3 < buffer.length - 1; i3++) {
-    if (buffer[i3] === newline && buffer[i3 + 1] === newline) {
-      return i3 + 2;
+  for (let i2 = 0;i2 < buffer.length - 1; i2++) {
+    if (buffer[i2] === newline && buffer[i2 + 1] === newline) {
+      return i2 + 2;
     }
-    if (buffer[i3] === carriage && buffer[i3 + 1] === carriage) {
-      return i3 + 2;
+    if (buffer[i2] === carriage && buffer[i2 + 1] === carriage) {
+      return i2 + 2;
     }
-    if (buffer[i3] === carriage && buffer[i3 + 1] === newline && i3 + 3 < buffer.length && buffer[i3 + 2] === carriage && buffer[i3 + 3] === newline) {
-      return i3 + 4;
+    if (buffer[i2] === carriage && buffer[i2 + 1] === newline && i2 + 3 < buffer.length && buffer[i2 + 2] === carriage && buffer[i2 + 3] === newline) {
+      return i2 + 4;
     }
   }
   return -1;
@@ -12920,9 +13457,11 @@ async function runAnthropicSdkAgent(promptPath2, manifest, clientFactory, ctx) {
   let usageOutput;
   let usageCacheRead;
   let usageCacheCreation;
+  let responded = false;
   const emitResponse = () => {
-    if (!ctx)
+    if (!ctx || responded)
       return;
+    responded = true;
     const resPayload = {
       outcome,
       latency_ms: Date.now() - startTs,
@@ -12941,6 +13480,11 @@ async function runAnthropicSdkAgent(promptPath2, manifest, clientFactory, ctx) {
       payload: resPayload
     });
   };
+  ctx?.registerLlmClose?.((oc) => {
+    outcome = oc;
+    errorClass ??= "interrupted";
+    emitResponse();
+  });
   try {
     const createArgs = {
       model,
@@ -13018,6 +13562,12 @@ var init_anthropic_sdk_agent = __esm(() => {
 
 // src/dispatcher/openrouter-agent.ts
 import { readFileSync as readFileSync6 } from "node:fs";
+function noticeThirdPartyEgress(model) {
+  if (egressNoticeShown)
+    return;
+  egressNoticeShown = true;
+  console.error(`[sgc] OPENROUTER_API_KEY is set → subagents run on openrouter.ai (model: ${model}). ` + `Prompt content (your task text, code and diffs) is sent to that third party. ` + `Unset OPENROUTER_API_KEY, or set SGC_FORCE_INLINE=1, to keep everything local.`);
+}
 function extractYamlBlock(text) {
   const tagged = text.match(/```ya?ml\s*\n([\s\S]*?)```/);
   if (tagged)
@@ -13044,6 +13594,7 @@ async function runOpenRouterAgent(promptPath2, manifest, fetchFn, ctx) {
   }
   messages.push({ role: "user", content: userPart });
   const model = process.env["SGC_OPENROUTER_MODEL"] ?? DEFAULT_MODEL2;
+  noticeThirdPartyEgress(model);
   const body = {
     model,
     max_tokens: maxTokens,
@@ -13074,9 +13625,11 @@ async function runOpenRouterAgent(promptPath2, manifest, fetchFn, ctx) {
   let errorClass;
   let usageInput;
   let usageOutput;
+  let responded = false;
   const emitResponse = () => {
-    if (!ctx)
+    if (!ctx || responded)
       return;
+    responded = true;
     const resPayload = {
       outcome,
       latency_ms: Date.now() - startTs,
@@ -13093,6 +13646,11 @@ async function runOpenRouterAgent(promptPath2, manifest, fetchFn, ctx) {
       payload: resPayload
     });
   };
+  ctx?.registerLlmClose?.((oc) => {
+    outcome = oc;
+    errorClass ??= "interrupted";
+    emitResponse();
+  });
   let response;
   try {
     response = await doFetch(OPENROUTER_URL, {
@@ -13149,7 +13707,7 @@ async function runOpenRouterAgent(promptPath2, manifest, fetchFn, ctx) {
   }
   return data;
 }
-var OpenRouterError, OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions", DEFAULT_MODEL2 = "anthropic/claude-opus-4.7", MAX_TOKENS_CAP2 = 8192;
+var OpenRouterError, OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions", DEFAULT_MODEL2 = "anthropic/claude-opus-4.7", MAX_TOKENS_CAP2 = 8192, egressNoticeShown = false;
 var init_openrouter_agent = __esm(() => {
   init_js_yaml();
   init_anthropic_sdk_agent();
@@ -13224,6 +13782,9 @@ function drainOpenSpawnsForSignal(signal) {
   for (const [spawnId, e2] of openSpawns) {
     try {
       e2.abort?.();
+    } catch {}
+    try {
+      e2.llmClose?.("interrupted");
     } catch {}
     try {
       e2.logger.event({
@@ -13419,6 +13980,11 @@ async function spawn3(agentName, input, opts = {}) {
         const e2 = openSpawns.get(spawnId);
         if (e2)
           e2.abort = abort;
+      },
+      registerLlmClose: (close) => {
+        const e2 = openSpawns.get(spawnId);
+        if (e2)
+          e2.llmClose = close;
       }
     };
     if (mode === "inline" && opts.inlineStub) {
@@ -13702,7 +14268,7 @@ async function runDiscover(opts) {
   const current_task_summary = summarizeActiveTask(stateRoot);
   const r3 = await spawn3("clarifier.discover", { topic, current_task_summary, ...template ? { template } : {} }, {
     stateRoot,
-    inlineStub: (i3) => clarifierDiscover(i3),
+    inlineStub: (i2) => clarifierDiscover(i2),
     logger,
     taskId: undefined
   });
@@ -13717,6 +14283,7 @@ var init_discover = __esm(() => {
 });
 
 // src/dispatcher/file-lock.ts
+import { randomBytes as randomBytes2 } from "node:crypto";
 import { closeSync, openSync, readFileSync as readFileSync8, unlinkSync as unlinkSync2, writeSync } from "node:fs";
 function defaultIsAlive(pid) {
   if (!Number.isFinite(pid) || pid <= 0)
@@ -13735,10 +14302,13 @@ function acquireFileLock(lockPath, opts = {}) {
   for (let attempt = 0;attempt < 2; attempt++) {
     try {
       const fd = openSync(lockPath, "wx");
-      try {
-        writeSync(fd, `${process.pid}
+      const nonce = randomBytes2(8).toString("hex");
+      const ours = `${process.pid}
 ${now()}
-`);
+${nonce}
+`;
+      try {
+        writeSync(fd, ours);
       } finally {
         closeSync(fd);
       }
@@ -13748,6 +14318,8 @@ ${now()}
           return;
         released = true;
         try {
+          if (readFileSync8(lockPath, "utf8") !== ours)
+            return;
           unlinkSync2(lockPath);
         } catch {}
       };
@@ -13756,8 +14328,10 @@ ${now()}
         throw err;
       let holderPid = Number.NaN;
       let ts = Number.NaN;
+      let inspected = null;
       try {
-        const parts = readFileSync8(lockPath, "utf8").split(`
+        inspected = readFileSync8(lockPath, "utf8");
+        const parts = inspected.split(`
 `);
         holderPid = Number.parseInt(parts[0] ?? "", 10);
         ts = Number.parseInt(parts[1] ?? "", 10);
@@ -13767,6 +14341,9 @@ ${now()}
       const reclaim = holderDead === true || holderDead === null && ageStale;
       if (reclaim) {
         try {
+          if (inspected !== null && readFileSync8(lockPath, "utf8") !== inspected) {
+            continue;
+          }
           unlinkSync2(lockPath);
         } catch {}
         continue;
@@ -14153,7 +14730,19 @@ function classifierLevelHeuristic(input) {
     affected_readers_candidates: ["dispatcher"]
   };
 }
-var L3_KEYWORDS, L2_KEYWORDS, SECURITY_KEYWORDS, STRONG_L0, L0_KEYWORDS, classifierLevel;
+function applyHeuristicFloor(llm, input) {
+  const floor = classifierLevelHeuristic(input);
+  if (LEVEL_RANK[llm.level] >= LEVEL_RANK[floor.level])
+    return llm;
+  return {
+    level: floor.level,
+    rationale: `${floor.rationale} [deterministic heuristic floor raised ${llm.level} → ${floor.level}; ` + `LLM verdict was: ${llm.rationale}]`,
+    affected_readers_candidates: [
+      ...new Set([...floor.affected_readers_candidates, ...llm.affected_readers_candidates])
+    ]
+  };
+}
+var L3_KEYWORDS, L2_KEYWORDS, SECURITY_KEYWORDS, STRONG_L0, L0_KEYWORDS, classifierLevel, LEVEL_RANK;
 var init_classifier_level2 = __esm(() => {
   L3_KEYWORDS = [
     /\bmigration\b/i,
@@ -14197,6 +14786,7 @@ var init_classifier_level2 = __esm(() => {
     /^(fix|update) (a |the )?(typo|formatting|comment|whitespace|spelling|docstring)/i
   ];
   classifierLevel = classifierLevelHeuristic;
+  LEVEL_RANK = { L0: 0, L1: 1, L2: 2, L3: 3 };
 });
 
 // src/dispatcher/agents/planner-eng.ts
@@ -15317,10 +15907,19 @@ async function runPlanCore(taskDescription, opts = {}) {
   const taskId = generateTaskId();
   const createdAt = nowIso();
   log(`task_id = ${taskId}`);
-  const classRes = await spawn3("classifier.level", { user_request: taskDescription }, { stateRoot, inlineStub: (i3) => classifierLevel(i3), logger, taskId });
+  const classRes = await spawn3("classifier.level", { user_request: taskDescription }, {
+    stateRoot,
+    inlineStub: (i2) => opts.classifierOverride ?? classifierLevel(i2),
+    logger,
+    taskId
+  });
   validateClassifierRationale(classRes.output.rationale);
-  let level = classRes.output.level;
-  log(`classifier verdict: ${level} — ${classRes.output.rationale}`);
+  const classified = applyHeuristicFloor(classRes.output, { user_request: taskDescription });
+  if (classified.level !== classRes.output.level) {
+    log(`classifier verdict ${classRes.output.level} raised to ${classified.level} ` + `by the deterministic heuristic floor (HARD escalation rule)`);
+  }
+  let level = classified.level;
+  log(`classifier verdict: ${level} — ${classified.rationale}`);
   if (opts.forceLevel) {
     if (LEVEL_RANK[opts.forceLevel] < LEVEL_RANK[level]) {
       throw new Error(`forceLevel ${opts.forceLevel} would downgrade ${level} — refused (upgrade-only rule)`);
@@ -15350,14 +15949,14 @@ async function runPlanCore(taskDescription, opts = {}) {
     const tasks = [
       (async () => {
         try {
-          return await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i3) => plannerEng(i3), logger, taskId });
+          return await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i2) => plannerEng(i2), logger, taskId });
         } catch (err) {
           return { output: degradedEngOutput(err, logger, taskId) };
         }
       })(),
       (async () => {
         try {
-          return await spawn3("planner.ceo", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i3) => plannerCeo(i3), logger, taskId });
+          return await spawn3("planner.ceo", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i2) => plannerCeo(i2), logger, taskId });
         } catch (err) {
           return { output: degradedCeoOutput(err, logger, taskId) };
         }
@@ -15375,7 +15974,7 @@ async function runPlanCore(taskDescription, opts = {}) {
         try {
           const r3 = await spawn3("researcher.history", { intent_draft: taskDescription, candidates }, {
             stateRoot,
-            inlineStub: (i3) => researcherHistory(i3, { stateRoot }),
+            inlineStub: (i2) => researcherHistory(i2, { stateRoot }),
             logger,
             taskId
           });
@@ -15415,7 +16014,7 @@ async function runPlanCore(taskDescription, opts = {}) {
         };
         return spawn3("planner.adversarial", adversarialInput, {
           stateRoot,
-          inlineStub: (i3) => opts.adversarialOverride ?? plannerAdversarial(i3),
+          inlineStub: (i2) => opts.adversarialOverride ?? plannerAdversarial(i2),
           logger,
           taskId
         });
@@ -15527,7 +16126,7 @@ async function runPlanCore(taskDescription, opts = {}) {
     }
   } else if (LEVEL_RANK[level] >= 1) {
     try {
-      const planRes = await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i3) => plannerEng(i3), logger, taskId });
+      const planRes = await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i2) => plannerEng(i2), logger, taskId });
       plannerEngOut = planRes.output;
     } catch (err) {
       plannerEngOut = degradedEngOutput(err, logger, taskId);
@@ -15564,7 +16163,7 @@ async function runPlanCore(taskDescription, opts = {}) {
     };
     const decRes = await spawn3("planner.decompose", decomposeInput, {
       stateRoot,
-      inlineStub: (i3) => plannerDecompose(i3),
+      inlineStub: (i2) => plannerDecompose(i2),
       logger,
       taskId
     });
@@ -15612,7 +16211,7 @@ async function runPlanCore(taskDescription, opts = {}) {
       fused_verdict: fusedVerdict,
       body: fusedSection + `## Classifier rationale
 
-${classRes.output.rationale}
+${classified.rationale}
 
 ` + (plannerEngOut ? `## Planner.eng verdict
 
@@ -15718,7 +16317,6 @@ ${PRE_MORTEM_SENTINEL_END}
   log(`Plan complete. Run \`sgc work\` to begin execution.`);
   return { taskId, level, intentPath: intentPath2 };
 }
-var LEVEL_RANK;
 var init_plan = __esm(() => {
   init_spawn();
   init_classifier_level2();
@@ -15736,7 +16334,6 @@ var init_plan = __esm(() => {
   init_fuse_plan();
   init_logger();
   init_plan_jobs2();
-  LEVEL_RANK = { L0: 0, L1: 1, L2: 2, L3: 3 };
 });
 
 // src/commands/work.ts
@@ -16066,9 +16663,9 @@ var init_reviewer_quality = __esm(() => {
 var exports_review = {};
 __export(exports_review, {
   worstVerdict: () => worstVerdict,
-  runReview: () => runReview
+  runReview: () => runReview,
+  captureDiff: () => captureDiff
 });
-import { execSync } from "node:child_process";
 function generateReportId() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
@@ -16076,11 +16673,8 @@ function nowIso3() {
   return new Date().toISOString();
 }
 function captureDiff(base, cwd) {
-  try {
-    return execSync(`git diff ${base}`, { encoding: "utf8", cwd });
-  } catch {
-    return "";
-  }
+  const r3 = spawnCaptureSync(["git", "diff", base], { cwd });
+  return r3.exitCode === 0 ? r3.stdout : "";
 }
 function stripSentinelBlock(body, begin, end, legacyHeadingRe) {
   const beginIdx = body.indexOf(begin);
@@ -16133,7 +16727,7 @@ async function runReview(opts = {}) {
   const diff = opts.diffOverride ?? captureDiff(opts.base ?? "HEAD");
   const r3 = await spawn3("reviewer.correctness", { diff, intent: intentForReviewer }, {
     stateRoot,
-    inlineStub: (i3) => reviewerCorrectness(i3),
+    inlineStub: (i2) => reviewerCorrectness(i2),
     logger,
     taskId
   });
@@ -16159,7 +16753,7 @@ async function runReview(opts = {}) {
   const isL2Plus = level === "L2" || level === "L3";
   const clusterReports = [];
   async function runClusterReviewer(name, agent) {
-    const res = await spawn3(name, { diff, intent: intentForReviewer }, { stateRoot, inlineStub: (i3) => agent(i3), logger, taskId });
+    const res = await spawn3(name, { diff, intent: intentForReviewer }, { stateRoot, inlineStub: (i2) => agent(i2), logger, taskId });
     const report = {
       report_id: generateReportId(),
       task_id: taskId,
@@ -16191,13 +16785,13 @@ async function runReview(opts = {}) {
     if (matched.length > 0) {
       const specResults = await Promise.all(matched.map((s2) => spawn3(s2.name, { diff, intent: intentForReviewer }, {
         stateRoot,
-        inlineStub: (i3) => s2.agent(i3),
+        inlineStub: (i2) => s2.agent(i2),
         logger,
         taskId
       })));
-      for (let i3 = 0;i3 < matched.length; i3++) {
-        const s2 = matched[i3];
-        const out = specResults[i3].output;
+      for (let i2 = 0;i2 < matched.length; i2++) {
+        const s2 = matched[i2];
+        const out = specResults[i2].output;
         const report = {
           report_id: generateReportId(),
           task_id: taskId,
@@ -16234,6 +16828,7 @@ async function runReview(opts = {}) {
 }
 var VERDICT_ORDER;
 var init_review = __esm(() => {
+  init_subprocess();
   init_spawn();
   init_reviewer_correctness2();
   init_reviewer_specialists();
@@ -16354,9 +16949,9 @@ function makeBrowseRunner(opts) {
     const failed_flows = [];
     let navOk = 0;
     try {
-      for (let i3 = 0;i3 < targets.length; i3++) {
-        const t2 = targets[i3];
-        const shot = join5(screenshotDir, `qa-${i3}-${safeLabel(t2.label)}.png`);
+      for (let i2 = 0;i2 < targets.length; i2++) {
+        const t2 = targets[i2];
+        const shot = join5(screenshotDir, `qa-${i2}-${safeLabel(t2.label)}.png`);
         const r3 = await session.smoke(t2.url, shot);
         if (r3.screenshot)
           evidence_refs.push(r3.screenshot);
@@ -16490,7 +17085,7 @@ async function runQa(opts = {}) {
   }
   const r3 = await spawn3("qa.browser", { target_url: target, user_flows: flows }, {
     stateRoot,
-    inlineStub: (i3) => qaBrowser(i3, browseRunner ? { browseRunner } : {}),
+    inlineStub: (i2) => qaBrowser(i2, browseRunner ? { browseRunner } : {}),
     logger,
     taskId
   });
@@ -16529,9 +17124,9 @@ var init_qa = __esm(() => {
 function extractPrUrl(stdout2) {
   const lines = stdout2.trim().split(`
 `).map((l2) => l2.trim());
-  for (let i3 = lines.length - 1;i3 >= 0; i3--) {
-    if (lines[i3].startsWith("http"))
-      return lines[i3];
+  for (let i2 = lines.length - 1;i2 >= 0; i2--) {
+    if (lines[i2].startsWith("http"))
+      return lines[i2];
   }
   return null;
 }
@@ -16806,7 +17401,7 @@ ${fm.workflow_name}`;
   const logger = opts.logger ?? createLogger({ stateRoot });
   const ctxRes = await spawn3("compound.context", { task_id: "(promote)", intent: intentText }, {
     stateRoot,
-    inlineStub: (i3) => compoundContext(i3),
+    inlineStub: (i2) => compoundContext(i2),
     logger
   });
   const context = ctxRes.output;
@@ -16814,7 +17409,7 @@ ${fm.workflow_name}`;
   const existing = listSolutions(stateRoot);
   const relRes = await spawn3("compound.related", { context, signature, existing_solutions: existing }, {
     stateRoot,
-    inlineStub: (i3) => compoundRelated(i3),
+    inlineStub: (i2) => compoundRelated(i2),
     logger
   });
   const related = relRes.output;
@@ -16887,7 +17482,7 @@ ${fm.prior_red}`;
   const logger = opts.logger ?? createLogger({ stateRoot });
   const ctxRes = await spawn3("compound.context", { task_id: fm.task_id, intent: intentText }, {
     stateRoot,
-    inlineStub: (i3) => compoundContext(i3),
+    inlineStub: (i2) => compoundContext(i2),
     logger
   });
   const context = ctxRes.output;
@@ -16895,7 +17490,7 @@ ${fm.prior_red}`;
   const existing = listSolutions(stateRoot);
   const relRes = await spawn3("compound.related", { context, signature, existing_solutions: existing }, {
     stateRoot,
-    inlineStub: (i3) => compoundRelated(i3),
+    inlineStub: (i2) => compoundRelated(i2),
     logger
   });
   const related = relRes.output;
@@ -17001,7 +17596,7 @@ ${fm.package_name} ${fm.failed_phase}`;
   const logger = opts.logger ?? createLogger({ stateRoot });
   const ctxRes = await spawn3("compound.context", { task_id: "(promote)", intent: intentText }, {
     stateRoot,
-    inlineStub: (i3) => compoundContext(i3),
+    inlineStub: (i2) => compoundContext(i2),
     logger
   });
   const context = ctxRes.output;
@@ -17009,7 +17604,7 @@ ${fm.package_name} ${fm.failed_phase}`;
   const existing = listSolutions(stateRoot);
   const relRes = await spawn3("compound.related", { context, signature, existing_solutions: existing }, {
     stateRoot,
-    inlineStub: (i3) => compoundRelated(i3),
+    inlineStub: (i2) => compoundRelated(i2),
     logger
   });
   const related = relRes.output;
@@ -17120,7 +17715,7 @@ ${intent.motivation}`;
   const reviews = listReviewsForStage(taskId, "code", stateRoot);
   const ctxRes = await spawn3("compound.context", { task_id: taskId, intent: intentText }, {
     stateRoot,
-    inlineStub: (i3) => compoundContext(i3),
+    inlineStub: (i2) => compoundContext(i2),
     logger,
     taskId
   });
@@ -17129,7 +17724,7 @@ ${intent.motivation}`;
   const existing = listSolutions(stateRoot);
   const relRes = await spawn3("compound.related", { context, signature, existing_solutions: existing }, {
     stateRoot,
-    inlineStub: (i3) => compoundRelated(i3),
+    inlineStub: (i2) => compoundRelated(i2),
     logger,
     taskId
   });
@@ -17162,7 +17757,7 @@ ${intent.motivation}`;
   const [solRes, prevRes] = await Promise.all([
     spawn3("compound.solution", { context, reviews }, {
       stateRoot,
-      inlineStub: (i3) => compoundSolution(i3),
+      inlineStub: (i2) => compoundSolution(i2),
       logger,
       taskId
     }),
@@ -17234,14 +17829,14 @@ __export(exports_ship, {
   runShip: () => runShip
 });
 import { createHash as createHash3 } from "node:crypto";
-import { execSync as execSync2 } from "node:child_process";
+import { execSync } from "node:child_process";
 import { existsSync as existsSync14 } from "node:fs";
 function nowIso8() {
   return new Date().toISOString();
 }
 function gitDiffLineCount(cwd) {
   try {
-    const out = execSync2("git diff --numstat HEAD", {
+    const out = execSync("git diff --numstat HEAD", {
       encoding: "utf8",
       cwd,
       stdio: ["ignore", "pipe", "ignore"]
@@ -17432,7 +18027,7 @@ async function runShip(opts = {}) {
     };
     const jRes = await spawn3("janitor.compound", janitorInput, {
       stateRoot,
-      inlineStub: (i3) => janitorCompound(i3),
+      inlineStub: (i2) => janitorCompound(i2),
       logger,
       taskId
     });
@@ -17523,7 +18118,7 @@ ${intent.motivation}`;
   const reviews = listReviewsForStage(taskId, "code", stateRoot);
   const ctxRes = await spawn3("compound.context", { task_id: taskId, intent: intentText }, {
     stateRoot,
-    inlineStub: (i3) => compoundContext(i3),
+    inlineStub: (i2) => compoundContext(i2),
     logger,
     taskId
   });
@@ -17532,7 +18127,7 @@ ${intent.motivation}`;
   const existing = listSolutions(stateRoot);
   const relRes = await spawn3("compound.related", { context, signature, existing_solutions: existing }, {
     stateRoot,
-    inlineStub: (i3) => compoundRelated(i3),
+    inlineStub: (i2) => compoundRelated(i2),
     logger,
     taskId
   });
@@ -17565,7 +18160,7 @@ ${intent.motivation}`;
   const [solRes, prevRes] = await Promise.all([
     spawn3("compound.solution", { context, reviews }, {
       stateRoot,
-      inlineStub: (i3) => compoundSolution(i3),
+      inlineStub: (i2) => compoundSolution(i2),
       logger,
       taskId
     }),
@@ -17679,7 +18274,7 @@ import {
   unlinkSync as unlinkSync3,
   writeFileSync as writeFileSync6
 } from "node:fs";
-import { randomBytes as randomBytes2 } from "node:crypto";
+import { randomBytes as randomBytes3 } from "node:crypto";
 import { dirname as dirname4, join as join7, resolve as resolve13 } from "node:path";
 function resolveStateRoot2(custom) {
   return resolve13(custom ?? process.env["SGC_STATE_ROOT"] ?? DEFAULT_STATE_DIR2);
@@ -17729,17 +18324,17 @@ function parseFrontmatter2(text, source) {
   return { data, body };
 }
 function serializeFrontmatter2(data, body = "") {
-  const yaml = dump(data, { lineWidth: -1, sortKeys: false }).trimEnd();
+  const yaml2 = dump(data, { lineWidth: -1, sortKeys: false }).trimEnd();
   const trimmedBody = body.replace(/^\n+/, "");
   return `---
-${yaml}
+${yaml2}
 ---
 
 ${trimmedBody}`;
 }
 function writeAtomic2(path2, content) {
   mkdirSync4(dirname4(path2), { recursive: true });
-  const tmp = `${path2}.tmp.${process.pid}.${Date.now()}.${atomicWriteSeq2++}.${randomBytes2(4).toString("hex")}`;
+  const tmp = `${path2}.tmp.${process.pid}.${Date.now()}.${atomicWriteSeq2++}.${randomBytes3(4).toString("hex")}`;
   writeFileSync6(tmp, content, "utf8");
   try {
     renameSync2(tmp, path2);
@@ -17901,14 +18496,14 @@ function validateFeatureList2(list) {
   if (!Array.isArray(list?.features)) {
     throw new StateError2("SchemaViolation", "feature-list missing required field: features (array)");
   }
-  for (let i3 = 0;i3 < list.features.length; i3++) {
-    const ft = list.features[i3];
+  for (let i2 = 0;i2 < list.features.length; i2++) {
+    const ft = list.features[i2];
     if (ft === null || typeof ft !== "object") {
-      throw new StateError2("SchemaViolation", `feature-list.features[${i3}] is not an object`);
+      throw new StateError2("SchemaViolation", `feature-list.features[${i2}] is not an object`);
     }
     for (const f3 of REQUIRED_FEATURE_FIELDS2) {
       if (ft[f3] === undefined || ft[f3] === null) {
-        throw new StateError2("SchemaViolation", `feature-list.features[${i3}] missing required field: ${f3}`);
+        throw new StateError2("SchemaViolation", `feature-list.features[${i2}] missing required field: ${f3}`);
       }
     }
   }
@@ -18028,7 +18623,7 @@ function validateSolution2(entry) {
 function solutionPath2(category, slug, stateRoot) {
   return resolve13(root3(stateRoot), "solutions", category, `${slug}.md`);
 }
-function validateDedupStamp2(stamp) {
+function validateDedupStamp2(stamp, stateRoot) {
   if (!stamp || typeof stamp !== "object") {
     throw new StateError2("DedupStampMissing", "writeSolution requires a dedup_stamp (Invariant §3). " + "Callers must route through runCompound or construct a stamp from " + "an explicit compound.related spawn.");
   }
@@ -18046,9 +18641,22 @@ function validateDedupStamp2(stamp) {
   if (!allowedReasons.includes(stamp.reason)) {
     throw new StateError2("DedupStampMissing", `dedup_stamp.reason must be one of ${allowedReasons.join(", ")}`);
   }
+  let agentName;
+  try {
+    agentName = parseSpawnId(stamp.compound_related_spawn_id).agentName;
+  } catch {
+    throw new StateError2("DedupStampMissing", `dedup_stamp.compound_related_spawn_id "${stamp.compound_related_spawn_id}" is not a spawn id ` + `(expected "<ulid>-compound.related")`);
+  }
+  if (agentName !== "compound.related") {
+    throw new StateError2("DedupStampMissing", `dedup_stamp.compound_related_spawn_id must name a compound.related spawn, got "${agentName}" ` + `(Invariant §3: only compound.related's deterministic verdict authorizes a solutions write)`);
+  }
+  const evidence = resultPath(stamp.compound_related_spawn_id, root3(stateRoot));
+  if (!existsSync16(evidence)) {
+    throw new StateError2("DedupStampMissing", `dedup_stamp cites compound.related spawn "${stamp.compound_related_spawn_id}" but no result ` + `exists at ${evidence} — the dedup verdict must be earned by running the agent (Invariant §3)`);
+  }
 }
 function writeSolution2(entry, slug, dedupStamp, body = "", stateRoot) {
-  validateDedupStamp2(dedupStamp);
+  validateDedupStamp2(dedupStamp, stateRoot);
   validateSolution2(entry);
   const path2 = solutionPath2(entry.category, slug, stateRoot);
   let finalEntry = entry;
@@ -18170,6 +18778,7 @@ function listReviewsForStage2(taskId, stage, stateRoot) {
 }
 var StateError2, DEFAULT_STATE_DIR2 = ".sgc", root3, LAYERS2, FRONTMATTER_RE2, atomicWriteSeq2 = 0, RED_GREEN_PLACEHOLDER2 = "TODO: operator-fill the reusable prevention", REQUIRED_INTENT_FIELDS2, WORD_SEGMENTER2, REQUIRED_SHIP_FIELDS2, REQUIRED_CURRENT_TASK_FIELDS2, REQUIRED_FEATURE_FIELDS2, REQUIRED_HANDOFF_FIELDS2, REQUIRED_REVIEW_FIELDS2, REVIEW_SUFFIX_RE2, SOLUTION_CATEGORIES2, REQUIRED_SOLUTION_FIELDS2, REQUIRED_JANITOR_FIELDS2;
 var init_state2 = __esm(() => {
+  init_spawn_protocol();
   init_js_yaml();
   init_types();
   init_fingerprint();
@@ -18649,12 +19258,21 @@ async function runPlanCore2(taskDescription, opts = {}) {
   const taskId = generateTaskId2();
   const createdAt = nowIso10();
   log(`task_id = ${taskId}`);
-  const classRes = await spawn3("classifier.level", { user_request: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i3) => classifierLevel(i3), logger, taskId });
+  const classRes = await spawn3("classifier.level", { user_request: taskDescription }, {
+    stateRoot: stateRoot2,
+    inlineStub: (i2) => opts.classifierOverride ?? classifierLevel(i2),
+    logger,
+    taskId
+  });
   validateClassifierRationale(classRes.output.rationale);
-  let level = classRes.output.level;
-  log(`classifier verdict: ${level} — ${classRes.output.rationale}`);
+  const classified = applyHeuristicFloor(classRes.output, { user_request: taskDescription });
+  if (classified.level !== classRes.output.level) {
+    log(`classifier verdict ${classRes.output.level} raised to ${classified.level} ` + `by the deterministic heuristic floor (HARD escalation rule)`);
+  }
+  let level = classified.level;
+  log(`classifier verdict: ${level} — ${classified.rationale}`);
   if (opts.forceLevel) {
-    if (LEVEL_RANK2[opts.forceLevel] < LEVEL_RANK2[level]) {
+    if (LEVEL_RANK[opts.forceLevel] < LEVEL_RANK[level]) {
       throw new Error(`forceLevel ${opts.forceLevel} would downgrade ${level} — refused (upgrade-only rule)`);
     }
     level = opts.forceLevel;
@@ -18672,7 +19290,7 @@ async function runPlanCore2(taskDescription, opts = {}) {
   let researcherOut = null;
   let adversarialOut = null;
   let capturedPriorPreventions = [];
-  if (LEVEL_RANK2[level] >= 2) {
+  if (LEVEL_RANK[level] >= 2) {
     for (const hint of delegationHintsFor("plan.researcher"))
       log(formatHint(hint));
     if (level === "L3") {
@@ -18682,14 +19300,14 @@ async function runPlanCore2(taskDescription, opts = {}) {
     const tasks = [
       (async () => {
         try {
-          return await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i3) => plannerEng(i3), logger, taskId });
+          return await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i2) => plannerEng(i2), logger, taskId });
         } catch (err) {
           return { output: degradedEngOutput2(err, logger, taskId) };
         }
       })(),
       (async () => {
         try {
-          return await spawn3("planner.ceo", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i3) => plannerCeo(i3), logger, taskId });
+          return await spawn3("planner.ceo", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i2) => plannerCeo(i2), logger, taskId });
         } catch (err) {
           return { output: degradedCeoOutput2(err, logger, taskId) };
         }
@@ -18707,7 +19325,7 @@ async function runPlanCore2(taskDescription, opts = {}) {
         try {
           const r3 = await spawn3("researcher.history", { intent_draft: taskDescription, candidates }, {
             stateRoot: stateRoot2,
-            inlineStub: (i3) => researcherHistory(i3, { stateRoot: stateRoot2 }),
+            inlineStub: (i2) => researcherHistory(i2, { stateRoot: stateRoot2 }),
             logger,
             taskId
           });
@@ -18747,7 +19365,7 @@ async function runPlanCore2(taskDescription, opts = {}) {
         };
         return spawn3("planner.adversarial", adversarialInput, {
           stateRoot: stateRoot2,
-          inlineStub: (i3) => opts.adversarialOverride ?? plannerAdversarial(i3),
+          inlineStub: (i2) => opts.adversarialOverride ?? plannerAdversarial(i2),
           logger,
           taskId
         });
@@ -18857,9 +19475,9 @@ async function runPlanCore2(taskDescription, opts = {}) {
         log(`  [${fm.probability}/${fm.impact}] ${fm.scenario}`);
       }
     }
-  } else if (LEVEL_RANK2[level] >= 1) {
+  } else if (LEVEL_RANK[level] >= 1) {
     try {
-      const planRes = await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i3) => plannerEng(i3), logger, taskId });
+      const planRes = await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i2) => plannerEng(i2), logger, taskId });
       plannerEngOut = planRes.output;
     } catch (err) {
       plannerEngOut = degradedEngOutput2(err, logger, taskId);
@@ -18884,7 +19502,7 @@ async function runPlanCore2(taskDescription, opts = {}) {
 
 ` : "";
   const fusedVerdict = fused?.fused_verdict;
-  const deepActive = level !== "L0" && (LEVEL_RANK2[level] >= 2 || level === "L1" && opts.deep === true);
+  const deepActive = level !== "L0" && (LEVEL_RANK[level] >= 2 || level === "L1" && opts.deep === true);
   let decomposed = null;
   if (deepActive) {
     const decomposeInput = {
@@ -18896,7 +19514,7 @@ async function runPlanCore2(taskDescription, opts = {}) {
     };
     const decRes = await spawn3("planner.decompose", decomposeInput, {
       stateRoot: stateRoot2,
-      inlineStub: (i3) => plannerDecompose(i3),
+      inlineStub: (i2) => plannerDecompose(i2),
       logger,
       taskId
     });
@@ -18944,7 +19562,7 @@ async function runPlanCore2(taskDescription, opts = {}) {
       fused_verdict: fusedVerdict,
       body: fusedSection + `## Classifier rationale
 
-${classRes.output.rationale}
+${classified.rationale}
 
 ` + (plannerEngOut ? `## Planner.eng verdict
 
@@ -19050,7 +19668,6 @@ ${PRE_MORTEM_SENTINEL_END}
   log(`Plan complete. Run \`sgc work\` to begin execution.`);
   return { taskId, level, intentPath: intentPath3 };
 }
-var LEVEL_RANK2;
 var init_plan2 = __esm(() => {
   init_spawn();
   init_classifier_level2();
@@ -19068,16 +19685,15 @@ var init_plan2 = __esm(() => {
   init_fuse_plan();
   init_logger();
   init_plan_jobs2();
-  LEVEL_RANK2 = { L0: 0, L1: 1, L2: 2, L3: 3 };
 });
 
 // src/commands/review.ts
 var exports_review2 = {};
 __export(exports_review2, {
   worstVerdict: () => worstVerdict2,
-  runReview: () => runReview2
+  runReview: () => runReview2,
+  captureDiff: () => captureDiff2
 });
-import { execSync as execSync3 } from "node:child_process";
 function generateReportId3() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
@@ -19085,11 +19701,8 @@ function nowIso11() {
   return new Date().toISOString();
 }
 function captureDiff2(base, cwd) {
-  try {
-    return execSync3(`git diff ${base}`, { encoding: "utf8", cwd });
-  } catch {
-    return "";
-  }
+  const r3 = spawnCaptureSync(["git", "diff", base], { cwd });
+  return r3.exitCode === 0 ? r3.stdout : "";
 }
 function stripSentinelBlock2(body, begin, end, legacyHeadingRe) {
   const beginIdx = body.indexOf(begin);
@@ -19142,7 +19755,7 @@ async function runReview2(opts = {}) {
   const diff = opts.diffOverride ?? captureDiff2(opts.base ?? "HEAD");
   const r3 = await spawn3("reviewer.correctness", { diff, intent: intentForReviewer }, {
     stateRoot: stateRoot2,
-    inlineStub: (i3) => reviewerCorrectness(i3),
+    inlineStub: (i2) => reviewerCorrectness(i2),
     logger,
     taskId
   });
@@ -19168,7 +19781,7 @@ async function runReview2(opts = {}) {
   const isL2Plus = level === "L2" || level === "L3";
   const clusterReports = [];
   async function runClusterReviewer(name, agent) {
-    const res = await spawn3(name, { diff, intent: intentForReviewer }, { stateRoot: stateRoot2, inlineStub: (i3) => agent(i3), logger, taskId });
+    const res = await spawn3(name, { diff, intent: intentForReviewer }, { stateRoot: stateRoot2, inlineStub: (i2) => agent(i2), logger, taskId });
     const report = {
       report_id: generateReportId3(),
       task_id: taskId,
@@ -19200,13 +19813,13 @@ async function runReview2(opts = {}) {
     if (matched.length > 0) {
       const specResults = await Promise.all(matched.map((s2) => spawn3(s2.name, { diff, intent: intentForReviewer }, {
         stateRoot: stateRoot2,
-        inlineStub: (i3) => s2.agent(i3),
+        inlineStub: (i2) => s2.agent(i2),
         logger,
         taskId
       })));
-      for (let i3 = 0;i3 < matched.length; i3++) {
-        const s2 = matched[i3];
-        const out = specResults[i3].output;
+      for (let i2 = 0;i2 < matched.length; i2++) {
+        const s2 = matched[i2];
+        const out = specResults[i2].output;
         const report = {
           report_id: generateReportId3(),
           task_id: taskId,
@@ -19243,6 +19856,7 @@ async function runReview2(opts = {}) {
 }
 var VERDICT_ORDER2;
 var init_review2 = __esm(() => {
+  init_subprocess();
   init_spawn();
   init_reviewer_correctness2();
   init_reviewer_specialists();
@@ -19296,7 +19910,7 @@ async function runQa2(opts = {}) {
   }
   const r3 = await spawn3("qa.browser", { target_url: target, user_flows: flows }, {
     stateRoot: stateRoot2,
-    inlineStub: (i3) => qaBrowser(i3, browseRunner ? { browseRunner } : {}),
+    inlineStub: (i2) => qaBrowser(i2, browseRunner ? { browseRunner } : {}),
     logger,
     taskId
   });
@@ -19615,7 +20229,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.31.8",
+    version: "1.32.0",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -19673,7 +20287,9 @@ var init_package = __esm(() => {
     dependencies: {
       "@anthropic-ai/sdk": "^0.91.1",
       citty: "^0.1.6",
-      "js-yaml": "^4.1.1",
+      "js-yaml": "^4.1.1"
+    },
+    optionalDependencies: {
       playwright: "^1.52.0"
     }
   };
@@ -19753,12 +20369,12 @@ function computeRuntimeMetrics() {
 }
 function serializeBaseline(m2) {
   const s2 = m2.standardization;
-  const i3 = m2.intelligence;
+  const i2 = m2.intelligence;
   const a2 = m2.automation;
   const e2 = m2.efficiency;
   return BASELINE_BANNER + `schema_version: "1"
 ` + `standardization: { machine_enforced: ${s2.machine_enforced}, total: ${s2.total} }
-` + `intelligence: { llm_invokable: ${i3.llm_invokable}, total_subagents: ${i3.total_subagents} }
+` + `intelligence: { llm_invokable: ${i2.llm_invokable}, total_subagents: ${i2.total_subagents} }
 ` + `automation: { automated_steps: ${a2.automated_steps}, total_steps: ${a2.total_steps} }
 ` + `efficiency: { install_steps: ${e2.install_steps}, runtime_node: "${e2.runtime_node}", bundle_bytes: ${e2.bundle_bytes} }
 `;
@@ -19821,7 +20437,10 @@ var exports_doctor = {};
 __export(exports_doctor, {
   statusHeaderFreshness: () => statusHeaderFreshness,
   runDoctor: () => runDoctor,
+  readmeScorecardDrift: () => readmeScorecardDrift,
   extractCliSubcommands: () => extractCliSubcommands,
+  ciPinnedBunVersion: () => ciPinnedBunVersion,
+  bundleStaleSeverity: () => bundleStaleSeverity,
   bundleParityCheck: () => bundleParityCheck,
   bundleExecBitOk: () => bundleExecBitOk
 });
@@ -19872,6 +20491,41 @@ function bundleExecBitOk(lsFilesStdout) {
     return null;
   return (parseInt(mode, 8) & 73) !== 0;
 }
+function readmeScorecardDrift(readme, live) {
+  const expected = [
+    ["规范化", live.standardization.machine_enforced, live.standardization.total],
+    ["智能化", live.intelligence.llm_invokable, live.intelligence.total_subagents],
+    ["自动化", live.automation.automated_steps, live.automation.total_steps]
+  ];
+  const drifts = [];
+  for (const [label, num, den] of expected) {
+    const m2 = readme.match(new RegExp(`${label}\\s+(\\d+)\\s*/\\s*(\\d+)`));
+    if (!m2) {
+      drifts.push(`${label}: no "${label} <n>/<d>" found in README (expected ${num}/${den})`);
+      continue;
+    }
+    if (Number(m2[1]) !== num || Number(m2[2]) !== den) {
+      drifts.push(`${label}: README says ${m2[1]}/${m2[2]}, live metrics say ${num}/${den}`);
+    }
+  }
+  return drifts;
+}
+function ciPinnedBunVersion(workflowYaml) {
+  const m2 = workflowYaml.match(/bun-version:\s*["']?([0-9]+\.[0-9]+\.[0-9]+)["']?/);
+  return m2?.[1] ?? null;
+}
+function bundleStaleSeverity(localBun, ciBun) {
+  if (localBun && ciBun && localBun !== ciBun) {
+    return {
+      severity: "warn",
+      msg: `  ⚠ bundle-hash differs, but your bun (${localBun}) is not CI's pinned bun (${ciBun}) — ` + `inconclusive, and bun's output is not byte-stable across versions. ` + `Do NOT rebuild-and-commit from this bun: CI rebuilds with ${ciBun} and would reject it. ` + `To check for real: npx bun@${ciBun} build (or match CI's bun), then re-run doctor.`
+    };
+  }
+  return {
+    severity: "fail",
+    msg: "  ✗ committed bundle STALE — run `npm run build:cli` and commit"
+  };
+}
 async function bundleParityCheck(root4) {
   const srcEntry = resolve17(root4, "src", "sgc.ts");
   const committed = resolve17(root4, "plugins", "sgc", "bin", "sgc.mjs");
@@ -19890,7 +20544,12 @@ async function bundleParityCheck(root4) {
     const a2 = sha(strip2(readFileSync19(out)));
     const b2 = sha(strip2(readFileSync19(committed)));
     if (a2 !== b2) {
-      return { severity: "fail", msg: "  ✗ committed bundle STALE — run `npm run build:cli` and commit" };
+      const localBun = (await spawnCapture(["bun", "--version"], { cwd: root4 })).stdout.trim() || null;
+      let ciBun = null;
+      try {
+        ciBun = ciPinnedBunVersion(readFileSync19(resolve17(root4, ".github/workflows/test.yml"), "utf8"));
+      } catch {}
+      return bundleStaleSeverity(localBun, ciBun);
     }
     const ls = await spawnCapture(["git", "ls-files", "--stage", "plugins/sgc/bin/sgc.mjs"], { cwd: root4 });
     const execOk = ls.exitCode === 0 ? bundleExecBitOk(ls.stdout) : null;
@@ -20202,6 +20861,29 @@ async function runDoctor(opts = {}) {
     }
   }
   log("");
+  log("=== README four-化 scorecard parity ===");
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ README scorecard parity skipped (no source checkout — dev/CI-only check)" });
+  } else {
+    const readmePath = resolve17(root4, "README.md");
+    if (!existsSync20(readmePath)) {
+      emit({ severity: "warn", msg: "  ⚠ README.md not found" });
+    } else {
+      try {
+        const drifts = readmeScorecardDrift(readFileSync19(readmePath, "utf8"), computeMetricsLive(root4));
+        if (drifts.length === 0) {
+          emit({ severity: "ok", msg: "  ✓ README scorecard matches live metrics" });
+        } else {
+          for (const d2 of drifts)
+            emit({ severity: "fail", msg: `  ✗ README scorecard drift — ${d2}` });
+          emit({ severity: "fail", msg: "  ✗ fix README.md to match `sgc metrics` output" });
+        }
+      } catch (e2) {
+        emit({ severity: "fail", msg: `  ✗ README scorecard check error: ${e2.message.slice(0, 80)}` });
+      }
+    }
+  }
+  log("");
   log("=== plugins/sgc/CLAUDE.md status header freshness ===");
   if (!hasSource) {
     emit({ severity: "ok", msg: "  ⓘ CLAUDE.md freshness skipped (no source checkout — dev/CI-only check)" });
@@ -20397,7 +21079,8 @@ function formatReport(report) {
 `);
   }
   lines.push(`Matched preventions: ${report.candidates.length}`);
-  lines.push("Legend: overlap=recall match · applied=L3-validated reuse · surfaced=L2 meaningful surfacing · [discussed]=engaged in this pre-mortem");
+  lines.push("Legend: overlap=recall match · applied=cited by an L3 pre-mortem · surfaced=L2 meaningful surfacing · [discussed]=engaged in this pre-mortem");
+  lines.push("Caveat: `applied` counts refs the pre-mortem echoed from its own input (it was given them) — salience, not proof of prevention.");
   for (const c3 of report.candidates) {
     const tag = c3.discussed ? "[discussed]" : "[silent]    ";
     lines.push(`  - ${tag} ${c3.solution_ref} (overlap: ${c3.keyword_overlap}, applied: ${c3.applied_count}, surfaced: ${c3.surfaced_count})`);
@@ -21919,7 +22602,7 @@ __export(exports_cso, {
   auditDependencies: () => auditDependencies,
   aggregateVerdict: () => aggregateVerdict
 });
-import { execSync as execSync4 } from "node:child_process";
+import { execSync as execSync2 } from "node:child_process";
 import { existsSync as existsSync23, mkdirSync as mkdirSync7, readFileSync as readFileSync20, statSync as statSync5 } from "node:fs";
 import { resolve as resolve24 } from "node:path";
 function isoStamp() {
@@ -21988,7 +22671,7 @@ function listScanFiles(repoRoot2) {
   const warnings = [];
   let raw = "";
   try {
-    raw = execSync4("git ls-files --cached --modified --others --exclude-standard", {
+    raw = execSync2("git ls-files --cached --modified --others --exclude-standard", {
       cwd: repoRoot2,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"]
@@ -22039,7 +22722,7 @@ function scanSecrets(repoRoot2) {
 }
 function tryAudit(repoRoot2, cmd) {
   try {
-    const stdout2 = execSync4(cmd, {
+    const stdout2 = execSync2(cmd, {
       cwd: repoRoot2,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
@@ -23715,7 +24398,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.31.8",
+  version: "1.32.0",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {
@@ -23773,7 +24456,9 @@ var package_default = {
   dependencies: {
     "@anthropic-ai/sdk": "^0.91.1",
     citty: "^0.1.6",
-    "js-yaml": "^4.1.1",
+    "js-yaml": "^4.1.1"
+  },
+  optionalDependencies: {
     playwright: "^1.52.0"
   }
 };

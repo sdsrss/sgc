@@ -412,7 +412,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 `reviewerTests` and `reviewerMaintainability` have **no `SpecialistDef`** — they are hand-rolled functions whose severities are inline literals (`"medium"` and `"low"`). They need their facts lifted out before `agent-facts.ts` can read them.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `tests/dispatcher/reviewer-quality.test.ts`:
 
@@ -449,12 +449,12 @@ describe("Task 3 — quality reviewer facts are data", () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `SGC_FORCE_INLINE=1 bun test tests/dispatcher/reviewer-quality.test.ts`
 Expected: FAIL — none of those symbols are exported.
 
-- [ ] **Step 3: Lift the facts out**
+- [x] **Step 3: Lift the facts out**
 
 In `src/dispatcher/agents/reviewer-quality.ts`, add the import and replace the two constants:
 
@@ -535,12 +535,12 @@ Then replace the inline severity literals so the exported constants are the only
   const severity: Severity = findings.length > 0 ? MAINTAINABILITY_SEVERITY : "none"
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `SGC_FORCE_INLINE=1 bun test tests/dispatcher/reviewer-quality.test.ts`
 Expected: PASS, 0 fail
 
-- [ ] **Step 5: Full suite, typecheck, commit**
+- [x] **Step 5: Full suite, typecheck, commit**
 
 ```bash
 SGC_FORCE_INLINE=1 bun test tests/   # expect 0 fail

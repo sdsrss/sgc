@@ -82,7 +82,16 @@ describe("compound happy-path scenario (eval §12)", () => {
     await runWork({ stateRoot: tmp, done: "f1", verifyCommand: "verified", waiveRed: "test-fixture", log: () => {} })
     await runReview({ stateRoot: tmp, diffOverride: "+ok\n", log: () => {} })
     await runQa({ stateRoot: tmp, target: "http://x", flows: ["a"], log: () => {} })
-    await runShip({ stateRoot: tmp, log: () => {} })
+    // Same P2-1 injection as the sibling test above, for the same reason — this
+    // one was missed. Without it `gitDiffLineCount` runs `git diff --numstat
+    // HEAD` against the SGC repo itself, so whether a solution gets written here
+    // depends on how much uncommitted work the developer happens to have:
+    // janitor-compound skips as "low signal" at 1..19 changed lines
+    // (MIN_REUSABLE_DIFF_LINES = 20), and `diff_lines > 0` exempts 0. A clean
+    // tree passes and a large diff passes; only a small one fails. That dead
+    // zone is why this survived — it goes red exactly when someone is midway
+    // through a small change, and looks like their bug.
+    await runShip({ stateRoot: tmp, diffLineCount: () => 150, log: () => {} })
 
     const entries = listSolutions(tmp)
     expect(entries.length).toBe(1)

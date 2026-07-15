@@ -38,7 +38,7 @@ function addedLines(diff: string): string[] {
     .filter((l) => l.startsWith("+") && !l.startsWith("+++"))
 }
 
-export interface SpecialistDef {
+interface SpecialistDef {
   name: string
   /** The single source: this matcher's regex AND the term list its agent
    *  description advertises are both built from these. See ./terms. */

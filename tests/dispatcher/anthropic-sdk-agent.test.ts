@@ -184,26 +184,33 @@ describe("prompt caching — byte-identical system block across calls", () => {
   // Input` text for two calls of the same agent with different inputs /
   // spawn_ids / scope_tokens. If this test regresses, the cache is dead.
   //
-  // Uses reviewer.security (no prompt_path) — exercises the SYNTHESIZED
-  // prefix path (manifest.purpose + manifest.outputs → stable prefix). The
-  // companion template-path cache-stability test lives in prompt-path.test.ts.
-  // (reviewer.correctness now uses prompt_path; reviewer.security still uses
-  // synthesized prompts and has the same output schema.)
+  // Needs an agent with NO prompt_path — exercises the SYNTHESIZED prefix path
+  // (manifest.purpose + manifest.outputs → stable prefix). The companion
+  // template-path cache-stability test lives in prompt-path.test.ts.
+  //
+  // M5: was reviewer.security, which gained a prompt_path in v1.35.0. Note the
+  // shape of this breakage — reviewer.security had quietly become THE stand-in
+  // for "a synthesized reviewer" in three unrelated tests (here, spawn.test.ts's
+  // Invariant §1 check, and agent-loop's --show), each having migrated off
+  // reviewer.correctness when IT gained a prompt_path. Nothing declared that
+  // dependency, so promoting one reviewer broke three tests that were not about
+  // it. reviewer.performance is the current matcher-backed stand-in — and it
+  // inherits the same output schema, which is why the swap is behaviour-neutral.
   test("two calls, same agent, different inputs → byte-identical systemPart", () => {
-    const manifest = getSubagentManifest("reviewer.security")!
+    const manifest = getSubagentManifest("reviewer.performance")!
     const prompt1 = formatPrompt(
-      "01SPAWN111111111111111111-reviewer.security",
+      "01SPAWN111111111111111111-reviewer.performance",
       manifest,
       { diff: "task A", unrelated: "alpha" },
       ["read:progress"],
-      "/tmp/.sgc/progress/agent-results/01SPAWN111111111111111111-reviewer.security.md",
+      "/tmp/.sgc/progress/agent-results/01SPAWN111111111111111111-reviewer.performance.md",
     )
     const prompt2 = formatPrompt(
-      "01SPAWN222222222222222222-reviewer.security",
+      "01SPAWN222222222222222222-reviewer.performance",
       manifest,
       { diff: "task B — completely different", unrelated: "beta" },
       ["read:progress"],
-      "/tmp/.sgc/progress/agent-results/01SPAWN222222222222222222-reviewer.security.md",
+      "/tmp/.sgc/progress/agent-results/01SPAWN222222222222222222-reviewer.performance.md",
     )
 
     const sys1 = splitPrompt(prompt1).systemPart
@@ -231,16 +238,16 @@ describe("prompt caching — byte-identical system block across calls", () => {
     // Even if a future capability shift changes the pinned tokens for the
     // same agent name, the cached system prefix stays stable because the
     // scope reminder is below `## Input`.
-    const manifest = getSubagentManifest("reviewer.security")!
+    const manifest = getSubagentManifest("reviewer.performance")!
     const prompt1 = formatPrompt(
-      "01SAME-reviewer.security",
+      "01SAME-reviewer.performance",
       manifest,
       { x: 1 },
       ["read:progress"],
       "/tmp/r1.md",
     )
     const prompt2 = formatPrompt(
-      "01SAME-reviewer.security",
+      "01SAME-reviewer.performance",
       manifest,
       { x: 1 },
       ["read:progress", "read:decisions"],

@@ -281,6 +281,16 @@ export async function runReview(opts: ReviewOptions = {}): Promise<{
   if (isL2Plus) {
     const matched = matchSpecialists(diff)
     if (matched.length > 0) {
+      // M5 opt-out (§2-EXT: a released artifact changing a default owes an
+      // explicit escape). reviewer.security + reviewer.tests gained a prompt_path
+      // in v1.35.0, so a key-holding user's L2 review now makes LLM calls where
+      // v1.34.0 made none. `SGC_REVIEW_SPECIALIST_LLM=0` pins them back to the
+      // heuristics. Scoped here rather than in spawn.ts's ladder because this is
+      // review policy, and because the ladder resolves on (opts, manifest) and
+      // never sees the agent id. SGC_FORCE_INLINE=1 also works but is a blunter
+      // instrument — it forces EVERY agent inline, reviewer.correctness included.
+      const specialistMode =
+        process.env["SGC_REVIEW_SPECIALIST_LLM"] === "0" ? ("inline" as const) : undefined
       const specResults = await Promise.all(
         matched.map((s) =>
           spawn<unknown, ReviewerSpecialistOutput>(
@@ -290,6 +300,7 @@ export async function runReview(opts: ReviewOptions = {}): Promise<{
               stateRoot,
               inlineStub: (i) =>
                 s.agent(i as { diff: string; intent: string }),
+              ...(specialistMode ? { mode: specialistMode } : {}),
               logger,
               taskId,
             },

@@ -1,6 +1,6 @@
 ---
 name: reviewer-tests
-description: "This id means two different things depending on who dispatches it. Via `sgc review` (L2+, always-on in the L2 cluster): a heuristic keyword matcher that checks whether the diff touches test files and flags source changes shipping without them — no judgement of test quality, coverage adequacy or flakiness risk, and this file's body is NOT what runs. Via Claude Code dispatching this subagent directly: the test-review prompt in this file's body does run."
+description: "Test-adequacy review of a diff — whether new behaviour ships with tests, whether those tests would actually fail if the code were wrong (vacuous assertions, self-asserting mocks, snapshot-only coverage), whether the new branches and error paths are exercised, and whether the setup carries flakiness risk (wall-clock, real network, shared state, unseeded randomness). Dispatch this to judge test quality, not test presence. Separate fact for sgc CLI users: `sgc review` does not run this file's body — with an API key it runs prompts/reviewer-tests.md; without one it falls back to a file-path check over the diff's `+++ b/<path>` headers that only asks whether test files were touched."
 ---
 
 # Test Reviewer

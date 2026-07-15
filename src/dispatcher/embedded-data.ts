@@ -30,6 +30,8 @@ import plannerCeo from "../../prompts/planner-ceo.md" with { type: "text" }
 import plannerEng from "../../prompts/planner-eng.md" with { type: "text" }
 import researcherHistory from "../../prompts/researcher-history.md" with { type: "text" }
 import reviewerCorrectness from "../../prompts/reviewer-correctness.md" with { type: "text" }
+import reviewerSecurity from "../../prompts/reviewer-security.md" with { type: "text" }
+import reviewerTests from "../../prompts/reviewer-tests.md" with { type: "text" }
 
 export const EMBEDDED_CONTRACTS: Record<string, string> = {
   "sgc-capabilities.yaml": capabilities,
@@ -50,6 +52,11 @@ export const EMBEDDED_PROMPTS: Record<string, string> = {
   "prompts/planner-eng.md": plannerEng,
   "prompts/researcher-history.md": researcherHistory,
   "prompts/reviewer-correctness.md": reviewerCorrectness,
+  // M5: a manifest prompt_path with no embedded entry is a shipped crash —
+  // spawn.ts:575 throws "prompt_path declared but file does not exist" for every
+  // packaged user holding an API key, while the repo checkout works fine.
+  "prompts/reviewer-security.md": reviewerSecurity,
+  "prompts/reviewer-tests.md": reviewerTests,
 }
 
 const moduleDir = dirname(fileURLToPath(import.meta.url))

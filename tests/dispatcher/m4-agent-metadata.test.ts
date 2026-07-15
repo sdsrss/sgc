@@ -77,13 +77,27 @@ describe("M4 · descriptions the honesty pass got wrong", () => {
     expect(d).not.toMatch(/mentioning perf\b|perf\/cache/i)
   })
 
-  test("janitor/archive.md does not describe an implementation that is absent", () => {
+  // M5 REVERSED THIS TEST'S FRAMING — kept, not deleted, because the fact it
+  // guards is still owed; what changed is which fact leads.
+  //
+  // M4 required archive.md to LEAD with "NOT IMPLEMENTED". That is true of the
+  // CLI and disastrous as a routing signal: this file's body is a live 86-line
+  // prompt that MOVES `.sgc/` directories, and its only executor is the Claude
+  // Code dispatch decision that reads this very field. The most destructive agent
+  // in the set wore the most inert-sounding label — a human skims "NOT
+  // IMPLEMENTED" and stops reading; a router drops the candidate on the leading
+  // token. So M5 requires the danger first and the CLI absence second.
+  test("janitor/archive.md leads with the destructive fact, and still discloses CLI absence", () => {
     const d = descOf("plugins/sgc/agents/janitor/archive.md")
-    // Same class as reviewer.adversarial / reviewer.spec, which P3-2 correctly
-    // relabelled. This one escaped because its manifest status is `manual-only`
-    // rather than `slot-only`, so only the weaker heuristic-disclosure
-    // obligation applied — and "deterministic" satisfied it.
-    expect(d).toMatch(/not implemented|no implementation|nothing runs/i)
+    // Leads with what it does to your disk.
+    expect(d.slice(0, 40)).toMatch(/moves files on disk/i)
+    // Still discloses that no sgc command runs it — demoted, not dropped.
+    expect(d).toMatch(/no archive command|manual-only|never runs/i)
+    // Still names the rails, because an armed agent's description is where a
+    // reader decides whether to arm it.
+    expect(d).toMatch(/auth/i)
+    expect(d).toMatch(/solutions/i)
+    // The old overclaim P3-2 removed must not creep back.
     expect(d).not.toMatch(/housekeeping over|retention housekeeping/i)
   })
 })
@@ -116,9 +130,25 @@ describe("M4 · check (N) binds the registry in BOTH directions", () => {
     expect(drifts.join(" ")).toMatch(/no registry file|missing/i)
   })
 
+  // M5 swapped the example ids, not the mechanism. reviewer.migration and
+  // reviewer.infra came OFF the exempt list — both are status: implemented, both
+  // spawn at L2+, and both emit `high`, the loudest severity in the cluster, so
+  // their absence from plugins/sgc/agents/reviewer/ was an oversight wearing an
+  // exemption's clothes. They have files now. clarifier.discover and
+  // planner.decompose remain genuinely exempt (LLM-backed, dispatched by
+  // `sgc discover` / `sgc plan`, no registry file by design).
   test("an id exempted on purpose is not reported", () => {
-    const drifts = agentMetadataDrift([], () => okEntry, ["reviewer.migration", "reviewer.infra"])
+    const drifts = agentMetadataDrift([], () => okEntry, ["clarifier.discover", "planner.decompose"])
     expect(drifts).toEqual([])
+  })
+
+  test("reviewer.migration / reviewer.infra are NO LONGER exempt — a missing file must fail", () => {
+    // Guards the M4 decision from being quietly restored: with no registry files
+    // supplied, both must now be reported as missing.
+    const drifts = agentMetadataDrift([], () => okEntry, ["reviewer.migration", "reviewer.infra"])
+    expect(drifts).toHaveLength(2)
+    expect(drifts.join(" ")).toMatch(/reviewer\.migration.*missing/)
+    expect(drifts.join(" ")).toMatch(/reviewer\.infra.*missing/)
   })
 
   test("the live repo passes both directions", () => {

@@ -140,11 +140,18 @@ describe("spawn — inline-stub mode", () => {
   })
 
   test("Invariant §1: reviewer prompt pins no read:solutions + lists it as forbidden", async () => {
-    // Use reviewer.security (synthesized prompt) to test that the FORBIDDEN
-    // directive appears. reviewer.correctness now uses prompt_path (external
-    // template) — its isolation is covered by computeSubagentTokens tests +
-    // the eval/reviewer-isolation.test.ts manifest-layer checks.
-    const r = await spawn("reviewer.security", {}, {
+    // Needs an agent whose prompt is SYNTHESIZED (prompt_path: null) — that is
+    // the path where spawn injects the FORBIDDEN directive into the prompt text.
+    // prompt_path agents get their isolation from scope_tokens instead (see
+    // computeSubagentTokens tests + eval/reviewer-isolation.test.ts); note
+    // prompts/reviewer-correctness.md contains no §1 line at all, by that design.
+    //
+    // M5 moved this off reviewer.security, which gained a prompt_path in v1.35.0
+    // and is no longer synthesized. reviewer.performance is still a matcher.
+    // Swapping the example, not the obligation: if the last synthesized reviewer
+    // ever gains a prompt_path, this test should be deleted and its coverage
+    // re-homed, NOT quietly pointed at a non-reviewer.
+    const r = await spawn("reviewer.performance", {}, {
       stateRoot: tmp,
       inlineStub: () => ({
         verdict: "pass",

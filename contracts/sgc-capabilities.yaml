@@ -353,6 +353,17 @@ subagents:
   reviewer.correctness:   &reviewer_base
     version: "0.1"
     source: CE reviewer cluster (re-authored)
+    # M5: `purpose` exists for the mode-ladder override path. SGC_AGENT_MODE is
+    # checked BEFORE the prompt_path rules (spawn.ts:432-457), so setting it routes
+    # a prompt_path: null reviewer to an LLM whose prompt formatPrompt() synthesizes
+    # from this manifest. Without a purpose that synthesis produced literally
+    # "# Purpose\n\n(no purpose declared)" — an LLM call briefed on nothing, which
+    # is worse than the heuristic it replaced. Derived reviewers INHERIT this via
+    # `<<: *reviewer_base`; it is worded to stay true for every one of them, so it
+    # is a floor, not a description of any single reviewer's specialty.
+    purpose: >-
+      Review a git diff against the stated intent and report findings with a
+      location, a description of what is wrong, and an optional fix hint.
     prompt_path: prompts/reviewer-correctness.md
     inputs:
       diff: string
@@ -365,16 +376,30 @@ subagents:
     token_budget: 5000
     timeout_s: 180
 
-  # Derived reviewers: prompt_path overridden to null — these are HEURISTIC /
-  # keyword matchers, NOT LLM-backed (e.g. reviewer.security flags lines matching
-  # /(auth|jwt|token|secret|crypto)/i). `status: implemented` here means
-  # functional-and-wired (they run at L2+ and append real reports), NOT
-  # semantically intelligent. The honest LLM-backed signal across the whole
-  # manifest is `prompt_path` truthiness (what `sgc metrics` 智能化 counts) —
-  # only reviewer.correctness (above) is LLM-backed. See review.ts:222-280.
-  reviewer.security:        { <<: *reviewer_base, prompt_path: null, status: implemented }
+  # Derived reviewers — mixed depth as of M5 (v1.35.0). READ THIS BEFORE TRUSTING
+  # A REVIEW: the cluster is NOT uniformly intelligent.
+  #
+  # The honest LLM-backed signal across the whole manifest is `prompt_path`
+  # truthiness (exactly what `sgc metrics` 智能化 counts — a label cannot move it):
+  #
+  #   LLM-backed (3):  reviewer.correctness (above), reviewer.security, reviewer.tests
+  #                    — and ONLY when an API key is present. With no key the ladder
+  #                      (spawn.ts:448-461) falls back to the same heuristic stub that
+  #                      shipped through v1.34.0, so a keyless run is unchanged.
+  #   Heuristic (4):   reviewer.performance, reviewer.maintainability,
+  #                    reviewer.migration, reviewer.infra — keyword matchers over
+  #                    added lines. They flag by pattern, never by judgement.
+  #
+  # `status: implemented` means functional-and-wired (runs at L2+, appends a real
+  # report), NOT semantically intelligent. Two more traps worth knowing:
+  #   - A specialist that spawned and reported nothing is NOT a clean bill of health;
+  #     triggers are deliberately wider than matchers (reviewer-specialists.ts:129).
+  #   - `SGC_REVIEW_SPECIALIST_LLM=0` forces the specialists back to heuristics even
+  #     with a key present.
+  # See review.ts:222-280.
+  reviewer.security:        { <<: *reviewer_base, prompt_path: "prompts/reviewer-security.md", status: implemented }
   reviewer.performance:     { <<: *reviewer_base, prompt_path: null, status: implemented }
-  reviewer.tests:           { <<: *reviewer_base, prompt_path: null, status: implemented }
+  reviewer.tests:           { <<: *reviewer_base, prompt_path: "prompts/reviewer-tests.md", status: implemented }
   reviewer.maintainability: { <<: *reviewer_base, prompt_path: null, status: implemented }
   reviewer.adversarial:     { <<: *reviewer_base, prompt_path: null, status: slot-only, roadmap: "L3 pre-mortem reviewer; deferred" }
   reviewer.migration:       { <<: *reviewer_base, prompt_path: null, status: implemented }

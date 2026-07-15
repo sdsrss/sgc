@@ -182,13 +182,17 @@ export type ManifestLookup = (
  * these absences were nobody's decision — they were invisible. The review that
  * prompted this fix predicted two of them; the check found four. Listing them
  * makes the gap explicit and makes any NEW absence fail.
+ *
+ * M5: `reviewer.migration` and `reviewer.infra` are OFF this list — they now have
+ * files. Exempting them in M4 was the wrong call and worth naming: both are
+ * `status: implemented`, both spawn at L2+ via matchSpecialists(), and both emit
+ * `high` — the loudest severity in the cluster. So a reader auditing
+ * plugins/sgc/agents/reviewer/ to learn what `sgc review` does was missing exactly
+ * the two reviewers most likely to block their ship, while finding two
+ * (adversarial, spec) that never run at all. An exemption list is for absences that
+ * are a decision; theirs was an oversight wearing an exemption's clothes.
  */
-const REGISTRY_EXEMPT_IDS = new Set([
-  "reviewer.migration",
-  "reviewer.infra",
-  "clarifier.discover",
-  "planner.decompose",
-])
+const REGISTRY_EXEMPT_IDS = new Set(["clarifier.discover", "planner.decompose"])
 
 /**
  * P3-2 (audit v1.31.8): bind the Claude Code agent registry to the manifest.
@@ -251,11 +255,18 @@ export function agentMetadataDrift(
       drifts.push(`${f.id}: ${f.file} frontmatter does not parse (${String(err).slice(0, 80)})`)
       continue
     }
-    const slotOnly = entry.status === "slot-only"
+    // M5: `manual-only` is the same situation as `slot-only` for this check — the
+    // CLI does not run it, and that is the fact the description owes a reader.
+    // janitor.archive previously fell through to the heuristic branch below and
+    // was told to "disclose it is not LLM-backed": a category error, since there
+    // is no implementation to be LLM-backed or not. The M4 test recorded that the
+    // manual-only/slot-only split was how it escaped the earlier relabelling —
+    // recorded as a curiosity, when it was the bug.
+    const cliNeverRuns = entry.status === "slot-only" || entry.status === "manual-only"
     const heuristic = !entry.prompt_path
 
-    if (slotOnly) {
-      if (!/(not implemented|slot-only|never dispatched|not wired)/.test(desc)) {
+    if (cliNeverRuns) {
+      if (!/(not implemented|slot-only|manual-only|never dispatched|not wired|never runs)/.test(desc)) {
         drifts.push(
           `${f.id}: manifest says status slot-only (never dispatched) but ${f.file} advertises it as working`,
         )

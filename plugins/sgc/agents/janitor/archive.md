@@ -1,6 +1,6 @@
 ---
 name: janitor-archive
-description: "NOT IMPLEMENTED in sgc: there is no archive code in this repo — no janitor-archive module, no subcommand, no caller — so no sgc command can produce a result here. The body of this file is a complete `.sgc/` housekeeping prompt which DOES run, and will move files, if Claude Code dispatches this subagent directly. That is the only path on which anything happens. (Manifest status is `manual-only` rather than `slot-only`, which is how this escaped the reviewer.adversarial / reviewer.spec relabelling.)"
+description: "MOVES FILES ON DISK. Housekeeping for a project's `.sgc/` state directory: finds shipped tasks (those whose `decisions/` and `reviews/` carry a `ship.md`), moves them under `.sgc/decisions/_archive/{epoch}/{task_id}/`, and reports what moved and what was retained. Requires explicit AUTH before running; never touches `.sgc/solutions/` (permanent knowledge base) and never touches a task without a `ship.md`. Never deletes — only moves. Separate fact for sgc CLI users: there is no archive command and no janitor-archive module, so the CLI never runs this (manifest status: manual-only) — Claude Code dispatch is the only executor."
 ---
 
 # Archive Janitor
@@ -40,10 +40,15 @@ If a date cutoff is provided, only archive tasks completed before that date. If 
 
 For each candidate:
 
-1. Create archive directory: `.sgc/archive/{task_id}/`
-2. Move `decisions/{task_id}/` to `.sgc/archive/{task_id}/decisions/`
-3. Move `reviews/{task_id}/` to `.sgc/archive/{task_id}/reviews/`
-4. Verify the move was successful
+The destination is fixed by `contracts/sgc-state.schema.yaml` (`archive.destination`).
+Do not invent a path: state moved anywhere else is state the schema cannot find, and
+`planner.history` reads the archive as read-only reference.
+
+1. Create the archive directory: `.sgc/decisions/_archive/{epoch}/{task_id}/`
+   (`{epoch}` is the epoch boundary you were given — ask for it rather than guess)
+2. Move `decisions/{task_id}/` to `.sgc/decisions/_archive/{epoch}/{task_id}/decisions/`
+3. Move `reviews/{task_id}/` to `.sgc/decisions/_archive/{epoch}/{task_id}/reviews/`
+4. Verify each move landed before reporting it
 5. Log the archival
 
 ### 4. Generate Archive Report
@@ -69,13 +74,14 @@ For each candidate:
 
 ## Output Format
 
+This shape is declared in `contracts/sgc-capabilities.yaml` (`janitor.archive.outputs`).
+Invariant §9 rejects undeclared fields — an output with extra or renamed keys is discarded
+whole, not trimmed, so a "successful" run reports nothing.
+
 ```json
 {
-  "agent": "janitor-archive",
-  "tasks_archived": 0,
-  "tasks_retained": 0,
-  "archive_path": ".sgc/archive/",
-  "errors": ["string"]
+  "archived_task_ids": ["<task_id>"],
+  "skipped": [{ "task_id": "<task_id>", "reason": "<why it was retained>" }]
 }
 ```
 
@@ -84,7 +90,7 @@ For each candidate:
 - This agent requires MANUAL trigger. It never runs automatically.
 - NEVER archive `.sgc/solutions/`. Solutions are permanent.
 - NEVER archive tasks without a `ship.md` -- they may be in progress.
-- NEVER delete files. Move them to `.sgc/archive/`.
+- NEVER delete files. Move them to `.sgc/decisions/_archive/{epoch}/{task_id}/`.
 - Verify each move was successful before removing the source.
 - If any error occurs during archival, stop and report. Do not continue with partial state.
 - This operation requires AUTH (it is destructive in the sense of moving files). Present `[AUTH REQUIRED op:archive scope:.sgc/decisions+reviews risk:moves completed task artifacts to archive]`.

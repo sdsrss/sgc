@@ -1,6 +1,6 @@
 ---
 name: reviewer-performance
-description: "This id means two different things depending on who dispatches it. Via `sgc review` (L2+, when the diff matches): a heuristic keyword matcher over added lines containing cache/caching/index/memoize/debounce/throttle/O(n)/n+1/benchmark/p95/p99 — it matches words about performance problems, it does not detect them, and this file's body is NOT what runs. Its spawn trigger is wider than its matcher, so a diff mentioning only `perf` or `performance` spawns it and it then finds nothing. Via Claude Code dispatching this subagent directly: the performance prompt in this file's body does run."
+description: "Performance review of a diff — algorithmic complexity, N+1 and repeated-work patterns, cache correctness and invalidation, unbounded growth, and hot-path allocation. Dispatch this to have a change reasoned about rather than pattern-matched. Separate fact for sgc CLI users: `sgc review` does not run this file's body — reviewer.performance there is a heuristic keyword matcher over added lines (cache|caching|index|memoize|debounce|throttle|O(n…)|n+1|benchmark|p95|p99) at medium severity, which matches words about performance problems rather than detecting them. Its spawn trigger is deliberately wider than that matcher, so a spawned performance reviewer reporting zero findings is not evidence of a clean diff."
 ---
 
 # Performance Reviewer

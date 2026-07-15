@@ -30,6 +30,74 @@ describe("reviewer-specialists — manifest wiring", () => {
   })
 })
 
+// M5 — the file's own documented invariant (reviewer-specialists.ts:129-137):
+// "Triggers ... broader than each agent's internal pattern". A term the matcher
+// scans for but no trigger can spawn on is dead code: the specialist never runs,
+// so the match never happens. M4's descriptions enumerated three such terms as
+// live capabilities. Testing the invariant (not examples) is what found `argo`,
+// which two independent reviewers reading the same file both missed.
+describe("M5 — every matcher term is reachable through its trigger", () => {
+  // Probes enumerate each matcher's alternation terms. The regex-source pins
+  // below exist so editing a pattern without updating these probes fails loudly
+  // rather than silently re-introducing an unreachable term.
+  const PROBES: Record<string, string[]> = {
+    "reviewer.security": [
+      "auth", "jwt", "token", "session", "crypto", "password", "secret",
+      "signature", "encrypt", "decrypt", "verifyAuth", "signJwt", "signToken",
+    ],
+    "reviewer.migration": [
+      "ALTER TABLE users", "DROP TABLE t", "CREATE TABLE t", "ALTER COLUMN c",
+      "RENAME COLUMN c", "migration", "backfill",
+    ],
+    "reviewer.performance": [
+      "cache", "cached", "caching", "index", "memoize", "memoise", "debounce",
+      "throttle", "O(n)", "O(n^2)", "n+1", "benchmark", "p95", "p99",
+    ],
+    "reviewer.infra": [
+      "Dockerfile", "FROM node", "kubectl", "k8s ", "terraform", "helm", "argo",
+      "fly.toml", "render.yaml", "vercel.json", "github/workflows",
+    ],
+  }
+
+  for (const spec of DIFF_CONDITIONAL_SPECIALISTS) {
+    const probes = PROBES[spec.name] ?? []
+    test(`${spec.name} — has probes`, () => {
+      expect(probes.length).toBeGreaterThan(0)
+    })
+    for (const probe of probes) {
+      test(`${spec.name} — "${probe}" spawns AND is reported`, () => {
+        const diff = `--- a/x.ts\n+++ b/x.ts\n+  ${probe}\n`
+        // Reachability: the trigger must spawn the specialist...
+        expect(matchSpecialists(diff).map((s) => s.name)).toContain(spec.name)
+        // ...and the specialist must then actually report it. A term that
+        // spawns but reports nothing is advertised coverage that does not exist.
+        expect(spec.agent({ diff, intent: "" }).findings.length).toBeGreaterThan(0)
+      })
+    }
+  }
+})
+
+describe("M5 — regex-source pins (edit a pattern → update the probes above)", () => {
+  const PINS: Record<string, string> = {
+    "reviewer.security":
+      "(auth|jwt|token|session|crypto|password|secret|signature|encrypt|decrypt)",
+    "reviewer.migration":
+      "(migration|ALTER\\s+TABLE|DROP\\s+TABLE|CREATE\\s+TABLE|ALTER\\s+COLUMN|RENAME\\s+COLUMN|backfill)",
+    "reviewer.performance":
+      "(perf|performance|cache|caching|memoi[sz]e|index|benchmark|n\\+1|O\\(n\\^?\\d*\\)|p9[59]|debounce|throttle)",
+    "reviewer.infra":
+      "(Dockerfile|FROM\\s+\\w|kubectl|k8s\\b|terraform|helm|fly\\.toml|vercel\\.json|render\\.yaml|github\\/workflows|argo)",
+  }
+  for (const spec of DIFF_CONDITIONAL_SPECIALISTS) {
+    const pin = PINS[spec.name]
+    test(`${spec.name} trigger source is pinned`, () => {
+      // A missing pin must fail, not silently pass against undefined.
+      expect(pin).toBeDefined()
+      expect(spec.trigger.source).toBe(pin as string)
+    })
+  }
+})
+
 describe("matchSpecialists — diff trigger detection", () => {
   test("no triggers → empty list", () => {
     const m = matchSpecialists("+const x = 1\n+const y = 2\n")

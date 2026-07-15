@@ -1,6 +1,6 @@
 ---
 name: reviewer-security
-description: "This id means two different things depending on who dispatches it. Via `sgc review` (L2+, when the diff matches): a heuristic keyword matcher over added lines containing auth/jwt/token/session/crypto/password/secret, reported at medium severity — it cannot tell a real vulnerability from the word 'token', and this file's body is NOT what runs. Via Claude Code dispatching this subagent directly: the offensive-security prompt in this file's body does run (injection tracing, auth bypass, secrets, deserialization, SSRF/path traversal). Do not expect the second from the first; for semantic analysis inside sgc use `sgc cso` or a human."
+description: "Offensive-security review of a diff — traces injection paths, auth/authz bypass, secret exposure, insecure deserialization, SSRF and path traversal. Every finding carries a concrete attack path: entry point, route, sink. Dispatch this for semantic security analysis of a change. Separate fact for sgc CLI users: `sgc review` does not run this file's body — with an API key it runs prompts/reviewer-security.md; without one it falls back to a keyword matcher (auth|jwt|token|session|crypto|password|secret|signature|encrypt|decrypt) at medium severity that cannot tell a real vulnerability from the word 'token'."
 ---
 
 # Security Reviewer

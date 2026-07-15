@@ -1,6 +1,6 @@
 ---
 name: reviewer-adversarial
-description: "NOT IMPLEMENTED in sgc (slot-only): the manifest marks this id slot-only and no sgc command routes to it, so `sgc review` will never produce a result here. The body of this file is a complete adversarial-review prompt (race conditions, edge-case abuse) which DOES run if Claude Code dispatches this subagent directly — that is the only path on which anything happens."
+description: "Adversarial/chaos review of a diff — concurrency interleavings, input abuse (oversized strings, deep nesting, unicode edge cases), timing and ordering hazards, resource exhaustion (ReDoS, unbounded queues), and state corruption under partial failure. Every finding carries a reproducible attack scenario. Dispatch this for a pre-mortem on a risky change. Separate fact for sgc CLI users: this id is not wired into the CLI (manifest status: slot-only), so `sgc review` never produces a result for it — Claude Code dispatch is the only executor."
 ---
 
 # Adversarial Reviewer

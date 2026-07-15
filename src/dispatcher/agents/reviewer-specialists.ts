@@ -91,9 +91,18 @@ export function reviewerMigration(input: ReviewerSpecialistInput): ReviewerSpeci
 
 // reviewer.performance — cache / index / loop / O(n) hints. Stub catches
 // the common foot-gun additions; a real reviewer would profile the diff.
+//
+// M5: `O(n...)` sits OUTSIDE the \b(...)\b group. Inside it, the trailing \b
+// landed after the literal `)` — a non-word char — so it only matched when the
+// next char was a word char: "O(n)x" matched, "O(n)", "O(n^2)" and "// O(n)
+// scan" did not. Big-O detection was dead in every natural context while the
+// agent description advertised it. Same \b-vs-punctuation trap INFRA below
+// already documents; it was handled there and missed here. Keeping \b on the
+// word terms preserves their strictness (`index` still must not match
+// `indexOf`) — only the parenthesised term is exempted.
 const PERFORMANCE: SpecialistDef = {
   name: "reviewer.performance",
-  pattern: /\b(cache|cach(ed|ing)|index|memoi[sz]e|debounce|throttle|O\(n\^?\d*\)|n\+1|benchmark|p9[59])\b/i,
+  pattern: /\b(cache|cach(ed|ing)|index|memoi[sz]e|debounce|throttle|n\+1|benchmark|p9[59])\b|O\(n\^?\d*\)/i,
   severity: "medium",
   describe: (line) => `performance-touching change in added line: ${line}`,
 }
@@ -132,6 +141,19 @@ export interface SpecialistDescriptor {
  * file headers, context lines) is enough to spawn the specialist. The
  * specialist itself then scans only added lines.
  *
+ * That width is deliberate — spawn on a weak signal, report on a strong one —
+ * and it has a consequence worth stating plainly: a specialist that spawned and
+ * reported nothing is NOT evidence of a clean diff. It is the expected outcome
+ * whenever the trigger hit a file header, a context line, a removed line, or a
+ * trigger-only term (`perf`, `performance`). Callers must not read "spawned,
+ * zero findings" as "reviewed and clean".
+ *
+ * INVARIANT (M5, pinned by tests/dispatcher/reviewer-specialists.test.ts):
+ * every term a matcher scans for MUST be reachable through its trigger.
+ * A matcher-only term is dead code — the specialist never spawns, so the match
+ * never runs. Three had drifted (`debounce`, `throttle` here; `argo` in INFRA)
+ * while agent descriptions advertised them as live coverage.
+ *
  * Order matches the priority spec (security > migration > performance >
  * infra). At most all 4 can spawn; aggregate verdict is worst-of (per
  * runReview's existing severity ordering).
@@ -151,12 +173,15 @@ export const DIFF_CONDITIONAL_SPECIALISTS: readonly SpecialistDescriptor[] = [
   },
   {
     name: "reviewer.performance",
-    trigger: /(perf|performance|cache|caching|memoi[sz]e|index|benchmark|n\+1|O\(n\)|p9[59])/i,
+    // M5: +debounce +throttle (matcher-only → unreachable), and O(n) widened to
+    // O\(n\^?\d*\) so it spawns on "O(n^2)" the way the matcher now reports it.
+    trigger: /(perf|performance|cache|caching|memoi[sz]e|index|benchmark|n\+1|O\(n\^?\d*\)|p9[59]|debounce|throttle)/i,
     agent: reviewerPerformance,
   },
   {
     name: "reviewer.infra",
-    trigger: /(Dockerfile|FROM\s+\w|kubectl|k8s\b|terraform|helm|fly\.toml|vercel\.json|render\.yaml|github\/workflows)/i,
+    // M5: +argo (matcher-only → unreachable).
+    trigger: /(Dockerfile|FROM\s+\w|kubectl|k8s\b|terraform|helm|fly\.toml|vercel\.json|render\.yaml|github\/workflows|argo)/i,
     agent: reviewerInfra,
   },
 ] as const

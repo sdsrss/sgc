@@ -1,6 +1,6 @@
 ---
 name: reviewer-spec
-description: "NOT IMPLEMENTED in sgc (slot-only): the manifest marks this id slot-only and no sgc command routes to it, so `sgc review` will never produce a result here. The body of this file is a complete spec-drift prompt (shipped code vs declared intent) which DOES run if Claude Code dispatches this subagent directly — that is the only path on which anything happens."
+description: "Spec-drift review — compares shipped code against declared intent and reports where the implementation silently diverged from what was agreed. Requires an intent document: it reads `intent.md` from `.sgc/decisions/{task_id}/`, and without one it can only return `concern`, so dispatching it against a repo that has no `.sgc/` state yields nothing useful. Separate fact for sgc CLI users: this id is not wired into the CLI (manifest status: slot-only), so `sgc review` never produces a result for it — Claude Code dispatch is the only executor."
 ---
 
 # Spec Reviewer

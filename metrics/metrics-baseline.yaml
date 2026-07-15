@@ -5,6 +5,6 @@
 # 高效化 install_steps|runtime_node). efficiency.bundle_bytes is display-only.
 schema_version: "1"
 standardization: { machine_enforced: 12, total: 13 }
-intelligence: { llm_invokable: 11, total_subagents: 23 }
+intelligence: { llm_invokable: 13, total_subagents: 23 }
 automation: { automated_steps: 5, total_steps: 9 }
-efficiency: { install_steps: 1, runtime_node: ">=18", bundle_bytes: 937547 }
+efficiency: { install_steps: 1, runtime_node: ">=18", bundle_bytes: 987573 }

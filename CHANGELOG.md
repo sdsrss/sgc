@@ -1,5 +1,92 @@
 # Changelog
 
+## v1.35.0 — 2026-07-15 — the honesty was aimed at a reader who never reads it
+
+A two-lens review of v1.34.0's metadata work found every factual claim TRUE and the
+batch still wrong. `description:` is a routing field whose only consumer is Claude
+Code's dispatch decision — verified: nothing in the CLI runtime path reads agent
+frontmatter, only `doctor` does. v1.34.0 spent that field explaining that a
+*different* executor would not run each file's contents, which suppressed dispatch
+of the 86–102 lines of working prompt in every one of them. The reader it was
+protecting — someone running `sgc review` — never sees these strings, and already
+had the honest accounting in the two places they do look
+(`contracts/sgc-capabilities.yaml` and `plugins/sgc/CLAUDE.md`).
+
+So: capability first, CLI caveat second and scoped. Test suite 1433 → 1499 (+66).
+
+### MIGRATION — read this if you set an API key
+
+**`sgc review` at L2+ now makes up to 2 more LLM calls than v1.34.0.**
+`reviewer.security` and `reviewer.tests` gained a real prompt (智能化 11/23 → 13/23).
+`reviewer.tests` runs on every L2+ review, so a key-holding user sees at least one
+extra call per review; `reviewer.security` only when the diff matches its trigger.
+
+- **No API key → nothing changes.** The ladder is `prompt_path && API_KEY`; without a
+  key both fall back to the same heuristic that shipped through v1.34.0. Pinned by
+  test, not by promise.
+- **Opt out with `SGC_REVIEW_SPECIALIST_LLM=0`** — keeps the specialists heuristic
+  even with a key present. (`SGC_FORCE_INLINE=1` also works but is blunter: it forces
+  *every* agent inline, `reviewer.correctness` included.)
+
+### Fixed — code, not wording
+
+- **`reviewer.performance` never detected big-O at all.** The matcher's trailing `\b`
+  sat after a literal `)`, so `O(n)` matched only when followed by a word character:
+  `O(n)`, `O(n^2)` and `// O(n) scan` all failed; only `O(n)x` matched. Advertised as
+  covered since the term was added. `O(n…)` now sits outside the `\b(…)\b` group, so
+  `index` keeps its strictness (still does not match `indexOf`).
+- **Three matcher terms were unreachable**: `debounce`, `throttle` (performance) and
+  `argo` (infra) were scanned for by matchers no trigger could spawn on — dead code
+  behind an advertised capability. The file's own docblock declares triggers must be
+  wider than matchers; that invariant is now a test, and testing the invariant rather
+  than examples is what surfaced `argo`, which two independent reviewers both missed.
+- **`janitor.archive`'s prompt contradicted three contracts** while its description
+  called it complete: it moved state to `.sgc/archive/{task_id}/` where
+  `sgc-state.schema.yaml` declares `.sgc/decisions/_archive/{epoch}/{task_id}/`, and
+  emitted output fields Invariant §9 discards whole rather than trims.
+- **`reviewer_base` declared no `purpose`**, so an `SGC_AGENT_MODE` override
+  synthesized a prompt that read literally `# Purpose\n\n(no purpose declared)` — an
+  LLM briefed on nothing, worse than the heuristic it replaced.
+- **The honesty gate rejected a more accurate description.** `janitor.archive` is
+  `manual-only`, not `slot-only`, so it fell into the branch demanding it "disclose it
+  is not LLM-backed" — a category error for an id with no implementation at all. The
+  gate now treats `manual-only` and `slot-only` alike.
+
+### Changed — descriptions
+
+- **`security.md` no longer redirects to `sgc cso` for "semantic analysis."** `cso` is
+  three regex/shell heuristics with no LLM and no manifest entry; semantic analysis is
+  the one thing it definitionally cannot do. That sentence was terminal, imperative,
+  and named a destination — it routed readers away from a working 96-line prompt
+  toward something weaker, under a label the destination does not satisfy.
+- **`janitor/archive.md` leads with MOVES FILES ON DISK.** It was labelled "NOT
+  IMPLEMENTED" — true of the CLI, and the most inert-sounding label in the set worn by
+  its most destructive agent. A human skims and stops; a router drops the candidate.
+- **`reviewer.migration` and `reviewer.infra` have registry files for the first time.**
+  Both are `status: implemented`, both spawn at L2+, and both emit `high` — the loudest
+  severity in the cluster. v1.34.0 found them missing and *exempted* them, so anyone
+  auditing `plugins/sgc/agents/reviewer/` to learn what `sgc review` does was missing
+  exactly the two reviewers most likely to block their ship, while finding two
+  (`adversarial`, `spec`) that never run at all.
+- **`spec.md` now discloses it requires `intent.md`** — dispatched against a repo with
+  no `.sgc/` state, its only possible verdict is `concern`.
+- Term lists corrected: `security` scans `signature|encrypt|decrypt` too; `tests` is a
+  file-path check over `+++ b/<path>` headers, not a keyword matcher.
+
+### Not fixed (recorded, not silently dropped)
+
+- Descriptions are still hand-written and the gate still checks for disclosure
+  keywords, not accuracy. That is the engine behind three consecutive batches of drift
+  — each capability now carries 2–3 hand-maintained representations plus a description
+  that must be true of all of them. Deriving the machine-checkable parts from code is
+  its own design, deliberately not bundled here.
+- Carried from v1.34.0: rotation retries cost one syscall per write in the degraded
+  state; spawn writes before scanning; fingerprint fails open when `solutions/` is
+  unreadable; frontmatter `name:` is unvalidated.
+- `correctness.md` says "Dispatched by /review" while /review runs
+  `prompts/reviewer-correctness.md`, not its body — the same dual-executor gap, unflagged
+  by both reviewers because it reads positively.
+
 ## v1.34.0 — 2026-07-15 — code-review follow-up: the fixes that needed fixing
 
 An independent three-lens code review of the M3 batch (`284bdaa..0150910`) found

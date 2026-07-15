@@ -6449,6 +6449,17 @@ subagents:
   reviewer.correctness:   &reviewer_base
     version: "0.1"
     source: CE reviewer cluster (re-authored)
+    # M5: \`purpose\` exists for the mode-ladder override path. SGC_AGENT_MODE is
+    # checked BEFORE the prompt_path rules (spawn.ts:432-457), so setting it routes
+    # a prompt_path: null reviewer to an LLM whose prompt formatPrompt() synthesizes
+    # from this manifest. Without a purpose that synthesis produced literally
+    # "# Purpose\\n\\n(no purpose declared)" — an LLM call briefed on nothing, which
+    # is worse than the heuristic it replaced. Derived reviewers INHERIT this via
+    # \`<<: *reviewer_base\`; it is worded to stay true for every one of them, so it
+    # is a floor, not a description of any single reviewer's specialty.
+    purpose: >-
+      Review a git diff against the stated intent and report findings with a
+      location, a description of what is wrong, and an optional fix hint.
     prompt_path: prompts/reviewer-correctness.md
     inputs:
       diff: string
@@ -6461,16 +6472,30 @@ subagents:
     token_budget: 5000
     timeout_s: 180
 
-  # Derived reviewers: prompt_path overridden to null — these are HEURISTIC /
-  # keyword matchers, NOT LLM-backed (e.g. reviewer.security flags lines matching
-  # /(auth|jwt|token|secret|crypto)/i). \`status: implemented\` here means
-  # functional-and-wired (they run at L2+ and append real reports), NOT
-  # semantically intelligent. The honest LLM-backed signal across the whole
-  # manifest is \`prompt_path\` truthiness (what \`sgc metrics\` 智能化 counts) —
-  # only reviewer.correctness (above) is LLM-backed. See review.ts:222-280.
-  reviewer.security:        { <<: *reviewer_base, prompt_path: null, status: implemented }
+  # Derived reviewers — mixed depth as of M5 (v1.35.0). READ THIS BEFORE TRUSTING
+  # A REVIEW: the cluster is NOT uniformly intelligent.
+  #
+  # The honest LLM-backed signal across the whole manifest is \`prompt_path\`
+  # truthiness (exactly what \`sgc metrics\` 智能化 counts — a label cannot move it):
+  #
+  #   LLM-backed (3):  reviewer.correctness (above), reviewer.security, reviewer.tests
+  #                    — and ONLY when an API key is present. With no key the ladder
+  #                      (spawn.ts:448-461) falls back to the same heuristic stub that
+  #                      shipped through v1.34.0, so a keyless run is unchanged.
+  #   Heuristic (4):   reviewer.performance, reviewer.maintainability,
+  #                    reviewer.migration, reviewer.infra — keyword matchers over
+  #                    added lines. They flag by pattern, never by judgement.
+  #
+  # \`status: implemented\` means functional-and-wired (runs at L2+, appends a real
+  # report), NOT semantically intelligent. Two more traps worth knowing:
+  #   - A specialist that spawned and reported nothing is NOT a clean bill of health;
+  #     triggers are deliberately wider than matchers (reviewer-specialists.ts:129).
+  #   - \`SGC_REVIEW_SPECIALIST_LLM=0\` forces the specialists back to heuristics even
+  #     with a key present.
+  # See review.ts:222-280.
+  reviewer.security:        { <<: *reviewer_base, prompt_path: "prompts/reviewer-security.md", status: implemented }
   reviewer.performance:     { <<: *reviewer_base, prompt_path: null, status: implemented }
-  reviewer.tests:           { <<: *reviewer_base, prompt_path: null, status: implemented }
+  reviewer.tests:           { <<: *reviewer_base, prompt_path: "prompts/reviewer-tests.md", status: implemented }
   reviewer.maintainability: { <<: *reviewer_base, prompt_path: null, status: implemented }
   reviewer.adversarial:     { <<: *reviewer_base, prompt_path: null, status: slot-only, roadmap: "L3 pre-mortem reviewer; deferred" }
   reviewer.migration:       { <<: *reviewer_base, prompt_path: null, status: implemented }
@@ -8169,6 +8194,159 @@ Write only the YAML above. No prose outside the YAML block.
 `;
 var init_reviewer_correctness = () => {};
 
+// prompts/reviewer-security.md
+var reviewer_security_default = `# Purpose
+
+Review a git diff for exploitable security vulnerabilities, thinking like an attacker
+looking for the one reachable path through the code — not auditing against a checklist.
+
+For each candidate issue, ask "how would I break this?" and then trace whether the code
+stops you. Report the trace, not the category.
+
+## Review checklist
+
+1. **Injection vectors**: user-controlled input reaching SQL without parameterization; HTML
+   output without escaping (XSS); shell commands without argument sanitization; template
+   engines with raw evaluation. Trace data from entry point to dangerous sink.
+2. **Auth / authz bypass**: missing authentication on new endpoints; broken ownership checks
+   (user A reaching user B's resources); privilege escalation paths; CSRF on state-changing
+   operations; JWT/token handling errors (missing validation, weak signing).
+3. **Secrets in code or logs**: hardcoded keys/tokens/passwords; credentials, PII or session
+   tokens written to logs or error messages; secrets in URL parameters; test fixtures that
+   mirror production credentials.
+4. **Insecure deserialization**: untrusted input reaching pickle / Marshal / eval-shaped
+   parsing; object injection through deserialization.
+5. **SSRF and path traversal**: user-controlled URLs reaching server-side HTTP clients
+   without allowlist validation; user-controlled paths reaching filesystem operations
+   without canonicalization and boundary checks.
+
+## Evidence rules
+
+- Every finding MUST carry a concrete attack path: the entry point, the route through the
+  diff, and the sink. "This looks unsafe" without a path is not a finding — drop it.
+- Cite \`file:line\` from the diff. A finding you cannot locate is not reportable.
+- Judge only what the diff changes. Pre-existing issues outside the diff are out of scope
+  unless the diff makes them newly reachable — in which case say so explicitly.
+- A keyword appearing in the code (\`token\`, \`auth\`, \`crypto\`) is NOT a finding. The
+  heuristic fallback already flags those and it is exactly what you exist to improve on.
+
+## Confidence calibration
+
+Security findings carry a lower reporting threshold than other review dimensions because
+the cost of missing a real vulnerability is high. A finding you hold at ~0.60 confidence is
+still actionable — report it and say what would confirm it. Do not pad the list to look
+thorough: a false finding costs the reader's trust in every other line.
+
+## Severity rubric
+
+- **none**: pass with no findings
+- **low**: defense-in-depth gap with no reachable exploit path
+- **medium**: exploitable only with preconditions (authenticated, specific config)
+- **high**: directly exploitable by an unauthenticated or low-privilege attacker
+- **critical**: remote code execution, authentication bypass, or credential/data exfiltration
+
+## Verdict rubric
+
+- **pass**: no findings above low
+- **concern**: at least one medium-or-higher finding, not blocking
+- **fail**: at least one high-or-critical finding, ship should be blocked
+
+## Reply format
+
+\`\`\`yaml
+verdict: pass | concern | fail
+severity: none | low | medium | high | critical
+findings:
+  - location: <file:line or "global">
+    description: <the attack path — entry point → route → sink, 1-3 sentences>
+    suggestion: <optional — one-line fix hint>
+\`\`\`
+
+## Input
+
+<input_yaml/>
+
+## Submit
+
+Write only the YAML above. No prose outside the YAML block.
+`;
+var init_reviewer_security = () => {};
+
+// prompts/reviewer-tests.md
+var reviewer_tests_default = `# Purpose
+
+Review a git diff for test adequacy — whether the tests that ship with a change actually
+constrain its behaviour, and whether they would fail if the change were wrong.
+
+The heuristic fallback for this id can only see whether test-shaped file paths appear in the
+diff. It cannot read a single assertion. Everything below is what you exist to add.
+
+## Review checklist
+
+1. **Presence**: does new or changed behaviour ship with tests at all? A source change with
+   no corresponding test is a finding unless the change is provably behaviour-free
+   (rename, comment, formatting) — say which.
+2. **Would it fail?**: for each new test, ask what breaks it. A test that passes against
+   both the old and the new implementation constrains nothing. Vacuous assertions
+   (\`expect(x).toBeDefined()\` on a value that cannot be undefined, snapshot-only tests over
+   generated output, a mock asserted against itself) are findings — this is the highest-value
+   check here and the easiest to skip.
+3. **Coverage shape, not coverage percent**: are the branches the diff introduces exercised?
+   Empty input, boundary values, the error path, the fallback arm, the early return. A
+   change with a \`catch\` block and no test that enters it is a gap.
+4. **Setup fidelity**: does the fixture reproduce the real sequence, or a convenient one? A
+   test that builds its state directly instead of driving the code path under test will pass
+   against a broken implementation.
+5. **Flakiness risk**: dependence on wall-clock time, real network, filesystem ordering,
+   parallel-test shared state, unseeded randomness, or a fixed sleep standing in for a
+   condition. Report the mechanism, not just the smell.
+6. **Test-only diffs**: judge on 2-5 alone; a diff that only touches tests still has a
+   correctness surface.
+
+## Evidence rules
+
+- Cite \`file:line\`. For a vacuous-assertion finding, state what the test would still pass
+  against — that is the proof, and without it the finding is an opinion.
+- Judge the tests in the diff. Do not demand tests for code the diff does not touch.
+- Do not report a raw coverage number. You cannot measure it from a diff, and a percentage
+  without a baseline is not evidence.
+
+## Severity rubric
+
+- **none**: pass with no findings
+- **low**: style or naming of an otherwise sound test
+- **medium**: missing coverage for a new branch; fixture that overfits the implementation
+- **high**: new behaviour with no test at all; a test that cannot fail; a flake mechanism
+  that will produce false green in CI
+- **critical**: the change disables, skips, or weakens an existing test without justification
+
+## Verdict rubric
+
+- **pass**: no findings above low
+- **concern**: at least one medium-or-higher finding, not blocking
+- **fail**: at least one high-or-critical finding, ship should be blocked
+
+## Reply format
+
+\`\`\`yaml
+verdict: pass | concern | fail
+severity: none | low | medium | high | critical
+findings:
+  - location: <file:line or "global">
+    description: <what is untested or unfalsifiable, and what it would still pass against>
+    suggestion: <optional — one-line fix hint>
+\`\`\`
+
+## Input
+
+<input_yaml/>
+
+## Submit
+
+Write only the YAML above. No prose outside the YAML block.
+`;
+var init_reviewer_tests = () => {};
+
 // src/dispatcher/embedded-data.ts
 import { readFileSync as readFileSync4 } from "node:fs";
 import { resolve as resolve6, dirname as dirname3 } from "node:path";
@@ -8224,6 +8402,8 @@ var init_embedded_data = __esm(() => {
   init_planner_eng();
   init_researcher_history2();
   init_reviewer_correctness();
+  init_reviewer_security();
+  init_reviewer_tests();
   EMBEDDED_CONTRACTS = {
     "sgc-capabilities.yaml": sgc_capabilities_default,
     "sgc-state.schema.yaml": sgc_state_schema_default,
@@ -8241,7 +8421,9 @@ var init_embedded_data = __esm(() => {
     "prompts/planner-ceo.md": planner_ceo_default,
     "prompts/planner-eng.md": planner_eng_default,
     "prompts/researcher-history.md": researcher_history_default,
-    "prompts/reviewer-correctness.md": reviewer_correctness_default
+    "prompts/reviewer-correctness.md": reviewer_correctness_default,
+    "prompts/reviewer-security.md": reviewer_security_default,
+    "prompts/reviewer-tests.md": reviewer_tests_default
   };
   moduleDir = dirname3(fileURLToPath(import.meta.url));
   diskContractsDir = resolve6(moduleDir, "..", "..", "contracts");
@@ -16630,7 +16812,7 @@ var init_reviewer_specialists = __esm(() => {
   };
   PERFORMANCE = {
     name: "reviewer.performance",
-    pattern: /\b(cache|cach(ed|ing)|index|memoi[sz]e|debounce|throttle|O\(n\^?\d*\)|n\+1|benchmark|p9[59])\b/i,
+    pattern: /\b(cache|cach(ed|ing)|index|memoi[sz]e|debounce|throttle|n\+1|benchmark|p9[59])\b|O\(n\^?\d*\)/i,
     severity: "medium",
     describe: (line) => `performance-touching change in added line: ${line}`
   };
@@ -16653,12 +16835,12 @@ var init_reviewer_specialists = __esm(() => {
     },
     {
       name: "reviewer.performance",
-      trigger: /(perf|performance|cache|caching|memoi[sz]e|index|benchmark|n\+1|O\(n\)|p9[59])/i,
+      trigger: /(perf|performance|cache|caching|memoi[sz]e|index|benchmark|n\+1|O\(n\^?\d*\)|p9[59]|debounce|throttle)/i,
       agent: reviewerPerformance
     },
     {
       name: "reviewer.infra",
-      trigger: /(Dockerfile|FROM\s+\w|kubectl|k8s\b|terraform|helm|fly\.toml|vercel\.json|render\.yaml|github\/workflows)/i,
+      trigger: /(Dockerfile|FROM\s+\w|kubectl|k8s\b|terraform|helm|fly\.toml|vercel\.json|render\.yaml|github\/workflows|argo)/i,
       agent: reviewerInfra
     }
   ];
@@ -16847,9 +17029,11 @@ async function runReview(opts = {}) {
   if (isL2Plus) {
     const matched = matchSpecialists(diff);
     if (matched.length > 0) {
+      const specialistMode = process.env["SGC_REVIEW_SPECIALIST_LLM"] === "0" ? "inline" : undefined;
       const specResults = await Promise.all(matched.map((s2) => spawn3(s2.name, { diff, intent: intentForReviewer }, {
         stateRoot,
         inlineStub: (i2) => s2.agent(i2),
+        ...specialistMode ? { mode: specialistMode } : {},
         logger,
         taskId
       })));
@@ -19888,9 +20072,11 @@ async function runReview2(opts = {}) {
   if (isL2Plus) {
     const matched = matchSpecialists(diff);
     if (matched.length > 0) {
+      const specialistMode = process.env["SGC_REVIEW_SPECIALIST_LLM"] === "0" ? "inline" : undefined;
       const specResults = await Promise.all(matched.map((s2) => spawn3(s2.name, { diff, intent: intentForReviewer }, {
         stateRoot: stateRoot2,
         inlineStub: (i2) => s2.agent(i2),
+        ...specialistMode ? { mode: specialistMode } : {},
         logger,
         taskId
       })));
@@ -20337,7 +20523,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.34.0",
+    version: "1.35.0",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -20632,10 +20818,10 @@ function agentMetadataDrift(files, lookup, manifestIds = []) {
       drifts.push(`${f3.id}: ${f3.file} frontmatter does not parse (${String(err).slice(0, 80)})`);
       continue;
     }
-    const slotOnly = entry.status === "slot-only";
+    const cliNeverRuns = entry.status === "slot-only" || entry.status === "manual-only";
     const heuristic = !entry.prompt_path;
-    if (slotOnly) {
-      if (!/(not implemented|slot-only|never dispatched|not wired)/.test(desc)) {
+    if (cliNeverRuns) {
+      if (!/(not implemented|slot-only|manual-only|never dispatched|not wired|never runs)/.test(desc)) {
         drifts.push(`${f3.id}: manifest says status slot-only (never dispatched) but ${f3.file} advertises it as working`);
       } else if (/dispatched by/.test(desc)) {
         drifts.push(`${f3.id}: ${f3.file} is slot-only yet still says "dispatched by" — a disclaimer elsewhere does not undo it`);
@@ -21114,12 +21300,7 @@ var init_doctor = __esm(() => {
   init_metrics();
   moduleDir2 = dirname6(fileURLToPath3(import.meta.url));
   repoRoot = resolve17(moduleDir2, "..", "..");
-  REGISTRY_EXEMPT_IDS = new Set([
-    "reviewer.migration",
-    "reviewer.infra",
-    "clarifier.discover",
-    "planner.decompose"
-  ]);
+  REGISTRY_EXEMPT_IDS = new Set(["clarifier.discover", "planner.decompose"]);
 });
 
 // src/dispatcher/reflect.ts
@@ -24628,7 +24809,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.34.0",
+  version: "1.35.0",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {

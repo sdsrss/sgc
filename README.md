@@ -117,7 +117,7 @@ State lives under `.sgc/` in the project (override via `SGC_STATE_ROOT`); it's `
 
 20 commands total — 17 are also exposed as `/sgc:*` slash commands inside Claude Code; `canary`, `watch-ci-failure`, and `land` are CLI-only. Real-browser QA uses **Playwright** (opt-in via `--browse` / `SGC_QA_REAL=1`; needs a browser — `npx playwright install chromium`, or `SGC_QA_BROWSER=chrome` for system Chrome); `sgc qa` defaults to a non-rubber-stamping stub.
 
-**Four-化 scorecard** (run `sgc metrics` to reproduce): 规范化 12/13 · 智能化 11/23 LLM-invokable · 自动化 5/9 · 高效化 1 step·node≥18. These numbers are produced by `sgc metrics`; see `metrics/metrics-baseline.yaml` — they are not hand-maintained, and `sgc doctor` fails if this line drifts from the live output.
+**Four-化 scorecard** (run `sgc metrics` to reproduce): 规范化 12/13 · 智能化 13/23 LLM-invokable · 自动化 5/9 · 高效化 1 step·node≥18. These numbers are produced by `sgc metrics`; see `metrics/metrics-baseline.yaml` — they are not hand-maintained, and `sgc doctor` fails if this line drifts from the live output.
 
 ## Task levels (L0–L3)
 

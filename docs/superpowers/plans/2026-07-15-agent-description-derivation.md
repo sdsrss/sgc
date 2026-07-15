@@ -758,7 +758,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: `deriveCliFact`, `CLI_FACT_MARKER`, `DERIVED_AGENT_IDS` (Task 4); `readAgentMdFiles`, `AgentMdFile` (existing, `src/commands/doctor.ts`).
 - Produces: `export function cliFactDrift(files: AgentMdFile[]): string[]`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `tests/dispatcher/agent-facts.test.ts`:
 
@@ -811,12 +811,12 @@ generator has run, and a task that knowingly ends with a red suite makes the nex
 tasks' reviews unreadable (a reviewer cannot tell an expected red from a new one).
 Every task in this plan ends green.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `SGC_FORCE_INLINE=1 bun test tests/dispatcher/agent-facts.test.ts`
 Expected: FAIL — `cliFactDrift` is not exported.
 
-- [ ] **Step 3: Implement `cliFactDrift`**
+- [x] **Step 3: Implement `cliFactDrift`**
 
 In `src/commands/doctor.ts`, add the import:
 
@@ -875,7 +875,7 @@ export function cliFactDrift(files: AgentMdFile[]): string[] {
 }
 ```
 
-- [ ] **Step 4: Wire it into `runDoctor` as a failing check**
+- [x] **Step 4: Wire it into `runDoctor` as a failing check**
 
 Find the `// ── (N) agent registry ↔ manifest ──` block in `runDoctor` and add directly after it:
 
@@ -928,7 +928,7 @@ Find the `// ── (N) agent registry ↔ manifest ──` block in `runDoctor`
 
 The `files.length === 0` branch (whole registry absent) is deliberately NOT folded into the missing-ids loop — it mirrors check (N)'s existing skip for the same condition. Getting this wrong breaks a real fixture: `tests/dispatcher/sgc-doctor.test.ts`'s `seedHygiene()` sets `hasSource=true` but never creates `plugins/sgc/agents/` at all, and its `H1` test asserts `fail === 0` — treating an absent registry as "9 missing files" would have turned that into 9 new failures. Confirm both directions before trusting a change here: run the full suite (not just this file's tests) and specifically re-run `tests/dispatcher/sgc-doctor.test.ts` + `tests/dispatcher/metrics.test.ts`, the two other files with fixtures that reach `runDoctor` — an impact-analysis check on `runDoctor` names them.
 
-- [ ] **Step 5: Run the check tests**
+- [x] **Step 5: Run the check tests**
 
 Run: `SGC_FORCE_INLINE=1 bun test tests/dispatcher/agent-facts.test.ts`
 Expected: PASS, 0 fail.
@@ -943,7 +943,7 @@ scope the check behind `hasSource` (already in Step 4) or to move that test's ex
 to Task 8. Confirm the failure message prints the exact expected clause; that message is
 the deliverable.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 npm run typecheck   # expect exit 0

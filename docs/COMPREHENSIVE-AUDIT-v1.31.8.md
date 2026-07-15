@@ -7,6 +7,23 @@
 
 ---
 
+> ## ✅ 回填：全部 P1 + 全部 P2 已闭合并发版（back-annotated 2026-07-15）
+>
+> 本文是 **v1.31.8 时点快照**，下文发现保留原样作历史记录。当前状态：
+>
+> - **P1（4 项）→ SHIPPED v1.32.0**：P1-1 `review.ts:74` 注入 argv 化 · P1-2 §8 契约名实对齐 · P1-3 分级器确定性下限 · P1-4 README 评分卡 4/6→5/9 + doctor 检查 (M) 防复发。
+> - **P2（12 项）→ SHIPPED v1.32.0**：P2-1 测试隔离 · P2-2 doctor 工具链敏感性 · P2-3 js-yaml CVE · P2-4 §13 Tier-2 信号配对 · P2-5 file-lock 竞态 · P2-6 §3 stamp provenance · P2-7 applied 指标诚实化 · P2-8 词形匹配 · P2-9 dedup 加权 · P2-10 prompt 改 stdin · P2-11 openrouter 外发告知 · P2-12 Node 18 CI 背书。
+> - **P3（12 项）→ 1 项随 P2-3 顺带闭合（P3-1 锁文件根元数据）；其余 11 项待办**，见 `docs/AUDIT-REMEDIATION-ROADMAP-v1.31.8.md`。
+>
+> **发版验收实证**（v1.32.0，commit `e27681f`）：测试 1269 → **1339 pass / 0 fail**（+70 回归测试）· `npm audit` 1 moderate → **0** · `sgc doctor` **65 OK / 0 fail** · CI test.yml 与 publish-npm **双绿** · 从 npm registry 实装 v1.32.0 验证产物：CVE 修复在位、argv-prompt 漏洞代码已消失、doctor 33 OK/0 fail。
+>
+> **本报告被本次修复推翻/修正的三处**（审核自身的错误，如实记录）：
+> 1. **P2-2 由推断升为实证并改变了修复方向**：实测 bun 1.3.5（CI 锁定版）能字节复现提交的 bundle、1.3.11 不能 → 会话初的 `bundle STALE` 是**纯假阳性**，且其文案会诱导开发者提交让 CI 变红的产物。
+> 2. **P2-8 的 `ui → build` 例子不成立**：`tokenize` 的 ASCII ≥3 长度下限已把 "ui" 滤出查询词；真实暴露面是 3 字符以上前缀型子串（auth→author、cat→category）。
+> 3. **§4-12 关于 playwright 的表述不准确**：移入 `optionalDependencies` **不改变默认安装体积**（npm 默认仍装 optional 依赖），真实收益是 CDN 被墙时不再整体安装失败。
+
+---
+
 ## 0. 结论速览
 
 | 审核问题 | 结论 | 一句话依据 |

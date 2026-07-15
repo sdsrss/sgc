@@ -750,17 +750,18 @@ describe("doctor check (O) — the clause is asserted, not sniffed", () => {
   test("out-of-scope agent files are ignored, not failed", () => {
     expect(cliFactDrift([md("planner.ceo", "Product gate reviewer.")])).toEqual([])
   })
-
-  test("THE REAL 9 FILES are in sync with the derivation", () => {
-    expect(cliFactDrift(readAgentMdFiles(ROOT))).toEqual([])
-  })
 })
 ```
+
+**Note — the real-9-files test lives in Task 8, not here.** It cannot pass until the
+generator has run, and a task that knowingly ends with a red suite makes the next two
+tasks' reviews unreadable (a reviewer cannot tell an expected red from a new one).
+Every task in this plan ends green.
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `SGC_FORCE_INLINE=1 bun test tests/dispatcher/agent-facts.test.ts`
-Expected: FAIL — `cliFactDrift` is not exported. (The last test will also fail until Task 8 regenerates the files — that is expected and correct.)
+Expected: FAIL — `cliFactDrift` is not exported.
 
 - [ ] **Step 3: Implement `cliFactDrift`**
 
@@ -841,10 +842,20 @@ Find the `// ── (N) agent registry ↔ manifest ──` block in `runDoctor`
   }
 ```
 
-- [ ] **Step 5: Run the check tests (the real-9 test still fails)**
+- [ ] **Step 5: Run the check tests**
 
 Run: `SGC_FORCE_INLINE=1 bun test tests/dispatcher/agent-facts.test.ts`
-Expected: all pass EXCEPT `THE REAL 9 FILES are in sync` — it fails until Task 8. Confirm the failure message prints the exact expected clause; that message is the deliverable.
+Expected: PASS, 0 fail.
+
+Then run the full suite — check (O) is now wired into `runDoctor`, and the 9 real files
+have NOT been regenerated yet, so any test that runs the real doctor will see check (O)
+fail. Run: `SGC_FORCE_INLINE=1 bun test tests/`
+
+**If a doctor-level test goes red here, do NOT weaken check (O) to make it pass** —
+that is the whole batch's failure mode in miniature. Report it: the fix is either to
+scope the check behind `hasSource` (already in Step 4) or to move that test's expectation
+to Task 8. Confirm the failure message prints the exact expected clause; that message is
+the deliverable.
 
 - [ ] **Step 6: Commit**
 
@@ -1011,7 +1022,12 @@ This is the spec's headline success criterion: **reproducing any M4/M5 descripti
 
 **Interfaces:** Consumes everything from Tasks 1–6. Produces no new exports.
 
-- [ ] **Step 1: Write the tests (they should pass immediately — this is a proof, not a RED/GREEN cycle)**
+**RED first, and it is a real RED.** Iron Law #1 binds here like everywhere. These tests
+assert that check (O) *catches* things — so the RED is: disable check (O) and watch every
+one of them fail. Step 2 does exactly that. A test you never saw fail proves nothing, and
+this task's entire purpose is to prove a gate works.
+
+- [ ] **Step 1: Write the tests**
 
 ```ts
 describe("Task 7 — every M4/M5 defect class now requires editing code to reproduce", () => {
@@ -1064,10 +1080,31 @@ describe("Task 7 — every M4/M5 defect class now requires editing code to repro
 })
 ```
 
-- [ ] **Step 2: Run**
+- [ ] **Step 2: Prove the RED — disable the gate and watch all 7 fail**
+
+Temporarily neuter `cliFactDrift` in `src/commands/doctor.ts` by making it return early:
+
+```ts
+export function cliFactDrift(files: AgentMdFile[]): string[] {
+  return []   // TEMPORARY — proving the Task 7 tests are not vacuous
+  // …real body…
+}
+```
 
 Run: `SGC_FORCE_INLINE=1 bun test tests/dispatcher/agent-facts.test.ts -t "Task 7"`
-Expected: PASS, 0 fail. If any test passes for the wrong reason (e.g. `.replace()` matched nothing so `mangled === derived`), the test is vacuous — assert `mangled !== deriveCliFact(id)` first and fix the replace target.
+Expected: **6 of the 7 fail.** (The 7th — "a prompt_path flip must change the clause" — tests `deriveCliFact` directly, not the gate, so it stays green. That is correct, not a miss.)
+
+**Then revert the early return** and re-run: PASS, 0 fail.
+
+If a test stays green with the gate disabled, it is vacuous — it is asserting nothing about check (O). Fix it before proceeding.
+
+**The specific vacuity trap in this task:** every `mangled` is built with `.replace()`. If the replace target does not appear in the derived string, `.replace()` silently returns the input unchanged, `mangled === deriveCliFact(id)`, the description is *correct*, and the test passes while proving nothing. Guard each one:
+
+```ts
+expect(mangled).not.toBe(deriveCliFact(id))   // the replace actually landed
+```
+
+Add that line to every test in this describe block before its `cliFactDrift` assertion.
 
 - [ ] **Step 3: Commit**
 
@@ -1118,18 +1155,30 @@ Expected: no diff. **If any capability sentence changed, stop** — `rewriteCliF
 Run: `git diff plugins/sgc/agents/`
 Read every changed description in full. A generated clause that is accurate but unreadable is still a routing signal — if it reads badly, the template in Task 4 is wrong, not the file.
 
-- [ ] **Step 5: doctor and full suite green**
+- [ ] **Step 5: Add the real-9-files pin (moved here from Task 5 — it cannot pass before the generator runs)**
+
+Add to `tests/dispatcher/agent-facts.test.ts`:
+
+```ts
+test("THE REAL 9 FILES are in sync with the derivation", () => {
+  // The one test that binds the derivation to what actually ships. Every other
+  // test in this file works on constructed fixtures; this one reads the repo.
+  expect(cliFactDrift(readAgentMdFiles(ROOT))).toEqual([])
+})
+```
+
+- [ ] **Step 6: doctor and full suite green**
 
 ```bash
 SGC_FORCE_INLINE=1 bun run src/sgc.ts doctor    # expect 71 OK / 0 warn / 0 fail (70 + check O)
-SGC_FORCE_INLINE=1 bun test tests/              # expect 0 fail; `THE REAL 9 FILES are in sync` now passes
+SGC_FORCE_INLINE=1 bun test tests/              # expect 0 fail
 npm run typecheck                                # expect exit 0
 ```
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add plugins/sgc/agents/
+git add plugins/sgc/agents/ tests/dispatcher/agent-facts.test.ts
 git commit -m "chore(agents): regenerate the 9 CLI-fact clauses from code
 
 Written by \`sgc doctor --write-descriptions\`, not by hand. Capability sentences

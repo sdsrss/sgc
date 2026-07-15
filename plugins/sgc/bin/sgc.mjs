@@ -786,15 +786,28 @@ var init_prompt = __esm(() => {
 });
 
 // src/dispatcher/logger.ts
-import { appendFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, mkdirSync, renameSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-function defaultNdjsonSink(stateRoot) {
+function defaultNdjsonSink(stateRoot, maxBytes) {
   const path = resolve(stateRoot, "progress/events.ndjson");
+  const rotated = `${path}.1`;
   mkdirSync(dirname(path), { recursive: true });
+  let bytes = 0;
+  try {
+    bytes = statSync(path).size;
+  } catch {}
   return (e2) => {
     try {
-      appendFileSync(path, JSON.stringify(e2) + `
-`, "utf8");
+      const line = JSON.stringify(e2) + `
+`;
+      if (bytes + line.length > maxBytes) {
+        try {
+          renameSync(path, rotated);
+          bytes = 0;
+        } catch {}
+      }
+      appendFileSync(path, line, "utf8");
+      bytes += line.length;
     } catch (err) {
       console.error("[sgc] ndjson write failed:", String(err));
     }
@@ -803,7 +816,7 @@ function defaultNdjsonSink(stateRoot) {
 function createLogger(opts = {}) {
   const stateRoot = opts.stateRoot ?? process.env["SGC_STATE_ROOT"] ?? ".sgc";
   const say = opts.say ?? ((m2) => console.log(m2));
-  const sink = opts.eventSink ?? defaultNdjsonSink(stateRoot);
+  const sink = opts.eventSink ?? defaultNdjsonSink(stateRoot, opts.maxBytes ?? EVENTS_MAX_BYTES);
   return {
     say,
     event(partial) {
@@ -820,6 +833,7 @@ function createLogger(opts = {}) {
     }
   };
 }
+var EVENTS_MAX_BYTES = 1e7;
 var init_logger = () => {};
 
 // src/dispatcher/dedup.ts
@@ -4078,7 +4092,7 @@ var init_types = __esm(() => {
 });
 
 // src/dispatcher/fingerprint.ts
-import { existsSync as existsSync2, readdirSync as readdirSync2, readFileSync, statSync } from "node:fs";
+import { existsSync as existsSync2, readdirSync as readdirSync2, readFileSync, statSync as statSync2 } from "node:fs";
 import { join, resolve as resolve3 } from "node:path";
 import { createHash as createHash2 } from "node:crypto";
 function isFingerprintable(line) {
@@ -4105,7 +4119,7 @@ function safeReaddir(dir) {
 }
 function isDir(path) {
   try {
-    return statSync(path).isDirectory();
+    return statSync2(path).isDirectory();
   } catch {
     return false;
   }
@@ -4202,7 +4216,7 @@ import {
   mkdirSync as mkdirSync2,
   readFileSync as readFileSync2,
   readdirSync as readdirSync3,
-  renameSync,
+  renameSync as renameSync2,
   unlinkSync,
   writeFileSync
 } from "node:fs";
@@ -4269,7 +4283,7 @@ function writeAtomic(path, content) {
   const tmp = `${path}.tmp.${process.pid}.${Date.now()}.${atomicWriteSeq++}.${randomBytes(4).toString("hex")}`;
   writeFileSync(tmp, content, "utf8");
   try {
-    renameSync(tmp, path);
+    renameSync2(tmp, path);
   } catch (err) {
     try {
       unlinkSync(tmp);
@@ -6881,7 +6895,7 @@ invariants:
 var init_invariant_enforcement = () => {};
 
 // contracts/sgc-invariants.md
-var sgc_invariants_default = "# SGC System Invariants\n# Version: 0.1\n\nThese are the rules that cannot live in the state schema or the capabilities contract alone, because they are cross-cutting or require semantic judgment. Every invariant is numbered and referenced by the schema files and the evaluation framework. Violating any of these is a spec bug, not a runtime error.\n\n## §1. Generator-Evaluator Separation\n\nNo subagent whose role is to evaluate work (`reviewer.*`, `qa.*`, `/review`, `/qa`) may hold `read:solutions`. This is enforced at two layers: the scope token vocabulary declares `read:solutions` as forbidden for those subagent patterns, and the permission matrix grants solutions as an empty array for `/review` and `/qa`.\n\nThe rationale is not technical, it is epistemic. A reviewer that can read prior solutions will exhibit confirmation bias toward historical judgments. Anthropic's harness paper showed that evaluators optimistically rate their own work; the same bias extends to evaluators who inherit institutional memory from a generator's notebook. The only way to keep `/review` honest is to keep it amnesiac.\n\nConsequence: if a reviewer needs historical context to render a verdict, that is a design smell. Either the intent was underspecified (fix at `/plan`) or the reviewer's scope is wrong (fix the manifest). Do not patch by granting `read:solutions`.\n\n## §2. Decisions Are Immutable\n\nOnce `decisions/{task_id}/intent.md` is written, no actor may modify it. This includes typo fixes and \"clarifying\" edits. If intent changes, the correct action is to create a new task with `parent_decision` pointing to the old one and mark the old one as superseded via the subsequent `ship.md`.\n\nThe rationale is that intent files are the audit surface for \"why did we build this?\" An editable intent is a rewriting of history, which destroys the ability to diagnose regressions in the evaluation framework. The cost of immutability is occasional clutter from superseded tasks; that cost is acceptable.\n\n## §3. Solutions Writes Must Pass Dedup\n\nNo write to `solutions/` may occur without `compound.related` running first and returning a dedup result. The dispatcher enforces this by making `write:solutions` a capability that only activates after a dedup stamp is attached to the write request. A `write:solutions` without a dedup stamp is rejected at the dispatch layer.\n\nThis is the single most important defense against the failure mode where `solutions/` becomes a grep-hostile dump of near-duplicates. Once that failure mode takes hold, `planner.history` and `researcher.history` become noise amplifiers and the entire compound layer stops being an asset.\n\nSimilarity threshold is fixed at 0.85 and is not user-tunable. Making it tunable would mean users lower it the first time dedup inconveniences them. The evaluation framework includes a regression test for this.\n\n### Metadata-only carve-out (CE-6, v1.10.0)\n\n`applied_in: TaskId[]` on solution frontmatter — written by `src/dispatcher/applied-tracker.ts` `recordApplied` from `plan.ts` L3 wire-up — is an **explicit, named exemption** from the dedup write-gate. The rule that binds §3 is \"solution-content changes (intent / prevention / what_didnt_work / source_task_ids / times_referenced) must route through `writeSolution()` with a `dedup_stamp` from `compound.related`\". `applied_in` is audit-trail metadata, not part of the dedup signature, so mutating it does not destabilize the corpus the way duplicated solution content would. `recordApplied` therefore bypasses `writeSolution()` and goes directly through `parseFrontmatter` → spread-preserve-all-other-fields → `serializeFrontmatter` → `writeAtomic`. The regression test `tests/dispatcher/applied-tracker.test.ts` H8 (\"Invariant §3 metadata-only carve-out (CRITICAL)\") is the binding contract: it snapshots every solution-content field before `recordApplied` and asserts byte-for-byte equality after. If that test ever changes shape, the carve-out must be re-evaluated. Future metadata-only fields (anything that does not affect compound-related similarity scoring) may extend this carve-out by the same pattern; new fields that affect dedup MUST route through `writeSolution()`.\n\n## §4. L3 Forbids --auto\n\nAny command invocation at task level L3 with `--auto` or equivalent automation flag is refused at the dispatcher level, with a non-overridable error. L3 tasks require a human signature in `intent.md` and a human confirmation at `/ship`. This is not a default, it is a hard rule.\n\nThe rationale is that L3 is the level at which irreversible architectural decisions live. Automation at L3 means a single miscalibrated classifier run can make an architectural change without human review. The cost of forcing a human in the loop at L3 is minutes per task; the cost of not forcing it is weeks of unwinding.\n\n## §5. Reviewer Overrides Require Human Signature\n\nWhen any reviewer returns `verdict == fail` and the ship gate proceeds anyway, the `override` field in the review report must be populated with `by`, `at`, and `reason`. The reason field has a minimum length of 40 characters to prevent \"ok\" style rubber-stamping. The dispatcher refuses to write a ship.md if a failing review lacks a corresponding populated override.\n\nNo subagent may populate the override field. Overrides are exclusively human.\n\n## §6. Audit-Trail Writes Are Durable (janitor decisions logged · review reports append-only)\n\nTwo faces of one principle: an audit-trail write must survive — never silently skipped, never silently overwritten. Both halves protect the same thing: the ability to later answer \"what was decided, by whom, and when?\"\n\n**(a) Every janitor decision is logged.** `janitor.compound` MUST write a decision report for every task it evaluates, including tasks it decides to skip. This is non-negotiable. The evaluation framework's regression diagnosis depends on being able to answer \"why did this task not generate a solution entry?\" — and the only correct answer is \"because the janitor logged reason X on date Y\". Silent skips are forbidden: a janitor that cannot write its decision must abort the task and surface an error, not default to skip.\n\n**(b) Review / QA / CSO reports are append-only.** Each `reviews/{task_id}/{stage}/{reviewer}.md` (and the analogous `cso/` report) is write-once per `(task, stage, reviewer)` triple — a second write for the same triple is rejected (`StateError(\"AppendOnly\", …)` in `state.ts:appendReview`), never overwritten. A follow-up pass writes a new `<reviewer>.<suffix>.md` via the `--append-as` channel rather than mutating the prior report. Overwriting a verdict would destroy the audit surface the same way a silent janitor skip would.\n\n## §7. Schema Validation Precedes Every Write\n\nThe dispatcher validates every file write against `sgc-state.schema.yaml` before committing. A write that fails validation is rejected with the validation error surfaced to the calling subagent. Subagents may retry with corrected output; they may not disable validation.\n\nThere is no \"validate later\" or \"lenient mode\". If the schema rejects real-world outputs, the schema is wrong and must be fixed; weakening validation is forbidden.\n\n## §8. Scope Tokens Are Computed At Spawn, Not Requested At Runtime\n\nWhen a command invokes a subagent, the dispatcher computes the subagent's scope_token set from the permission matrix and the subagent manifest, and pins that set for the subagent's lifetime. There is no channel by which a running subagent can request additional capabilities: the set is computed before `spawn.start` and never re-read.\n\nThe rationale is that runtime capability elevation is the standard exploit path for prompt injection in agentic systems. Pinning at spawn time removes the elevation channel.\n\n**What \"pinned\" enforces, precisely.** Three distinct guarantees, none of which is syscall interception:\n\n1. **Spawn-time rejection (machine-enforced).** A manifest that declares a token its permission-matrix row forbids never spawns — `capabilities.ts` throws `ScopeViolation` before any work begins. This is what makes §1's `reviewer/qa cannot read:solutions` real rather than aspirational.\n2. **Input gating (machine-enforced).** The dispatcher controls what enters the subagent: the §1 back-channel gate rejects prior-art/pre-mortem content in the `intent` field before `spawn.start`, and the subagent receives only the input the dispatcher hands it.\n3. **Output validation (machine-enforced).** §9 shape validation rejects undeclared output fields, and the §1 leak scan runs over every subagent's output in all modes.\n\n**What it does NOT enforce, and why.** The pinned token set is delivered to LLM-backed subagents as prompt context — it is *advisory to the model*. sgc does not intercept an LLM subagent's file or git access, and **cannot**: in `claude-cli` mode the model's tool use executes inside a separate `claude -p` process, and in API modes it executes on the provider's side. Neither is inside sgc's process boundary. A prompt-injected LLM subagent that reads a file outside its pinned set is therefore caught — if at all — by the post-hoc output scan (verbatim leaks) rather than prevented at access time; a paraphrase can pass.\n\nThis is a deliberate boundary, not a deferred TODO. Treat §8 as **\"pin + gate the I/O the dispatcher owns + scan what comes back\"**, not as a sandbox. Deterministic subagents (inline stubs, `compound.related`) are the only ones whose access is bounded by construction — which is why the invariants that must not be LLM-bypassable (§3's dedup stamp, the §11 classifier floor) are anchored to deterministic code rather than to §8.\n\n`assertScope` / `assertCanSpawn` / `tokensAllow` in `capabilities.ts` exist for dispatcher-mediated access paths and are exercised by `capabilities.test.ts`; they are not — and cannot be — an interception layer over out-of-process model tool use.\n\nThis is the subagent-layer instance of the scope binding mechanism from CLAUDE.md v3.8.\n\n## §9. No Subagent Writes Outside Its Declared Outputs\n\nA subagent manifest declares its `outputs` field. The dispatcher discards any produced content that does not match the declared output shape. A subagent cannot, for example, write a solution entry as a side effect of producing a review report — even if it holds both tokens by some accident of composition.\n\nThis prevents \"helpful\" subagents from corrupting state they were not invited to touch. The canonical failure case is a reviewer noticing a pattern and trying to append to `solutions/` \"while it's here\"; under §1 that is already impossible, but §9 generalizes the principle.\n\n## §10. Failure of Any Compound Substep Aborts the Whole Compound\n\nThe compound cluster has five subagents. If any of them fails or times out, the entire compound operation is rolled back and no write to `solutions/` occurs. Partial compound writes are forbidden.\n\nThe rationale is that a half-written solution entry is worse than no entry. A solution without the `what_didnt_work` field, for instance, encourages the reader to re-walk dead-end paths. Better to log a janitor skip with reason `compound_cluster_failure` and surface the error for human diagnosis.\n\n## §11. Classifier Must Justify\n\n`classifier.level` must emit both a level and a rationale. The rationale must reference at least one concrete feature of the task (file count, risk keyword, blast radius, etc.) The dispatcher refuses classifications with empty or generic rationales.\n\nThis exists because without a justified classifier, L3 gets silently downgraded to L2 whenever the classifier is uncertain, and that erodes every downstream guarantee in this document.\n\n## §12. The Evaluation Framework Is Authoritative\n\nThe ten-scenario evaluation framework is the conformance test for this entire specification. When the spec and the evaluation framework disagree, the evaluation framework wins and the spec is amended to match. This prevents spec drift from quietly invalidating the test suite.\n\nWhen a new invariant is added to this document, a corresponding regression test is added to the evaluation framework in the same commit. No exceptions.\n\n## §13. Spawn + LLM Event Audit Completeness (two-tier)\n\nEvery call to `spawn()` MUST emit a paired `spawn.start` and `spawn.end` event to `.sgc/progress/events.ndjson` (Tier 1, all modes). The `end` event's `payload.outcome` MUST be one of `success | timeout | error`.\n\nAdditionally, when the resolved mode is `anthropic-sdk` / `openrouter` / `claude-cli` (any LLM-backed mode), the agent MUST emit a paired `llm.request` and `llm.response` event (Tier 2). `llm.response.payload.outcome` MUST be one of `success | timeout | error | schema_violation`.\n\nEmission is guaranteed by `try/finally` blocks:\n1. `src/dispatcher/spawn.ts` — Tier 1 pair (all modes).\n2. `src/dispatcher/anthropic-sdk-agent.ts` — Tier 2 pair.\n3. `src/dispatcher/openrouter-agent.ts` — Tier 2 pair.\n4. `src/dispatcher/claude-cli-agent.ts` — Tier 2 pair.\n\nOther event types (`dedup.scored`, `review.verdict_emitted`, etc.) are voluntary during Phase G; their schemas evolve freely. Commands are expected (soft contract, smoke-tested) to emit at least one high-level event per primary flow.\n\n**Exemption**: event-sink write failure (disk full, permission error) does NOT fail the spawn. The runtime logs the failure to stderr and continues. Invariant §13 is waived for infra-level write failures.\n\n**Schema**: `EventRecord` v1 is defined in `src/dispatcher/logger.ts`. Every event line carries `schema_version: 1`; additive fields must preserve forward-compatibility, breaking changes bump to v2.\n\n---\n\n## Cross-References\n\n- Invariant §1 is enforced by `sgc-capabilities.yaml` scope token `read:solutions` (forbidden_for list) and by the empty `solutions` row in the permission matrix for `/review` and `/qa`.\n- Invariant §2 is enforced by the `editable_after_creation: false` field on `decisions.intent` and `decisions.ship` in `sgc-state.schema.yaml`.\n- Invariant §3 is enforced by the `dedup` block in `solutions` section of `sgc-state.schema.yaml`, plus a dispatcher check.\n- Invariant §4 is a dispatcher-level rule with no schema representation. It must be added to the command parser as the first-priority check.\n- Invariant §5 is enforced by the conditional `override` field in `reviews.report`.\n- Invariant §6 is enforced on two paths: (a) the `janitor_decision` file being a required output of `janitor.compound` in the subagent manifest, and (b) the write-once guard in `state.ts:appendReview` that rejects a second write to the same `(task, stage, reviewer)` triple with `StateError(\"AppendOnly\", …)`.\n- Invariants §7, §8, §9 are dispatcher-level and have no schema representation.\n- Invariant §10 is enforced by `compound.*` subagents running as a transaction; no partial commits.\n- Invariant §11 is enforced by the required `rationale` field on `classifier.level` outputs.\n- Invariant §12 is procedural and enforced by code review discipline.\n- Invariant §13 is enforced by `try/finally` in `src/dispatcher/spawn.ts` (Tier 1) and in each LLM-mode agent file (`anthropic-sdk-agent.ts`, `openrouter-agent.ts`, `claude-cli-agent.ts`) for Tier 2. Regression-tested by `tests/dispatcher/spawn-events.test.ts`, `tests/dispatcher/llm-agent-events.test.ts`, `tests/dispatcher/commands-event-emission.test.ts`, and `tests/eval/invariants.test.ts` (Task 12 scenario).\n";
+var sgc_invariants_default = "# SGC System Invariants\n# Version: 0.1\n\nThese are the rules that cannot live in the state schema or the capabilities contract alone, because they are cross-cutting or require semantic judgment. Every invariant is numbered and referenced by the schema files and the evaluation framework. Violating any of these is a spec bug, not a runtime error.\n\n## §1. Generator-Evaluator Separation\n\nNo subagent whose role is to evaluate work (`reviewer.*`, `qa.*`, `/review`, `/qa`) may hold `read:solutions`. This is enforced at two layers: the scope token vocabulary declares `read:solutions` as forbidden for those subagent patterns, and the permission matrix grants solutions as an empty array for `/review` and `/qa`.\n\nThe rationale is not technical, it is epistemic. A reviewer that can read prior solutions will exhibit confirmation bias toward historical judgments. Anthropic's harness paper showed that evaluators optimistically rate their own work; the same bias extends to evaluators who inherit institutional memory from a generator's notebook. The only way to keep `/review` honest is to keep it amnesiac.\n\nConsequence: if a reviewer needs historical context to render a verdict, that is a design smell. Either the intent was underspecified (fix at `/plan`) or the reviewer's scope is wrong (fix the manifest). Do not patch by granting `read:solutions`.\n\n## §2. Decisions Are Immutable\n\nOnce `decisions/{task_id}/intent.md` is written, no actor may modify it. This includes typo fixes and \"clarifying\" edits. If intent changes, the correct action is to create a new task with `parent_decision` pointing to the old one and mark the old one as superseded via the subsequent `ship.md`.\n\nThe rationale is that intent files are the audit surface for \"why did we build this?\" An editable intent is a rewriting of history, which destroys the ability to diagnose regressions in the evaluation framework. The cost of immutability is occasional clutter from superseded tasks; that cost is acceptable.\n\n## §3. Solutions Writes Must Pass Dedup\n\nNo write to `solutions/` may occur without `compound.related` running first and returning a dedup result. The dispatcher enforces this by making `write:solutions` a capability that only activates after a dedup stamp is attached to the write request. A `write:solutions` without a dedup stamp is rejected at the dispatch layer.\n\nThis is the single most important defense against the failure mode where `solutions/` becomes a grep-hostile dump of near-duplicates. Once that failure mode takes hold, `planner.history` and `researcher.history` become noise amplifiers and the entire compound layer stops being an asset.\n\nSimilarity threshold is fixed at 0.85 and is not user-tunable. Making it tunable would mean users lower it the first time dedup inconveniences them. The evaluation framework includes a regression test for this.\n\n### Metadata-only carve-out (CE-6, v1.10.0)\n\n`applied_in: TaskId[]` on solution frontmatter — written by `src/dispatcher/applied-tracker.ts` `recordApplied` from `plan.ts` L3 wire-up — is an **explicit, named exemption** from the dedup write-gate. The rule that binds §3 is \"solution-content changes (intent / prevention / what_didnt_work / source_task_ids / times_referenced) must route through `writeSolution()` with a `dedup_stamp` from `compound.related`\". `applied_in` is audit-trail metadata, not part of the dedup signature, so mutating it does not destabilize the corpus the way duplicated solution content would. `recordApplied` therefore bypasses `writeSolution()` and goes directly through `parseFrontmatter` → spread-preserve-all-other-fields → `serializeFrontmatter` → `writeAtomic`. The regression test `tests/dispatcher/applied-tracker.test.ts` H8 (\"Invariant §3 metadata-only carve-out (CRITICAL)\") is the binding contract: it snapshots every solution-content field before `recordApplied` and asserts byte-for-byte equality after. If that test ever changes shape, the carve-out must be re-evaluated. Future metadata-only fields (anything that does not affect compound-related similarity scoring) may extend this carve-out by the same pattern; new fields that affect dedup MUST route through `writeSolution()`.\n\n## §4. L3 Forbids --auto\n\nAny command invocation at task level L3 with `--auto` or equivalent automation flag is refused at the dispatcher level, with a non-overridable error. L3 tasks require a human signature in `intent.md` and a human confirmation at `/ship`. This is not a default, it is a hard rule.\n\nThe rationale is that L3 is the level at which irreversible architectural decisions live. Automation at L3 means a single miscalibrated classifier run can make an architectural change without human review. The cost of forcing a human in the loop at L3 is minutes per task; the cost of not forcing it is weeks of unwinding.\n\n## §5. Reviewer Overrides Require Human Signature\n\nWhen any reviewer returns `verdict == fail` and the ship gate proceeds anyway, the `override` field in the review report must be populated with `by`, `at`, and `reason`. The reason field has a minimum length of 40 characters to prevent \"ok\" style rubber-stamping. The dispatcher refuses to write a ship.md if a failing review lacks a corresponding populated override.\n\nNo subagent may populate the override field. Overrides are exclusively human.\n\n## §6. Audit-Trail Writes Are Durable (janitor decisions logged · review reports append-only)\n\nTwo faces of one principle: an audit-trail write must survive — never silently skipped, never silently overwritten. Both halves protect the same thing: the ability to later answer \"what was decided, by whom, and when?\"\n\n**(a) Every janitor decision is logged.** `janitor.compound` MUST write a decision report for every task it evaluates, including tasks it decides to skip. This is non-negotiable. The evaluation framework's regression diagnosis depends on being able to answer \"why did this task not generate a solution entry?\" — and the only correct answer is \"because the janitor logged reason X on date Y\". Silent skips are forbidden: a janitor that cannot write its decision must abort the task and surface an error, not default to skip.\n\n**(b) Review / QA / CSO reports are append-only.** Each `reviews/{task_id}/{stage}/{reviewer}.md` (and the analogous `cso/` report) is write-once per `(task, stage, reviewer)` triple — a second write for the same triple is rejected (`StateError(\"AppendOnly\", …)` in `state.ts:appendReview`), never overwritten. A follow-up pass writes a new `<reviewer>.<suffix>.md` via the `--append-as` channel rather than mutating the prior report. Overwriting a verdict would destroy the audit surface the same way a silent janitor skip would.\n\n## §7. Schema Validation Precedes Every Write\n\nThe dispatcher validates every file write against `sgc-state.schema.yaml` before committing. A write that fails validation is rejected with the validation error surfaced to the calling subagent. Subagents may retry with corrected output; they may not disable validation.\n\nThere is no \"validate later\" or \"lenient mode\". If the schema rejects real-world outputs, the schema is wrong and must be fixed; weakening validation is forbidden.\n\n## §8. Scope Tokens Are Computed At Spawn, Not Requested At Runtime\n\nWhen a command invokes a subagent, the dispatcher computes the subagent's scope_token set from the permission matrix and the subagent manifest, and pins that set for the subagent's lifetime. There is no channel by which a running subagent can request additional capabilities: the set is computed before `spawn.start` and never re-read.\n\nThe rationale is that runtime capability elevation is the standard exploit path for prompt injection in agentic systems. Pinning at spawn time removes the elevation channel.\n\n**What \"pinned\" enforces, precisely.** Three distinct guarantees, none of which is syscall interception:\n\n1. **Spawn-time rejection (machine-enforced).** A manifest that declares a token its permission-matrix row forbids never spawns — `capabilities.ts` throws `ScopeViolation` before any work begins. This is what makes §1's `reviewer/qa cannot read:solutions` real rather than aspirational.\n2. **Input gating (machine-enforced).** The dispatcher controls what enters the subagent: the §1 back-channel gate rejects prior-art/pre-mortem content in the `intent` field before `spawn.start`, and the subagent receives only the input the dispatcher hands it.\n3. **Output validation (machine-enforced).** §9 shape validation rejects undeclared output fields, and the §1 leak scan runs over every subagent's output in all modes.\n\n**What it does NOT enforce, and why.** The pinned token set is delivered to LLM-backed subagents as prompt context — it is *advisory to the model*. sgc does not intercept an LLM subagent's file or git access, and **cannot**: in `claude-cli` mode the model's tool use executes inside a separate `claude -p` process, and in API modes it executes on the provider's side. Neither is inside sgc's process boundary. A prompt-injected LLM subagent that reads a file outside its pinned set is therefore caught — if at all — by the post-hoc output scan (verbatim leaks) rather than prevented at access time; a paraphrase can pass.\n\nThis is a deliberate boundary, not a deferred TODO. Treat §8 as **\"pin + gate the I/O the dispatcher owns + scan what comes back\"**, not as a sandbox. Deterministic subagents (inline stubs, `compound.related`) are the only ones whose access is bounded by construction — which is why the invariants that must not be LLM-bypassable (§3's dedup stamp, the §11 classifier floor) are anchored to deterministic code rather than to §8.\n\n`assertScope` / `assertCanSpawn` / `tokensAllow` in `capabilities.ts` exist for dispatcher-mediated access paths and are exercised by `capabilities.test.ts`; they are not — and cannot be — an interception layer over out-of-process model tool use.\n\nThis is the subagent-layer instance of the scope binding mechanism from CLAUDE.md v3.8.\n\n## §9. No Subagent Writes Outside Its Declared Outputs\n\nA subagent manifest declares its `outputs` field. The dispatcher discards any produced content that does not match the declared output shape. A subagent cannot, for example, write a solution entry as a side effect of producing a review report — even if it holds both tokens by some accident of composition.\n\nThis prevents \"helpful\" subagents from corrupting state they were not invited to touch. The canonical failure case is a reviewer noticing a pattern and trying to append to `solutions/` \"while it's here\"; under §1 that is already impossible, but §9 generalizes the principle.\n\n## §10. Failure of Any Compound Substep Aborts the Whole Compound\n\nThe compound cluster has four subagents (context, related, solution, prevention). `janitor.compound` is NOT one of them — it is the separate gate that decides *whether* to compound at all, and runs before the cluster. If any of them fails or times out, the entire compound operation is rolled back and no write to `solutions/` occurs. Partial compound writes are forbidden.\n\nThe rationale is that a half-written solution entry is worse than no entry. A solution without the `what_didnt_work` field, for instance, encourages the reader to re-walk dead-end paths. Better to log a janitor skip with reason `compound_cluster_failure` and surface the error for human diagnosis.\n\n## §11. Classifier Must Justify\n\n`classifier.level` must emit both a level and a rationale. The rationale must reference at least one concrete feature of the task (file count, risk keyword, blast radius, etc.) The dispatcher refuses classifications with empty or generic rationales.\n\nThis exists because without a justified classifier, L3 gets silently downgraded to L2 whenever the classifier is uncertain, and that erodes every downstream guarantee in this document.\n\n## §12. The Evaluation Framework Is Authoritative\n\nThe ten-scenario evaluation framework is the conformance test for this entire specification. When the spec and the evaluation framework disagree, the evaluation framework wins and the spec is amended to match. This prevents spec drift from quietly invalidating the test suite.\n\nWhen a new invariant is added to this document, a corresponding regression test is added to the evaluation framework in the same commit. No exceptions.\n\n## §13. Spawn + LLM Event Audit Completeness (two-tier)\n\nEvery call to `spawn()` MUST emit a paired `spawn.start` and `spawn.end` event to `.sgc/progress/events.ndjson` (Tier 1, all modes). The `end` event's `payload.outcome` MUST be one of `success | timeout | error`.\n\nAdditionally, when the resolved mode is `anthropic-sdk` / `openrouter` / `claude-cli` (any LLM-backed mode), the agent MUST emit a paired `llm.request` and `llm.response` event (Tier 2). `llm.response.payload.outcome` MUST be one of `success | timeout | error | schema_violation`.\n\nEmission is guaranteed by `try/finally` blocks:\n1. `src/dispatcher/spawn.ts` — Tier 1 pair (all modes).\n2. `src/dispatcher/anthropic-sdk-agent.ts` — Tier 2 pair.\n3. `src/dispatcher/openrouter-agent.ts` — Tier 2 pair.\n4. `src/dispatcher/claude-cli-agent.ts` — Tier 2 pair.\n\nOther event types (`dedup.scored`, `review.verdict_emitted`, etc.) are voluntary during Phase G; their schemas evolve freely. Commands are expected (soft contract, smoke-tested) to emit at least one high-level event per primary flow.\n\n**Exemption**: event-sink write failure (disk full, permission error) does NOT fail the spawn. The runtime logs the failure to stderr and continues. Invariant §13 is waived for infra-level write failures.\n\n**Schema**: `EventRecord` v1 is defined in `src/dispatcher/logger.ts`. Every event line carries `schema_version: 1`; additive fields must preserve forward-compatibility, breaking changes bump to v2.\n\n---\n\n## Cross-References\n\n- Invariant §1 is enforced by `sgc-capabilities.yaml` scope token `read:solutions` (forbidden_for list) and by the empty `solutions` row in the permission matrix for `/review` and `/qa`.\n- Invariant §2 is enforced by the `editable_after_creation: false` field on `decisions.intent` and `decisions.ship` in `sgc-state.schema.yaml`.\n- Invariant §3 is enforced by the `dedup` block in `solutions` section of `sgc-state.schema.yaml`, plus a dispatcher check.\n- Invariant §4 is a dispatcher-level rule with no schema representation. It must be added to the command parser as the first-priority check.\n- Invariant §5 is enforced by the conditional `override` field in `reviews.report`.\n- Invariant §6 is enforced on two paths: (a) the `janitor_decision` file being a required output of `janitor.compound` in the subagent manifest, and (b) the write-once guard in `state.ts:appendReview` that rejects a second write to the same `(task, stage, reviewer)` triple with `StateError(\"AppendOnly\", …)`.\n- Invariants §7, §8, §9 are dispatcher-level and have no schema representation.\n- Invariant §10 is enforced by `compound.*` subagents running as a transaction; no partial commits.\n- Invariant §11 is enforced by the required `rationale` field on `classifier.level` outputs.\n- Invariant §12 is procedural and enforced by code review discipline.\n- Invariant §13 is enforced by `try/finally` in `src/dispatcher/spawn.ts` (Tier 1) and in each LLM-mode agent file (`anthropic-sdk-agent.ts`, `openrouter-agent.ts`, `claude-cli-agent.ts`) for Tier 2. Regression-tested by `tests/dispatcher/spawn-events.test.ts`, `tests/dispatcher/llm-agent-events.test.ts`, `tests/dispatcher/commands-event-emission.test.ts`, and `tests/eval/invariants.test.ts` (Task 12 scenario).\n";
 var init_sgc_invariants = () => {};
 
 // prompts/clarifier-discover.md
@@ -7063,7 +7077,7 @@ Classify a user's engineering request into L0, L1, L2, or L3 per the sgc level d
 
 ## Scope
 
-- Token scope: read:progress, read:decisions (read current-task context if relevant)
+- Token scope: read:progress (this is the full grant — the manifest does NOT give you read:decisions)
 - Forbidden: read:solutions (reviewer-adjacent isolation — do not consult past answers)
 - Allowed outputs: level, rationale, affected_readers_candidates
 
@@ -15071,7 +15085,7 @@ var init_preventions = __esm(() => {
 });
 
 // src/dispatcher/applied-tracker.ts
-import { existsSync as existsSync8, readFileSync as readFileSync10, statSync as statSync2 } from "node:fs";
+import { existsSync as existsSync8, readFileSync as readFileSync10, statSync as statSync3 } from "node:fs";
 function selectSurfacedRefs(prior_art, floor = SURFACED_RELEVANCE_FLOOR) {
   return Array.from(new Set(prior_art.filter((p) => p.relevance_score >= floor).map((p) => p.solution_ref)));
 }
@@ -15126,7 +15140,7 @@ function recordOne(ref, task_id, stateRoot, opts, result, field, eventAgent) {
     return;
   }
   for (let attempt = 0;attempt <= MAX_MTIME_RETRIES; attempt++) {
-    const mtimeBefore = statSync2(filePath).mtimeMs;
+    const mtimeBefore = statSync3(filePath).mtimeMs;
     let parsed;
     try {
       parsed = parseFrontmatter(readFileSync10(filePath, "utf8"));
@@ -15144,7 +15158,7 @@ function recordOne(ref, task_id, stateRoot, opts, result, field, eventAgent) {
       ...parsed.data,
       [field]: [...existing, task_id]
     };
-    const mtimeReread = statSync2(filePath).mtimeMs;
+    const mtimeReread = statSync3(filePath).mtimeMs;
     if (mtimeReread !== mtimeBefore) {
       if (attempt === MAX_MTIME_RETRIES) {
         result.stale_skipped.push(ref);
@@ -18270,7 +18284,7 @@ import {
   mkdirSync as mkdirSync4,
   readFileSync as readFileSync15,
   readdirSync as readdirSync6,
-  renameSync as renameSync2,
+  renameSync as renameSync3,
   unlinkSync as unlinkSync3,
   writeFileSync as writeFileSync6
 } from "node:fs";
@@ -18337,7 +18351,7 @@ function writeAtomic2(path2, content) {
   const tmp = `${path2}.tmp.${process.pid}.${Date.now()}.${atomicWriteSeq2++}.${randomBytes3(4).toString("hex")}`;
   writeFileSync6(tmp, content, "utf8");
   try {
-    renameSync2(tmp, path2);
+    renameSync3(tmp, path2);
   } catch (err) {
     try {
       unlinkSync3(tmp);
@@ -18875,7 +18889,7 @@ var exports_tail = {};
 __export(exports_tail, {
   runTail: () => runTail
 });
-import { closeSync as closeSync4, existsSync as existsSync17, openSync as openSync4, readSync, statSync as statSync3 } from "node:fs";
+import { closeSync as closeSync4, existsSync as existsSync17, openSync as openSync4, readSync, statSync as statSync4 } from "node:fs";
 import { resolve as resolve14 } from "node:path";
 function globMatch(pattern, value) {
   if (value === null)
@@ -18965,7 +18979,7 @@ async function runTail(opts = {}) {
   const readNew = () => {
     if (!existsSync17(path2))
       return;
-    const sz = statSync3(path2).size;
+    const sz = statSync4(path2).size;
     if (sz < lastSize) {
       offset = 0;
     }
@@ -19067,6 +19081,10 @@ async function runAgentLoop(opts = {}) {
       throw new Error("submitted YAML must parse to an object");
     }
     validateOutputShape(manifest, parsed);
+    const leak = scanOutputForLeak(agentName, parsed, getFingerprintsCached(root4));
+    if (leak.hit) {
+      throw new Error(`Invariant §1 violation (output leak): submitted result for ${agentName} contains ${leak.count} line(s) matching solutions/ content. ` + `Sample(s): ${leak.samples.map((s2) => `"${s2}"`).join(", ")}. ` + `Reviewers and qa agents must stay amnesiac to past solutions — see sgc-invariants.md §1.`);
+    }
     writeAtomic(rp, serializeFrontmatter(parsed, ""));
     log(`wrote ${rp}`);
     return { action: "submit", submittedTo: rp };
@@ -19102,6 +19120,7 @@ async function runAgentLoop(opts = {}) {
 var init_agent_loop = __esm(() => {
   init_js_yaml();
   init_schema();
+  init_fingerprint();
   init_spawn_protocol();
   init_state();
   init_validation();
@@ -19961,6 +19980,9 @@ function runPath(stateRoot2, runId) {
 function loopClaimLockPath(stateRoot2) {
   return resolve15(loopRunsDir(stateRoot2), ".claim.lock");
 }
+function runExecLockPath(stateRoot2, runId) {
+  return resolve15(loopRunsDir(stateRoot2), `.${runId}.exec.lock`);
+}
 function readRun(path2) {
   const text = readFileSync17(path2, "utf8");
   try {
@@ -19996,7 +20018,14 @@ async function getDefaultRunners() {
           stateRoot: opts.stateRoot,
           motivation: opts.motivation,
           userSignature: opts.userSignature,
-          forceLevel: opts.forceLevel
+          forceLevel: opts.forceLevel,
+          ...process.stdin.isTTY ? {} : {
+            readConfirmation: async () => {
+              throw new LoopError("L3NeedsConfirmation", `task classified L3 — Invariant §4 requires a human confirmation at stdin, and ` + `this loop has no terminal attached. Plan it by hand first:
+  sgc plan "${state.task}" --signed-by <you> --motivation "..."
+then resume: sgc loop --resume ${state.run_id}`, { run_id: state.run_id, reason: "l3_needs_tty" });
+            }
+          }
         });
         return {
           task_id: r3.taskId,
@@ -20082,96 +20111,109 @@ async function runLoop(task, opts) {
       releaseClaimLock();
     }
   }
-  const overrides = opts.steps ?? {};
-  let runners;
-  if (overrides.plan && overrides.review && overrides.qa && overrides.compound) {
-    runners = overrides;
-  } else {
-    const defaults = await getDefaultRunners();
-    runners = {
-      plan: overrides.plan ?? defaults.plan,
-      review: overrides.review ?? defaults.review,
-      qa: overrides.qa ?? defaults.qa,
-      compound: overrides.compound ?? defaults.compound
-    };
-  }
-  for (const stepName of STEPS) {
-    const entry = findStep(run, stepName);
-    if (entry.status === "done" || entry.status === "skipped")
-      continue;
-    if (entry.status === "paused") {
-      entry.status = "done";
-      entry.completed_at = new Date(now()).toISOString();
-      run.last_updated_at = entry.completed_at;
-      writeRun(runFilePath, run);
-      continue;
+  let releaseExecLock;
+  try {
+    releaseExecLock = acquireFileLock(runExecLockPath(stateRoot2, run.run_id));
+  } catch (err) {
+    if (err instanceof LockHeldError) {
+      throw new LoopError("ConcurrentRunActive", `loop run ${run.run_id} is already in progress (holder pid=${err.holderPid}). Wait for it to finish or park, then resume.`, { run_id: run.run_id, active_pid: err.holderPid });
     }
-    if (MANUAL_GATES.has(stepName)) {
-      entry.status = "paused";
+    throw err;
+  }
+  try {
+    const overrides = opts.steps ?? {};
+    let runners;
+    if (overrides.plan && overrides.review && overrides.qa && overrides.compound) {
+      runners = overrides;
+    } else {
+      const defaults = await getDefaultRunners();
+      runners = {
+        plan: overrides.plan ?? defaults.plan,
+        review: overrides.review ?? defaults.review,
+        qa: overrides.qa ?? defaults.qa,
+        compound: overrides.compound ?? defaults.compound
+      };
+    }
+    for (const stepName of STEPS) {
+      const entry = findStep(run, stepName);
+      if (entry.status === "done" || entry.status === "skipped")
+        continue;
+      if (entry.status === "paused") {
+        entry.status = "done";
+        entry.completed_at = new Date(now()).toISOString();
+        run.last_updated_at = entry.completed_at;
+        writeRun(runFilePath, run);
+        continue;
+      }
+      if (MANUAL_GATES.has(stepName)) {
+        entry.status = "paused";
+        entry.started_at = new Date(now()).toISOString();
+        run.current_step = stepName;
+        run.status = "paused";
+        run.last_updated_at = entry.started_at;
+        delete run.failed_step;
+        delete run.error;
+        writeRun(runFilePath, run);
+        const pauseReason = stepName === "work" ? "paused_work" : stepName === "qa" ? "paused_qa" : "paused_ship";
+        return { run, terminal_reason: pauseReason };
+      }
+      entry.status = "in_progress";
       entry.started_at = new Date(now()).toISOString();
       run.current_step = stepName;
-      run.status = "paused";
-      run.last_updated_at = entry.started_at;
-      delete run.failed_step;
-      delete run.error;
-      writeRun(runFilePath, run);
-      const pauseReason = stepName === "work" ? "paused_work" : stepName === "qa" ? "paused_qa" : "paused_ship";
-      return { run, terminal_reason: pauseReason };
-    }
-    entry.status = "in_progress";
-    entry.started_at = new Date(now()).toISOString();
-    run.current_step = stepName;
-    run.status = "running";
-    try {
-      if (stepName === "plan") {
-        const out = await runners.plan(run, opts);
-        run.task_id = out.task_id;
-        run.level = out.level;
-        entry.output_ref = out.task_id;
-        if (run.level === "L0") {
-          for (const skipName of ["review", "qa", "ship", "compound"]) {
-            const skipEntry = findStep(run, skipName);
-            if (skipEntry.status === "pending") {
-              skipEntry.status = "skipped";
-              skipEntry.completed_at = new Date(now()).toISOString();
+      run.status = "running";
+      try {
+        if (stepName === "plan") {
+          const out = await runners.plan(run, opts);
+          run.task_id = out.task_id;
+          run.level = out.level;
+          entry.output_ref = out.task_id;
+          if (run.level === "L0") {
+            for (const skipName of ["review", "qa", "ship", "compound"]) {
+              const skipEntry = findStep(run, skipName);
+              if (skipEntry.status === "pending") {
+                skipEntry.status = "skipped";
+                skipEntry.completed_at = new Date(now()).toISOString();
+              }
             }
           }
+        } else if (stepName === "review") {
+          await runners.review(run, opts);
+        } else if (stepName === "qa") {
+          await runners.qa(run, opts);
+        } else if (stepName === "compound") {
+          await runners.compound(run, opts);
         }
-      } else if (stepName === "review") {
-        await runners.review(run, opts);
-      } else if (stepName === "qa") {
-        await runners.qa(run, opts);
-      } else if (stepName === "compound") {
-        await runners.compound(run, opts);
+        entry.status = "done";
+        entry.completed_at = new Date(now()).toISOString();
+        delete entry.error;
+        run.last_updated_at = entry.completed_at;
+        delete run.failed_step;
+        delete run.error;
+        writeRun(runFilePath, run);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        entry.status = "failed";
+        entry.error = msg;
+        entry.completed_at = new Date(now()).toISOString();
+        run.status = "failed";
+        run.failed_step = stepName;
+        run.error = msg;
+        run.last_updated_at = entry.completed_at;
+        run.current_step = stepName;
+        writeRun(runFilePath, run);
+        return { run, terminal_reason: "failed" };
       }
-      entry.status = "done";
-      entry.completed_at = new Date(now()).toISOString();
-      delete entry.error;
-      run.last_updated_at = entry.completed_at;
-      delete run.failed_step;
-      delete run.error;
-      writeRun(runFilePath, run);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      entry.status = "failed";
-      entry.error = msg;
-      entry.completed_at = new Date(now()).toISOString();
-      run.status = "failed";
-      run.failed_step = stepName;
-      run.error = msg;
-      run.last_updated_at = entry.completed_at;
-      run.current_step = stepName;
-      writeRun(runFilePath, run);
-      return { run, terminal_reason: "failed" };
     }
+    run.status = "complete";
+    run.current_step = "done";
+    run.last_updated_at = new Date(now()).toISOString();
+    delete run.failed_step;
+    delete run.error;
+    writeRun(runFilePath, run);
+    return { run, terminal_reason: "complete" };
+  } finally {
+    releaseExecLock();
   }
-  run.status = "complete";
-  run.current_step = "done";
-  run.last_updated_at = new Date(now()).toISOString();
-  delete run.failed_step;
-  delete run.error;
-  writeRun(runFilePath, run);
-  return { run, terminal_reason: "complete" };
 }
 function listRunsRaw(stateRoot2) {
   const dir = loopRunsDir(stateRoot2);
@@ -20229,7 +20271,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.32.0",
+    version: "1.33.0",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -20237,9 +20279,6 @@ var init_package = __esm(() => {
     },
     files: [
       "plugins/sgc/bin/sgc.mjs",
-      "src/",
-      "contracts/",
-      "prompts/",
       "README.md",
       "LICENSE",
       "CHANGELOG.md"
@@ -20296,7 +20335,7 @@ var init_package = __esm(() => {
 });
 
 // src/dispatcher/metrics.ts
-import { readFileSync as readFileSync18, statSync as statSync4 } from "node:fs";
+import { readFileSync as readFileSync18, statSync as statSync5 } from "node:fs";
 import { resolve as resolve16, dirname as dirname5 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 function computeStandardization(invariantYaml) {
@@ -20335,7 +20374,7 @@ function computeMetricsLive(root4) {
   const pkg = JSON.parse(readFileSync18(resolve16(root4, "package.json"), "utf8"));
   let bundleBytes = 0;
   try {
-    bundleBytes = statSync4(resolve16(root4, "plugins/sgc/bin/sgc.mjs")).size;
+    bundleBytes = statSync5(resolve16(root4, "plugins/sgc/bin/sgc.mjs")).size;
   } catch {
     bundleBytes = 0;
   }
@@ -20351,10 +20390,10 @@ function computeRuntimeMetrics() {
   try {
     const self = fileURLToPath2(import.meta.url);
     if (self.endsWith("sgc.mjs")) {
-      bundleBytes = statSync4(self).size;
+      bundleBytes = statSync5(self).size;
     } else {
       const repoRoot = resolve16(dirname5(self), "..", "..");
-      bundleBytes = statSync4(resolve16(repoRoot, "plugins/sgc/bin/sgc.mjs")).size;
+      bundleBytes = statSync5(resolve16(repoRoot, "plugins/sgc/bin/sgc.mjs")).size;
     }
   } catch {
     bundleBytes = 0;
@@ -20438,14 +20477,16 @@ __export(exports_doctor, {
   statusHeaderFreshness: () => statusHeaderFreshness,
   runDoctor: () => runDoctor,
   readmeScorecardDrift: () => readmeScorecardDrift,
+  readAgentMdFiles: () => readAgentMdFiles,
   extractCliSubcommands: () => extractCliSubcommands,
   ciPinnedBunVersion: () => ciPinnedBunVersion,
   bundleStaleSeverity: () => bundleStaleSeverity,
   bundleParityCheck: () => bundleParityCheck,
-  bundleExecBitOk: () => bundleExecBitOk
+  bundleExecBitOk: () => bundleExecBitOk,
+  agentMetadataDrift: () => agentMetadataDrift
 });
 import { createHash as createHash4 } from "node:crypto";
-import { existsSync as existsSync20, mkdtempSync, readdirSync as readdirSync8, readFileSync as readFileSync19, rmSync } from "node:fs";
+import { existsSync as existsSync20, mkdtempSync, readdirSync as readdirSync8, readFileSync as readFileSync19, rmSync, statSync as statSync6 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname as dirname6, resolve as resolve17 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
@@ -20509,6 +20550,48 @@ function readmeScorecardDrift(readme, live) {
     }
   }
   return drifts;
+}
+function agentMetadataDrift(files, lookup) {
+  const drifts = [];
+  for (const f3 of files) {
+    const entry = lookup(f3.id);
+    if (!entry) {
+      drifts.push(`${f3.id}: ${f3.file} has no manifest entry (orphan registry file)`);
+      continue;
+    }
+    const desc = (/description:\s*"([^"]*)"/.exec(f3.text)?.[1] ?? "").toLowerCase();
+    const slotOnly = entry.status === "slot-only";
+    const heuristic = !entry.prompt_path;
+    if (slotOnly && !/(not implemented|slot-only|never dispatched|not wired)/.test(desc)) {
+      drifts.push(`${f3.id}: manifest says status slot-only (never dispatched) but ${f3.file} advertises it as working`);
+      continue;
+    }
+    if (!slotOnly && heuristic && !/(heuristic|keyword match|deterministic|not llm-backed|rule-based)/.test(desc)) {
+      drifts.push(`${f3.id}: manifest says prompt_path null (not LLM-backed) but ${f3.file} does not disclose it`);
+    }
+  }
+  return drifts;
+}
+function readAgentMdFiles(root4) {
+  const dir = resolve17(root4, "plugins", "sgc", "agents");
+  if (!existsSync20(dir))
+    return [];
+  const out = [];
+  for (const group of readdirSync8(dir)) {
+    const gdir = resolve17(dir, group);
+    if (!statSync6(gdir).isDirectory())
+      continue;
+    for (const f3 of readdirSync8(gdir)) {
+      if (!f3.endsWith(".md"))
+        continue;
+      out.push({
+        id: `${group}.${f3.slice(0, -3)}`,
+        file: `plugins/sgc/agents/${group}/${f3}`,
+        text: readFileSync19(resolve17(gdir, f3), "utf8")
+      });
+    }
+  }
+  return out;
 }
 function ciPinnedBunVersion(workflowYaml) {
   const m2 = workflowYaml.match(/bun-version:\s*["']?([0-9]+\.[0-9]+\.[0-9]+)["']?/);
@@ -20858,6 +20941,26 @@ async function runDoctor(opts = {}) {
       }
     } catch (e2) {
       emit({ severity: "fail", msg: `  ✗ metrics baseline check error: ${e2.message.slice(0, 80)}` });
+    }
+  }
+  log("");
+  log("=== agent registry ↔ manifest ===");
+  {
+    const files = readAgentMdFiles(root4);
+    if (files.length === 0) {
+      emit({ severity: "ok", msg: "  ⓘ agent registry check skipped (no plugins/sgc/agents/ — npm channel)" });
+    } else {
+      try {
+        const drifts = agentMetadataDrift(files, (id) => getSubagentManifest(id) ?? null);
+        if (drifts.length === 0) {
+          emit({ severity: "ok", msg: `  ✓ ${files.length} agent descriptions match manifest reality` });
+        } else {
+          for (const d2 of drifts)
+            emit({ severity: "fail", msg: `  ✗ agent metadata drift — ${d2}` });
+        }
+      } catch (e2) {
+        emit({ severity: "fail", msg: `  ✗ agent registry check error: ${e2.message.slice(0, 80)}` });
+      }
     }
   }
   log("");
@@ -22603,7 +22706,7 @@ __export(exports_cso, {
   aggregateVerdict: () => aggregateVerdict
 });
 import { execSync as execSync2 } from "node:child_process";
-import { existsSync as existsSync23, mkdirSync as mkdirSync7, readFileSync as readFileSync20, statSync as statSync5 } from "node:fs";
+import { existsSync as existsSync23, mkdirSync as mkdirSync7, readFileSync as readFileSync20, statSync as statSync7 } from "node:fs";
 import { resolve as resolve24 } from "node:path";
 function isoStamp() {
   const d2 = new Date;
@@ -22693,7 +22796,7 @@ function scanSecrets(repoRoot2) {
       continue;
     let stat5;
     try {
-      stat5 = statSync5(abs);
+      stat5 = statSync7(abs);
     } catch {
       continue;
     }
@@ -22861,7 +22964,7 @@ function readEventsTail2(eventsPath2) {
   }
   let raw;
   try {
-    const st = statSync5(eventsPath2);
+    const st = statSync7(eventsPath2);
     if (st.size === 0) {
       warnings.push("events.ndjson is empty; anomaly check skipped");
       return { lines: [], warnings };
@@ -22971,6 +23074,11 @@ var init_cso = __esm(() => {
     { name: "GitHub PAT", re: /gh[ps]_[A-Za-z0-9]{36,}/ },
     { name: "OpenAI API key", re: /sk-[A-Za-z0-9]{20,}/ },
     { name: "Slack token", re: /xox[abprs]-[A-Za-z0-9-]{10,}/ },
+    { name: "Stripe live key", re: /(?:sk|rk)_live_[A-Za-z0-9]{16,}/ },
+    { name: "JWT", re: /eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{20,}/ },
+    { name: "Google API key", re: /AIza[A-Za-z0-9_-]{35}/ },
+    { name: "npm token", re: /npm_[A-Za-z0-9]{36}/ },
+    { name: "Slack webhook URL", re: /hooks\.slack\.com\/services\/T[A-Za-z0-9]{8,}\/B[A-Za-z0-9]{8,}\/[A-Za-z0-9]{20,}/ },
     {
       name: "generic api-key/password assignment",
       re: /\b(?:api[_-]?key|api[_-]?secret|access[_-]?token|password|secret[_-]?key|private[_-]?key)\s*[=:]\s*["'][^"'\s]{16,}["']/i
@@ -24398,7 +24506,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.32.0",
+  version: "1.33.0",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {
@@ -24406,9 +24514,6 @@ var package_default = {
   },
   files: [
     "plugins/sgc/bin/sgc.mjs",
-    "src/",
-    "contracts/",
-    "prompts/",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"

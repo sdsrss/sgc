@@ -1,5 +1,115 @@
 # Changelog
 
+## v1.33.0 — 2026-07-15 — audit v1.31.8 remediation, batch M3: the audit is closed
+
+Closes the v1.31.8 audit: **27 of 28 findings fixed, 1 judged a false report**
+(see "Not fixed" below). With v1.32.0's 16, that is every P1, every P2, and
+every P3 the audit raised. Test suite 1269 → 1410 (+141 regression tests) across
+the three batches.
+
+### Upgrade notes
+
+- **`sgc cso` may now fail a ship it previously passed.** Five new secret
+  patterns (Stripe live, JWT, Google API key, npm token, Slack webhook). That is
+  the point — but if you have fixtures carrying those shapes outside the already
+  excluded test paths, expect a finding.
+- **The npm package no longer ships `src/`, `contracts/` or `prompts/`.** The
+  bundle inlines all of them; nothing at runtime read the shipped copies. Only
+  relevant if you were importing from inside `node_modules/@sdsrs/sgc/src/` —
+  which was never a supported entry point (the package exposes `bin`, not
+  `exports`).
+- **`.sgc/progress/events.ndjson` now rotates at 10MB**, keeping one generation
+  as `events.ndjson.1`. If you archive the event stream, collect both files.
+- **`sgc loop` on an L3 task with no terminal now fails fast** instead of
+  blocking forever on a confirmation prompt. Plan L3 by hand first, then resume.
+
+M3's theme is **metadata is runtime behavior**. `plugins/sgc/agents/**/*.md`
+frontmatter is what Claude Code reads to decide whether a capability exists, and
+nothing bound it to the manifest — so it drifted into advertising an "OWASP Top
+10" security reviewer that is a regex over `auth|jwt|token`, and two reviewers
+"Dispatched by /review" that the manifest marks `slot-only` and that nothing has
+ever dispatched. doctor already gates the prompts↔manifest and slash↔CLI
+registries; this third one had no gate, which is exactly why it rotted.
+
+### Fixed
+
+- **P3-2 · The agent registry no longer overclaims.** 10 descriptions were
+  wrong, not the 6 the audit found — `compound.related`, `janitor.archive`,
+  `janitor.compound` and `qa.browser` were also silent about not being
+  LLM-backed. Each now uses its accurate word rather than one imposed vocabulary:
+  keyword matcher (the derived reviewers), NOT IMPLEMENTED / slot-only
+  (`adversarial`, `spec`), deterministic by design (`compound.related` — kept out
+  of LLM hands so it cannot mint a dedup verdict past the §3 gate), real browser
+  (`qa.browser`, stub by default). New doctor check (N) binds the registry to the
+  manifest so it cannot drift again.
+- **P3-3 · `skills/review/SKILL.md` and `review.ts`'s header caught up with
+  v1.27.0.** Both still said specialists were "L3 only" and that
+  tests/maintainability were "not yet wired into runReview" — four releases after
+  Phase 2c wired them at L2+. This is LLM-visible routing metadata, so a stale
+  claim here misroutes work.
+- **P3-4 · An L3 step in a loop with no terminal fails instead of hanging.**
+  It reached runPlan's interactive stdin gate and blocked on a prompt nobody
+  would answer. Now fails fast with the command that can answer it. Deliberately
+  not auto-confirming — §4's human gate at L3 is the point. (The audit's scenario
+  needed a correction: the hang only happens with `--signed-by`, since the
+  signature check fires before the prompt.)
+- **P3-5 · `agent-loop --submit` runs the §1 leak scan.** §9 validates output
+  FIELDS but cannot inspect values, so a submitted reviewer result quoting
+  `solutions/` went straight to disk. The file-poll flow masked it; `--submit`
+  exists precisely for the case with no poller, where nothing re-validated.
+- **P3-6 · A loop run is locked for its duration.** The claim lock only covered
+  [scan → writeRun] — the steps then ran unlocked, and `--resume` took no lock at
+  all, so two resumes of the same run both drove it. Broader than the audit
+  recorded (it named only resume).
+- **P3-7 · Multi-process lock proof + the fsync question, decided.** New test
+  forks real processes to fight over one lock: single-process tests would pass on
+  an in-memory Set, which is useless against the actual hazard. `writeAtomic`
+  deliberately does NOT fsync, and now says so and why: `.sgc/` is developer-local
+  workflow state whose loss costs one re-run, so paying a disk flush per write
+  would be a bad bargain — with a note on what to change if that ever stops being
+  true.
+- **P3-10 · Three counting claims corrected**, each verified rather than copied:
+  README's "19 subcommands" is 20; invariants §10's "five subagents" is four
+  (`janitor.compound` is the separate gate deciding *whether* to compound);
+  the classifier prompt claimed `read:decisions`, which its manifest does not
+  grant — an overclaim in LLM-visible text.
+- **P3-12 · cso detects Stripe live keys, JWTs, Google API keys, npm tokens and
+  Slack webhooks.** `sk-` caught OpenAI but not `sk_live_`. All prefix-anchored
+  with bounded length classes (ReDoS-safe); `sk_test_` is deliberately not
+  flagged, since flagging safe-to-commit keys trains operators to ignore the gate.
+
+### Changed
+
+- **P3-8 · publish is gated as hard as push.** `publish.yml` now typechecks.
+  bun strips types at runtime, so a type error is invisible to `bun test` and
+  would have shipped on a tag whose test.yml never ran.
+- **P3-9 · The npm package is 44% smaller and the event stream is bounded.**
+  `files[]` dropped `src/`, `contracts/` and `prompts/` — the bundle inlines all
+  of them and node never runs the TS source. Verified by packing and installing
+  the trimmed tarball into a clean tree (529KB → 296KB packed, 90 → 5 files,
+  doctor 34 OK / 0 fail from the installed bin). `events.ndjson` now rotates to
+  `.1` at 10MB, keeping one generation. Rotation does drop the oldest audit
+  trail, which §13 cares about — but unbounded growth does not preserve it
+  either, it just makes it unreadable and takes `sgc tail` and cso's anomaly
+  detection down with it.
+
+### Not fixed (audit was wrong)
+
+- **P3-11 · "The 规范化 metric trusts self-declared `machine_enforced` with no
+  proof of a test."** False: doctor check (G) already fails when a
+  `machine_enforced: true` invariant lists no tests, or cites a test file that
+  does not exist — verified by pointing §8 at a nonexistent file and watching it
+  fail. And the one thing that genuinely isn't verified (whether the cited test
+  actually asserts the invariant) is already stated in
+  `invariant-enforcement.yaml`'s own header: "file-existence is what doctor
+  verifies; not a per-assertion audit". The contract was honest; the audit missed
+  check G. No change.
+- **P3-12's second half · "upgrade the >200KB skip from warn to a finding".**
+  Rejected: the skip is already a `warn` (not `pass`, as the audit implied), and
+  this repo git-tracks its own ~950KB bundle — so the change would make `sgc cso`
+  fail on sgc itself on every run. A gate that always fails is a gate that gets
+  ignored. Pinned with tests instead.
+
 ## v1.32.0 — 2026-07-15 — audit v1.31.8 remediation: 16 findings across two batches
 
 A full external audit of v1.31.8 (`docs/COMPREHENSIVE-AUDIT-v1.31.8.md` — five

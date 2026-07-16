@@ -96,6 +96,18 @@ function collectConcerns(input: FusePlanInput): RawConcern[] {
   return out
 }
 
+// Append `add` to a concern's also_flagged_by, deduped, and never listing the
+// representative source itself (C2/ALG-4: "去重自身").
+function addFlaggedBy(
+  existing: ConcernSource[] | undefined,
+  add: ConcernSource,
+  representative: ConcernSource,
+): ConcernSource[] {
+  const set = new Set([...(existing ?? []), add])
+  set.delete(representative)
+  return [...set]
+}
+
 function dedupeConcerns(concerns: RawConcern[]): FusedConcern[] {
   const kept: RawConcern[] = []
   for (const c of concerns) {
@@ -106,8 +118,19 @@ function dedupeConcerns(concerns: RawConcern[]): FusedConcern[] {
       // J(∅,∅)=1 would otherwise merge unrelated information-free concern keys
       // (ALG-1 audit fix).
       if (featureOverlap(cTokens, tokenize(k._key)) >= DEDUP_THRESHOLD) {
-        if (SEVERITY_RANK[c.severity] > SEVERITY_RANK[k.severity]) k.severity = c.severity
-        k.also_flagged_by = [...(k.also_flagged_by ?? []), c.source]
+        if (SEVERITY_RANK[c.severity] > SEVERITY_RANK[k.severity]) {
+          // C2/ALG-4: the higher-severity party becomes the representative —
+          // adopt its text/source, and record the displaced lower-severity
+          // source in also_flagged_by. Previously only severity was raised, so
+          // the kept concern's low-severity text/source stayed but was relabeled
+          // high, and the informative high-severity text was dropped.
+          k.also_flagged_by = addFlaggedBy(k.also_flagged_by, k.source, c.source)
+          k.severity = c.severity
+          k.text = c.text
+          k.source = c.source
+        } else {
+          k.also_flagged_by = addFlaggedBy(k.also_flagged_by, c.source, k.source)
+        }
         merged = true
         break
       }

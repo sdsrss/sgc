@@ -455,7 +455,7 @@ export async function bundleParityCheck(root: string): Promise<CheckRow> {
   // a flag change can never produce a silent false-STALE failure here.
   const buildScript = resolve(root, "scripts", "build-cli.mjs")
   if (!existsSync(srcEntry) || !existsSync(committed) || !existsSync(buildScript)) {
-    return { severity: "ok", msg: "  ⓘ bundle-hash parity skipped (no source checkout — dev/CI-only check)" }
+    return { severity: "ok", msg: "  ⓘ bundle-hash parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" }
   }
   const tmp = mkdtempSync(resolve(tmpdir(), "sgc-bundle-"))
   const out = resolve(tmp, "sgc.mjs")
@@ -612,7 +612,7 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   log("")
   log("=== bunfig.toml [test] root ===")
   if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ bunfig.toml root skipped (no source checkout — dev/CI-only check)" })
+    emit({ severity: "ok", msg: "  ⓘ bunfig.toml root skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
   } else {
     const bunfigPath = resolve(root, "bunfig.toml")
     if (!existsSync(bunfigPath)) {
@@ -634,7 +634,7 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   log("")
   log("=== package.json files ↔ no vendored plugins/ ===")
   if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ package.json files skipped (no source checkout — dev/CI-only check)" })
+    emit({ severity: "ok", msg: "  ⓘ package.json files skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
   } else {
     const pkgPath = resolve(root, "package.json")
     if (!existsSync(pkgPath)) {
@@ -688,7 +688,7 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   // iePath is also referenced by check (I); declare it here so both share scope.
   const iePath = resolve(root, "contracts/invariant-enforcement.yaml")
   if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ invariant-enforcement.yaml skipped (no source checkout — dev/CI-only check)" })
+    emit({ severity: "ok", msg: "  ⓘ invariant-enforcement.yaml skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
   } else if (!existsSync(iePath)) {
     emit({
       severity: "warn",
@@ -757,7 +757,7 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   log("")
   log("=== slash commands ↔ CLI subcommands ===")
   if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ slash↔CLI parity skipped (no source checkout — dev/CI-only check)" })
+    emit({ severity: "ok", msg: "  ⓘ slash↔CLI parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
   } else {
     const sgcSrcPath = resolve(root, "src/sgc.ts")
     const commandsDir = resolve(root, "plugins/sgc/commands")
@@ -808,7 +808,7 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   log("")
   log("=== invariant sources aligned (§ count) ===")
   if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ invariant-source parity skipped (no source checkout — dev/CI-only check)" })
+    emit({ severity: "ok", msg: "  ⓘ invariant-source parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
   } else {
     const invMdPath = resolve(root, "contracts/sgc-invariants.md")
     if (!existsSync(invMdPath) || !existsSync(iePath)) {
@@ -857,7 +857,7 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   log("=== metrics baseline drift ===")
   const baselinePath = resolve(root, "metrics", "metrics-baseline.yaml")
   if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ metrics baseline skipped (no source checkout — dev/CI-only check)" })
+    emit({ severity: "ok", msg: "  ⓘ metrics baseline skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
   } else if (!existsSync(baselinePath)) {
     emit({ severity: "fail", msg: "  ✗ metrics/metrics-baseline.yaml missing — run `sgc metrics --write-baseline`" })
   } else {
@@ -959,7 +959,7 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   log("")
   log("=== README four-化 scorecard parity ===")
   if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ README scorecard parity skipped (no source checkout — dev/CI-only check)" })
+    emit({ severity: "ok", msg: "  ⓘ README scorecard parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
   } else {
     const readmePath = resolve(root, "README.md")
     if (!existsSync(readmePath)) {
@@ -983,7 +983,7 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   log("")
   log("=== plugins/sgc/CLAUDE.md status header freshness ===")
   if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ CLAUDE.md freshness skipped (no source checkout — dev/CI-only check)" })
+    emit({ severity: "ok", msg: "  ⓘ CLAUDE.md freshness skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
   } else {
     const claudeMdPath = resolve(root, "plugins", "sgc", "CLAUDE.md")
     const pkgPath = resolve(root, "package.json")

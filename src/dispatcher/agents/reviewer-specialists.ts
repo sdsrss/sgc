@@ -179,8 +179,12 @@ export const INFRA_TERMS: readonly Term[] = [
   // "--k8s-context" still does.
   { display: "k8s", re: String.raw`k8s\b`, wordBounded: false },
   { display: "terraform", re: "terraform", wordBounded: false },
-  { display: "helm", re: "helm", wordBounded: false },
-  { display: "argo", re: "argo", wordBounded: false },
+  // C5/ALG-7: `helm` and `argo` are short English substrings — unbounded they
+  // matched `overwhelm` and `cargo` in the REPORT matcher. Bounded here so the
+  // report side needs a real word; the spawn trigger drops the wrapper (unbound)
+  // and so still fires on `argocd`/`argoproj` etc.
+  { display: "helm", re: "helm", wordBounded: true },
+  { display: "argo", re: "argo", wordBounded: true },
   { display: "fly.toml", re: String.raw`fly\.toml`, wordBounded: false },
   { display: "render.yaml", re: String.raw`render\.yaml`, wordBounded: false },
   { display: "vercel.json", re: String.raw`vercel\.json`, wordBounded: false },

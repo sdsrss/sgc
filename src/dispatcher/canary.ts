@@ -327,6 +327,12 @@ export async function runCanaryChecks(
       }
       // mark lastResult as consumed to satisfy strict-noUnusedLocals
       void lastResult
+    } else {
+      // C3/ALG-5 (§9 parallel-path completeness): the phase set comes from the
+      // CLI (`--phases`, parsed as raw strings), so a value outside the union
+      // can reach here. Fail loudly instead of silently skipping it and letting
+      // the run report success.
+      throw new Error(`unknown canary phase: ${String(phase)}`)
     }
   }
 

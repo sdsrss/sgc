@@ -435,8 +435,13 @@ test("doctor (B) prompts check uses embedded keys, not readdirSync", async () =>
   // `fail`, so fail===0 still passes. Asserting the exact skip-row text means
   // removing ANY single guard flips that check from the skip row to a warn row,
   // failing one of these matchers.
+  // C8/Q-7: the skip reason must state what was actually tested (no src/sgc.ts
+  // at the module-relative root), NOT "no source checkout" — which is false when
+  // the bundle runs from inside a checkout (root resolves to plugins/sgc, so
+  // src/ is simply not at ../.. from the bundle, even though the tree has one).
+  const SKIP_RE = /skipped \(no src\/sgc\.ts at the resolved root/
   const skipRow = (snippet: string): boolean =>
-    lines.some((l) => l.includes(snippet) && /skipped \(no source checkout/.test(l))
+    lines.some((l) => l.includes(snippet) && SKIP_RE.test(l))
   expect(skipRow("bunfig.toml root")).toBe(true) // (D)
   expect(skipRow("package.json files")).toBe(true) // (E)
   expect(skipRow("invariant-enforcement.yaml")).toBe(true) // (G)
@@ -447,8 +452,11 @@ test("doctor (B) prompts check uses embedded keys, not readdirSync", async () =>
   expect(skipRow("CLAUDE.md freshness")).toBe(true) // (L)
   expect(skipRow("README scorecard parity")).toBe(true) // (M)
 
+  // The skip line no longer claims "no source checkout" — that lie is the defect.
+  expect(lines.some((l) => l.includes("no source checkout"))).toBe(false)
+
   // All nine skips land as `ok` rows, never warn/fail — so the bogus root yields
   // zero warnings beyond embedded-prompt orphans and zero hard failures.
-  const skipRowCount = lines.filter((l) => /skipped \(no source checkout/.test(l)).length
+  const skipRowCount = lines.filter((l) => SKIP_RE.test(l)).length
   expect(skipRowCount).toBe(9)
 })

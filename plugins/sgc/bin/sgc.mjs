@@ -16763,6 +16763,24 @@ var init_reviewer_correctness2 = __esm(() => {
   reviewerCorrectness = reviewerCorrectnessHeuristic;
 });
 
+// src/dispatcher/agents/terms.ts
+function buildPattern(terms, flags = "i") {
+  if (terms.length === 0) {
+    throw new Error("buildPattern needs at least one term — an empty alternation matches everything");
+  }
+  const bounded = terms.filter((t2) => t2.wordBounded).map((t2) => t2.re);
+  const free = terms.filter((t2) => !t2.wordBounded).map((t2) => t2.re);
+  const parts = [];
+  if (bounded.length > 0)
+    parts.push(`\\b(${bounded.join("|")})\\b`);
+  if (free.length > 0)
+    parts.push(free.join("|"));
+  return new RegExp(parts.join("|"), flags);
+}
+function displayList(terms) {
+  return terms.map((t2) => t2.display).join("|");
+}
+
 // src/dispatcher/agents/reviewer-specialists.ts
 function addedLines(diff) {
   return diff.split(`
@@ -16796,51 +16814,108 @@ function reviewerInfra(input) {
 function matchSpecialists(diff) {
   return DIFF_CONDITIONAL_SPECIALISTS.filter((s2) => s2.trigger.test(diff));
 }
-var SECURITY, MIGRATION, PERFORMANCE, INFRA, DIFF_CONDITIONAL_SPECIALISTS;
+var SECURITY_TERMS, SECURITY, MIGRATION_TERMS, MIGRATION, PERFORMANCE_TERMS, PERFORMANCE, INFRA_TERMS, INFRA, PERFORMANCE_TRIGGER_ONLY, unbound = (ts) => ts.map((t2) => ({ ...t2, wordBounded: false })), DIFF_CONDITIONAL_SPECIALISTS;
 var init_reviewer_specialists = __esm(() => {
+  SECURITY_TERMS = [
+    { display: "auth", re: "auth", wordBounded: false },
+    { display: "jwt", re: "jwt", wordBounded: false },
+    { display: "token", re: "token", wordBounded: false },
+    { display: "session", re: "session", wordBounded: false },
+    { display: "crypto", re: "crypto", wordBounded: false },
+    { display: "password", re: "password", wordBounded: false },
+    { display: "secret", re: "secret", wordBounded: false },
+    { display: "signature", re: "signature", wordBounded: false },
+    { display: "encrypt", re: "encrypt", wordBounded: false },
+    { display: "decrypt", re: "decrypt", wordBounded: false },
+    { display: "verifyAuth", re: "verifyAuth", wordBounded: false },
+    { display: "signJwt", re: "signJwt", wordBounded: false },
+    { display: "signToken", re: "signToken", wordBounded: false }
+  ];
   SECURITY = {
     name: "reviewer.security",
-    pattern: /(auth|jwt|token|session|crypto|password|secret|signature|encrypt|decrypt|verifyAuth|signJwt|signToken)/i,
+    terms: SECURITY_TERMS,
+    pattern: buildPattern(SECURITY_TERMS),
     severity: "medium",
     describe: (line) => `security-sensitive change in added line: ${line}`
   };
+  MIGRATION_TERMS = [
+    { display: "ALTER TABLE", re: String.raw`ALTER\s+TABLE`, wordBounded: true },
+    { display: "DROP TABLE", re: String.raw`DROP\s+TABLE`, wordBounded: true },
+    { display: "CREATE TABLE", re: String.raw`CREATE\s+TABLE`, wordBounded: true },
+    { display: "ALTER COLUMN", re: String.raw`ALTER\s+COLUMN`, wordBounded: true },
+    { display: "RENAME COLUMN", re: String.raw`RENAME\s+COLUMN`, wordBounded: true },
+    { display: "migration", re: "migration", wordBounded: true },
+    { display: "backfill", re: "backfill", wordBounded: true }
+  ];
   MIGRATION = {
     name: "reviewer.migration",
-    pattern: /\b(ALTER\s+TABLE|DROP\s+TABLE|CREATE\s+TABLE|ALTER\s+COLUMN|RENAME\s+COLUMN|migration|backfill)\b/i,
+    terms: MIGRATION_TERMS,
+    pattern: buildPattern(MIGRATION_TERMS),
     severity: "high",
     describe: (line) => `migration-shaped change requires explicit rollback + concurrency review: ${line}`
   };
+  PERFORMANCE_TERMS = [
+    { display: "cache", re: "cache", wordBounded: true },
+    { display: "cached/caching", re: "cach(ed|ing)", wordBounded: true },
+    { display: "index", re: "index", wordBounded: true },
+    { display: "memoize", re: "memoi[sz]e", wordBounded: true },
+    { display: "debounce", re: "debounce", wordBounded: true },
+    { display: "throttle", re: "throttle", wordBounded: true },
+    { display: "n+1", re: String.raw`n\+1`, wordBounded: true },
+    { display: "benchmark", re: "benchmark", wordBounded: true },
+    { display: "p95/p99", re: "p9[59]", wordBounded: true },
+    { display: "O(n…)", re: String.raw`O\(n\^?\d*\)`, wordBounded: false }
+  ];
   PERFORMANCE = {
     name: "reviewer.performance",
-    pattern: /\b(cache|cach(ed|ing)|index|memoi[sz]e|debounce|throttle|n\+1|benchmark|p9[59])\b|O\(n\^?\d*\)/i,
+    terms: PERFORMANCE_TERMS,
+    pattern: buildPattern(PERFORMANCE_TERMS),
     severity: "medium",
     describe: (line) => `performance-touching change in added line: ${line}`
   };
+  INFRA_TERMS = [
+    { display: "Dockerfile", re: "Dockerfile", wordBounded: false },
+    { display: "FROM <image>", re: String.raw`FROM\s+\w`, wordBounded: false },
+    { display: "kubectl", re: "kubectl", wordBounded: false },
+    { display: "k8s", re: String.raw`k8s\b`, wordBounded: false },
+    { display: "terraform", re: "terraform", wordBounded: false },
+    { display: "helm", re: "helm", wordBounded: false },
+    { display: "argo", re: "argo", wordBounded: false },
+    { display: "fly.toml", re: String.raw`fly\.toml`, wordBounded: false },
+    { display: "render.yaml", re: String.raw`render\.yaml`, wordBounded: false },
+    { display: "vercel.json", re: String.raw`vercel\.json`, wordBounded: false },
+    { display: "github/workflows", re: String.raw`github\/workflows`, wordBounded: false }
+  ];
   INFRA = {
     name: "reviewer.infra",
-    pattern: /(Dockerfile|FROM\s+\w|kubectl|k8s\b|terraform|helm|argo|fly\.toml|render\.yaml|vercel\.json|github\/workflows)/i,
+    terms: INFRA_TERMS,
+    pattern: buildPattern(INFRA_TERMS),
     severity: "high",
     describe: (line) => `infra-shaped change requires deploy + rollback review: ${line}`
   };
+  PERFORMANCE_TRIGGER_ONLY = [
+    { display: "perf", re: "perf", wordBounded: false },
+    { display: "performance", re: "performance", wordBounded: false }
+  ];
   DIFF_CONDITIONAL_SPECIALISTS = [
     {
       name: "reviewer.security",
-      trigger: /(auth|jwt|token|session|crypto|password|secret|signature|encrypt|decrypt)/i,
+      trigger: buildPattern(unbound(SECURITY_TERMS)),
       agent: reviewerSecurity
     },
     {
       name: "reviewer.migration",
-      trigger: /(migration|ALTER\s+TABLE|DROP\s+TABLE|CREATE\s+TABLE|ALTER\s+COLUMN|RENAME\s+COLUMN|backfill)/i,
+      trigger: buildPattern(unbound(MIGRATION_TERMS)),
       agent: reviewerMigration
     },
     {
       name: "reviewer.performance",
-      trigger: /(perf|performance|cache|caching|memoi[sz]e|index|benchmark|n\+1|O\(n\^?\d*\)|p9[59]|debounce|throttle)/i,
+      trigger: buildPattern(unbound([...PERFORMANCE_TERMS, ...PERFORMANCE_TRIGGER_ONLY])),
       agent: reviewerPerformance
     },
     {
       name: "reviewer.infra",
-      trigger: /(Dockerfile|FROM\s+\w|kubectl|k8s\b|terraform|helm|fly\.toml|vercel\.json|render\.yaml|github\/workflows|argo)/i,
+      trigger: buildPattern(unbound(INFRA_TERMS)),
       agent: reviewerInfra
     }
   ];
@@ -16876,7 +16951,7 @@ function reviewerTests(input) {
         description: `source/behavior change without test additions: ${sourceChanged.slice(0, 5).join(", ")}`
       }
     ];
-    return { verdict: "concern", severity: "medium", findings };
+    return { verdict: "concern", severity: TESTS_SEVERITY, findings };
   }
   return { verdict: "pass", severity: "none", findings: [] };
 }
@@ -16895,14 +16970,22 @@ function reviewerMaintainability(input) {
       });
     }
   }
-  const severity = findings.length > 0 ? "low" : "none";
+  const severity = findings.length > 0 ? MAINTAINABILITY_SEVERITY : "none";
   const verdict = findings.length > 0 ? "concern" : "pass";
   return { verdict, severity, findings };
 }
-var NON_SOURCE, MAINT_MARKERS, MAX_LINE = 120;
+var NON_SOURCE, MAINT_MARKER_TERMS, MAINT_MARKERS, MAX_LINE = 120, MAINTAINABILITY_SEVERITY = "low", TESTS_SEVERITY = "medium", TESTS_MECHANISM = "a file-path check over the diff's `+++ b/<path>` headers";
 var init_reviewer_quality = __esm(() => {
   NON_SOURCE = /\.(md|markdown|txt|json|ya?ml|toml|lock|cfg|ini)$/i;
-  MAINT_MARKERS = /(TODO|FIXME|@ts-ignore|@ts-nocheck|eslint-disable|\bas any\b)/;
+  MAINT_MARKER_TERMS = [
+    { display: "TODO", re: "TODO", wordBounded: false },
+    { display: "FIXME", re: "FIXME", wordBounded: false },
+    { display: "@ts-ignore", re: "@ts-ignore", wordBounded: false },
+    { display: "@ts-nocheck", re: "@ts-nocheck", wordBounded: false },
+    { display: "eslint-disable", re: "eslint-disable", wordBounded: false },
+    { display: "as any", re: "as any", wordBounded: true }
+  ];
+  MAINT_MARKERS = buildPattern(MAINT_MARKER_TERMS, "");
 });
 
 // src/commands/review.ts
@@ -19369,6 +19452,77 @@ var init_agent_loop = __esm(() => {
   init_logger();
 });
 
+// src/dispatcher/agent-facts.ts
+function fallbackTerms(id) {
+  switch (id) {
+    case "reviewer.security":
+      return displayList(SECURITY.terms);
+    case "reviewer.migration":
+      return displayList(MIGRATION.terms);
+    case "reviewer.performance":
+      return displayList(PERFORMANCE.terms);
+    case "reviewer.infra":
+      return displayList(INFRA.terms);
+    default:
+      throw new Error(`${id} has no term list`);
+  }
+}
+function severityOf(id) {
+  switch (id) {
+    case "reviewer.security":
+      return SECURITY.severity;
+    case "reviewer.migration":
+      return MIGRATION.severity;
+    case "reviewer.performance":
+      return PERFORMANCE.severity;
+    case "reviewer.infra":
+      return INFRA.severity;
+    case "reviewer.tests":
+      return TESTS_SEVERITY;
+    case "reviewer.maintainability":
+      return MAINTAINABILITY_SEVERITY;
+    default:
+      throw new Error(`${id} has no severity`);
+  }
+}
+function deriveCliFact(agentId) {
+  if (!DERIVED_AGENT_IDS.includes(agentId)) {
+    throw new Error(`${agentId} is not in the derived set — see DERIVED_AGENT_IDS`);
+  }
+  const m2 = getSubagentManifest(agentId);
+  if (!m2)
+    throw new Error(`${agentId} has no manifest entry`);
+  if (m2.status === "slot-only" || m2.status === "manual-only") {
+    const why = agentId === "janitor.archive" ? "there is no archive command and no janitor-archive module" : "this id is not wired into the CLI";
+    return `${CLI_FACT_MARKER} ${why} (manifest status: ${m2.status}), so \`sgc review\` never produces a result for it — Claude Code dispatch is the only executor.`;
+  }
+  if (m2.prompt_path) {
+    const fb = agentId === "reviewer.tests" ? `${TESTS_MECHANISM} that only asks whether test files were touched, at ${severityOf(agentId)} severity` : `a keyword matcher (${fallbackTerms(agentId)}) at ${severityOf(agentId)} severity`;
+    return `${CLI_FACT_MARKER} ${NO_BODY} — with an API key it runs ${m2.prompt_path}; without one it falls back to ${fb}.`;
+  }
+  if (agentId === "reviewer.maintainability") {
+    return `${CLI_FACT_MARKER} ${NO_BODY} — there, reviewer.maintainability is a heuristic matcher over added lines: longer than ${MAX_LINE} characters, or carrying a suppression marker (${displayList(MAINT_MARKER_TERMS)}), at ${MAINTAINABILITY_SEVERITY} severity. That is the whole of it.`;
+  }
+  return `${CLI_FACT_MARKER} ${NO_BODY} — there, ${agentId} is a heuristic keyword matcher over added lines (${fallbackTerms(agentId)}) at ${severityOf(agentId)} severity, which matches words about the problem rather than detecting it. Its spawn trigger is deliberately wider than that matcher, so a spawned reviewer reporting zero findings is not evidence of a clean diff.`;
+}
+var CLI_FACT_MARKER = "Separate fact for sgc CLI users:", DERIVED_AGENT_IDS, NO_BODY = "`sgc review` does not run this file's body";
+var init_agent_facts = __esm(() => {
+  init_schema();
+  init_reviewer_specialists();
+  init_reviewer_quality();
+  DERIVED_AGENT_IDS = [
+    "reviewer.security",
+    "reviewer.tests",
+    "reviewer.performance",
+    "reviewer.maintainability",
+    "reviewer.migration",
+    "reviewer.infra",
+    "reviewer.adversarial",
+    "reviewer.spec",
+    "janitor.archive"
+  ];
+});
+
 // src/commands/plan.ts
 var exports_plan2 = {};
 __export(exports_plan2, {
@@ -20523,7 +20677,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.35.0",
+    version: "1.36.0",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -20728,9 +20882,11 @@ var exports_doctor = {};
 __export(exports_doctor, {
   statusHeaderFreshness: () => statusHeaderFreshness,
   runDoctor: () => runDoctor,
+  rewriteCliFact: () => rewriteCliFact,
   readmeScorecardDrift: () => readmeScorecardDrift,
   readAgentMdFiles: () => readAgentMdFiles,
   extractCliSubcommands: () => extractCliSubcommands,
+  cliFactDrift: () => cliFactDrift,
   ciPinnedBunVersion: () => ciPinnedBunVersion,
   bundleStaleSeverity: () => bundleStaleSeverity,
   bundleParityCheck: () => bundleParityCheck,
@@ -20738,7 +20894,7 @@ __export(exports_doctor, {
   agentMetadataDrift: () => agentMetadataDrift
 });
 import { createHash as createHash4 } from "node:crypto";
-import { existsSync as existsSync20, mkdtempSync, readdirSync as readdirSync8, readFileSync as readFileSync19, rmSync, statSync as statSync6 } from "node:fs";
+import { existsSync as existsSync20, mkdtempSync, readdirSync as readdirSync8, readFileSync as readFileSync19, rmSync, statSync as statSync6, writeFileSync as writeFileSync7 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname as dirname6, resolve as resolve17 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
@@ -20840,6 +20996,53 @@ function agentMetadataDrift(files, lookup, manifestIds = []) {
   }
   return drifts;
 }
+function cliFactDrift(files) {
+  const drifts = [];
+  for (const f3 of files) {
+    if (!DERIVED_AGENT_IDS.includes(f3.id))
+      continue;
+    let desc;
+    try {
+      desc = readFrontmatterDescription(f3.text);
+    } catch (err) {
+      drifts.push(`${f3.id}: ${f3.file} frontmatter does not parse (${String(err).slice(0, 80)})`);
+      continue;
+    }
+    const at = desc.indexOf(CLI_FACT_MARKER);
+    if (at < 0) {
+      drifts.push(`${f3.id}: ${f3.file} has no \`${CLI_FACT_MARKER}\` clause — run \`sgc doctor --write-descriptions\``);
+      continue;
+    }
+    if (at === 0) {
+      drifts.push(`${f3.id}: ${f3.file} opens with the CLI fact — the capability sentence must come first. ` + `This field's only consumer is Claude Code's dispatch decision; leading with a disclaimer suppresses it.`);
+      continue;
+    }
+    const actual = desc.slice(at);
+    const expected = deriveCliFact(f3.id);
+    if (actual !== expected) {
+      drifts.push(`${f3.id}: ${f3.file} CLI-fact clause is stale.
+    expected: ${expected}
+    actual:   ${actual}
+` + `    fix: sgc doctor --write-descriptions`);
+    }
+  }
+  return drifts;
+}
+function rewriteCliFact(text, id) {
+  const m2 = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
+  if (!m2)
+    throw new Error(`${id}: no frontmatter block`);
+  const parsed = load(m2[1]);
+  const desc = typeof parsed["description"] === "string" ? parsed["description"] : "";
+  const at = desc.indexOf(CLI_FACT_MARKER);
+  const capability = (at < 0 ? desc : desc.slice(0, at)).trimEnd();
+  parsed["description"] = `${capability} ${deriveCliFact(id)}`;
+  const front = dump(parsed, { lineWidth: -1, quotingType: '"', forceQuotes: false });
+  return `---
+${front.trimEnd()}
+---
+${text.slice(m2[0].length)}`;
+}
 function readFrontmatterDescription(text) {
   const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1];
   if (block === undefined)
@@ -20936,6 +21139,23 @@ async function runDoctor(opts = {}) {
   const caps = getCapabilities();
   const manifests = Object.entries(caps.subagents);
   const hasSource = existsSync20(resolve17(root4, "src", "sgc.ts"));
+  if (opts.writeDescriptions) {
+    try {
+      const written = [];
+      for (const f3 of readAgentMdFiles(root4)) {
+        if (!DERIVED_AGENT_IDS.includes(f3.id))
+          continue;
+        const next = rewriteCliFact(f3.text, f3.id);
+        if (next !== f3.text) {
+          writeFileSync7(resolve17(root4, f3.file), next, "utf8");
+          written.push(f3.id);
+        }
+      }
+      log(written.length > 0 ? `wrote CLI-fact clause for: ${written.join(", ")}` : "all CLI-fact clauses already match the code");
+    } catch (e2) {
+      log(`✗ --write-descriptions failed: ${e2.message.slice(0, 120)}`);
+    }
+  }
   log("=== Manifest prompt_path ↔ prompts/ ===");
   for (const [name, m2] of manifests) {
     if (m2.prompt_path == null)
@@ -21242,6 +21462,37 @@ async function runDoctor(opts = {}) {
     }
   }
   log("");
+  log("=== agent description ↔ derived CLI fact ===");
+  if (!hasSource) {
+    emit({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no plugins/sgc/agents/ — npm channel)" });
+  } else {
+    try {
+      const files = readAgentMdFiles(root4);
+      if (files.length === 0) {
+        emit({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no plugins/sgc/agents/ — npm channel)" });
+      } else {
+        const present = new Set(files.map((f3) => f3.id));
+        const missingIds = DERIVED_AGENT_IDS.filter((id) => !present.has(id));
+        for (const id of missingIds) {
+          emit({
+            severity: "fail",
+            msg: `  ✗ ${id}: no plugins/sgc/agents/${id.replace(".", "/")}.md — a missing file cannot carry the derived clause`
+          });
+        }
+        const factDrifts = cliFactDrift(files);
+        if (factDrifts.length === 0 && missingIds.length === 0) {
+          const checked = files.filter((f3) => DERIVED_AGENT_IDS.includes(f3.id)).length;
+          emit({ severity: "ok", msg: `  ✓ ${checked} agent CLI-fact clauses match the code` });
+        } else {
+          for (const d2 of factDrifts)
+            emit({ severity: "fail", msg: `  ✗ ${d2}` });
+        }
+      }
+    } catch (e2) {
+      emit({ severity: "fail", msg: `  ✗ CLI-fact check error: ${e2.message.slice(0, 80)}` });
+    }
+  }
+  log("");
   log("=== README four-化 scorecard parity ===");
   if (!hasSource) {
     emit({ severity: "ok", msg: "  ⓘ README scorecard parity skipped (no source checkout — dev/CI-only check)" });
@@ -21296,6 +21547,7 @@ var init_doctor = __esm(() => {
   init_subprocess();
   init_js_yaml();
   init_schema();
+  init_agent_facts();
   init_embedded_data();
   init_metrics();
   moduleDir2 = dirname6(fileURLToPath3(import.meta.url));
@@ -21531,7 +21783,7 @@ var exports_metrics = {};
 __export(exports_metrics, {
   runMetrics: () => runMetrics
 });
-import { mkdirSync as mkdirSync6, writeFileSync as writeFileSync7 } from "node:fs";
+import { mkdirSync as mkdirSync6, writeFileSync as writeFileSync8 } from "node:fs";
 import { dirname as dirname7, resolve as resolve19 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 async function runMetrics(opts = {}) {
@@ -21540,7 +21792,7 @@ async function runMetrics(opts = {}) {
     const live = computeMetricsLive(root4);
     const path2 = resolve19(root4, "metrics", "metrics-baseline.yaml");
     mkdirSync6(dirname7(path2), { recursive: true });
-    writeFileSync7(path2, serializeBaseline(live), "utf8");
+    writeFileSync8(path2, serializeBaseline(live), "utf8");
     console.error(`wrote: ${path2}`);
     return;
   }
@@ -24809,7 +25061,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.35.0",
+  version: "1.36.0",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {
@@ -25513,9 +25765,16 @@ var doctor = defineCommand({
     name: "doctor",
     description: "Consistency check across contracts/sgc-capabilities.yaml \u2194 prompts/ \u2194 slot-only annotations. Exit 1 on any failure."
   },
-  async run() {
+  args: {
+    "write-descriptions": {
+      type: "boolean",
+      required: false,
+      description: "Regenerate the derived CLI-fact clause in plugins/sgc/agents/**/*.md"
+    }
+  },
+  async run({ args }) {
     const { runDoctor: runDoctor2 } = await Promise.resolve().then(() => (init_doctor(), exports_doctor));
-    const report = await runDoctor2();
+    const report = await runDoctor2({ writeDescriptions: args["write-descriptions"] });
     if (report.fail > 0)
       process.exit(1);
   }

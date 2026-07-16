@@ -1,5 +1,85 @@
 # Changelog
 
+## v1.36.0 — 2026-07-16 — the drifting half of a description is now derived
+
+v1.35.0 aimed the descriptions at the right reader. It did not stop them going stale.
+The M4 and M5 reviews between them found 9 defects in these files; **8 lived in the
+`Separate fact for sgc CLI users:` clause and 0 lived in the capability sentence.** A
+term list hand-written three files away from the regex it describes will drift, and
+did — twice, in opposite directions: the security clause omitted `signature|encrypt|
+decrypt`, and the performance clause advertised an `O(n)` term its regex could not
+match in any natural context.
+
+So that half is no longer written by hand. `deriveCliFact(id)` composes it from the
+manifest and the matchers; `sgc doctor` compares what ships against what the code
+says and **fails** when they disagree.
+
+### MIGRATION — read this if you edit agent descriptions
+
+**1. `sgc doctor` gained a check that fails.** Check (O) asserts each of the 9
+reviewer/janitor descriptions ends with exactly `deriveCliFact(id)`. Hand-edit that
+clause and doctor goes red with the expected string and this fix:
+
+```
+sgc doctor --write-descriptions
+```
+
+**Write only the capability sentence.** The clause after
+`Separate fact for sgc CLI users:` is machine-owned; anything you type there is
+overwritten by the generator and rejected by doctor in the meantime.
+
+**2. The clause text changed for 7 of the 9 agents.** Wording differs from v1.35.0.
+`reviewer.adversarial` and `reviewer.spec` were already byte-identical to the
+derivation and were not touched.
+
+**3. Nothing about `sgc review` changed.** No matcher, trigger, severity or
+`prompt_path` moved. The four specialist matchers and their four spawn triggers were
+rebuilt from term lists and pinned against the v1.35.0 originals by frozen-equivalence
+probes — 237,733 fuzzed inputs across all 8 patterns, 0 disagreements.
+
+**4. The capability sentence of all 9 is byte-identical to v1.35.0**, verified per
+file against `git show 95d0421:`. If you route on these descriptions, the sentence
+your router keys on has not moved.
+
+**Revert path**: `npm i @sdsrs/sgc@1.35.0`, or pin `"@sdsrs/sgc": "1.35.0"`. There is
+no flag to disable check (O) — it is a doctor check, and doctor is not on any runtime
+path.
+
+### Why this shape
+
+`description:` is prose, and prose cannot be made to agree with code by asking people
+to be careful — M4's check (N) tried, by testing for the presence of disclosure
+keywords. That is a magic-word gate, and it failed in both directions: it passed a
+term list missing three terms, and in M5 it *rejected* a more accurate description
+that happened to use none of its words. Check (O) compares bytes against
+`deriveCliFact(id)` instead.
+
+The headline criterion is that **reproducing any M4/M5 defect class now requires
+editing code, not prose** — pinned by 7 tests that each reintroduce one real shipped
+defect. Verified by disabling check (O) and watching exactly 6 of the 7 go red (the
+7th tests `deriveCliFact` directly rather than the gate).
+
+### Also
+
+- **Matcher and trigger are built from one term list per specialist**, so a
+  matcher-only term — `debounce`, `throttle`, `argo`, all shipped unreachable through
+  v1.35.0 — can no longer be written.
+- **`reviewer.tests`' clause stops calling itself a keyword matcher.** It is a
+  file-path check over the diff's `+++ b/<path>` headers and reads no line content;
+  "keyword match" was, precisely, the phrase that satisfied check (N)'s honesty gate.
+- **check (O) survives a broken registry.** A broken symlink under
+  `plugins/sgc/agents/` threw `readAgentMdFiles` straight out of `runDoctor` — the
+  same failure check (N) was fixed for in M4. It now emits a ✗ and lets the rest of
+  the run finish. A registry present but missing an in-scope file is its own ✗ rather
+  than a silent ✓.
+- **`tests/eval/compound-happy.test.ts` stopped reading the developer's working
+  tree.** It called `runShip` without `diffLineCount`, falling through to
+  `git diff --numstat HEAD` against this repo, so whether it passed depended on how
+  much uncommitted work you happened to have: clean tree passed, ≥20 changed lines
+  passed, 1–19 failed. Its sibling injects the count and its comment names the trap.
+
+Suite 1499 → 1548 (+49). `sgc doctor` 70 OK / 0 fail.
+
 ## v1.35.0 — 2026-07-15 — the honesty was aimed at a reader who never reads it
 
 A two-lens review of v1.34.0's metadata work found every factual claim TRUE and the

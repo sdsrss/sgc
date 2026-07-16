@@ -17,6 +17,7 @@
 import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir as osTmpdir } from "node:os"
 import { join, resolve } from "node:path"
+import { proxyAwareFetch } from "./proxy-fetch"
 import { resolveStateRoot, serializeFrontmatter } from "./state"
 import { spawnCapture } from "./subprocess"
 
@@ -194,7 +195,7 @@ async function defaultHttpFetch(
     HEALTH_FETCH_TIMEOUT_MS,
   )
   try {
-    const res = await fetch(url, { signal: controller.signal })
+    const res = await proxyAwareFetch(url, { signal: controller.signal })
     const body = await res.text()
     return { status: res.status, body }
   } finally {

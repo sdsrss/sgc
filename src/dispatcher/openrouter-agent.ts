@@ -10,6 +10,7 @@
 import { readFileSync } from "node:fs"
 import { load as yamlLoad } from "js-yaml"
 import { splitPrompt } from "./anthropic-sdk-agent"
+import { proxyAwareFetch } from "./proxy-fetch"
 import type { SubagentManifest } from "./types"
 import type { LlmAgentContext, LlmRequestPayload, LlmResponsePayload } from "./logger"
 
@@ -137,7 +138,7 @@ export async function runOpenRouterAgent(
     })
   }
 
-  const doFetch = fetchFn ?? globalThis.fetch
+  const doFetch = fetchFn ?? proxyAwareFetch
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   // STAB-2: let a signal drain cancel this in-flight fetch instead of leaving

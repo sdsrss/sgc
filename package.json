@@ -55,7 +55,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",
     "citty": "^0.1.6",
-    "js-yaml": "^4.1.1"
+    "js-yaml": "^4.1.1",
+    "undici": "^6.27.0"
   },
   "optionalDependencies": {
     "playwright": "^1.52.0"

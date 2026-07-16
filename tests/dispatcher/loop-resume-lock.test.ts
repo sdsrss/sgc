@@ -18,6 +18,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { runLoop, LoopError } from "../../src/dispatcher/loop"
 import type { StepRunners } from "../../src/dispatcher/loop"
+import { defaultStepRunners } from "../../src/commands/loop"
 
 let tmp: string
 beforeEach(() => {
@@ -180,7 +181,9 @@ describe("loop L3 stdin gate without a terminal (P3-4)", () => {
       motivation:
         "the legacy sessions table blocks the new auth flow and downstream readers depend on a clean schema for the correctness and clarity of the session contract they rely on",
       userSignature: { signed_at: new Date().toISOString(), signer_id: "ci-bot" },
-      // No `steps` override → the production runners, including runPlan.
+      // C9: the production runners (including runPlan) now live in commands/loop.ts
+      // and are injected via opts.steps — the dispatcher no longer imports them.
+      steps: defaultStepRunners(),
     })
 
     // The loop records step failures in the checkpoint rather than throwing —
@@ -207,6 +210,7 @@ describe("loop L3 stdin gate without a terminal (P3-4)", () => {
       motivation:
         "the legacy sessions table blocks the new auth flow and downstream readers depend on a clean schema for the correctness and clarity of the session contract they rely on",
       userSignature: { signed_at: new Date().toISOString(), signer_id: "ci-bot" },
+      steps: defaultStepRunners(), // C9: production runners from commands/loop.ts
     })
     expect(r.terminal_reason).toBe("failed")
     expect(r.run.error_code).toBe("L3NeedsConfirmation")

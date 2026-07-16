@@ -30,6 +30,7 @@ import {
   serializeFrontmatter,
 } from "../../src/dispatcher/state"
 import { runPlan } from "../../src/commands/plan"
+import { defaultStepRunners } from "../../src/commands/loop"
 
 let stateRoot: string
 
@@ -502,6 +503,9 @@ describe("runLoop — adopts an already-active task (plan → loop)", () => {
     // and the loop dead-ends (resume retries plan forever).
     const r = await runLoop("add an in-app notification bell to the header", {
       stateRoot,
+      // C9: the production runners now come from commands/loop.ts; inject them
+      // to exercise the real default plan runner's active-task adoption.
+      steps: defaultStepRunners(),
     })
     expect(r.terminal_reason).toBe("paused_work")
     expect(r.run.task_id).toBe(planned.taskId)

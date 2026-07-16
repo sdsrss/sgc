@@ -5,10 +5,17 @@ import {
   runLoop,
   listLoopRuns,
   showLoopRun,
+  LoopError,
   type LoopOptions,
   type LoopResult,
   type LoopRun,
+  type StepRunners,
 } from "../dispatcher/loop"
+import { intentPath, readCurrentTask } from "../dispatcher/state"
+import { runPlan } from "./plan"
+import { runReview } from "./review"
+import { runQa } from "./qa"
+import { runCompound } from "./compound"
 
 export interface LoopCliOptions {
   task?: string
@@ -60,6 +67,90 @@ function renderTerminalHint(r: LoopResult): string {
   }
 }
 
+/**
+ * Production step runners for `sgc loop`. C9/ARCH-2: this wiring lives in the
+ * command layer and is injected into the orchestrator via opts.steps —
+ * dispatcher/loop.ts is the lower layer and must not import commands/. Tests
+ * inject their own StepRunners instead.
+ */
+export function defaultStepRunners(): Required<StepRunners> {
+  return {
+    plan: async (state, opts) => {
+      try {
+        const r = await runPlan(state.task, {
+          stateRoot: opts.stateRoot,
+          motivation: opts.motivation,
+          userSignature: opts.userSignature,
+          forceLevel: opts.forceLevel,
+          // P3-4: an L3 classification reaches runPlan's interactive stdin gate
+          // (Invariant §4). With a terminal attached that gate is correct and
+          // runPlan's own reader handles it — so inject nothing. Without one
+          // (CI, a detached run), the loop blocked on a prompt nobody would ever
+          // answer: it looked like a hang, not like a decision waiting. Fail
+          // fast instead, naming the command that CAN answer it.
+          //
+          // Deliberately NOT auto-confirming. §4's human gate at L3 is the whole
+          // point; satisfying it because no human is present would invert it.
+          ...(process.stdin.isTTY
+            ? {}
+            : {
+                readConfirmation: async (): Promise<string> => {
+                  throw new LoopError(
+                    "L3NeedsConfirmation",
+                    `task classified L3 — Invariant §4 requires a human confirmation at stdin, and ` +
+                      `this loop has no terminal attached. Plan it by hand first:\n` +
+                      `  sgc plan "${state.task}" --signed-by <you> --motivation "..."\n` +
+                      `then resume: sgc loop --resume ${state.run_id}`,
+                    { run_id: state.run_id, reason: "l3_needs_tty" },
+                  )
+                },
+              }),
+        })
+        return {
+          task_id: r.taskId,
+          // The loop never forks async, so runPlan always returns a real level
+          // here (the optional level is only absent on the async-parent path).
+          level: r.level!,
+          intent_path: r.intentPath,
+        }
+      } catch (e) {
+        // runPlan refuses when a task is already active (the operator ran
+        // `sgc plan` manually before `sgc loop`, or a prior loop attempt
+        // planned). Without adoption the loop's plan step dead-ends: `--resume`
+        // retries plan and hits the same guard forever. Adopt the active task
+        // instead so `discover → plan → loop` and a retried loop both proceed.
+        // Only intercept the active-task refusal — other plan failures (LLM
+        // errors, schema gates) still propagate. The loop pauses at the work
+        // gate next, so the operator sees the adopted task_id and can abort.
+        const msg = e instanceof Error ? e.message : String(e)
+        const existing = /active task/i.test(msg) ? readCurrentTask(opts.stateRoot) : null
+        if (!existing) throw e
+        const t = existing.task
+        console.error(
+          `loop: adopting active task ${t.task_id} (level ${t.level}) — already planned, not re-planning`,
+        )
+        return {
+          task_id: t.task_id,
+          level: String(t.level),
+          intent_path:
+            t.level === "L0"
+              ? "(L0 — no intent.md)"
+              : intentPath(t.task_id, opts.stateRoot),
+        }
+      }
+    },
+    review: async (_state, opts) => {
+      await runReview({ stateRoot: opts.stateRoot })
+    },
+    qa: async (_state, opts) => {
+      await runQa({ stateRoot: opts.stateRoot })
+    },
+    compound: async (_state, opts) => {
+      await runCompound({ stateRoot: opts.stateRoot })
+    },
+  }
+}
+
 export async function runLoopCommand(
   cliOpts: LoopCliOptions,
 ): Promise<void> {
@@ -89,6 +180,8 @@ export async function runLoopCommand(
 
   // Run or resume.
   const opts: LoopOptions = {
+    // C9/ARCH-2: the command layer supplies the production runners.
+    steps: defaultStepRunners(),
     stateRoot: cliOpts.stateRoot,
     resume: cliOpts.resume,
     motivation: cliOpts.motivation,

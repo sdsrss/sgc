@@ -26,7 +26,7 @@ import {
   readCurrentTask,
   resolveStateRoot,
   serializeFrontmatter,
-  writeSolution,
+  writeSolutionLocked,
   type RedGreenFrontmatter,
 } from "./state"
 import type { DedupStamp, SolutionEntry } from "./types"
@@ -251,7 +251,7 @@ export async function promoteShipFailure(
     reason: dedupAction,
   }
 
-  const written = writeSolution(entry, solutionSlug, stamp, "", stateRoot)
+  const written = await writeSolutionLocked(entry, solutionSlug, stamp, "", stateRoot)
   const promotedRef = `${entry.category}/${solutionSlug}`
 
   // Side-effect: mutate ship-failure frontmatter with promoted_to.
@@ -417,7 +417,7 @@ export async function promoteRedGreen(
     reason: dedupAction,
   }
 
-  const written = writeSolution(entry, solutionSlug, stamp, "", stateRoot)
+  const written = await writeSolutionLocked(entry, solutionSlug, stamp, "", stateRoot)
   const promotedRef = `${entry.category}/${solutionSlug}`
 
   const updatedFm: RedGreenFrontmatter = { ...fm, promoted_to: promotedRef }

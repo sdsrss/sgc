@@ -47,6 +47,7 @@ import {
   type JanitorCompoundOutput,
 } from "../dispatcher/agents/janitor-compound"
 import { runCompound } from "./compound"
+import { isHeuristicMode } from "../dispatcher/types"
 import type { Handoff, JanitorDecision, ShipDoc, TaskId } from "../dispatcher/types"
 import { createLogger, type Logger } from "../dispatcher/logger"
 
@@ -85,6 +86,15 @@ export interface ShipOptions {
    * undefined on any failure → fail-safe to compound).
    */
   diffLineCount?: () => number | undefined
+  /**
+   * B1/F1: accept shipping an L2+ task whose code review is heuristic-only (no
+   * LLM was configured, so the correctness gate verified only that a report
+   * exists). Both must be supplied together and validated like a §5 override:
+   * `acceptedBy` a non-empty signer, `acceptDegradedReview` a reason ≥40 chars.
+   * Recorded immutably in ship.md. Absent → a degraded L2+ review blocks ship.
+   */
+  acceptDegradedReview?: string
+  acceptedBy?: string
   log?: (msg: string) => void
   logger?: Logger
 }
@@ -187,13 +197,21 @@ export async function runShip(opts: ShipOptions = {}): Promise<ShipResult> {
   const failedWithoutOverride = codeReviews.filter(
     (r) =>
       r.verdict === "fail" &&
-      (!r.override || ((r.override.reason ?? "").length < 40)),
+      (!r.override ||
+        (r.override.reason ?? "").length < 40 ||
+        // B3/F3: an override with no named signer is not an override (defense
+        // against a hand-edited review file; validateReview blocks it on write).
+        (r.override.by ?? "").trim().length === 0),
   )
   if (failedWithoutOverride.length > 0) {
     throw new Error(
       `${failedWithoutOverride.length} review(s) with verdict=fail need an override with reason ≥40 chars (Invariant §5)`,
     )
   }
+
+  // B1/F1: set by the degraded-review gate below when an L2+ ship proceeds on a
+  // heuristic-only review via a signed acceptance; threaded into ship.md.
+  let degradedAcceptance: ShipDoc["degraded_review_acceptance"] | undefined
 
   // 7. L2+ qa evidence — must exist AND not stand on a failed verdict.
   // Mirrors the code-review fail-gate above (Invariant §5): a qa report with
@@ -211,12 +229,56 @@ export async function runShip(opts: ShipOptions = {}): Promise<ShipResult> {
     const failedQaWithoutOverride = qaReports.filter(
       (r) =>
         r.verdict === "fail" &&
-        (!r.override || ((r.override.reason ?? "").length < 40)),
+        (!r.override ||
+          (r.override.reason ?? "").length < 40 ||
+          (r.override.by ?? "").trim().length === 0),
     )
     if (failedQaWithoutOverride.length > 0) {
       throw new Error(
         `${failedQaWithoutOverride.length} qa report(s) with verdict=fail need an override with reason ≥40 chars (Invariant §5)`,
       )
+    }
+
+    // B1/F1: BLOCK a degraded (heuristic-only) L2+ review. The gate reads the
+    // engine stamp (A3). A code review is LLM-backed iff its engine is present
+    // AND not "inline". If NONE is LLM-backed — every review heuristic, or a
+    // pre-A3 report with no engine — the gate verified only that a report
+    // EXISTS, not that the code was reviewed (a heuristic reviewer structurally
+    // cannot emit the `fail` this gate blocked on). Note this is stricter than
+    // A3's advisory notice, which counted only proven-`inline`: a gate errs
+    // toward blocking, so a pre-A3 (unknown-engine) report is degraded here.
+    // Scope: code-review cluster only — qa is stub-by-default and honestly
+    // returns `concern`, a separate documented limitation (spec §Scope boundary).
+    const degraded =
+      codeReviews.length > 0 &&
+      !codeReviews.some((r) => r.engine !== undefined && !isHeuristicMode(r.engine))
+    if (degraded) {
+      const by = (opts.acceptedBy ?? "").trim()
+      const reason = (opts.acceptDegradedReview ?? "").trim()
+      if (by.length > 0 || reason.length > 0) {
+        // An acceptance was attempted — a malformed one is a throw, never a
+        // silent bypass (mirrors the §5 fail-override rule B3 hardened).
+        if (by.length === 0) {
+          throw new Error(
+            `--accept-degraded-review requires --accepted-by "<name>" — a named signer (Invariant §5)`,
+          )
+        }
+        if (reason.length < 40) {
+          throw new Error(
+            `--accept-degraded-review reason must be ≥40 chars (Invariant §5); got ${reason.length}`,
+          )
+        }
+        degradedAcceptance = { by, at: nowIso(), reason }
+        log(`⚠ shipped on a heuristic-only review, accepted by ${by}: ${reason}`)
+      } else {
+        throw new Error(
+          `${level} ship blocked: every code review is heuristic (no LLM was configured), so the ` +
+            `correctness gate verified only that a report exists — not that the code was reviewed ` +
+            `(audit F1). Either configure an LLM (OPENROUTER_API_KEY, or the claude CLI) and re-run ` +
+            `\`sgc review\`, or accept the degraded review explicitly: ` +
+            `sgc ship --accepted-by "<name>" --accept-degraded-review "<why, ≥40 chars>".`,
+        )
+      }
     }
   }
 
@@ -264,6 +326,7 @@ export async function runShip(opts: ShipOptions = {}): Promise<ShipResult> {
       deviations: [],
       residuals: [],
       linked_reviews: codeReviews.map((r) => r.report_id),
+      ...(degradedAcceptance ? { degraded_review_acceptance: degradedAcceptance } : {}),
     }
     shipFilePath = writeShip(ship, "", stateRoot)
     log(`wrote ${shipFilePath}`)

@@ -42,7 +42,7 @@ import {
   listSolutions,
   readCurrentTask,
   readIntent,
-  writeSolution,
+  writeSolutionLocked,
 } from "../dispatcher/state"
 import type { DedupStamp, SolutionEntry, TaskId } from "../dispatcher/types"
 import { createLogger, type Logger } from "../dispatcher/logger"
@@ -157,7 +157,7 @@ export async function runCompound(opts: CompoundOptions = {}): Promise<CompoundR
       threshold_met_or_forced: true,
       reason: "update_existing_dedup",
     }
-    const updated = writeSolution(
+    const updated = await writeSolutionLocked(
       {
         ...existingFile.entry,
         source_task_ids: [...existingFile.entry.source_task_ids, taskId],
@@ -246,7 +246,7 @@ export async function runCompound(opts: CompoundOptions = {}): Promise<CompoundR
     threshold_met_or_forced: true,
     reason: opts.force && related.duplicate_match ? "user_forced" : "new_entry",
   }
-  const written = writeSolution(entry, slug, stamp, "", stateRoot)
+  const written = await writeSolutionLocked(entry, slug, stamp, "", stateRoot)
 
   log(
     `compound: action=compound category=${context.category} slug=${slug} related=${related.related_entries.length}`,

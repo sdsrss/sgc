@@ -69,18 +69,33 @@ jobs:
       - name: Bundle parity (committed == rebuild)
         run: git diff --exit-code plugins/sgc/bin/sgc.mjs || (echo "stale bundle — rebuild + commit before tagging" >&2; exit 1)
 
-      - name: Verify tag matches package.json version
+      - name: Verify tag matches package.json AND plugin.json version
+        # B7/CI-1 (audit v1.37.0): the tag↔package.json check was machine-
+        # enforced, but plugin.json (the Claude Code plugin channel's version)
+        # was kept in lockstep only by a setup-note comment. A tag could publish
+        # an npm package at vX while the plugin manifest still said vX-1. Lock
+        # all three: tag == package.json == plugin.json.
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
           PKG_VERSION="$(node -p 'require("./package.json").version')"
+          PLUGIN_VERSION="$(node -p 'require("./plugins/sgc/.claude-plugin/plugin.json").version')"
           if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
             echo "ERROR: tag $GITHUB_REF_NAME (-> $TAG_VERSION) != package.json version $PKG_VERSION" >&2
             exit 1
           fi
-          echo "OK: publishing $PKG_VERSION"
+          if [ "$PKG_VERSION" != "$PLUGIN_VERSION" ]; then
+            echo "ERROR: package.json version $PKG_VERSION != plugin.json version $PLUGIN_VERSION (bump both in lockstep)" >&2
+            exit 1
+          fi
+          echo "OK: publishing $PKG_VERSION (package.json == plugin.json == tag)"
 
-      - name: Run dispatcher tests (gate publish)
-        run: SGC_FORCE_INLINE=1 bun test tests/dispatcher
+      - name: Run dispatcher + eval tests (gate publish)
+        # B7/CI-1: mirror test.yml's gate — it runs dispatcher + eval, so a
+        # tag-time gate on the dispatcher suite ALONE let an eval-covered
+        # regression through whenever the tag did not sit on a green test.yml run
+        # (e.g. a tag on an older commit). LLM eval tests skipIf no key, so this
+        # adds the deterministic eval coverage without needing a CI API key.
+        run: SGC_FORCE_INLINE=1 bun test tests/dispatcher tests/eval
 
       - name: Publish to npm
         run: npm publish --access public --provenance

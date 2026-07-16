@@ -79,9 +79,25 @@ function nowIso(): string {
 // ref reaching this flag was RCE, not just self-harm. argv form has no shell to
 // break out of. Soft-null contract is unchanged: a bogus ref → non-zero exit →
 // "".
-export function captureDiff(base: string, cwd?: string): string {
-  const r = spawnCaptureSync(["git", "diff", base], { cwd })
-  return r.exitCode === 0 ? r.stdout : ""
+export function captureDiff(base: string, cwd?: string, maxBytes?: number): string {
+  const r = spawnCaptureSync(["git", "diff", base], { cwd, maxBuffer: maxBytes })
+  // Three outcomes, deliberately not collapsed to one "" (audit v1.37.0 Q-1):
+  //   exit 0   → git produced the diff (may be "" for a clean tree — a real,
+  //              reviewable "no changes" answer).
+  //   exit -1  → the capture never completed: git missing, killed by signal, or
+  //              stdout exceeded the byte cap and was TRUNCATED. Returning ""
+  //              here would hand the reviewers an empty diff and pass the gate
+  //              on the largest changesets. Hard-fail so review surfaces it.
+  //   exit >0  → git ran and rejected the ref (e.g. a bogus --base). Soft-null
+  //              preserved (P1-1 contract): an invalid/hostile ref returns "".
+  if (r.exitCode === 0) return r.stdout
+  if (r.exitCode === -1) {
+    throw new Error(
+      `git diff capture failed (base=${base}) — the diff was not captured, ` +
+        `so review cannot run against it: ${r.stderr.slice(0, 200)}`,
+    )
+  }
+  return ""
 }
 
 // Strip the researcher.history Prior-art block from intent.body before
@@ -221,6 +237,7 @@ export async function runReview(opts: ReviewOptions = {}): Promise<{
     severity: r.output.severity,
     findings: r.output.findings,
     created_at: nowIso(),
+    engine: r.mode,
   }
   const reportPath = appendReview(correctnessReport, "", stateRoot, opts.appendAs)
 
@@ -259,6 +276,7 @@ export async function runReview(opts: ReviewOptions = {}): Promise<{
       severity: res.output.severity,
       findings: res.output.findings,
       created_at: nowIso(),
+      engine: res.mode,
     }
     const path = appendReview(report, "", stateRoot, opts.appendAs)
     clusterReports.push({
@@ -320,6 +338,7 @@ export async function runReview(opts: ReviewOptions = {}): Promise<{
           severity: out.severity,
           findings: out.findings,
           created_at: nowIso(),
+          engine: specResults[i]!.mode,
         }
         const path = appendReview(report, "", stateRoot, opts.appendAs)
         specialistReports.push({

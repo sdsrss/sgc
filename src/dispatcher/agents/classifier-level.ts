@@ -58,6 +58,23 @@ const SECURITY_KEYWORDS = [
   /\brate[- ]?limit(ing|ed|er|s)?\b|\bthrottl(e|ing|ed)\b/i,
 ]
 
+// B4/F5: structural signals for a genuinely architectural task phrased with NO
+// API/schema/migration/refactor keyword — "rework how the dispatcher hands
+// results between stages" floored at L1 and skipped the review + qa cluster in
+// the no-LLM path. These escalate restructuring / cross-cutting language to L2
+// (min), NOT L3: over-classifying is the safe error here, and L2 gets the
+// review+qa gate without demanding the L3 signature ceremony for a fuzzy verb
+// match. Checked AFTER the explicit L3/L2/security sets (they win) and AFTER the
+// strong-L0 short-circuit (a typo in a "redesign doc" stays L0). Deliberately
+// high-signal: restructuring verbs, cross-module scope, and data/control-flow —
+// not bare "change" / "update" / "move".
+const ARCHITECTURAL_KEYWORDS = [
+  /\b(rework|restructure|overhaul|revamp|re-?wire|re-?architect|re-?design)\b/i,
+  /\bacross\b[^.]{0,30}\b(modules?|components?|stages?|services?|packages?|subsystems?|layers?|boundaries)\b/i,
+  /\b(data|control)[- ]?flow\b/i,
+  /\bhow\b[^.]{0,45}\b(hand|pass|flow|move|route|thread)\w*\b[^.]{0,25}\bbetween\b/i,
+]
+
 // ALG-5: unambiguous trivial-edit markers that WIN over incidental L2/L3
 // keyword mentions. Checked before L3/L2 so "fix the API docs typo" (typo) and
 // "rename the token variable" (variable rename) classify L0 instead of being
@@ -125,6 +142,14 @@ export function classifierLevelHeuristic(input: ClassifierInput): ClassifierOutp
       rationale:
         "request touches security/auth surface (login/credential/oauth/vuln/rate-limit); minimum L2 so the change gets independent review + qa gate",
       affected_readers_candidates: ["dispatcher", "downstream callers", "security reviewers"],
+    }
+  }
+  if (ARCHITECTURAL_KEYWORDS.some((re) => re.test(req))) {
+    return {
+      level: "L2",
+      rationale:
+        "request uses restructuring / cross-cutting language (rework/restructure/across-modules/data-flow) with no explicit keyword; minimum L2 so the review + qa cluster runs on an architectural change the keyword sets miss (B4/F5)",
+      affected_readers_candidates: ["dispatcher", "downstream callers"],
     }
   }
   if (L0_KEYWORDS.some((re) => re.test(req))) {

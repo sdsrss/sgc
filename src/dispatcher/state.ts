@@ -36,6 +36,7 @@ import { dirname, join, resolve } from "node:path"
 import { dump as yamlDump, load as yamlLoad } from "js-yaml"
 import { LEVELS, PLAN_VERDICTS } from "./types"
 import { clearFingerprintCache } from "./fingerprint"
+import { withFileLock } from "./file-lock"
 import type {
   CurrentTask,
   DedupStamp,
@@ -600,6 +601,15 @@ function validateReview(report: ReviewReport): void {
         `review override.reason must be ≥40 chars (Invariant §5); got ${r.length}`,
       )
     }
+    // B3/F3: an override needs an attributable human, not just a long reason.
+    // Symmetric with the L3 plan gate's user_signature — a fail verdict cannot
+    // be waved through by an anonymous `{by:""}`.
+    if ((report.override.by ?? "").trim().length === 0) {
+      throw new StateError(
+        "SchemaViolation",
+        "review override.by (the signer) must be a non-empty name (Invariant §5)",
+      )
+    }
   }
 }
 
@@ -897,6 +907,50 @@ export function writeSolution(
   // per command).
   clearFingerprintCache()
   return { path, entry: finalEntry }
+}
+
+/** The cross-process lock file guarding one solution's read-merge-write. */
+export function solutionLockPath(
+  category: SolutionCategory,
+  slug: string,
+  stateRoot?: string,
+): string {
+  return solutionPath(category, slug, stateRoot) + ".lock"
+}
+
+/**
+ * ARCH-1 (audit v1.37.0): writeSolution is a read-merge-write (read the existing
+ * file, union source_task_ids / what_didnt_work, bump times_referenced, write).
+ * Unlocked, two concurrent writers to the same slug lost-update — the second
+ * silently discards the first's merge. The writers are separate PROCESSES (a
+ * manual `sgc compound` and an automated canary/ship promotion), so the race is
+ * cross-process; writeSolution itself is synchronous and cannot interleave
+ * within one process.
+ *
+ * This wraps the whole sync critical section in the O_EXCL cross-process lock
+ * (file-lock.ts). withFileLock WAITS on live contention (2s default budget) so
+ * the writers serialize instead of overwriting each other. Every concurrent
+ * production caller (compound / compound-promote / canary-promote) MUST use
+ * this; direct `writeSolution` remains for single-process/test callers.
+ */
+export async function writeSolutionLocked(
+  entry: SolutionEntry,
+  slug: string,
+  dedupStamp: DedupStamp,
+  body = "",
+  stateRoot?: string,
+  lockOpts: { retries?: number; retryDelayMs?: number } = {},
+): Promise<{ path: string; entry: SolutionEntry }> {
+  // The lock file is created with O_EXCL, which needs the category dir to
+  // already exist — writeSolution's writeAtomic would create it, but that runs
+  // INSIDE the lock. Ensure it up front so a brand-new solution can be locked.
+  mkdirSync(dirname(solutionPath(entry.category, slug, stateRoot)), { recursive: true })
+  const lockPath = solutionLockPath(entry.category, slug, stateRoot)
+  return withFileLock(
+    lockPath,
+    () => writeSolution(entry, slug, dedupStamp, body, stateRoot),
+    lockOpts,
+  )
 }
 
 export function readSolution(

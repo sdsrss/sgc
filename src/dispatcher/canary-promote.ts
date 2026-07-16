@@ -37,7 +37,7 @@ import {
   readCurrentTask,
   resolveStateRoot,
   serializeFrontmatter,
-  writeSolution,
+  writeSolutionLocked,
 } from "./state"
 import type { DedupStamp, SolutionEntry } from "./types"
 
@@ -273,7 +273,7 @@ export async function promoteCanaryFailure(
     reason: dedupAction,
   }
 
-  const written = writeSolution(entry, solutionSlug, stamp, "", stateRoot)
+  const written = await writeSolutionLocked(entry, solutionSlug, stamp, "", stateRoot)
   const promotedRef = `${entry.category}/${solutionSlug}`
 
   // Side-effect: mutate canary frontmatter with promoted_to.

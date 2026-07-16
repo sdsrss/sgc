@@ -137,10 +137,14 @@ describe("L3 migration scenario (eval §12)", () => {
       runShip({ stateRoot: tmp, autoConfirm: true, log: () => {} }),
     ).rejects.toThrow(/refuses --auto/)
 
-    // ship: "no" confirmation → throw + no ship.md
+    // ship: "no" confirmation → throw + no ship.md. B1/F1: pass the signed
+    // degraded-review acceptance (inline heuristic reviews in the eval harness)
+    // so the confirmation gate is what rejects, not the review-coverage gate.
     await expect(
       runShip({
         stateRoot: tmp,
+        acceptedBy: "eval-harness",
+        acceptDegradedReview: "eval runs inline heuristic reviews; degraded gate accepted for this scenario",
         readConfirmation: async () => "no",
         log: () => {},
       }),
@@ -150,6 +154,8 @@ describe("L3 migration scenario (eval §12)", () => {
     // ship: "yes" → success
     const ship = await runShip({
       stateRoot: tmp,
+      acceptedBy: "eval-harness",
+      acceptDegradedReview: "eval runs inline heuristic reviews; degraded gate accepted for this scenario",
       readConfirmation: async () => "yes",
       // P2-1: pin the CE-5 diff signal. The fallback shells out to
       // `git diff --numstat HEAD` with no cwd — the SGC REPO's working tree,

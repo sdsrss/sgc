@@ -21,18 +21,35 @@ export interface FourHuaMetrics {
 }
 
 interface InvariantDoc {
-  invariants?: Record<string, { machine_enforced?: boolean } | null>
+  invariants?: Record<string, { machine_enforced?: boolean; tests?: unknown } | null>
 }
 interface CapsDoc {
   subagents?: Record<string, { prompt_path?: string | null }>
 }
 
-/** 规范化 — parse the YAML (NOT grep: comments carry the literal). */
+/** 规范化 — parse the YAML (NOT grep: comments carry the literal).
+ *
+ *  ALG-2 (audit v1.37.0): the count no longer trusts the self-declared
+ *  `machine_enforced` boolean alone. An invariant only counts when it ALSO
+ *  declares a non-empty `tests:` list — the same coverage evidence `sgc doctor`
+ *  check G requires for a machine_enforced:true invariant. Before this, a
+ *  `machine_enforced: true` with an empty/absent `tests` list inflated the score
+ *  with zero enforcement (honest arithmetic over a dishonest-able input). This
+ *  stays pure (no FS): file-EXISTENCE of the cited tests is enforced separately
+ *  by doctor G, which HARD-fails CI, so a metric computed on a passing build
+ *  cannot carry a missing-file citation. Same value (12/13) as before whenever
+ *  the build is green — the number is now earned, not asserted. */
 export function computeStandardization(invariantYaml: string): FourHuaMetrics["standardization"] {
   const doc = yamlLoad(invariantYaml) as InvariantDoc | undefined
   const entries = Object.values(doc?.invariants ?? {})
   return {
-    machine_enforced: entries.filter((e) => e != null && e.machine_enforced === true).length,
+    machine_enforced: entries.filter(
+      (e) =>
+        e != null &&
+        e.machine_enforced === true &&
+        Array.isArray(e.tests) &&
+        e.tests.length > 0,
+    ).length,
     total: entries.length,
   }
 }
@@ -192,14 +209,25 @@ export function diffMetrics(live: FourHuaMetrics, baseline: FourHuaMetrics): str
   return out
 }
 
+/**
+ * B5/ALG-2: the human-gate list, DERIVED from the compiled sets rather than a
+ * hardcoded string that silently drifts when MANUAL_GATES changes. Loop manual
+ * gates (`work`/`qa`/`ship`) + the CE-arc's human PROMOTE gate, shown as
+ * `compound-<stage>` to name the command a human actually runs.
+ */
+export function humanGates(): string[] {
+  return [...MANUAL_GATES, ...[...CE_ARC_HUMAN_GATES].map((g) => `compound-${g}`)]
+}
+
 export function formatScorecard(m: FourHuaMetrics): string {
   const kb = Math.round(m.efficiency.bundle_bytes / 1024)
+  const gates = humanGates()
   return [
     "sgc four-化 scorecard",
     "",
     `  规范化 standardization  ${m.standardization.machine_enforced}/${m.standardization.total} machine-enforced invariants`,
     `  智能化 intelligence     ${m.intelligence.llm_invokable}/${m.intelligence.total_subagents} LLM-invokable subagents (capacity, not quality)`,
-    `  自动化 automation       ${m.automation.automated_steps}/${m.automation.total_steps} automated lifecycle stages (4 human gates: work, qa, ship, compound-promote)`,
+    `  自动化 automation       ${m.automation.automated_steps}/${m.automation.total_steps} automated lifecycle stages (${gates.length} human gates: ${gates.join(", ")})`,
     `  高效化 efficiency       ${m.efficiency.install_steps} install step · node ${m.efficiency.runtime_node} · ~${kb} KB bundle`,
   ].join("\n")
 }

@@ -16,7 +16,7 @@
 // holder with a fresh lock throws LockHeldError.
 
 import { randomBytes } from "node:crypto"
-import { closeSync, openSync, readFileSync, unlinkSync, writeSync } from "node:fs"
+import { linkSync, readFileSync, unlinkSync, writeFileSync } from "node:fs"
 
 export class LockHeldError extends Error {
   constructor(
@@ -91,7 +91,6 @@ export function acquireFileLock(lockPath: string, opts: FileLockOptions = {}): (
   // competitor is actively holding/claiming → treat as held.
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const fd = openSync(lockPath, "wx")
       // P2-5: a per-acquisition nonce makes the lock's identity checkable.
       // pid alone can't: pids recycle, and a reclaimer that re-took the path
       // may legitimately be this same process.
@@ -99,11 +98,26 @@ export function acquireFileLock(lockPath: string, opts: FileLockOptions = {}): (
       // Line 4 is the boot id (M4), empty where the platform has none. Appending
       // rather than reordering keeps locks written by <=v1.33.0 parseable.
       const ours = `${process.pid}\n${now()}\n${nonce}\n${myBoot ?? ""}\n`
+      // A2/A4 (audit v1.37.0): create the lock atomically WITH its content —
+      // write a temp file, then hard-link it into place. linkSync fails EEXIST
+      // when the path is held (same exclusion as the old openSync "wx"), but
+      // unlike create-then-write it leaves NO window where the lock exists
+      // empty. The old two-step left one: a contender reading between the
+      // creator's openSync and its writeSync saw a 0-byte lock → parsed pid/ts
+      // as NaN → judged it unparseable-and-age-stale → reclaimed a LIVE holder.
+      // Two holders then ran the read-merge-write, silently losing one update —
+      // the exact hazard writeSolutionLocked routes through this lock to stop.
+      // Reproduced at ~1-in-3 under 6-way contention before this change.
+      const staging = `${lockPath}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`
+      writeFileSync(staging, ours)
       try {
-        writeSync(fd, ours)
-      } finally {
-        closeSync(fd)
+        linkSync(staging, lockPath)
+      } catch (linkErr) {
+        try { unlinkSync(staging) } catch { /* best-effort temp cleanup */ }
+        throw linkErr
       }
+      // Linked into place; drop the temp name (lockPath keeps the inode).
+      try { unlinkSync(staging) } catch { /* best-effort temp cleanup */ }
       let released = false
       return () => {
         if (released) return

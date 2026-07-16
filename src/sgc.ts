@@ -341,6 +341,18 @@ const ship = defineCommand({
       description:
         "Force janitor.compound to decide 'compound' (bypass decision_rules). Also bypasses dedup inside runCompound.",
     },
+    "accept-degraded-review": {
+      type: "string",
+      required: false,
+      description:
+        "Accept shipping an L2+ task whose code review is heuristic-only (no LLM configured). Requires --accepted-by; reason must be ≥40 chars. Recorded in ship.md (audit F1).",
+    },
+    "accepted-by": {
+      type: "string",
+      required: false,
+      description:
+        "Signer name for --accept-degraded-review (the human accepting a no-LLM review). Non-empty.",
+    },
   },
   async run({ args }) {
     const { runShip } = await import("./commands/ship")
@@ -351,6 +363,8 @@ const ship = defineCommand({
       prBody: args["pr-body"] as string | undefined,
       janitorSkipReason: args["janitor-skip-reason"] as string | undefined,
       forceCompound: args["force-compound"] as boolean | undefined,
+      acceptDegradedReview: args["accept-degraded-review"] as string | undefined,
+      acceptedBy: args["accepted-by"] as string | undefined,
     })
   },
 })

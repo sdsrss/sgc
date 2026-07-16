@@ -1,5 +1,103 @@
 # Changelog
 
+## v1.38.0 — 2026-07-16 — a report exists is not the code was reviewed
+
+The default install has no LLM. In that mode every code reviewer is heuristic —
+it greps for TODO markers and shape, and structurally can only ever return
+`pass` or `concern`, never the `fail` that `sgc ship`'s correctness gate blocks
+on. So the gate that reads "no code review failed" was, on the default path,
+verifying only that a review *file* had been written. v1.37.0's stamp work (A3)
+made the engine visible in the persisted report but left the gate reading the
+same field it always had.
+
+This release makes `sgc ship` refuse an L2+ ship whose every code review is
+heuristic-only, and gives that refusal a signed escape hatch instead of a silent
+one. It also closes six lower-severity audit findings in the same batch — a diff
+that silently collapsed and disarmed the review gate, a dedup merge that fused
+distinct knowledge, an unlocked read-modify-write, a lock primitive with an
+empty-file race, a streaming decoder that corrupted multibyte review YAML, a
+classifier floor blind to structural rewrites, and a publish gate that could tag
+a version its own manifests disagreed with. Full suite 1590 → 1597 pass / 0 fail
+(+7, ten new test files across the batch); `tsc --noEmit` clean; `sgc doctor`
+70 OK / 0 fail.
+
+### MIGRATION — read this if you run `sgc ship` on the default (no-LLM) path
+
+**`sgc ship` now blocks an L2+ ship when no code review was LLM-backed.** If you
+run with `OPENROUTER_API_KEY` set, or the `claude` CLI available, nothing
+changes — those reviews carry an engine stamp and satisfy the gate as before.
+The change is felt only when *every* code review on the task ran heuristic
+(no LLM configured), or predates the v1.37.0 engine stamp (unknown engine — the
+gate errs toward blocking).
+
+When blocked, you have two paths:
+
+- **Configure an LLM and re-review** — set `OPENROUTER_API_KEY` (or make the
+  `claude` CLI reachable) and re-run `sgc review`, then `sgc ship`.
+- **Accept the degraded review explicitly** (opt-out / revert path):
+  `sgc ship --accepted-by "<name>" --accept-degraded-review "<why, ≥40 chars>"`.
+  Both flags are required together; a missing signer or a reason under 40 chars
+  is a hard error, never a silent bypass. The acceptance is recorded immutably
+  in `ship.md` under `degraded_review_acceptance` (signer, timestamp, reason)
+  so a reviewer can audit who waved a no-LLM ship through and why.
+
+**Scope:** the gate governs the code-review cluster only. `sgc qa` is
+stub-by-default and honestly returns `concern`; that is a separate, documented
+limitation, not something this gate treats as degraded.
+
+**Revert path:** `npm i @sdsrs/sgc@1.37.0`, or pin `"@sdsrs/sgc": "1.37.0"`.
+
+### What actually got fixed
+
+- **B1/F1 — the degraded-review gate.** `sgc ship` reads the A3 engine stamp: a
+  review counts as LLM-backed iff its engine is present and not `inline`. If none
+  qualifies, the correctness gate verified only that a report exists, so ship
+  throws with an actionable message. The signed-acceptance escape hatch validates
+  like a §5 override (non-empty signer + reason ≥40 chars; malformed → throw). The
+  11 L2/L3 ship fixtures across the suite now travel that real escape hatch, not a
+  mocked engine.
+- **A1/Q-1 — `captureDiff` no longer collapses a large diff to silence.**
+  `spawnCaptureSync` set no `maxBuffer` (Node's 1 MiB default), so a >1 MB diff
+  overflowed to `exitCode:-1 → ""`, indistinguishable from "no changes" — every
+  reviewer then reviewed empty and returned pass. `captureDiff` is now tri-state:
+  clean empty passes through, an overflow/capture failure **throws**, a git ref
+  rejection keeps the documented soft-empty contract.
+- **A2/ALG-1 — dedup stopped fusing distinct knowledge.** A non-empty `problem`
+  that tokenized to `[]` (all stop-words, or single-CJK) abstained and let `tags`
+  decide alone, scoring distinct entries at 1.0 similarity over the ≥0.85 write
+  gate. Present-but-tokenless problems now fall back to raw-equality (same → 1,
+  different → 0); the reproduction inputs now score 0.1.
+- **A4/ARCH-1 — `writeSolution` is locked, and the lock primitive is atomic.**
+  The read-modify-write now runs inside `withFileLock`. Fixing that surfaced a
+  deeper race: `file-lock.ts` created the lock file empty then wrote its contents
+  in a second step; a competitor reading the empty lock parsed pid/ts as NaN,
+  judged it stale, and reclaimed a live holder. The lock is now created
+  atomically (temp + `linkSync`) — 8-way stress went from ~1/3 lost-update runs to
+  0/8 across 5 runs.
+- **B6/Q-2/Q-3 — streaming decode fixed + output byte-capped.** Per-chunk
+  `toString()` produced U+FFFD when a multibyte UTF-8 sequence split across chunks
+  — worst case, the Chinese review YAML from the `claude` CLI corrupted before
+  `yamlLoad`. A shared `CappedStreamBuffer` concatenates then decodes once, under
+  a byte budget (overflow → kill + `exitCode:-1`), unified with A1's cap constant.
+- **B4/F5 — classifier floor sees structural rewrites.** Architectural wording
+  (`rework/restructure/overhaul/across-modules/data-flow`) now floors to L2, so a
+  keyword-free multi-file rewrite no longer lands L1 and disarms the whole
+  downstream review cluster.
+- **B3/F3 — a fail-override with no signer is not an override.** `validateReview`
+  (write boundary) and both ship gates (code + qa) reject an empty `by`, closing
+  the headless self-override.
+- **B2/F2 — TDD-ledger waivers must be non-trivial + are observable.**
+  `--waive-red "x"`/`"n/a"` are rejected (min length + placeholder blacklist); a
+  successful waive logs a grep-able `⚠ RED waived` line.
+- **B5/ALG-2 — standardization metric de-self-reported.** A `machine_enforced`
+  invariant now also needs a non-empty `tests` array to count; the "4 human gates"
+  string is derived from `MANUAL_GATES` + CE promote gates, not hardcoded. Measured
+  values unchanged (12/13, 5/9).
+- **B7/CI-1 — publish gate hardened.** The tag-time check now locks
+  tag == package.json == plugin.json, and runs `tests/dispatcher` + `tests/eval`
+  (mirroring `test.yml`), so a tag on an older green-dispatcher-only commit can no
+  longer publish an eval-covered regression.
+
 ## v1.37.0 — 2026-07-16 — the gate's own remedy was laundering the bug
 
 v1.36.0 made the CLI-fact clause machine-generated so it could not drift. A code

@@ -24,6 +24,7 @@
 import { spawn } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { load as yamlLoad } from "js-yaml"
+import { CappedStreamBuffer } from "./subprocess"
 import type { SubagentManifest } from "./types"
 import type { LlmAgentContext, LlmRequestPayload, LlmResponsePayload } from "./logger"
 
@@ -103,21 +104,35 @@ export const defaultRunner: SubprocessRunner = async (argv, timeoutMs, onSpawn, 
       clearTimeout(timer)
       resolveP(r)
     }
-    let stdout = ""
-    let stderr = ""
-    child.stdout?.on("data", (c: Buffer) => (stdout += c.toString()))
-    child.stderr?.on("data", (c: Buffer) => (stderr += c.toString()))
+    // B6 (Q-2/Q-3): buffer bytes and decode once so a multibyte UTF-8 sequence
+    // split across `data` events isn't corrupted — the model's YAML response
+    // arrives over many chunks and may carry CJK review prose — and cap the
+    // accumulation so a runaway child can't OOM.
+    const out = new CappedStreamBuffer()
+    const err = new CappedStreamBuffer()
+    child.stdout?.on("data", (c: Buffer) => {
+      if (!out.push(c)) child.kill()
+    })
+    child.stderr?.on("data", (c: Buffer) => {
+      if (!err.push(c)) child.kill()
+    })
     child.on("error", (e) => {
       // On timeout, drop any partial stdout as untrustworthy (truncated mid-write).
       finish({
-        stdout: timedOut ? "" : stdout,
-        stderr: timedOut ? String(e) : stderr + String(e),
+        stdout: timedOut ? "" : out.toString(),
+        stderr: timedOut ? String(e) : err.toString() + String(e),
         exitCode: -1,
         timedOut,
       })
     })
     child.on("close", (code) => {
-      finish({ stdout, stderr, exitCode: timedOut ? -1 : code ?? -1, timedOut })
+      const overflowed = out.overflowed || err.overflowed
+      finish({
+        stdout: out.toString(),
+        stderr: overflowed ? "output exceeded the capture byte cap" : err.toString(),
+        exitCode: timedOut || overflowed ? -1 : code ?? -1,
+        timedOut,
+      })
     })
   })
 }

@@ -49,8 +49,15 @@ const KEYWORD_RE = new RegExp(
   `\\b(${CONCRETE_KEYWORDS.join("|")})\\b`,
   "i",
 )
-const FILE_EXT_RE = /\.[a-zA-Z0-9]{1,8}\b/      // foo.ts, plan/SKILL.md
-const LINE_NUM_RE = /:\d+\b/                     // :42
+// ALG-3 (audit v1.37.0): the old /\.[a-zA-Z0-9]{1,8}\b/ matched ANY word.word —
+// "e.g.", "U.S.", "end.Word" — and so certified generic prose as concrete. A
+// real reference ends in a known code/doc extension, or is a path (has a slash).
+const FILE_EXT_RE =
+  /\b[\w-]+\.(ts|tsx|js|jsx|mjs|cjs|md|json|ya?ml|yml|py|go|rs|sh|bash|toml|lock|txt|css|scss|html|sql)\b/i
+const PATH_RE = /\b[\w-]+\/[\w./-]+/            // scripts/audit.ts, plugins/sgc/bin
+// ALG-3: the old /:\d+\b/ matched clock times ("12:30"). A file:line reference
+// has a filename-like NON-digit char immediately before the colon.
+const LINE_NUM_RE = /[A-Za-z_)]:\d+\b/           // review.ts:42, not 12:30
 const LEVEL_RE = /\bL[0-3]\b/                    // L0/L1/L2/L3
 const COUNT_RE = /\b\d+\s*(files?|lines?|tests?|commits?|modules?|functions?)\b/i
 
@@ -62,6 +69,7 @@ export function rationaleIsConcrete(rationale: string): boolean {
   return (
     KEYWORD_RE.test(rationale) ||
     FILE_EXT_RE.test(rationale) ||
+    PATH_RE.test(rationale) ||
     LINE_NUM_RE.test(rationale) ||
     LEVEL_RE.test(rationale) ||
     COUNT_RE.test(rationale)

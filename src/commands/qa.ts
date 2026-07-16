@@ -130,6 +130,7 @@ export async function runQa(opts: QaOptions = {}): Promise<{
     })),
     evidence_refs: r.output.evidence_refs,
     created_at: nowIso(),
+    engine: r.mode,
   }
 
   const reportPath = appendReview(report, "", stateRoot)

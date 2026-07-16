@@ -22,6 +22,18 @@ import { createLogger, type Logger } from "../dispatcher/logger"
 import { withFileLock } from "../dispatcher/file-lock"
 import { join } from "node:path"
 
+// B2/F2: the minimum substance a --waive-red reason must carry, and the
+// placeholders that never count as a justification whatever their length.
+const WAIVE_MIN_CHARS = 6
+const WAIVE_PLACEHOLDERS = new Set([
+  "n/a", "na", "none", "nil", "null", "todo", "tbd", "tba", "wip",
+  "fixme", "xxx", "test", "skip", "waive", "waived", "-", ".",
+])
+function isTrivialWaive(reason: string): boolean {
+  const r = reason.trim().toLowerCase()
+  return r.length < WAIVE_MIN_CHARS || WAIVE_PLACEHOLDERS.has(r)
+}
+
 export interface WorkOptions {
   stateRoot?: string
   add?: string
@@ -169,6 +181,18 @@ async function runWorkUnlocked(opts: WorkOptions = {}): Promise<WorkResult> {
             `--red-output "<observed failure>") or pass --waive-red "<reason>"`,
         )
       }
+      // B2/F2: a waive is only honest if it EXPLAINS why no RED exists. Before
+      // this, ANY non-empty string passed, so `--waive-red "x"` (or "n/a") waved
+      // the ledger with no justification — an honor system. Reject the trivial /
+      // placeholder reasons; a real reason states why no failing-test path
+      // applies (docs-only change, config edit, ...).
+      if (waiveRed && isTrivialWaive(waiveRed)) {
+        throw new Error(
+          `done refused: --waive-red reason ${JSON.stringify(waiveRed)} is too trivial — ` +
+            `state WHY no failing-test path exists (≥${WAIVE_MIN_CHARS} chars, not a ` +
+            `placeholder like x / n/a / todo)`,
+        )
+      }
       const evidence = opts.evidence?.trim()
       list.features[idx] = {
         ...list.features[idx]!,
@@ -180,6 +204,12 @@ async function runWorkUnlocked(opts: WorkOptions = {}): Promise<WorkResult> {
       }
       writeFeatureList(list, "", stateRoot)
       log(`marked ${opts.done} done`)
+      // B2/F2: surface a waived close distinctly so it is visible + greppable —
+      // a waive is a done WITHOUT failing-test evidence, weaker than a prior-RED
+      // anchor, and the operator (and any reader of the log) should see which.
+      if (waiveRed && !hasPair) {
+        log(`⚠ RED waived for ${opts.done} (no failing-test evidence): ${waiveRed}`)
+      }
       if (hasPair) {
         writeRedGreenCapture(
           {

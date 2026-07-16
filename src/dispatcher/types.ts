@@ -52,6 +52,10 @@ export interface ShipDoc {
   residuals: string[]
   linked_reviews: string[]
   rollback_ref?: string
+  // B1/F1: recorded when an L2+ ship proceeded on a heuristic-only (no-LLM)
+  // review via an explicit signed acceptance. Immutable (§6) + auditable: who
+  // accepted shipping without a semantic correctness review, and why.
+  degraded_review_acceptance?: { by: string; at: string; reason: string }
 }
 
 export type PlanStepKind =
@@ -172,6 +176,18 @@ export interface Finding {
   suggestion?: string
 }
 
+/** Execution mode a spawn resolved to. Defined here (the leaf types module,
+ *  not spawn.ts) so it can be stamped into persisted reports without a
+ *  spawn→types→spawn import cycle; spawn.ts re-exports it. `inline` is the
+ *  heuristic pattern-matcher path — the one a reader must be able to tell apart
+ *  from a real LLM verdict (audit v1.37.0 F4). */
+export type AgentMode = "inline" | "file-poll" | "claude-cli" | "anthropic-sdk" | "openrouter"
+
+/** True when the mode is the heuristic stub, not a semantic LLM/actor review. */
+export function isHeuristicMode(mode: AgentMode | undefined): boolean {
+  return mode === "inline"
+}
+
 export interface ReviewReport {
   report_id: string
   task_id: TaskId
@@ -182,6 +198,10 @@ export interface ReviewReport {
   severity: Severity
   findings: Finding[]
   created_at: string
+  // F4: which engine produced this verdict. Optional for back-compat with
+  // reports written before A3 (they read back as undefined → "unknown engine",
+  // treated conservatively as possibly-heuristic by the ship notice).
+  engine?: AgentMode
   evidence_refs?: string[]
   override?: { by: string; at: string; reason: string }
 }

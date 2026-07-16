@@ -54,7 +54,7 @@ describe("compound happy-path scenario (eval §12)", () => {
     // P2-1: diffLineCount injected — the git fallback reads the SGC repo's own
     // working tree, which would make this janitor assertion depend on the test
     // author's unstaged changes rather than on the fixture.
-    const ship = await runShip({ stateRoot: tmp, diffLineCount: () => 150, log: () => {} })
+    const ship = await runShip({ stateRoot: tmp, acceptedBy: "eval-harness", acceptDegradedReview: "eval runs inline heuristic reviews; degraded gate accepted for this scenario", diffLineCount: () => 150, log: () => {} })
     expect(ship.janitorDecision?.decision).toBe("compound")
     expect(ship.compoundAction).toBe("compound")
 
@@ -91,7 +91,7 @@ describe("compound happy-path scenario (eval §12)", () => {
     // tree passes and a large diff passes; only a small one fails. That dead
     // zone is why this survived — it goes red exactly when someone is midway
     // through a small change, and looks like their bug.
-    await runShip({ stateRoot: tmp, diffLineCount: () => 150, log: () => {} })
+    await runShip({ stateRoot: tmp, acceptedBy: "eval-harness", acceptDegradedReview: "eval runs inline heuristic reviews; degraded gate accepted for this scenario", diffLineCount: () => 150, log: () => {} })
 
     const entries = listSolutions(tmp)
     expect(entries.length).toBe(1)

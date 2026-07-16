@@ -6,18 +6,32 @@ import {
   computeFromInputs,
 } from "../../src/dispatcher/metrics"
 
-// 规范化: comments containing the literal must NOT inflate the count.
+// 规范化: comments containing the literal must NOT inflate the count. ALG-2:
+// machine_enforced counts only WITH a non-empty tests list (the coverage doctor
+// G requires), so the true ones carry `tests`.
 const IE_FIXTURE = `# a comment mentioning machine_enforced_count / 13 in prose
 # and another with \`machine_enforced: true\` literal in a sentence
 invariants:
-  "1": { machine_enforced: true }
-  "2": { machine_enforced: true }
+  "1": { machine_enforced: true, tests: ["tests/a.test.ts"] }
+  "2": { machine_enforced: true, tests: ["tests/b.test.ts"] }
   "3": { machine_enforced: false }
 `
 
 test("computeStandardization parses YAML, ignores comment literals", () => {
   const r = computeStandardization(IE_FIXTURE)
   expect(r).toEqual({ machine_enforced: 2, total: 3 })
+})
+
+test("computeStandardization (ALG-2) does NOT count machine_enforced with empty/missing tests", () => {
+  // A self-declared machine_enforced:true with no coverage must not inflate the
+  // score — the exact 'honest arithmetic over a dishonest-able input' hole.
+  const yaml = `invariants:
+  "1": { machine_enforced: true, tests: ["tests/a.test.ts"] }
+  "2": { machine_enforced: true, tests: [] }
+  "3": { machine_enforced: true }
+  "4": { machine_enforced: false }
+`
+  expect(computeStandardization(yaml)).toEqual({ machine_enforced: 1, total: 4 })
 })
 
 // 智能化: numerator keys on prompt_path truthiness, NOT status.
@@ -110,6 +124,7 @@ import {
   parseBaseline,
   diffMetrics,
   formatScorecard,
+  humanGates,
   type FourHuaMetrics,
 } from "../../src/dispatcher/metrics"
 
@@ -150,6 +165,17 @@ test("formatScorecard renders all four 化 with rounded KB", () => {
   expect(s).toContain("11/23")
   expect(s).toContain("4/6")
   expect(s).toContain("~886 KB") // Math.round(907657/1024) = 886
+})
+
+test("humanGates (B5/ALG-2) is derived from the compiled sets, not hardcoded", () => {
+  // work/qa/ship (MANUAL_GATES) + compound-promote (CE-arc human gate).
+  expect(humanGates()).toEqual(["work", "qa", "ship", "compound-promote"])
+})
+
+test("formatScorecard names the derived human gates (count + list)", () => {
+  const s = formatScorecard(SAMPLE)
+  const gates = humanGates()
+  expect(s).toContain(`${gates.length} human gates: ${gates.join(", ")}`)
 })
 
 import { runMetrics } from "../../src/commands/metrics"

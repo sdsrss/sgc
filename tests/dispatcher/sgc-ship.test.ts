@@ -12,6 +12,14 @@ import { readCurrentTask, readShip } from "../../src/dispatcher/state"
 const LONG_MOTIVATION =
   "We need this change because the existing flow lacks a critical structural element that downstream readers depend on for clarity and discoverability of the underlying behavior contract."
 
+// B1/F1: these fixtures ship on inline (heuristic) reviews — the default no-LLM
+// path — which the degraded-review gate now blocks. Exercise the real signed
+// escape hatch so the L2/L3 happy paths ship as before.
+const ACCEPT = {
+  acceptedBy: "test-runner",
+  acceptDegradedReview: "no LLM in the test harness; heuristic review accepted for this fixture ship",
+}
+
 let tmp: string
 beforeEach(() => {
   tmp = mkdtempSync(join(tmpdir(), "sgc-ship-"))
@@ -130,6 +138,7 @@ describe("runShip — gates (negative)", () => {
     await expect(
       runShip({
         stateRoot: tmp,
+        ...ACCEPT,
         readConfirmation: async () => "no",
         log: () => {},
       }),
@@ -154,7 +163,7 @@ describe("runShip — happy paths", () => {
 
   test("L2 ship with qa evidence succeeds", async () => {
     const p = await l2Ready()
-    const r = await runShip({ stateRoot: tmp, log: () => {} })
+    const r = await runShip({ stateRoot: tmp, ...ACCEPT, log: () => {} })
     expect(r.shipPath).not.toBeNull()
     const { ship } = readShip(p.taskId, tmp)
     expect(ship.outcome).toBe("success")
@@ -164,6 +173,7 @@ describe("runShip — happy paths", () => {
     await l3Ready()
     const r = await runShip({
       stateRoot: tmp,
+      ...ACCEPT,
       readConfirmation: async () => "yes",
       log: () => {},
     })

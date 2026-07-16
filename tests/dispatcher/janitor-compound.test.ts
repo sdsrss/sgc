@@ -13,6 +13,13 @@ import { listSolutions, readJanitorDecision } from "../../src/dispatcher/state"
 const LONG_MOTIVATION =
   "We need this change because the existing flow lacks a critical structural element that downstream readers depend on for clarity and discoverability of the underlying behavior contract."
 
+// B1/F1: L2 fixtures ship on inline (heuristic) reviews, which the degraded-
+// review gate now blocks — accept it explicitly via the real signed hatch.
+const ACCEPT = {
+  acceptedBy: "test-runner",
+  acceptDegradedReview: "no LLM in the test harness; heuristic review accepted for this fixture ship",
+}
+
 describe("janitorCompound — decision rules", () => {
   test("force → compound (bypasses all rules)", () => {
     const r = janitorCompound({
@@ -177,7 +184,7 @@ describe("ship → janitor → compound integration (Invariant §6)", () => {
     // CE-5 gate then reads the test author's uncommitted working tree, so the
     // suite goes red or green depending on what happens to be unstaged. CI
     // never caught it (clean checkout, big diff → the value the tests wanted).
-    const r = await runShip({ stateRoot: tmp, diffLineCount: () => 150, log: () => {} })
+    const r = await runShip({ stateRoot: tmp, ...ACCEPT, diffLineCount: () => 150, log: () => {} })
     expect(r.janitorDecision?.decision).toBe("skip")
     expect(r.janitorDecision?.reason_code).toBe("default_conservative")
     expect(r.compoundAction).toBeUndefined()  // skip doesn't invoke compound
@@ -193,7 +200,7 @@ describe("ship → janitor → compound integration (Invariant §6)", () => {
     await l2Ready()
     // P2-1: ≥ MIN_REUSABLE_DIFF_LINES, injected — see the L1 test above for why
     // the git fallback must never decide a test's outcome.
-    const r = await runShip({ stateRoot: tmp, diffLineCount: () => 150, log: () => {} })
+    const r = await runShip({ stateRoot: tmp, ...ACCEPT, diffLineCount: () => 150, log: () => {} })
     expect(r.janitorDecision?.decision).toBe("compound")
     expect(r.janitorDecision?.reason_code).toBe("L2_plus_success")
     expect(r.compoundAction).toBe("compound")
@@ -206,6 +213,7 @@ describe("ship → janitor → compound integration (Invariant §6)", () => {
     await l2Ready()
     const r = await runShip({
       stateRoot: tmp,
+      ...ACCEPT,
       diffLineCount: () => 6, // below MIN_REUSABLE_DIFF_LINES, no novelty
       log: () => {},
     })
@@ -221,6 +229,7 @@ describe("ship → janitor → compound integration (Invariant §6)", () => {
     await l2Ready()
     const r = await runShip({
       stateRoot: tmp,
+      ...ACCEPT,
       diffLineCount: () => 150,
       log: () => {},
     })

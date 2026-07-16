@@ -104,7 +104,7 @@ describe("L2 cross-file scenario (eval §12)", () => {
     expect(qa.verdict).toBe("concern")
 
     // STEP 5: ship — expect janitor=compound + compoundAction
-    const ship = await runShip({ stateRoot: tmp, log: () => {} })
+    const ship = await runShip({ stateRoot: tmp, acceptedBy: "eval-harness", acceptDegradedReview: "eval runs inline heuristic reviews; degraded gate accepted for this scenario", log: () => {} })
     expect(ship.shipPath).not.toBeNull()
     const { ship: shipDoc } = readShip(plan.taskId, tmp)
     expect(shipDoc.outcome).toBe("success")

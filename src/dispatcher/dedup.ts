@@ -163,6 +163,16 @@ export function similarity(
   const exTagSet = new Set(exTags)
   const candProb = tokenize(candidate.problem)
   const exProb = tokenize(existing.problem)
+  // ALG-1 / A2: a problem PRESENT but tokenizing to nothing (all stopwords,
+  // sub-minLen, or single-char CJK — minLen drops "锁"/"库") is NOT the same as
+  // a problem ABSENT (""). The token sets are identically empty, so keying the
+  // component's presence on `size > 0` alone conflated them: two *different*
+  // untokenizable problems dropped the problem component and let identical tags
+  // merge them through the §3 gate (rule #2 violation, silent knowledge loss).
+  const candProbRaw = (candidate.problem ?? "").trim()
+  const exProbRaw = (existing.problem ?? "").trim()
+  const problemPresent = candProbRaw.length > 0 || exProbRaw.length > 0
+  const problemHasTokens = candProb.size > 0 || exProb.size > 0
 
   // ALG-1 (audit fix): average only the feature components that carry a signal
   // (at least one side non-empty). A component empty on BOTH sides is no
@@ -180,8 +190,19 @@ export function similarity(
   if (candTagSet.size > 0 || exTagSet.size > 0) {
     components.push({ value: jaccard(candTagSet, exTagSet), weight: TAG_WEIGHT })
   }
-  if (candProb.size > 0 || exProb.size > 0) {
-    components.push({ value: jaccard(candProb, exProb), weight: PROBLEM_WEIGHT })
+  if (problemPresent) {
+    // Present on at least one side → the component carries signal and stays in
+    // the vote (dropping it is reserved for the genuinely-absent case below).
+    //   - both sides have tokens → jaccard as before.
+    //   - at least one present-but-untokenizable → tokens can't establish
+    //     similarity, so fall back to normalized raw equality: identical raw
+    //     problems still merge, different ones score 0 (no false merge on tags).
+    const value = problemHasTokens
+      ? jaccard(candProb, exProb)
+      : candProbRaw.toLowerCase() === exProbRaw.toLowerCase()
+        ? 1
+        : 0
+    components.push({ value, weight: PROBLEM_WEIGHT })
   }
   if (components.length === 0) return 0
   const totalWeight = components.reduce((sum, c) => sum + c.weight, 0)

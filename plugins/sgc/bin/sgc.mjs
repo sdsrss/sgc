@@ -787,7 +787,7 @@ var init_prompt = __esm(() => {
 
 // src/dispatcher/file-lock.ts
 import { randomBytes } from "node:crypto";
-import { closeSync, openSync, readFileSync, unlinkSync, writeSync } from "node:fs";
+import { linkSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 function currentBootId() {
   try {
     return readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim() || null;
@@ -813,18 +813,25 @@ function acquireFileLock(lockPath, opts = {}) {
   const myBoot = bootIdOf();
   for (let attempt = 0;attempt < 2; attempt++) {
     try {
-      const fd = openSync(lockPath, "wx");
       const nonce = randomBytes(8).toString("hex");
       const ours = `${process.pid}
 ${now()}
 ${nonce}
 ${myBoot ?? ""}
 `;
+      const staging = `${lockPath}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
+      writeFileSync(staging, ours);
       try {
-        writeSync(fd, ours);
-      } finally {
-        closeSync(fd);
+        linkSync(staging, lockPath);
+      } catch (linkErr) {
+        try {
+          unlinkSync(staging);
+        } catch {}
+        throw linkErr;
       }
+      try {
+        unlinkSync(staging);
+      } catch {}
       let released = false;
       return () => {
         if (released)
@@ -1049,12 +1056,17 @@ function similarity(candidate, existing) {
   const exTagSet = new Set(exTags);
   const candProb = tokenize(candidate.problem);
   const exProb = tokenize(existing.problem);
+  const candProbRaw = (candidate.problem ?? "").trim();
+  const exProbRaw = (existing.problem ?? "").trim();
+  const problemPresent = candProbRaw.length > 0 || exProbRaw.length > 0;
+  const problemHasTokens = candProb.size > 0 || exProb.size > 0;
   const components = [];
   if (candTagSet.size > 0 || exTagSet.size > 0) {
     components.push({ value: jaccard(candTagSet, exTagSet), weight: TAG_WEIGHT });
   }
-  if (candProb.size > 0 || exProb.size > 0) {
-    components.push({ value: jaccard(candProb, exProb), weight: PROBLEM_WEIGHT });
+  if (problemPresent) {
+    const value = problemHasTokens ? jaccard(candProb, exProb) : candProbRaw.toLowerCase() === exProbRaw.toLowerCase() ? 1 : 0;
+    components.push({ value, weight: PROBLEM_WEIGHT });
   }
   if (components.length === 0)
     return 0;
@@ -4242,6 +4254,9 @@ var init_js_yaml = __esm(() => {
 });
 
 // src/dispatcher/types.ts
+function isHeuristicMode(mode) {
+  return mode === "inline";
+}
 var LEVELS, PLAN_VERDICTS;
 var init_types = __esm(() => {
   LEVELS = ["L0", "L1", "L2", "L3"];
@@ -4375,7 +4390,7 @@ import {
   readdirSync as readdirSync3,
   renameSync as renameSync2,
   unlinkSync as unlinkSync2,
-  writeFileSync
+  writeFileSync as writeFileSync2
 } from "node:fs";
 import { randomBytes as randomBytes2 } from "node:crypto";
 import { dirname as dirname2, join as join2, resolve as resolve4 } from "node:path";
@@ -4404,7 +4419,7 @@ function ensureDefaultStateGitignored(custom) {
 .sgc/
 `;
   try {
-    writeFileSync(giPath, content + block);
+    writeFileSync2(giPath, content + block);
   } catch {}
 }
 function ensureSgcStructure(stateRoot) {
@@ -4438,7 +4453,7 @@ ${trimmedBody}`;
 function writeAtomic(path, content) {
   mkdirSync2(dirname2(path), { recursive: true });
   const tmp = `${path}.tmp.${process.pid}.${Date.now()}.${atomicWriteSeq++}.${randomBytes2(4).toString("hex")}`;
-  writeFileSync(tmp, content, "utf8");
+  writeFileSync2(tmp, content, "utf8");
   try {
     renameSync2(tmp, path);
   } catch (err) {
@@ -4659,6 +4674,9 @@ function validateReview(report) {
     if (r3.length < 40) {
       throw new StateError("SchemaViolation", `review override.reason must be ≥40 chars (Invariant §5); got ${r3.length}`);
     }
+    if ((report.override.by ?? "").trim().length === 0) {
+      throw new StateError("SchemaViolation", "review override.by (the signer) must be a non-empty name (Invariant §5)");
+    }
   }
 }
 function reviewPath(taskId, stage, reviewerId, stateRoot, suffix) {
@@ -4760,6 +4778,14 @@ function writeSolution(entry, slug, dedupStamp, body = "", stateRoot) {
   clearFingerprintCache();
   return { path, entry: finalEntry };
 }
+function solutionLockPath(category, slug, stateRoot) {
+  return solutionPath(category, slug, stateRoot) + ".lock";
+}
+async function writeSolutionLocked(entry, slug, dedupStamp, body = "", stateRoot, lockOpts = {}) {
+  mkdirSync2(dirname2(solutionPath(entry.category, slug, stateRoot)), { recursive: true });
+  const lockPath = solutionLockPath(entry.category, slug, stateRoot);
+  return withFileLock(lockPath, () => writeSolution(entry, slug, dedupStamp, body, stateRoot), lockOpts);
+}
 function listSolutions(stateRoot) {
   const dir = resolve4(root(stateRoot), "solutions");
   if (!existsSync3(dir))
@@ -4843,6 +4869,7 @@ var init_state = __esm(() => {
   init_js_yaml();
   init_types();
   init_fingerprint();
+  init_file_lock();
   StateError = class StateError extends Error {
     code;
     constructor(code, message) {
@@ -8513,8 +8540,98 @@ var init_capabilities = __esm(() => {
   };
 });
 
+// src/dispatcher/subprocess.ts
+import { spawn, spawnSync as spawnSync2 } from "node:child_process";
+
+class CappedStreamBuffer {
+  cap;
+  chunks = [];
+  bytes = 0;
+  overflowed = false;
+  constructor(cap = MAX_CAPTURE_BYTES) {
+    this.cap = cap;
+  }
+  push(c3) {
+    if (this.overflowed)
+      return false;
+    if (this.bytes + c3.length > this.cap) {
+      this.overflowed = true;
+      return false;
+    }
+    this.bytes += c3.length;
+    this.chunks.push(c3);
+    return true;
+  }
+  toString() {
+    return Buffer.concat(this.chunks).toString("utf8");
+  }
+}
+function spawnCapture(argv2, opts = {}) {
+  if (!argv2[0])
+    return Promise.resolve({ stdout: "", stderr: "empty argv", exitCode: -1 });
+  return new Promise((resolveP) => {
+    const child = spawn(argv2[0], argv2.slice(1), {
+      cwd: opts.cwd,
+      env: opts.env,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    const out = new CappedStreamBuffer(opts.maxBuffer);
+    const err = new CappedStreamBuffer(opts.maxBuffer);
+    let errored = false;
+    child.stdout?.on("data", (c3) => {
+      if (!out.push(c3))
+        child.kill();
+    });
+    child.stderr?.on("data", (c3) => {
+      if (!err.push(c3))
+        child.kill();
+    });
+    child.on("error", (e2) => {
+      errored = true;
+      resolveP({ stdout: out.toString(), stderr: err.toString() + String(e2), exitCode: -1 });
+    });
+    child.on("close", (code) => {
+      if (errored)
+        return;
+      const overflowed = out.overflowed || err.overflowed;
+      resolveP({
+        stdout: out.toString(),
+        stderr: overflowed ? "output exceeded the capture byte cap" : err.toString(),
+        exitCode: overflowed ? -1 : code ?? -1
+      });
+    });
+  });
+}
+function spawnCaptureSync(argv2, opts = {}) {
+  if (!argv2[0])
+    return { stdout: "", stderr: "empty argv", exitCode: -1 };
+  const r3 = spawnSync2(argv2[0], argv2.slice(1), {
+    cwd: opts.cwd,
+    env: opts.env,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    maxBuffer: opts.maxBuffer ?? MAX_CAPTURE_BYTES
+  });
+  if (r3.error)
+    return { stdout: r3.stdout ?? "", stderr: String(r3.error), exitCode: -1 };
+  return { stdout: r3.stdout ?? "", stderr: r3.stderr ?? "", exitCode: r3.status ?? -1 };
+}
+function whichSync(bin) {
+  const cmd = process.platform === "win32" ? "where" : "which";
+  const r3 = spawnSync2(cmd, [bin], { encoding: "utf8" });
+  if (r3.status !== 0)
+    return null;
+  const line = (r3.stdout || "").split(`
+`)[0]?.trim();
+  return line && line.length > 0 ? line : null;
+}
+var MAX_CAPTURE_BYTES;
+var init_subprocess = __esm(() => {
+  MAX_CAPTURE_BYTES = 64 * 1024 * 1024;
+});
+
 // src/dispatcher/claude-cli-agent.ts
-import { spawn } from "node:child_process";
+import { spawn as spawn2 } from "node:child_process";
 import { readFileSync as readFileSync5 } from "node:fs";
 function extractYamlBody(resultText) {
   const fenced = /```(?:yaml|yml)?\s*\n([\s\S]*?)\n```/.exec(resultText);
@@ -8632,7 +8749,7 @@ var ClaudeCliError, defaultRunner = async (argv2, timeoutMs, onSpawn, stdin2) =>
       timedOut = true;
     });
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const child = spawn(argv2[0], argv2.slice(1), {
+    const child = spawn2(argv2[0], argv2.slice(1), {
       stdio: [stdin2 === undefined ? "ignore" : "pipe", "pipe", "pipe"],
       signal: controller.signal
     });
@@ -8653,25 +8770,38 @@ var ClaudeCliError, defaultRunner = async (argv2, timeoutMs, onSpawn, stdin2) =>
       clearTimeout(timer);
       resolveP(r3);
     };
-    let stdout2 = "";
-    let stderr = "";
-    child.stdout?.on("data", (c3) => stdout2 += c3.toString());
-    child.stderr?.on("data", (c3) => stderr += c3.toString());
+    const out = new CappedStreamBuffer;
+    const err = new CappedStreamBuffer;
+    child.stdout?.on("data", (c3) => {
+      if (!out.push(c3))
+        child.kill();
+    });
+    child.stderr?.on("data", (c3) => {
+      if (!err.push(c3))
+        child.kill();
+    });
     child.on("error", (e2) => {
       finish({
-        stdout: timedOut ? "" : stdout2,
-        stderr: timedOut ? String(e2) : stderr + String(e2),
+        stdout: timedOut ? "" : out.toString(),
+        stderr: timedOut ? String(e2) : err.toString() + String(e2),
         exitCode: -1,
         timedOut
       });
     });
     child.on("close", (code) => {
-      finish({ stdout: stdout2, stderr, exitCode: timedOut ? -1 : code ?? -1, timedOut });
+      const overflowed = out.overflowed || err.overflowed;
+      finish({
+        stdout: out.toString(),
+        stderr: overflowed ? "output exceeded the capture byte cap" : err.toString(),
+        exitCode: timedOut || overflowed ? -1 : code ?? -1,
+        timedOut
+      });
     });
   });
 };
 var init_claude_cli_agent = __esm(() => {
   init_js_yaml();
+  init_subprocess();
   ClaudeCliError = class ClaudeCliError extends Error {
     stderr;
     exitCode;
@@ -8683,56 +8813,6 @@ var init_claude_cli_agent = __esm(() => {
     }
   };
 });
-
-// src/dispatcher/subprocess.ts
-import { spawn as spawn2, spawnSync as spawnSync2 } from "node:child_process";
-function spawnCapture(argv2, opts = {}) {
-  if (!argv2[0])
-    return Promise.resolve({ stdout: "", stderr: "empty argv", exitCode: -1 });
-  return new Promise((resolveP) => {
-    const child = spawn2(argv2[0], argv2.slice(1), {
-      cwd: opts.cwd,
-      env: opts.env,
-      stdio: ["ignore", "pipe", "pipe"]
-    });
-    let stdout2 = "";
-    let stderr = "";
-    let errored = false;
-    child.stdout?.on("data", (c3) => stdout2 += c3.toString());
-    child.stderr?.on("data", (c3) => stderr += c3.toString());
-    child.on("error", (e2) => {
-      errored = true;
-      resolveP({ stdout: stdout2, stderr: stderr + String(e2), exitCode: -1 });
-    });
-    child.on("close", (code) => {
-      if (!errored)
-        resolveP({ stdout: stdout2, stderr, exitCode: code ?? -1 });
-    });
-  });
-}
-function spawnCaptureSync(argv2, opts = {}) {
-  if (!argv2[0])
-    return { stdout: "", stderr: "empty argv", exitCode: -1 };
-  const r3 = spawnSync2(argv2[0], argv2.slice(1), {
-    cwd: opts.cwd,
-    env: opts.env,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"]
-  });
-  if (r3.error)
-    return { stdout: r3.stdout ?? "", stderr: String(r3.error), exitCode: -1 };
-  return { stdout: r3.stdout ?? "", stderr: r3.stderr ?? "", exitCode: r3.status ?? -1 };
-}
-function whichSync(bin) {
-  const cmd = process.platform === "win32" ? "where" : "which";
-  const r3 = spawnSync2(cmd, [bin], { encoding: "utf8" });
-  if (r3.status !== 0)
-    return null;
-  const line = (r3.stdout || "").split(`
-`)[0]?.trim();
-  return line && line.length > 0 ? line : null;
-}
-var init_subprocess = () => {};
 
 // node_modules/@anthropic-ai/sdk/internal/tslib.mjs
 function __classPrivateFieldSet(receiver, state, value, kind, f3) {
@@ -14379,7 +14459,7 @@ async function spawn3(agentName, input, opts = {}) {
       });
     }
     outcome = "success";
-    return { spawnId, output, promptPath: promptPath2, resultPath: resultPath2 };
+    return { spawnId, output, promptPath: promptPath2, resultPath: resultPath2, mode };
   } catch (e2) {
     outcome = e2 instanceof SpawnTimeout ? "timeout" : "error";
     throw e2;
@@ -14647,12 +14727,12 @@ __export(exports_plan_jobs, {
   PlanJobError: () => PlanJobError
 });
 import {
-  closeSync as closeSync2,
+  closeSync,
   existsSync as existsSync7,
-  openSync as openSync2,
+  openSync,
   readdirSync as readdirSync4,
   readFileSync as readFileSync9,
-  writeFileSync as writeFileSync2
+  writeFileSync as writeFileSync3
 } from "node:fs";
 import { mkdir as mkdir2 } from "node:fs/promises";
 import { spawn as nodeSpawn } from "node:child_process";
@@ -14784,7 +14864,7 @@ async function claimAndFork(task, stateRoot, { now, ulid, isAlive, spawnImpl, ex
   const job_id = ulid();
   const log_path = logPathFor(stateRoot, job_id);
   const job_path = jobPath(stateRoot, job_id);
-  const logFd = openSync2(log_path, "a", 420);
+  const logFd = openSync(log_path, "a", 420);
   const env2 = {};
   for (const k2 of Object.keys(process.env)) {
     const v2 = process.env[k2];
@@ -14812,7 +14892,7 @@ async function claimAndFork(task, stateRoot, { now, ulid, isAlive, spawnImpl, ex
     return { job, jobPath: job_path };
   } finally {
     try {
-      closeSync2(logFd);
+      closeSync(logFd);
     } catch {}
   }
 }
@@ -14864,7 +14944,7 @@ async function completePlanJob(jobId, completion, opts = {}) {
   if (completion.intentPath)
     updated.intent_path = completion.intentPath;
   writeJob(path2, updated);
-  writeFileSync2(doneSentinel(opts.stateRoot, jobId), "", "utf8");
+  writeFileSync3(doneSentinel(opts.stateRoot, jobId), "", "utf8");
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot });
   logger.event({
     task_id: completion.taskId ?? null,
@@ -14894,7 +14974,7 @@ async function failPlanJob(jobId, error2, opts = {}) {
     error: error2
   };
   writeJob(path2, updated);
-  writeFileSync2(failedSentinel(opts.stateRoot, jobId), "", "utf8");
+  writeFileSync3(failedSentinel(opts.stateRoot, jobId), "", "utf8");
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot });
   logger.event({
     task_id: null,
@@ -14963,6 +15043,13 @@ function classifierLevelHeuristic(input) {
       affected_readers_candidates: ["dispatcher", "downstream callers", "security reviewers"]
     };
   }
+  if (ARCHITECTURAL_KEYWORDS.some((re) => re.test(req))) {
+    return {
+      level: "L2",
+      rationale: "request uses restructuring / cross-cutting language (rework/restructure/across-modules/data-flow) with no explicit keyword; minimum L2 so the review + qa cluster runs on an architectural change the keyword sets miss (B4/F5)",
+      affected_readers_candidates: ["dispatcher", "downstream callers"]
+    };
+  }
   if (L0_KEYWORDS.some((re) => re.test(req))) {
     return {
       level: "L0",
@@ -14988,7 +15075,7 @@ function applyHeuristicFloor(llm, input) {
     ]
   };
 }
-var L3_KEYWORDS, L2_KEYWORDS, SECURITY_KEYWORDS, STRONG_L0, L0_KEYWORDS, classifierLevel, LEVEL_RANK;
+var L3_KEYWORDS, L2_KEYWORDS, SECURITY_KEYWORDS, ARCHITECTURAL_KEYWORDS, STRONG_L0, L0_KEYWORDS, classifierLevel, LEVEL_RANK;
 var init_classifier_level2 = __esm(() => {
   L3_KEYWORDS = [
     /\bmigration\b/i,
@@ -15013,6 +15100,12 @@ var init_classifier_level2 = __esm(() => {
     /\b2fa\b|\bmfa\b|\botp\b/i,
     /\bcsrf\b|\bxss\b|\binjection\b|\bvulnerabilit(y|ies)\b|\bexploit\b/i,
     /\brate[- ]?limit(ing|ed|er|s)?\b|\bthrottl(e|ing|ed)\b/i
+  ];
+  ARCHITECTURAL_KEYWORDS = [
+    /\b(rework|restructure|overhaul|revamp|re-?wire|re-?architect|re-?design)\b/i,
+    /\bacross\b[^.]{0,30}\b(modules?|components?|stages?|services?|packages?|subsystems?|layers?|boundaries)\b/i,
+    /\b(data|control)[- ]?flow\b/i,
+    /\bhow\b[^.]{0,45}\b(hand|pass|flow|move|route|thread)\w*\b[^.]{0,25}\bbetween\b/i
   ];
   STRONG_L0 = [
     /\btypos?\b/i,
@@ -15430,14 +15523,14 @@ var init_applied_tracker = __esm(() => {
 function rationaleIsConcrete(rationale) {
   if (typeof rationale !== "string" || rationale.trim().length === 0)
     return false;
-  return KEYWORD_RE.test(rationale) || FILE_EXT_RE.test(rationale) || LINE_NUM_RE.test(rationale) || LEVEL_RE.test(rationale) || COUNT_RE.test(rationale);
+  return KEYWORD_RE.test(rationale) || FILE_EXT_RE.test(rationale) || PATH_RE.test(rationale) || LINE_NUM_RE.test(rationale) || LEVEL_RE.test(rationale) || COUNT_RE.test(rationale);
 }
 function validateClassifierRationale(rationale) {
   if (!rationaleIsConcrete(rationale)) {
     throw new ClassifierRationaleTooGeneric(rationale);
   }
 }
-var ClassifierRationaleTooGeneric, CONCRETE_KEYWORDS, KEYWORD_RE, FILE_EXT_RE, LINE_NUM_RE, LEVEL_RE, COUNT_RE;
+var ClassifierRationaleTooGeneric, CONCRETE_KEYWORDS, KEYWORD_RE, FILE_EXT_RE, PATH_RE, LINE_NUM_RE, LEVEL_RE, COUNT_RE;
 var init_rationale = __esm(() => {
   ClassifierRationaleTooGeneric = class ClassifierRationaleTooGeneric extends Error {
     constructor(rationale) {
@@ -15512,8 +15605,9 @@ var init_rationale = __esm(() => {
     "race"
   ];
   KEYWORD_RE = new RegExp(`\\b(${CONCRETE_KEYWORDS.join("|")})\\b`, "i");
-  FILE_EXT_RE = /\.[a-zA-Z0-9]{1,8}\b/;
-  LINE_NUM_RE = /:\d+\b/;
+  FILE_EXT_RE = /\b[\w-]+\.(ts|tsx|js|jsx|mjs|cjs|md|json|ya?ml|yml|py|go|rs|sh|bash|toml|lock|txt|css|scss|html|sql)\b/i;
+  PATH_RE = /\b[\w-]+\/[\w./-]+/;
+  LINE_NUM_RE = /[A-Za-z_)]:\d+\b/;
   LEVEL_RE = /\bL[0-3]\b/;
   COUNT_RE = /\b\d+\s*(files?|lines?|tests?|commits?|modules?|functions?)\b/i;
 });
@@ -15740,12 +15834,12 @@ var init_fuse_plan = __esm(() => {
 
 // src/dispatcher/plan-jobs.ts
 import {
-  closeSync as closeSync3,
+  closeSync as closeSync2,
   existsSync as existsSync10,
-  openSync as openSync3,
+  openSync as openSync2,
   readdirSync as readdirSync5,
   readFileSync as readFileSync12,
-  writeFileSync as writeFileSync3
+  writeFileSync as writeFileSync4
 } from "node:fs";
 import { mkdir as mkdir3 } from "node:fs/promises";
 import { spawn as nodeSpawn2 } from "node:child_process";
@@ -15877,7 +15971,7 @@ async function claimAndFork2(task, stateRoot, { now, ulid, isAlive, spawnImpl, e
   const job_id = ulid();
   const log_path = logPathFor2(stateRoot, job_id);
   const job_path = jobPath2(stateRoot, job_id);
-  const logFd = openSync3(log_path, "a", 420);
+  const logFd = openSync2(log_path, "a", 420);
   const env2 = {};
   for (const k2 of Object.keys(process.env)) {
     const v2 = process.env[k2];
@@ -15905,7 +15999,7 @@ async function claimAndFork2(task, stateRoot, { now, ulid, isAlive, spawnImpl, e
     return { job, jobPath: job_path };
   } finally {
     try {
-      closeSync3(logFd);
+      closeSync2(logFd);
     } catch {}
   }
 }
@@ -15935,7 +16029,7 @@ async function completePlanJob2(jobId, completion, opts = {}) {
   if (completion.intentPath)
     updated.intent_path = completion.intentPath;
   writeJob2(path2, updated);
-  writeFileSync3(doneSentinel2(opts.stateRoot, jobId), "", "utf8");
+  writeFileSync4(doneSentinel2(opts.stateRoot, jobId), "", "utf8");
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot });
   logger.event({
     task_id: completion.taskId ?? null,
@@ -15965,7 +16059,7 @@ async function failPlanJob2(jobId, error2, opts = {}) {
     error: error2
   };
   writeJob2(path2, updated);
-  writeFileSync3(failedSentinel2(opts.stateRoot, jobId), "", "utf8");
+  writeFileSync4(failedSentinel2(opts.stateRoot, jobId), "", "utf8");
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot });
   logger.event({
     task_id: null,
@@ -16588,6 +16682,10 @@ __export(exports_work, {
   runWork: () => runWork
 });
 import { join as join4 } from "node:path";
+function isTrivialWaive(reason) {
+  const r3 = reason.trim().toLowerCase();
+  return r3.length < WAIVE_MIN_CHARS || WAIVE_PLACEHOLDERS.has(r3);
+}
 function nowIso2() {
   return new Date().toISOString();
 }
@@ -16675,6 +16773,9 @@ async function runWorkUnlocked(opts = {}) {
       if (!hasPair && !waiveRed) {
         throw new Error(`done refused: record a prior-RED (--prior-red "<failing test>" ` + `--red-output "<observed failure>") or pass --waive-red "<reason>"`);
       }
+      if (waiveRed && isTrivialWaive(waiveRed)) {
+        throw new Error(`done refused: --waive-red reason ${JSON.stringify(waiveRed)} is too trivial — ` + `state WHY no failing-test path exists (≥${WAIVE_MIN_CHARS} chars, not a ` + `placeholder like x / n/a / todo)`);
+      }
       const evidence = opts.evidence?.trim();
       list.features[idx] = {
         ...list.features[idx],
@@ -16686,6 +16787,9 @@ async function runWorkUnlocked(opts = {}) {
       };
       writeFeatureList(list, "", stateRoot);
       log(`marked ${opts.done} done`);
+      if (waiveRed && !hasPair) {
+        log(`⚠ RED waived for ${opts.done} (no failing-test evidence): ${waiveRed}`);
+      }
       if (hasPair) {
         writeRedGreenCapture({
           title: list.features[idx].title,
@@ -16725,10 +16829,30 @@ async function runWorkUnlocked(opts = {}) {
   const active = activeId ? list.features.find((f3) => f3.id === activeId) ?? null : null;
   return { remaining, active, allDone };
 }
+var WAIVE_MIN_CHARS = 6, WAIVE_PLACEHOLDERS;
 var init_work = __esm(() => {
   init_state();
   init_logger();
   init_file_lock();
+  WAIVE_PLACEHOLDERS = new Set([
+    "n/a",
+    "na",
+    "none",
+    "nil",
+    "null",
+    "todo",
+    "tbd",
+    "tba",
+    "wip",
+    "fixme",
+    "xxx",
+    "test",
+    "skip",
+    "waive",
+    "waived",
+    "-",
+    "."
+  ]);
 });
 
 // src/dispatcher/agents/reviewer-correctness.ts
@@ -17005,9 +17129,14 @@ function generateReportId() {
 function nowIso3() {
   return new Date().toISOString();
 }
-function captureDiff(base, cwd) {
-  const r3 = spawnCaptureSync(["git", "diff", base], { cwd });
-  return r3.exitCode === 0 ? r3.stdout : "";
+function captureDiff(base, cwd, maxBytes) {
+  const r3 = spawnCaptureSync(["git", "diff", base], { cwd, maxBuffer: maxBytes });
+  if (r3.exitCode === 0)
+    return r3.stdout;
+  if (r3.exitCode === -1) {
+    throw new Error(`git diff capture failed (base=${base}) — the diff was not captured, ` + `so review cannot run against it: ${r3.stderr.slice(0, 200)}`);
+  }
+  return "";
 }
 function stripSentinelBlock(body, begin, end, legacyHeadingRe) {
   const beginIdx = body.indexOf(begin);
@@ -17073,7 +17202,8 @@ async function runReview(opts = {}) {
     verdict: r3.output.verdict,
     severity: r3.output.severity,
     findings: r3.output.findings,
-    created_at: nowIso3()
+    created_at: nowIso3(),
+    engine: r3.mode
   };
   const reportPath = appendReview(correctnessReport, "", stateRoot, opts.appendAs);
   log(`reviewer.correctness: ${correctnessReport.verdict} (severity: ${correctnessReport.severity}, ${correctnessReport.findings.length} finding(s))`);
@@ -17096,7 +17226,8 @@ async function runReview(opts = {}) {
       verdict: res.output.verdict,
       severity: res.output.severity,
       findings: res.output.findings,
-      created_at: nowIso3()
+      created_at: nowIso3(),
+      engine: res.mode
     };
     const path2 = appendReview(report, "", stateRoot, opts.appendAs);
     clusterReports.push({
@@ -17136,7 +17267,8 @@ async function runReview(opts = {}) {
           verdict: out.verdict,
           severity: out.severity,
           findings: out.findings,
-          created_at: nowIso3()
+          created_at: nowIso3(),
+          engine: specResults[i2].mode
         };
         const path2 = appendReview(report, "", stateRoot, opts.appendAs);
         specialistReports.push({
@@ -17438,7 +17570,8 @@ async function runQa(opts = {}) {
       description: `Step '${f3.step}' failed: ${f3.observed}`
     })),
     evidence_refs: r3.output.evidence_refs,
-    created_at: nowIso4()
+    created_at: nowIso4(),
+    engine: r3.mode
   };
   const reportPath = appendReview(report, "", stateRoot);
   log(`qa.browser: ${report.verdict} (severity: ${report.severity}, ${realFlows.length} failed flow(s), ${r3.output.evidence_refs.length} evidence ref(s))`);
@@ -17696,7 +17829,7 @@ var init_compound = __esm(() => {
 });
 
 // src/dispatcher/compound-promote.ts
-import { existsSync as existsSync11, readFileSync as readFileSync13, writeFileSync as writeFileSync4 } from "node:fs";
+import { existsSync as existsSync11, readFileSync as readFileSync13, writeFileSync as writeFileSync5 } from "node:fs";
 import { resolve as resolve11 } from "node:path";
 function nowIso5() {
   return new Date().toISOString();
@@ -17783,10 +17916,10 @@ ${fm.workflow_name}`;
     threshold_met_or_forced: true,
     reason: dedupAction
   };
-  const written = writeSolution(entry, solutionSlug, stamp, "", stateRoot);
+  const written = await writeSolutionLocked(entry, solutionSlug, stamp, "", stateRoot);
   const promotedRef = `${entry.category}/${solutionSlug}`;
   const updatedFm = { ...fm, promoted_to: promotedRef };
-  writeFileSync4(shipFailurePath, serializeFrontmatter(updatedFm, parsed.body), "utf8");
+  writeFileSync5(shipFailurePath, serializeFrontmatter(updatedFm, parsed.body), "utf8");
   return {
     shipFailurePath,
     solutionPath: written.path,
@@ -17860,10 +17993,10 @@ ${fm.prior_red}`;
     threshold_met_or_forced: true,
     reason: dedupAction
   };
-  const written = writeSolution(entry, solutionSlug, stamp, "", stateRoot);
+  const written = await writeSolutionLocked(entry, solutionSlug, stamp, "", stateRoot);
   const promotedRef = `${entry.category}/${solutionSlug}`;
   const updatedFm = { ...fm, promoted_to: promotedRef };
-  writeFileSync4(capturePath, serializeFrontmatter(updatedFm, parsed.body), "utf8");
+  writeFileSync5(capturePath, serializeFrontmatter(updatedFm, parsed.body), "utf8");
   return {
     shipFailurePath: capturePath,
     solutionPath: written.path,
@@ -17891,7 +18024,7 @@ var init_compound_promote = __esm(() => {
 });
 
 // src/dispatcher/canary-promote.ts
-import { existsSync as existsSync12, readFileSync as readFileSync14, writeFileSync as writeFileSync5 } from "node:fs";
+import { existsSync as existsSync12, readFileSync as readFileSync14, writeFileSync as writeFileSync6 } from "node:fs";
 import { resolve as resolve12 } from "node:path";
 function nowIso6() {
   return new Date().toISOString();
@@ -17978,13 +18111,13 @@ ${fm.package_name} ${fm.failed_phase}`;
     threshold_met_or_forced: true,
     reason: dedupAction
   };
-  const written = writeSolution(entry, solutionSlug, stamp, "", stateRoot);
+  const written = await writeSolutionLocked(entry, solutionSlug, stamp, "", stateRoot);
   const promotedRef = `${entry.category}/${solutionSlug}`;
   const updatedFm = {
     ...fm,
     promoted_to: promotedRef
   };
-  writeFileSync5(canaryPath, serializeFrontmatter(updatedFm, parsed.body), "utf8");
+  writeFileSync6(canaryPath, serializeFrontmatter(updatedFm, parsed.body), "utf8");
   return {
     canaryPath,
     solutionPath: written.path,
@@ -18075,7 +18208,7 @@ ${intent.motivation}`;
       threshold_met_or_forced: true,
       reason: "update_existing_dedup"
     };
-    const updated = writeSolution({
+    const updated = await writeSolutionLocked({
       ...existingFile.entry,
       source_task_ids: [...existingFile.entry.source_task_ids, taskId],
       last_updated: nowIso7()
@@ -18130,7 +18263,7 @@ ${intent.motivation}`;
     threshold_met_or_forced: true,
     reason: opts.force && related.duplicate_match ? "user_forced" : "new_entry"
   };
-  const written = writeSolution(entry, slug, stamp, "", stateRoot);
+  const written = await writeSolutionLocked(entry, slug, stamp, "", stateRoot);
   log(`compound: action=compound category=${context.category} slug=${slug} related=${related.related_entries.length}`);
   return {
     taskId,
@@ -18237,18 +18370,36 @@ async function runShip(opts = {}) {
   if (level !== "L0" && codeReviews.length === 0) {
     throw new Error(`no code reviews for ${taskId} — run \`sgc review\` first`);
   }
-  const failedWithoutOverride = codeReviews.filter((r3) => r3.verdict === "fail" && (!r3.override || (r3.override.reason ?? "").length < 40));
+  const failedWithoutOverride = codeReviews.filter((r3) => r3.verdict === "fail" && (!r3.override || (r3.override.reason ?? "").length < 40 || (r3.override.by ?? "").trim().length === 0));
   if (failedWithoutOverride.length > 0) {
     throw new Error(`${failedWithoutOverride.length} review(s) with verdict=fail need an override with reason ≥40 chars (Invariant §5)`);
   }
+  let degradedAcceptance;
   if (level === "L2" || level === "L3") {
     const qaReports = listReviewsForStage(taskId, "qa", stateRoot);
     if (qaReports.length === 0) {
       throw new Error(`${level} ship requires qa evidence — run \`sgc qa <target> --flows ...\` first`);
     }
-    const failedQaWithoutOverride = qaReports.filter((r3) => r3.verdict === "fail" && (!r3.override || (r3.override.reason ?? "").length < 40));
+    const failedQaWithoutOverride = qaReports.filter((r3) => r3.verdict === "fail" && (!r3.override || (r3.override.reason ?? "").length < 40 || (r3.override.by ?? "").trim().length === 0));
     if (failedQaWithoutOverride.length > 0) {
       throw new Error(`${failedQaWithoutOverride.length} qa report(s) with verdict=fail need an override with reason ≥40 chars (Invariant §5)`);
+    }
+    const degraded = codeReviews.length > 0 && !codeReviews.some((r3) => r3.engine !== undefined && !isHeuristicMode(r3.engine));
+    if (degraded) {
+      const by = (opts.acceptedBy ?? "").trim();
+      const reason = (opts.acceptDegradedReview ?? "").trim();
+      if (by.length > 0 || reason.length > 0) {
+        if (by.length === 0) {
+          throw new Error(`--accept-degraded-review requires --accepted-by "<name>" — a named signer (Invariant §5)`);
+        }
+        if (reason.length < 40) {
+          throw new Error(`--accept-degraded-review reason must be ≥40 chars (Invariant §5); got ${reason.length}`);
+        }
+        degradedAcceptance = { by, at: nowIso8(), reason };
+        log(`⚠ shipped on a heuristic-only review, accepted by ${by}: ${reason}`);
+      } else {
+        throw new Error(`${level} ship blocked: every code review is heuristic (no LLM was configured), so the ` + `correctness gate verified only that a report exists — not that the code was reviewed ` + `(audit F1). Either configure an LLM (OPENROUTER_API_KEY, or the claude CLI) and re-run ` + `\`sgc review\`, or accept the degraded review explicitly: ` + `sgc ship --accepted-by "<name>" --accept-degraded-review "<why, ≥40 chars>".`);
+      }
     }
   }
   if (opts.createPr && level !== "L0") {
@@ -18282,7 +18433,8 @@ async function runShip(opts = {}) {
       outcome: "success",
       deviations: [],
       residuals: [],
-      linked_reviews: codeReviews.map((r3) => r3.report_id)
+      linked_reviews: codeReviews.map((r3) => r3.report_id),
+      ...degradedAcceptance ? { degraded_review_acceptance: degradedAcceptance } : {}
     };
     shipFilePath = writeShip(ship, "", stateRoot);
     log(`wrote ${shipFilePath}`);
@@ -18411,6 +18563,7 @@ var init_ship = __esm(() => {
   init_spawn();
   init_janitor_compound();
   init_compound2();
+  init_types();
   init_logger();
 });
 
@@ -18478,7 +18631,7 @@ ${intent.motivation}`;
       threshold_met_or_forced: true,
       reason: "update_existing_dedup"
     };
-    const updated = writeSolution({
+    const updated = await writeSolutionLocked({
       ...existingFile.entry,
       source_task_ids: [...existingFile.entry.source_task_ids, taskId],
       last_updated: nowIso9()
@@ -18533,7 +18686,7 @@ ${intent.motivation}`;
     threshold_met_or_forced: true,
     reason: opts.force && related.duplicate_match ? "user_forced" : "new_entry"
   };
-  const written = writeSolution(entry, slug, stamp, "", stateRoot);
+  const written = await writeSolutionLocked(entry, slug, stamp, "", stateRoot);
   log(`compound: action=compound category=${context.category} slug=${slug} related=${related.related_entries.length}`);
   return {
     taskId,
@@ -18564,6 +18717,7 @@ var init_compound3 = __esm(() => {
 // src/dispatcher/state.ts
 var exports_state = {};
 __export(exports_state, {
+  writeSolutionLocked: () => writeSolutionLocked2,
   writeSolution: () => writeSolution2,
   writeShip: () => writeShip2,
   writeRedGreenCapture: () => writeRedGreenCapture2,
@@ -18576,6 +18730,7 @@ __export(exports_state, {
   writeAtomic: () => writeAtomic2,
   wordCount: () => wordCount2,
   solutionPath: () => solutionPath2,
+  solutionLockPath: () => solutionLockPath2,
   shipPath: () => shipPath2,
   serializeFrontmatter: () => serializeFrontmatter2,
   reviewPath: () => reviewPath2,
@@ -18607,7 +18762,7 @@ import {
   readdirSync as readdirSync6,
   renameSync as renameSync3,
   unlinkSync as unlinkSync3,
-  writeFileSync as writeFileSync6
+  writeFileSync as writeFileSync7
 } from "node:fs";
 import { randomBytes as randomBytes3 } from "node:crypto";
 import { dirname as dirname4, join as join7, resolve as resolve13 } from "node:path";
@@ -18636,7 +18791,7 @@ function ensureDefaultStateGitignored2(custom) {
 .sgc/
 `;
   try {
-    writeFileSync6(giPath, content + block);
+    writeFileSync7(giPath, content + block);
   } catch {}
 }
 function ensureSgcStructure2(stateRoot) {
@@ -18670,7 +18825,7 @@ ${trimmedBody}`;
 function writeAtomic2(path2, content) {
   mkdirSync4(dirname4(path2), { recursive: true });
   const tmp = `${path2}.tmp.${process.pid}.${Date.now()}.${atomicWriteSeq2++}.${randomBytes3(4).toString("hex")}`;
-  writeFileSync6(tmp, content, "utf8");
+  writeFileSync7(tmp, content, "utf8");
   try {
     renameSync3(tmp, path2);
   } catch (err) {
@@ -18899,6 +19054,9 @@ function validateReview2(report) {
     if (r3.length < 40) {
       throw new StateError2("SchemaViolation", `review override.reason must be ≥40 chars (Invariant §5); got ${r3.length}`);
     }
+    if ((report.override.by ?? "").trim().length === 0) {
+      throw new StateError2("SchemaViolation", "review override.by (the signer) must be a non-empty name (Invariant §5)");
+    }
   }
 }
 function reviewPath2(taskId, stage, reviewerId, stateRoot, suffix) {
@@ -19017,6 +19175,14 @@ function writeSolution2(entry, slug, dedupStamp, body = "", stateRoot) {
   clearFingerprintCache();
   return { path: path2, entry: finalEntry };
 }
+function solutionLockPath2(category, slug, stateRoot) {
+  return solutionPath2(category, slug, stateRoot) + ".lock";
+}
+async function writeSolutionLocked2(entry, slug, dedupStamp, body = "", stateRoot, lockOpts = {}) {
+  mkdirSync4(dirname4(solutionPath2(entry.category, slug, stateRoot)), { recursive: true });
+  const lockPath = solutionLockPath2(entry.category, slug, stateRoot);
+  return withFileLock(lockPath, () => writeSolution2(entry, slug, dedupStamp, body, stateRoot), lockOpts);
+}
 function readSolution(category, slug, stateRoot) {
   const path2 = solutionPath2(category, slug, stateRoot);
   if (!existsSync16(path2))
@@ -19117,6 +19283,7 @@ var init_state2 = __esm(() => {
   init_js_yaml();
   init_types();
   init_fingerprint();
+  init_file_lock();
   StateError2 = class StateError2 extends Error {
     code;
     constructor(code, message) {
@@ -19210,7 +19377,7 @@ var exports_tail = {};
 __export(exports_tail, {
   runTail: () => runTail
 });
-import { closeSync as closeSync4, existsSync as existsSync17, openSync as openSync4, readSync, statSync as statSync4 } from "node:fs";
+import { closeSync as closeSync3, existsSync as existsSync17, openSync as openSync3, readSync, statSync as statSync4 } from "node:fs";
 import { resolve as resolve14 } from "node:path";
 function globMatch(pattern, value) {
   if (value === null)
@@ -19307,14 +19474,14 @@ async function runTail(opts = {}) {
     lastSize = sz;
     if (sz <= offset)
       return;
-    const fd = openSync4(path2, "r");
+    const fd = openSync3(path2, "r");
     try {
       const buf = Buffer.alloc(sz - offset);
       readSync(fd, buf, 0, buf.length, offset);
       offset = sz;
       emitFromBuffer(buf.toString("utf8"), !initialDrainDone);
     } finally {
-      closeSync4(fd);
+      closeSync3(fd);
     }
   };
   readNew();
@@ -20126,9 +20293,14 @@ function generateReportId3() {
 function nowIso11() {
   return new Date().toISOString();
 }
-function captureDiff2(base, cwd) {
-  const r3 = spawnCaptureSync(["git", "diff", base], { cwd });
-  return r3.exitCode === 0 ? r3.stdout : "";
+function captureDiff2(base, cwd, maxBytes) {
+  const r3 = spawnCaptureSync(["git", "diff", base], { cwd, maxBuffer: maxBytes });
+  if (r3.exitCode === 0)
+    return r3.stdout;
+  if (r3.exitCode === -1) {
+    throw new Error(`git diff capture failed (base=${base}) — the diff was not captured, ` + `so review cannot run against it: ${r3.stderr.slice(0, 200)}`);
+  }
+  return "";
 }
 function stripSentinelBlock2(body, begin, end, legacyHeadingRe) {
   const beginIdx = body.indexOf(begin);
@@ -20194,7 +20366,8 @@ async function runReview2(opts = {}) {
     verdict: r3.output.verdict,
     severity: r3.output.severity,
     findings: r3.output.findings,
-    created_at: nowIso11()
+    created_at: nowIso11(),
+    engine: r3.mode
   };
   const reportPath = appendReview(correctnessReport, "", stateRoot2, opts.appendAs);
   log(`reviewer.correctness: ${correctnessReport.verdict} (severity: ${correctnessReport.severity}, ${correctnessReport.findings.length} finding(s))`);
@@ -20217,7 +20390,8 @@ async function runReview2(opts = {}) {
       verdict: res.output.verdict,
       severity: res.output.severity,
       findings: res.output.findings,
-      created_at: nowIso11()
+      created_at: nowIso11(),
+      engine: res.mode
     };
     const path2 = appendReview(report, "", stateRoot2, opts.appendAs);
     clusterReports.push({
@@ -20257,7 +20431,8 @@ async function runReview2(opts = {}) {
           verdict: out.verdict,
           severity: out.severity,
           findings: out.findings,
-          created_at: nowIso11()
+          created_at: nowIso11(),
+          engine: specResults[i2].mode
         };
         const path2 = appendReview(report, "", stateRoot2, opts.appendAs);
         specialistReports.push({
@@ -20356,7 +20531,8 @@ async function runQa2(opts = {}) {
       description: `Step '${f3.step}' failed: ${f3.observed}`
     })),
     evidence_refs: r3.output.evidence_refs,
-    created_at: nowIso12()
+    created_at: nowIso12(),
+    engine: r3.mode
   };
   const reportPath = appendReview(report, "", stateRoot2);
   log(`qa.browser: ${report.verdict} (severity: ${report.severity}, ${realFlows.length} failed flow(s), ${r3.output.evidence_refs.length} evidence ref(s))`);
@@ -20688,7 +20864,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.37.0",
+    version: "1.38.0",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -20759,7 +20935,7 @@ function computeStandardization(invariantYaml) {
   const doc = load(invariantYaml);
   const entries = Object.values(doc?.invariants ?? {});
   return {
-    machine_enforced: entries.filter((e2) => e2 != null && e2.machine_enforced === true).length,
+    machine_enforced: entries.filter((e2) => e2 != null && e2.machine_enforced === true && Array.isArray(e2.tests) && e2.tests.length > 0).length,
     total: entries.length
   };
 }
@@ -20860,14 +21036,18 @@ function diffMetrics(live, baseline) {
   cmp("efficiency.runtime_node", live.efficiency.runtime_node, baseline.efficiency.runtime_node);
   return out;
 }
+function humanGates() {
+  return [...MANUAL_GATES, ...[...CE_ARC_HUMAN_GATES].map((g3) => `compound-${g3}`)];
+}
 function formatScorecard(m2) {
   const kb = Math.round(m2.efficiency.bundle_bytes / 1024);
+  const gates = humanGates();
   return [
     "sgc four-化 scorecard",
     "",
     `  规范化 standardization  ${m2.standardization.machine_enforced}/${m2.standardization.total} machine-enforced invariants`,
     `  智能化 intelligence     ${m2.intelligence.llm_invokable}/${m2.intelligence.total_subagents} LLM-invokable subagents (capacity, not quality)`,
-    `  自动化 automation       ${m2.automation.automated_steps}/${m2.automation.total_steps} automated lifecycle stages (4 human gates: work, qa, ship, compound-promote)`,
+    `  自动化 automation       ${m2.automation.automated_steps}/${m2.automation.total_steps} automated lifecycle stages (${gates.length} human gates: ${gates.join(", ")})`,
     `  高效化 efficiency       ${m2.efficiency.install_steps} install step · node ${m2.efficiency.runtime_node} · ~${kb} KB bundle`
   ].join(`
 `);
@@ -20905,7 +21085,7 @@ __export(exports_doctor, {
   agentMetadataDrift: () => agentMetadataDrift
 });
 import { createHash as createHash4 } from "node:crypto";
-import { existsSync as existsSync20, mkdtempSync, readdirSync as readdirSync8, readFileSync as readFileSync19, rmSync, statSync as statSync6, writeFileSync as writeFileSync7 } from "node:fs";
+import { existsSync as existsSync20, mkdtempSync, readdirSync as readdirSync8, readFileSync as readFileSync19, rmSync, statSync as statSync6, writeFileSync as writeFileSync8 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname as dirname6, resolve as resolve17 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
@@ -21158,7 +21338,7 @@ async function runDoctor(opts = {}) {
           continue;
         const next = rewriteCliFact(f3.text, f3.id);
         if (next !== f3.text) {
-          writeFileSync7(resolve17(root4, f3.file), next, "utf8");
+          writeFileSync8(resolve17(root4, f3.file), next, "utf8");
           written.push(f3.id);
         }
       }
@@ -21794,7 +21974,7 @@ var exports_metrics = {};
 __export(exports_metrics, {
   runMetrics: () => runMetrics
 });
-import { mkdirSync as mkdirSync6, writeFileSync as writeFileSync8 } from "node:fs";
+import { mkdirSync as mkdirSync6, writeFileSync as writeFileSync9 } from "node:fs";
 import { dirname as dirname7, resolve as resolve19 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 async function runMetrics(opts = {}) {
@@ -21803,7 +21983,7 @@ async function runMetrics(opts = {}) {
     const live = computeMetricsLive(root4);
     const path2 = resolve19(root4, "metrics", "metrics-baseline.yaml");
     mkdirSync6(dirname7(path2), { recursive: true });
-    writeFileSync8(path2, serializeBaseline(live), "utf8");
+    writeFileSync9(path2, serializeBaseline(live), "utf8");
     console.error(`wrote: ${path2}`);
     return;
   }
@@ -25072,7 +25252,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.37.0",
+  version: "1.38.0",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {
@@ -25541,6 +25721,16 @@ var ship = defineCommand({
       type: "boolean",
       required: false,
       description: "Force janitor.compound to decide 'compound' (bypass decision_rules). Also bypasses dedup inside runCompound."
+    },
+    "accept-degraded-review": {
+      type: "string",
+      required: false,
+      description: "Accept shipping an L2+ task whose code review is heuristic-only (no LLM configured). Requires --accepted-by; reason must be \u226540 chars. Recorded in ship.md (audit F1)."
+    },
+    "accepted-by": {
+      type: "string",
+      required: false,
+      description: "Signer name for --accept-degraded-review (the human accepting a no-LLM review). Non-empty."
     }
   },
   async run({ args }) {
@@ -25551,7 +25741,9 @@ var ship = defineCommand({
       prTitle: args["pr-title"],
       prBody: args["pr-body"],
       janitorSkipReason: args["janitor-skip-reason"],
-      forceCompound: args["force-compound"]
+      forceCompound: args["force-compound"],
+      acceptDegradedReview: args["accept-degraded-review"],
+      acceptedBy: args["accepted-by"]
     });
   }
 });

@@ -350,7 +350,11 @@ export function checkInvariantOneBackChannel(
 
 export type InlineStub<I = unknown, O = unknown> = (input: I) => O | Promise<O>
 
-export type AgentMode = "inline" | "file-poll" | "claude-cli" | "anthropic-sdk" | "openrouter"
+// AgentMode now lives in types.ts (leaf module) so it can be stamped into
+// persisted ReviewReports without a spawn↔types import cycle (audit F4/A3).
+// Re-exported here so existing `import { AgentMode } from "./spawn"` holds.
+export type { AgentMode } from "./types"
+import type { AgentMode } from "./types"
 
 export interface SpawnOptions {
   stateRoot?: string
@@ -655,6 +659,10 @@ export interface SpawnResult<O> {
   output: O
   promptPath: string
   resultPath: string
+  /** The engine that produced `output` (F4): "inline" = heuristic stub, any
+   *  other value = a real LLM/actor. Callers stamp it into their report so a
+   *  heuristic verdict is distinguishable from a semantic one. */
+  mode: AgentMode
 }
 
 export async function spawn<I = unknown, O = unknown>(
@@ -857,7 +865,7 @@ export async function spawn<I = unknown, O = unknown>(
     }
 
     outcome = "success"
-    return { spawnId, output: output as O, promptPath, resultPath }
+    return { spawnId, output: output as O, promptPath, resultPath, mode }
   } catch (e) {
     outcome = e instanceof SpawnTimeout ? "timeout" : "error"
     throw e

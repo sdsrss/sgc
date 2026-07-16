@@ -8625,7 +8625,7 @@ function whichSync(bin) {
 `)[0]?.trim();
   return line && line.length > 0 ? line : null;
 }
-var MAX_CAPTURE_BYTES;
+var MAX_CAPTURE_BYTES, KILL_GRACE_MS = 2000;
 var init_subprocess = __esm(() => {
   MAX_CAPTURE_BYTES = 64 * 1024 * 1024;
 });
@@ -8757,11 +8757,32 @@ var ClaudeCliError, defaultRunner = async (argv2, timeoutMs, onSpawn, stdin2) =>
       child.stdin?.on("error", () => {});
       child.stdin?.end(stdin2);
     }
-    onSpawn?.(() => {
+    const killEscalate = () => {
       try {
-        child.kill();
-      } catch {}
+        child.kill("SIGTERM");
+      } catch {
+        return;
+      }
+      const sigkill = setTimeout(() => {
+        try {
+          child.kill("SIGKILL");
+        } catch {}
+      }, KILL_GRACE_MS);
+      if (typeof sigkill.unref === "function")
+        sigkill.unref();
+      child.once("exit", () => clearTimeout(sigkill));
+    };
+    controller.signal.addEventListener("abort", () => {
+      const sigkill = setTimeout(() => {
+        try {
+          child.kill("SIGKILL");
+        } catch {}
+      }, KILL_GRACE_MS);
+      if (typeof sigkill.unref === "function")
+        sigkill.unref();
+      child.once("exit", () => clearTimeout(sigkill));
     });
+    onSpawn?.(killEscalate);
     let resolved = false;
     const finish = (r3) => {
       if (resolved)
@@ -8774,11 +8795,11 @@ var ClaudeCliError, defaultRunner = async (argv2, timeoutMs, onSpawn, stdin2) =>
     const err = new CappedStreamBuffer;
     child.stdout?.on("data", (c3) => {
       if (!out.push(c3))
-        child.kill();
+        killEscalate();
     });
     child.stderr?.on("data", (c3) => {
       if (!err.push(c3))
-        child.kill();
+        killEscalate();
     });
     child.on("error", (e2) => {
       finish({
@@ -15741,6 +15762,11 @@ function collectConcerns(input) {
   }
   return out;
 }
+function addFlaggedBy(existing, add, representative) {
+  const set2 = new Set([...existing ?? [], add]);
+  set2.delete(representative);
+  return [...set2];
+}
 function dedupeConcerns(concerns) {
   const kept = [];
   for (const c3 of concerns) {
@@ -15748,9 +15774,14 @@ function dedupeConcerns(concerns) {
     let merged = false;
     for (const k2 of kept) {
       if (featureOverlap(cTokens, tokenize(k2._key)) >= DEDUP_THRESHOLD) {
-        if (SEVERITY_RANK[c3.severity] > SEVERITY_RANK[k2.severity])
+        if (SEVERITY_RANK[c3.severity] > SEVERITY_RANK[k2.severity]) {
+          k2.also_flagged_by = addFlaggedBy(k2.also_flagged_by, k2.source, c3.source);
           k2.severity = c3.severity;
-        k2.also_flagged_by = [...k2.also_flagged_by ?? [], c3.source];
+          k2.text = c3.text;
+          k2.source = c3.source;
+        } else {
+          k2.also_flagged_by = addFlaggedBy(k2.also_flagged_by, c3.source, k2.source);
+        }
         merged = true;
         break;
       }
@@ -17003,8 +17034,8 @@ var init_reviewer_specialists = __esm(() => {
     { display: "kubectl", re: "kubectl", wordBounded: false },
     { display: "k8s", re: String.raw`k8s\b`, wordBounded: false },
     { display: "terraform", re: "terraform", wordBounded: false },
-    { display: "helm", re: "helm", wordBounded: false },
-    { display: "argo", re: "argo", wordBounded: false },
+    { display: "helm", re: "helm", wordBounded: true },
+    { display: "argo", re: "argo", wordBounded: true },
     { display: "fly.toml", re: String.raw`fly\.toml`, wordBounded: false },
     { display: "render.yaml", re: String.raw`render\.yaml`, wordBounded: false },
     { display: "vercel.json", re: String.raw`vercel\.json`, wordBounded: false },
@@ -18145,13 +18176,6 @@ var init_canary_promote = __esm(() => {
 });
 
 // src/commands/compound.ts
-var exports_compound = {};
-__export(exports_compound, {
-  runRedGreenPromote: () => runRedGreenPromote,
-  runCompoundPromote: () => runCompoundPromote,
-  runCompound: () => runCompound,
-  runCanaryPromote: () => runCanaryPromote
-});
 import { existsSync as existsSync13 } from "node:fs";
 function nowIso7() {
   return new Date().toISOString();
@@ -18271,15 +18295,6 @@ ${intent.motivation}`;
     solutionPath: written.path,
     reason: opts.force && related.duplicate_match ? `forced write despite similarity ${related.duplicate_match.similarity.toFixed(3)}` : "new solution entry created"
   };
-}
-async function runCompoundPromote(opts) {
-  return promoteShipFailure(opts);
-}
-async function runRedGreenPromote(opts) {
-  return promoteRedGreen(opts);
-}
-async function runCanaryPromote(opts) {
-  return promoteCanaryFailure(opts);
 }
 var init_compound2 = __esm(() => {
   init_compound();
@@ -18568,12 +18583,12 @@ var init_ship = __esm(() => {
 });
 
 // src/commands/compound.ts
-var exports_compound2 = {};
-__export(exports_compound2, {
-  runRedGreenPromote: () => runRedGreenPromote2,
-  runCompoundPromote: () => runCompoundPromote2,
+var exports_compound = {};
+__export(exports_compound, {
+  runRedGreenPromote: () => runRedGreenPromote,
+  runCompoundPromote: () => runCompoundPromote,
   runCompound: () => runCompound2,
-  runCanaryPromote: () => runCanaryPromote2
+  runCanaryPromote: () => runCanaryPromote
 });
 import { existsSync as existsSync15 } from "node:fs";
 function nowIso9() {
@@ -18695,13 +18710,13 @@ ${intent.motivation}`;
     reason: opts.force && related.duplicate_match ? `forced write despite similarity ${related.duplicate_match.similarity.toFixed(3)}` : "new solution entry created"
   };
 }
-async function runCompoundPromote2(opts) {
+async function runCompoundPromote(opts) {
   return promoteShipFailure(opts);
 }
-async function runRedGreenPromote2(opts) {
+async function runRedGreenPromote(opts) {
   return promoteRedGreen(opts);
 }
-async function runCanaryPromote2(opts) {
+async function runCanaryPromote(opts) {
   return promoteCanaryFailure(opts);
 }
 var init_compound3 = __esm(() => {
@@ -19701,854 +19716,6 @@ var init_agent_facts = __esm(() => {
   ];
 });
 
-// src/commands/plan.ts
-var exports_plan2 = {};
-__export(exports_plan2, {
-  runPlan: () => runPlan2,
-  degradedEngOutput: () => degradedEngOutput2,
-  degradedCeoOutput: () => degradedCeoOutput2,
-  _readLineSyncForFutureInteractiveFlow: () => readLineSync2
-});
-function generateTaskId2() {
-  return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
-}
-function nowIso10() {
-  return new Date().toISOString();
-}
-async function readLineSync2() {
-  const stdin2 = process.stdin;
-  return new Promise((resolve15) => {
-    stdin2.resume();
-    stdin2.setEncoding("utf8");
-    let buf = "";
-    const onData = (chunk) => {
-      buf += chunk;
-      const nl = buf.indexOf(`
-`);
-      if (nl !== -1) {
-        stdin2.removeListener("data", onData);
-        stdin2.pause();
-        resolve15(buf.slice(0, nl).trim());
-      }
-    };
-    stdin2.on("data", onData);
-  });
-}
-async function defaultReadConfirmation2() {
-  return readLineSync2();
-}
-async function runPlan2(taskDescription, opts = {}) {
-  const asyncChildJobId = process.env["SGC_PLAN_ASYNC_CHILD"];
-  if (opts.async && !asyncChildJobId) {
-    const parentLogger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
-    const childOpts = {};
-    if (opts.forceLevel !== undefined)
-      childOpts.forceLevel = opts.forceLevel;
-    if (opts.userSignature !== undefined)
-      childOpts.userSignature = opts.userSignature;
-    if (opts.motivation !== undefined)
-      childOpts.motivation = opts.motivation;
-    if (opts.autoConfirm !== undefined)
-      childOpts.autoConfirm = opts.autoConfirm;
-    if (opts.forceNewTask !== undefined)
-      childOpts.forceNewTask = opts.forceNewTask;
-    const fork = await forkAsyncPlanJob2(taskDescription, {
-      stateRoot: opts.stateRoot,
-      extraEnv: { SGC_PLAN_CHILD_OPTS: JSON.stringify(childOpts) }
-    });
-    emitAsyncStart2(fork.job.job_id, taskDescription, parentLogger, {
-      pid: fork.job.pid,
-      log_path: fork.job.log_path
-    });
-    process.stderr.write(`async plan job ${fork.job.job_id} (pid=${fork.job.pid})
-`);
-    process.stderr.write(`  task:    ${taskDescription}
-`);
-    process.stderr.write(`  log:     ${fork.job.log_path}
-`);
-    process.stderr.write(`  watch:   sgc plan --status ${fork.job.job_id}
-`);
-    process.stderr.write(`  events:  sgc tail --event-type plan.async_start,plan.async_complete,plan.async_failed --follow
-`);
-    return {
-      taskId: fork.job.job_id,
-      intentPath: fork.jobPath
-    };
-  }
-  if (asyncChildJobId) {
-    let childMerged = opts;
-    const rawChildOpts = process.env["SGC_PLAN_CHILD_OPTS"];
-    if (rawChildOpts) {
-      try {
-        const parsed = JSON.parse(rawChildOpts);
-        childMerged = { ...opts, ...parsed, async: false };
-      } catch {}
-    }
-    try {
-      const result = await runPlanCore2(taskDescription, childMerged);
-      await completePlanJob2(asyncChildJobId, {
-        taskId: result.taskId,
-        level: result.level,
-        intentPath: result.intentPath
-      }, { stateRoot: opts.stateRoot, logger: opts.logger });
-      return result;
-    } catch (err) {
-      await failPlanJob2(asyncChildJobId, err instanceof Error ? err.message : String(err), { stateRoot: opts.stateRoot, logger: opts.logger });
-      throw err;
-    }
-  }
-  return runPlanCore2(taskDescription, opts);
-}
-function planEvalLabel2(err) {
-  const msg = err instanceof Error ? err.message : String(err);
-  return msg.replace(/\s+/g, " ").slice(0, 120);
-}
-function emitPlannerFailed2(agent, err, logger, taskId) {
-  logger.event({
-    task_id: taskId,
-    spawn_id: null,
-    agent,
-    event_type: "planner.spawn_failed",
-    level: "warn",
-    payload: {
-      error_class: err instanceof Error ? err.name : "unknown",
-      error_message: planEvalLabel2(err)
-    }
-  });
-}
-function degradedEngOutput2(err, logger, taskId) {
-  emitPlannerFailed2("planner.eng", err, logger, taskId);
-  return {
-    verdict: "revise",
-    concerns: [`planner.eng could not be evaluated (${planEvalLabel2(err)}) — treat as needs-review`],
-    structural_risks: []
-  };
-}
-function degradedCeoOutput2(err, logger, taskId) {
-  emitPlannerFailed2("planner.ceo", err, logger, taskId);
-  return {
-    verdict: "revise",
-    concerns: [`planner.ceo could not be evaluated (${planEvalLabel2(err)}) — treat as needs-review`],
-    rewrite_hints: []
-  };
-}
-async function runPlanCore2(taskDescription, opts = {}) {
-  const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
-  const log = (m2) => logger.say(m2);
-  const stateRoot2 = opts.stateRoot;
-  ensureSgcStructure(stateRoot2);
-  const existingHandoff = readHandoff(stateRoot2);
-  if (existingHandoff) {
-    const { handoff: handoff2 } = existingHandoff;
-    const isCompleted = handoff2.to_session_hint === "next task" || handoff2.summary?.includes("shipped") || handoff2.summary?.includes("Ready for next task");
-    if (!isCompleted && !opts.forceNewTask) {
-      log(`Active task detected in handoff: ${handoff2.from_session}.
-` + `Summary: ${handoff2.summary}
-` + `Pass --force-new-task to start a new task anyway.`);
-      throw new Error(`active task in handoff.md — complete it or pass --force-new-task`);
-    }
-  }
-  const taskId = generateTaskId2();
-  const createdAt = nowIso10();
-  log(`task_id = ${taskId}`);
-  const classRes = await spawn3("classifier.level", { user_request: taskDescription }, {
-    stateRoot: stateRoot2,
-    inlineStub: (i2) => opts.classifierOverride ?? classifierLevel(i2),
-    logger,
-    taskId
-  });
-  validateClassifierRationale(classRes.output.rationale);
-  const classified = applyHeuristicFloor(classRes.output, { user_request: taskDescription });
-  if (classified.level !== classRes.output.level) {
-    log(`classifier verdict ${classRes.output.level} raised to ${classified.level} ` + `by the deterministic heuristic floor (HARD escalation rule)`);
-  }
-  let level = classified.level;
-  log(`classifier verdict: ${level} — ${classified.rationale}`);
-  if (opts.forceLevel) {
-    if (LEVEL_RANK[opts.forceLevel] < LEVEL_RANK[level]) {
-      throw new Error(`forceLevel ${opts.forceLevel} would downgrade ${level} — refused (upgrade-only rule)`);
-    }
-    level = opts.forceLevel;
-    log(`level overridden to ${level} (upgrade)`);
-  }
-  const motivation = opts.motivation ?? taskDescription;
-  if (level !== "L0") {
-    const motivationWords = wordCount(motivation);
-    if (motivationWords < 20) {
-      throw new Error(`motivation must be ≥20 words (sgc-state.schema.yaml min_words rule); ` + `got ${motivationWords} word(s). Re-run with ` + `--motivation "<longer rationale describing why this matters and what changes>".`);
-    }
-  }
-  let plannerEngOut = null;
-  let plannerCeoOut = null;
-  let researcherOut = null;
-  let adversarialOut = null;
-  let capturedPriorPreventions = [];
-  if (LEVEL_RANK[level] >= 2) {
-    for (const hint of delegationHintsFor("plan.researcher"))
-      log(formatHint(hint));
-    if (level === "L3") {
-      for (const hint of delegationHintsFor("plan.adversarial"))
-        log(formatHint(hint));
-    }
-    const tasks = [
-      (async () => {
-        try {
-          return await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i2) => plannerEng(i2), logger, taskId });
-        } catch (err) {
-          return { output: degradedEngOutput2(err, logger, taskId) };
-        }
-      })(),
-      (async () => {
-        try {
-          return await spawn3("planner.ceo", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i2) => plannerCeo(i2), logger, taskId });
-        } catch (err) {
-          return { output: degradedCeoOutput2(err, logger, taskId) };
-        }
-      })(),
-      (async () => {
-        const candidates = await preFilterSolutions(taskDescription, stateRoot2);
-        if (candidates.length === 0) {
-          return {
-            output: {
-              prior_art: [],
-              warnings: ["no candidates from pre-filter"]
-            }
-          };
-        }
-        try {
-          const r3 = await spawn3("researcher.history", { intent_draft: taskDescription, candidates }, {
-            stateRoot: stateRoot2,
-            inlineStub: (i2) => researcherHistory(i2, { stateRoot: stateRoot2 }),
-            logger,
-            taskId
-          });
-          return { output: coerceLlmOutput(r3.output, candidates) };
-        } catch (err) {
-          return { output: handleCoerceFailure(err, logger, taskId) };
-        }
-      })()
-    ];
-    if (level === "L3") {
-      tasks.push((async () => {
-        let priorPreventions = [];
-        try {
-          priorPreventions = await extractPreventions(taskDescription, stateRoot2, { logger, taskId });
-          capturedPriorPreventions = priorPreventions;
-        } catch (err) {
-          const errName = err instanceof Error ? err.name : "unknown";
-          const errMsg = err instanceof Error ? err.message : "";
-          logger.event({
-            task_id: taskId,
-            spawn_id: null,
-            agent: "plan.preventions",
-            event_type: "prevention.extract_failed",
-            level: "warn",
-            payload: { error_class: errName, error_message: errMsg }
-          });
-        }
-        if (priorPreventions.length > 0) {
-          log(`prevention recall: ${priorPreventions.length} prior failure shape(s) matched`);
-          for (const p of priorPreventions) {
-            log(`  prevention: ${p.solution_ref}`);
-          }
-        }
-        const adversarialInput = {
-          intent_draft: taskDescription,
-          ...priorPreventions.length > 0 ? { prior_preventions: priorPreventions } : {}
-        };
-        return spawn3("planner.adversarial", adversarialInput, {
-          stateRoot: stateRoot2,
-          inlineStub: (i2) => opts.adversarialOverride ?? plannerAdversarial(i2),
-          logger,
-          taskId
-        });
-      })());
-    }
-    const results = await Promise.all(tasks);
-    plannerEngOut = results[0].output;
-    plannerCeoOut = results[1].output;
-    researcherOut = results[2].output;
-    if (level === "L3") {
-      adversarialOut = results[3].output;
-      if (capturedPriorPreventions.length > 0 && adversarialOut.failure_modes.length > 0) {
-        try {
-          const refs = extractAppliedSolutionRefs(adversarialOut.failure_modes, capturedPriorPreventions);
-          if (refs.length > 0) {
-            const appliedResult = recordApplied(stateRoot2, refs, taskId, { logger });
-            logger.event({
-              task_id: taskId,
-              spawn_id: null,
-              agent: "plan.applied",
-              event_type: "plan.applied_recorded",
-              level: "info",
-              payload: {
-                solution_refs_input: refs,
-                updated: appliedResult.updated,
-                skipped_already_applied: appliedResult.skipped_already_applied,
-                skipped_missing: appliedResult.skipped_missing,
-                skipped_malformed: appliedResult.skipped_malformed,
-                stale_skipped: appliedResult.stale_skipped,
-                write_failed: appliedResult.write_failed
-              }
-            });
-            if (appliedResult.updated.length > 0) {
-              log(`applied_in updated: ${appliedResult.updated.length} solution(s) tracked task ${taskId}`);
-            }
-          }
-        } catch (err) {
-          const errName = err instanceof Error ? err.name : "unknown";
-          const errMsg = err instanceof Error ? err.message : String(err);
-          logger.event({
-            task_id: taskId,
-            spawn_id: null,
-            agent: "plan.applied",
-            event_type: "plan.applied_wire_failed",
-            level: "warn",
-            payload: { error_class: errName, error_message: errMsg, reason: "wire_up_throw" }
-          });
-        }
-      }
-    }
-    const surfacedRefs = selectSurfacedRefs(researcherOut.prior_art);
-    if (surfacedRefs.length > 0) {
-      try {
-        const surfacedResult = recordSurfaced(stateRoot2, surfacedRefs, taskId, { logger });
-        logger.event({
-          task_id: taskId,
-          spawn_id: null,
-          agent: "plan.surfaced",
-          event_type: "plan.surfaced_recorded",
-          level: "info",
-          payload: {
-            solution_refs_input: surfacedRefs,
-            updated: surfacedResult.updated,
-            skipped_already_applied: surfacedResult.skipped_already_applied,
-            skipped_missing: surfacedResult.skipped_missing,
-            skipped_malformed: surfacedResult.skipped_malformed,
-            stale_skipped: surfacedResult.stale_skipped,
-            write_failed: surfacedResult.write_failed
-          }
-        });
-        if (surfacedResult.updated.length > 0) {
-          log(`surfaced_in updated: ${surfacedResult.updated.length} solution(s) tracked task ${taskId}`);
-        }
-      } catch (err) {
-        const errName = err instanceof Error ? err.name : "unknown";
-        const errMsg = err instanceof Error ? err.message : String(err);
-        logger.event({
-          task_id: taskId,
-          spawn_id: null,
-          agent: "plan.surfaced",
-          event_type: "plan.surfaced_wire_failed",
-          level: "warn",
-          payload: { error_class: errName, error_message: errMsg, reason: "wire_up_throw" }
-        });
-      }
-    }
-    log(`planner.eng verdict: ${plannerEngOut.verdict}`);
-    if (plannerEngOut.concerns.length > 0) {
-      for (const c3 of plannerEngOut.concerns)
-        log(`  eng concern: ${c3}`);
-    }
-    log(`planner.ceo verdict: ${plannerCeoOut.verdict}`);
-    if (plannerCeoOut.concerns.length > 0) {
-      for (const c3 of plannerCeoOut.concerns)
-        log(`  ceo concern: ${c3}`);
-    }
-    if (plannerCeoOut.rewrite_hints.length > 0) {
-      for (const h2 of plannerCeoOut.rewrite_hints)
-        log(`  ceo hint: ${h2}`);
-    }
-    log(`researcher.history: ${researcherOut.prior_art.length} prior art entries${researcherOut.warnings.length ? `, ${researcherOut.warnings.length} warning(s)` : ""}`);
-    for (const w2 of researcherOut.warnings)
-      log(`  research warning: ${w2}`);
-    if (adversarialOut) {
-      log(`planner.adversarial: ${adversarialOut.failure_modes.length} failure mode(s)`);
-      for (const fm of adversarialOut.failure_modes) {
-        log(`  [${fm.probability}/${fm.impact}] ${fm.scenario}`);
-      }
-    }
-  } else if (LEVEL_RANK[level] >= 1) {
-    try {
-      const planRes = await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i2) => plannerEng(i2), logger, taskId });
-      plannerEngOut = planRes.output;
-    } catch (err) {
-      plannerEngOut = degradedEngOutput2(err, logger, taskId);
-    }
-    log(`planner.eng verdict: ${plannerEngOut.verdict}`);
-    if (plannerEngOut.concerns.length > 0) {
-      for (const c3 of plannerEngOut.concerns)
-        log(`  concern: ${c3}`);
-    }
-  }
-  if (level === "L3" && !opts.userSignature) {
-    throw new Error(`L3 plan requires human signature. Re-run with --signed-by <signer_id> ` + `to acknowledge architecture-level scope.`);
-  }
-  if (level === "L3" && opts.autoConfirm) {
-    throw new Error(`L3 plan refuses --auto (Invariant §4). Human confirmation at stdin is required.`);
-  }
-  let fused;
-  if (plannerCeoOut && plannerEngOut) {
-    fused = fusePlan({ ceo: plannerCeoOut, eng: plannerEngOut, adversarial: adversarialOut });
-  }
-  const fusedSection = fused ? renderFusedSection(fused) + `
-
-` : "";
-  const fusedVerdict = fused?.fused_verdict;
-  const deepActive = level !== "L0" && (LEVEL_RANK[level] >= 2 || level === "L1" && opts.deep === true);
-  let decomposed = null;
-  if (deepActive) {
-    const decomposeInput = {
-      intent_draft: taskDescription,
-      ...plannerEngOut ? { structural_risks: plannerEngOut.structural_risks } : {},
-      ...researcherOut ? { prior_art: researcherOut.prior_art } : {},
-      ...adversarialOut ? { failure_modes: adversarialOut.failure_modes } : {},
-      ...capturedPriorPreventions.length > 0 ? { prior_preventions: capturedPriorPreventions } : {}
-    };
-    const decRes = await spawn3("planner.decompose", decomposeInput, {
-      stateRoot: stateRoot2,
-      inlineStub: (i2) => plannerDecompose(i2),
-      logger,
-      taskId
-    });
-    decomposed = decRes.output;
-    log(`planner.decompose: ${decomposed.tasks.length} task(s)`);
-  }
-  if (level === "L3") {
-    log("");
-    log("=== L3 PLAN SUMMARY — confirm before intent.md is written (immutable) ===");
-    log(`  task_id:    ${taskId}`);
-    log(`  task:       ${taskDescription.slice(0, 120)}`);
-    log(`  classifier: ${classRes.output.rationale}`);
-    if (plannerEngOut)
-      log(`  eng:        ${plannerEngOut.verdict} (${plannerEngOut.concerns.length} concerns)`);
-    if (plannerCeoOut)
-      log(`  ceo:        ${plannerCeoOut.verdict} (${plannerCeoOut.concerns.length} concerns)`);
-    if (researcherOut)
-      log(`  research:   ${researcherOut.prior_art.length} prior art entries`);
-    if (adversarialOut)
-      log(`  pre-mortem: ${adversarialOut.failure_modes.length} failure mode(s)`);
-    if (fused) {
-      log(`  fused:      ${fused.fused_verdict} — ${fused.decision_basis} (advisory; human signature still required)`);
-    }
-    log(`  signer:     ${opts.userSignature.signer_id}`);
-    log("");
-    log("Type 'yes' to commit intent.md (or Ctrl+C to abort):");
-    const reader = opts.readConfirmation ?? defaultReadConfirmation2;
-    const answer = (await reader()).trim().toLowerCase();
-    if (answer !== "yes") {
-      throw new Error(`L3 plan not confirmed at stdin (got '${answer || "(empty)"}'); intent.md NOT written.`);
-    }
-    log("confirmed — writing intent.md");
-  }
-  let intentPath3 = "(skipped — L0)";
-  if (level !== "L0") {
-    const intent = {
-      task_id: taskId,
-      level,
-      created_at: createdAt,
-      title: taskDescription.slice(0, 120),
-      motivation,
-      affected_readers: classRes.output.affected_readers_candidates,
-      scope_tokens: computeCommandTokens("/plan"),
-      user_signature: opts.userSignature,
-      fused_verdict: fusedVerdict,
-      body: fusedSection + `## Classifier rationale
-
-${classified.rationale}
-
-` + (plannerEngOut ? `## Planner.eng verdict
-
-${plannerEngOut.verdict}
-
-` + (plannerEngOut.concerns.length ? `### Eng concerns
-
-${plannerEngOut.concerns.map((c3) => `- ${c3}`).join(`
-`)}
-
-` : "") : "") + (plannerCeoOut ? `## Planner.ceo verdict
-
-${plannerCeoOut.verdict}
-
-` + (plannerCeoOut.concerns.length ? `### CEO concerns
-
-${plannerCeoOut.concerns.map((c3) => `- ${c3}`).join(`
-`)}
-
-` : "") + (plannerCeoOut.rewrite_hints.length ? `### CEO rewrite hints
-
-${plannerCeoOut.rewrite_hints.map((h2) => `- ${h2}`).join(`
-`)}
-
-` : "") : "") + (researcherOut ? `${PRIOR_ART_SENTINEL_BEGIN}
-` + `## Prior art (researcher.history)
-
-` + (researcherOut.prior_art.length === 0 ? `_No prior art found._
-
-` : researcherOut.prior_art.map((p) => {
-        const excerpt = p.excerpt?.trim();
-        const ref = `- **${p.solution_ref}** (score ${p.relevance_score.toFixed(2)})`;
-        const head = excerpt ? `${ref}: ${excerpt}` : ref;
-        return p.relevance_reason ? `${head}
-  Reason: ${p.relevance_reason}` : head;
-      }).join(`
-`) + `
-
-`) + (researcherOut.warnings.length ? `### Research warnings
-
-${researcherOut.warnings.map((w2) => `- ${w2}`).join(`
-`)}
-
-` : "") + `${PRIOR_ART_SENTINEL_END}
-
-` : "") + (adversarialOut ? `${PRE_MORTEM_SENTINEL_BEGIN}
-` + `## Pre-mortem (planner.adversarial)
-
-` + adversarialOut.failure_modes.map((fm) => `### [${fm.probability}/${fm.impact}] ${fm.scenario}
-` + `Early signal: ${fm.early_signal}
-`).join(`
-`) + `
-${PRE_MORTEM_SENTINEL_END}
-` : "")
-    };
-    intentPath3 = writeIntent(intent, stateRoot2);
-    log(`wrote ${intentPath3}`);
-  } else {
-    log(`L0 task: skipping intent.md per schema (decisions/ not written for L0)`);
-  }
-  if (decomposed && decomposed.tasks.length > 0) {
-    const features = decomposed.tasks.map((t2) => ({
-      id: t2.id,
-      title: t2.title,
-      status: "pending",
-      files: t2.files,
-      steps: t2.steps,
-      ...t2.prior_art_refs.length > 0 ? { prior_art_refs: t2.prior_art_refs } : {}
-    }));
-    writeFeatureList({ features }, "Authored by `sgc plan` deep decomposition. Each task carries file-level scope + bite-sized TDD steps.\n", stateRoot2);
-    const slug = taskDescription.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "plan";
-    const dateIso = createdAt.slice(0, 10);
-    const md = renderPlanMarkdown({ features }, { title: taskDescription.slice(0, 120), level });
-    const docPath = writePlanDoc(slug, dateIso, md, stateRoot2);
-    log(`wrote plan doc ${docPath}`);
-  } else {
-    writeFeatureList({
-      features: [
-        {
-          id: "f1",
-          title: taskDescription.slice(0, 200),
-          status: "pending"
-        }
-      ]
-    }, "Refine this list during `sgc work`. The dispatcher does not infer fine-grained features in MVP.\n", stateRoot2);
-  }
-  writeCurrentTask({
-    task_id: taskId,
-    level,
-    active_feature: "f1",
-    session_start: createdAt,
-    last_activity: createdAt
-  }, "", stateRoot2);
-  const handoff = {
-    from_session: taskId,
-    to_session_hint: "sgc work",
-    summary: `Plan created for task ${taskId} at level ${level}.`,
-    open_questions: []
-  };
-  writeHandoff(handoff, `Plan written for task ${taskId}. Level ${level}. Resume via 'sgc work'.
-`, stateRoot2);
-  log(``);
-  log(`Plan complete. Run \`sgc work\` to begin execution.`);
-  return { taskId, level, intentPath: intentPath3 };
-}
-var init_plan2 = __esm(() => {
-  init_spawn();
-  init_classifier_level2();
-  init_planner_eng2();
-  init_planner_ceo2();
-  init_researcher_history();
-  init_planner_adversarial2();
-  init_planner_decompose2();
-  init_preventions();
-  init_applied_tracker();
-  init_rationale();
-  init_state();
-  init_capabilities();
-  init_delegation();
-  init_fuse_plan();
-  init_logger();
-  init_plan_jobs2();
-});
-
-// src/commands/review.ts
-var exports_review2 = {};
-__export(exports_review2, {
-  worstVerdict: () => worstVerdict2,
-  runReview: () => runReview2,
-  captureDiff: () => captureDiff2
-});
-function generateReportId3() {
-  return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
-}
-function nowIso11() {
-  return new Date().toISOString();
-}
-function captureDiff2(base, cwd, maxBytes) {
-  const r3 = spawnCaptureSync(["git", "diff", base], { cwd, maxBuffer: maxBytes });
-  if (r3.exitCode === 0)
-    return r3.stdout;
-  if (r3.exitCode === -1) {
-    throw new Error(`git diff capture failed (base=${base}) — the diff was not captured, ` + `so review cannot run against it: ${r3.stderr.slice(0, 200)}`);
-  }
-  return "";
-}
-function stripSentinelBlock2(body, begin, end, legacyHeadingRe) {
-  const beginIdx = body.indexOf(begin);
-  if (beginIdx !== -1) {
-    const endIdx = body.indexOf(end, beginIdx);
-    if (endIdx !== -1) {
-      const after = endIdx + end.length;
-      const cut = body[after] === `
-` ? after + 1 : after;
-      return body.slice(0, beginIdx) + body.slice(cut);
-    }
-    const tail = body.slice(beginIdx);
-    const next = /\n## /.exec(tail);
-    const cutEnd = beginIdx + (next?.index ?? tail.length);
-    return body.slice(0, beginIdx) + body.slice(cutEnd);
-  }
-  const m2 = legacyHeadingRe.exec(body);
-  if (!m2)
-    return body;
-  const afterHeading = body.slice(m2.index + m2[0].length);
-  const nextHeading = /^## /m.exec(afterHeading);
-  const sectionEnd = m2.index + m2[0].length + (nextHeading?.index ?? afterHeading.length);
-  return body.slice(0, m2.index) + body.slice(sectionEnd);
-}
-function stripBackChannelSections2(body) {
-  let stripped = body;
-  stripped = stripSentinelBlock2(stripped, PRIOR_ART_SENTINEL_BEGIN, PRIOR_ART_SENTINEL_END, /^## Prior art \(researcher\.history\)\r?\n/m);
-  stripped = stripSentinelBlock2(stripped, PRE_MORTEM_SENTINEL_BEGIN, PRE_MORTEM_SENTINEL_END, /^## Pre-mortem \(planner\.adversarial\)\r?\n/m);
-  return stripped;
-}
-function worstVerdict2(verdicts) {
-  return verdicts.reduce((acc, v2) => VERDICT_ORDER2[v2] > VERDICT_ORDER2[acc] ? v2 : acc, "pass");
-}
-async function runReview2(opts = {}) {
-  const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
-  const log = (m2) => logger.say(m2);
-  const stateRoot2 = opts.stateRoot;
-  const ct = readCurrentTask(stateRoot2);
-  if (!ct)
-    throw new Error("no active task — run `sgc plan <task>` first");
-  const taskId = ct.task.task_id;
-  const level = ct.task.level;
-  if (level === "L0") {
-    throw new Error("L0 tasks are fast-path: no intent.md is written and review/qa/ship are L2+ gates. Nothing to review.");
-  }
-  for (const hint of delegationHintsFor("review.cluster"))
-    log(formatHint(hint));
-  const intent = readIntent(taskId, stateRoot2);
-  const intentForReviewer = stripBackChannelSections2(intent.body ?? "");
-  const diff = opts.diffOverride ?? captureDiff2(opts.base ?? "HEAD");
-  const r3 = await spawn3("reviewer.correctness", { diff, intent: intentForReviewer }, {
-    stateRoot: stateRoot2,
-    inlineStub: (i2) => reviewerCorrectness(i2),
-    logger,
-    taskId
-  });
-  const correctnessReport = {
-    report_id: generateReportId3(),
-    task_id: taskId,
-    stage: "code",
-    reviewer_id: "reviewer.correctness",
-    reviewer_version: "0.1",
-    verdict: r3.output.verdict,
-    severity: r3.output.severity,
-    findings: r3.output.findings,
-    created_at: nowIso11(),
-    engine: r3.mode
-  };
-  const reportPath = appendReview(correctnessReport, "", stateRoot2, opts.appendAs);
-  log(`reviewer.correctness: ${correctnessReport.verdict} (severity: ${correctnessReport.severity}, ${correctnessReport.findings.length} finding(s))`);
-  for (const f3 of correctnessReport.findings.slice(0, 5)) {
-    log(`  - ${f3.description}`);
-  }
-  if (correctnessReport.findings.length > 5) {
-    log(`  ... ${correctnessReport.findings.length - 5} more findings (see ${reportPath})`);
-  }
-  const isL2Plus = level === "L2" || level === "L3";
-  const clusterReports = [];
-  async function runClusterReviewer(name, agent) {
-    const res = await spawn3(name, { diff, intent: intentForReviewer }, { stateRoot: stateRoot2, inlineStub: (i2) => agent(i2), logger, taskId });
-    const report = {
-      report_id: generateReportId3(),
-      task_id: taskId,
-      stage: "code",
-      reviewer_id: name,
-      reviewer_version: "0.1",
-      verdict: res.output.verdict,
-      severity: res.output.severity,
-      findings: res.output.findings,
-      created_at: nowIso11(),
-      engine: res.mode
-    };
-    const path2 = appendReview(report, "", stateRoot2, opts.appendAs);
-    clusterReports.push({
-      reviewerId: name,
-      verdict: res.output.verdict,
-      severity: res.output.severity,
-      reportPath: path2,
-      findingsCount: res.output.findings.length
-    });
-    log(`${name}: ${res.output.verdict} (severity: ${res.output.severity}, ${res.output.findings.length} finding(s))`);
-  }
-  if (isL2Plus) {
-    await runClusterReviewer("reviewer.tests", reviewerTests);
-    await runClusterReviewer("reviewer.maintainability", reviewerMaintainability);
-  }
-  const specialistReports = [];
-  if (isL2Plus) {
-    const matched = matchSpecialists(diff);
-    if (matched.length > 0) {
-      const specialistMode = process.env["SGC_REVIEW_SPECIALIST_LLM"] === "0" ? "inline" : undefined;
-      const specResults = await Promise.all(matched.map((s2) => spawn3(s2.name, { diff, intent: intentForReviewer }, {
-        stateRoot: stateRoot2,
-        inlineStub: (i2) => s2.agent(i2),
-        ...specialistMode ? { mode: specialistMode } : {},
-        logger,
-        taskId
-      })));
-      for (let i2 = 0;i2 < matched.length; i2++) {
-        const s2 = matched[i2];
-        const out = specResults[i2].output;
-        const report = {
-          report_id: generateReportId3(),
-          task_id: taskId,
-          stage: "code",
-          reviewer_id: s2.name,
-          reviewer_version: "0.1",
-          verdict: out.verdict,
-          severity: out.severity,
-          findings: out.findings,
-          created_at: nowIso11(),
-          engine: specResults[i2].mode
-        };
-        const path2 = appendReview(report, "", stateRoot2, opts.appendAs);
-        specialistReports.push({
-          reviewerId: s2.name,
-          verdict: out.verdict,
-          severity: out.severity,
-          reportPath: path2,
-          findingsCount: out.findings.length
-        });
-        log(`${s2.name}: ${out.verdict} (severity: ${out.severity}, ${out.findings.length} finding(s))`);
-        for (const f3 of out.findings.slice(0, 3)) {
-          log(`  - ${f3.description}`);
-        }
-      }
-    }
-  }
-  log(`wrote ${reportPath}${specialistReports.length > 0 ? ` (+${specialistReports.length} specialists)` : ""}`);
-  const aggregateVerdict = worstVerdict2([
-    correctnessReport.verdict,
-    ...clusterReports.map((s2) => s2.verdict),
-    ...specialistReports.map((s2) => s2.verdict)
-  ]);
-  return { taskId, verdict: aggregateVerdict, reportPath, specialistReports: [...clusterReports, ...specialistReports] };
-}
-var VERDICT_ORDER2;
-var init_review2 = __esm(() => {
-  init_subprocess();
-  init_spawn();
-  init_reviewer_correctness2();
-  init_reviewer_specialists();
-  init_reviewer_quality();
-  init_state();
-  init_delegation();
-  init_logger();
-  VERDICT_ORDER2 = { pass: 0, concern: 1, fail: 2 };
-});
-
-// src/commands/qa.ts
-var exports_qa2 = {};
-__export(exports_qa2, {
-  runQa: () => runQa2,
-  qaScreenshotDir: () => qaScreenshotDir2
-});
-import { mkdirSync as mkdirSync5 } from "node:fs";
-import { join as join8 } from "node:path";
-function qaScreenshotDir2(stateRoot2, taskId) {
-  return join8(resolveStateRoot(stateRoot2), "reviews", taskId, "qa");
-}
-function generateReportId4() {
-  return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
-}
-function nowIso12() {
-  return new Date().toISOString();
-}
-function verdictToSeverity2(v2) {
-  if (v2 === "pass")
-    return "none";
-  if (v2 === "concern")
-    return "low";
-  return "high";
-}
-async function runQa2(opts = {}) {
-  const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
-  const log = (m2) => logger.say(m2);
-  const stateRoot2 = opts.stateRoot;
-  const ct = readCurrentTask(stateRoot2);
-  if (!ct)
-    throw new Error("no active task — run `sgc plan <task>` first");
-  const taskId = ct.task.task_id;
-  const target = opts.target ?? "";
-  const flows = opts.flows ?? [];
-  const optIn = opts.browse === true || process.env["SGC_QA_REAL"] === "1";
-  let browseRunner = opts.browseRunner;
-  if (!browseRunner && optIn) {
-    const shotDir = qaScreenshotDir2(stateRoot2, String(taskId));
-    mkdirSync5(shotDir, { recursive: true });
-    browseRunner = makeBrowseRunner({ launch: launchPlaywrightSession, screenshotDir: shotDir });
-  }
-  const r3 = await spawn3("qa.browser", { target_url: target, user_flows: flows }, {
-    stateRoot: stateRoot2,
-    inlineStub: (i2) => qaBrowser(i2, browseRunner ? { browseRunner } : {}),
-    logger,
-    taskId
-  });
-  const realFlows = r3.output.failed_flows.filter((f3) => f3.step !== "note");
-  const report = {
-    report_id: generateReportId4(),
-    task_id: taskId,
-    stage: "qa",
-    reviewer_id: "qa.browser",
-    reviewer_version: "0.1",
-    verdict: r3.output.verdict,
-    severity: verdictToSeverity2(r3.output.verdict),
-    findings: realFlows.map((f3) => ({
-      location: f3.flow,
-      description: `Step '${f3.step}' failed: ${f3.observed}`
-    })),
-    evidence_refs: r3.output.evidence_refs,
-    created_at: nowIso12(),
-    engine: r3.mode
-  };
-  const reportPath = appendReview(report, "", stateRoot2);
-  log(`qa.browser: ${report.verdict} (severity: ${report.severity}, ${realFlows.length} failed flow(s), ${r3.output.evidence_refs.length} evidence ref(s))`);
-  for (const f3 of r3.output.failed_flows.slice(0, 5)) {
-    log(`  - [${f3.flow}] ${f3.step}: ${f3.observed}`);
-  }
-  log(`wrote ${reportPath}`);
-  return { taskId, verdict: report.verdict, reportPath };
-}
-var init_qa2 = __esm(() => {
-  init_spawn();
-  init_playwright_runner();
-  init_state();
-  init_logger();
-});
-
 // src/dispatcher/loop.ts
 import { existsSync as existsSync19, readdirSync as readdirSync7, readFileSync as readFileSync17 } from "node:fs";
 import { mkdir as mkdir4 } from "node:fs/promises";
@@ -20590,57 +19757,6 @@ function findStep(run, name) {
     throw new LoopError("MalformedRunFile", `run ${run.run_id} missing step entry for "${name}"`);
   }
   return entry;
-}
-async function getDefaultRunners() {
-  const { runPlan: runPlan3 } = await Promise.resolve().then(() => (init_plan2(), exports_plan2));
-  const { runReview: runReview3 } = await Promise.resolve().then(() => (init_review2(), exports_review2));
-  const { runQa: runQa3 } = await Promise.resolve().then(() => (init_qa2(), exports_qa2));
-  const { runCompound: runCompound3 } = await Promise.resolve().then(() => (init_compound2(), exports_compound));
-  return {
-    plan: async (state, opts) => {
-      try {
-        const r3 = await runPlan3(state.task, {
-          stateRoot: opts.stateRoot,
-          motivation: opts.motivation,
-          userSignature: opts.userSignature,
-          forceLevel: opts.forceLevel,
-          ...process.stdin.isTTY ? {} : {
-            readConfirmation: async () => {
-              throw new LoopError("L3NeedsConfirmation", `task classified L3 — Invariant §4 requires a human confirmation at stdin, and ` + `this loop has no terminal attached. Plan it by hand first:
-  sgc plan "${state.task}" --signed-by <you> --motivation "..."
-then resume: sgc loop --resume ${state.run_id}`, { run_id: state.run_id, reason: "l3_needs_tty" });
-            }
-          }
-        });
-        return {
-          task_id: r3.taskId,
-          level: r3.level,
-          intent_path: r3.intentPath
-        };
-      } catch (e2) {
-        const msg = e2 instanceof Error ? e2.message : String(e2);
-        const existing = /active task/i.test(msg) ? readCurrentTask(opts.stateRoot) : null;
-        if (!existing)
-          throw e2;
-        const t2 = existing.task;
-        console.error(`loop: adopting active task ${t2.task_id} (level ${t2.level}) — already planned, not re-planning`);
-        return {
-          task_id: t2.task_id,
-          level: String(t2.level),
-          intent_path: t2.level === "L0" ? "(L0 — no intent.md)" : intentPath(t2.task_id, opts.stateRoot)
-        };
-      }
-    },
-    review: async (_state, opts) => {
-      await runReview3({ stateRoot: opts.stateRoot });
-    },
-    qa: async (_state, opts) => {
-      await runQa3({ stateRoot: opts.stateRoot });
-    },
-    compound: async (_state, opts) => {
-      await runCompound3({ stateRoot: opts.stateRoot });
-    }
-  };
 }
 async function runLoop(task, opts) {
   const stateRoot2 = opts.stateRoot;
@@ -20707,19 +19823,11 @@ async function runLoop(task, opts) {
     throw err;
   }
   try {
-    const overrides = opts.steps ?? {};
-    let runners;
-    if (overrides.plan && overrides.review && overrides.qa && overrides.compound) {
-      runners = overrides;
-    } else {
-      const defaults = await getDefaultRunners();
-      runners = {
-        plan: overrides.plan ?? defaults.plan,
-        review: overrides.review ?? defaults.review,
-        qa: overrides.qa ?? defaults.qa,
-        compound: overrides.compound ?? defaults.compound
-      };
+    const steps = opts.steps;
+    if (!steps?.plan || !steps.review || !steps.qa || !steps.compound) {
+      throw new LoopError("MissingStepRunners", `runLoop requires opts.steps with all of plan/review/qa/compound — the command layer ` + `(commands/loop.ts) supplies the production runners, tests inject their own. This is a wiring error.`, { run_id: run.run_id, reason: "missing_step_runners" });
     }
+    const runners = steps;
     for (const stepName of STEPS) {
       const entry = findStep(run, stepName);
       if (entry.status === "done" || entry.status === "skipped")
@@ -21286,7 +20394,7 @@ async function bundleParityCheck(root4) {
   const committed = resolve17(root4, "plugins", "sgc", "bin", "sgc.mjs");
   const buildScript = resolve17(root4, "scripts", "build-cli.mjs");
   if (!existsSync20(srcEntry) || !existsSync20(committed) || !existsSync20(buildScript)) {
-    return { severity: "ok", msg: "  ⓘ bundle-hash parity skipped (no source checkout — dev/CI-only check)" };
+    return { severity: "ok", msg: "  ⓘ bundle-hash parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" };
   }
   const tmp = mkdtempSync(resolve17(tmpdir(), "sgc-bundle-"));
   const out = resolve17(tmp, "sgc.mjs");
@@ -21398,7 +20506,7 @@ async function runDoctor(opts = {}) {
   log("");
   log("=== bunfig.toml [test] root ===");
   if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ bunfig.toml root skipped (no source checkout — dev/CI-only check)" });
+    emit({ severity: "ok", msg: "  ⓘ bunfig.toml root skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
   } else {
     const bunfigPath = resolve17(root4, "bunfig.toml");
     if (!existsSync20(bunfigPath)) {
@@ -21418,7 +20526,7 @@ async function runDoctor(opts = {}) {
   log("");
   log("=== package.json files ↔ no vendored plugins/ ===");
   if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ package.json files skipped (no source checkout — dev/CI-only check)" });
+    emit({ severity: "ok", msg: "  ⓘ package.json files skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
   } else {
     const pkgPath = resolve17(root4, "package.json");
     if (!existsSync20(pkgPath)) {
@@ -21466,7 +20574,7 @@ async function runDoctor(opts = {}) {
   log("=== invariant-enforcement.yaml coverage ===");
   const iePath = resolve17(root4, "contracts/invariant-enforcement.yaml");
   if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ invariant-enforcement.yaml skipped (no source checkout — dev/CI-only check)" });
+    emit({ severity: "ok", msg: "  ⓘ invariant-enforcement.yaml skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
   } else if (!existsSync20(iePath)) {
     emit({
       severity: "warn",
@@ -21528,7 +20636,7 @@ async function runDoctor(opts = {}) {
   log("");
   log("=== slash commands ↔ CLI subcommands ===");
   if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ slash↔CLI parity skipped (no source checkout — dev/CI-only check)" });
+    emit({ severity: "ok", msg: "  ⓘ slash↔CLI parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
   } else {
     const sgcSrcPath = resolve17(root4, "src/sgc.ts");
     const commandsDir = resolve17(root4, "plugins/sgc/commands");
@@ -21569,7 +20677,7 @@ async function runDoctor(opts = {}) {
   log("");
   log("=== invariant sources aligned (§ count) ===");
   if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ invariant-source parity skipped (no source checkout — dev/CI-only check)" });
+    emit({ severity: "ok", msg: "  ⓘ invariant-source parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
   } else {
     const invMdPath = resolve17(root4, "contracts/sgc-invariants.md");
     if (!existsSync20(invMdPath) || !existsSync20(iePath)) {
@@ -21613,7 +20721,7 @@ async function runDoctor(opts = {}) {
   log("=== metrics baseline drift ===");
   const baselinePath = resolve17(root4, "metrics", "metrics-baseline.yaml");
   if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ metrics baseline skipped (no source checkout — dev/CI-only check)" });
+    emit({ severity: "ok", msg: "  ⓘ metrics baseline skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
   } else if (!existsSync20(baselinePath)) {
     emit({ severity: "fail", msg: "  ✗ metrics/metrics-baseline.yaml missing — run `sgc metrics --write-baseline`" });
   } else {
@@ -21686,7 +20794,7 @@ async function runDoctor(opts = {}) {
   log("");
   log("=== README four-化 scorecard parity ===");
   if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ README scorecard parity skipped (no source checkout — dev/CI-only check)" });
+    emit({ severity: "ok", msg: "  ⓘ README scorecard parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
   } else {
     const readmePath = resolve17(root4, "README.md");
     if (!existsSync20(readmePath)) {
@@ -21709,7 +20817,7 @@ async function runDoctor(opts = {}) {
   log("");
   log("=== plugins/sgc/CLAUDE.md status header freshness ===");
   if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ CLAUDE.md freshness skipped (no source checkout — dev/CI-only check)" });
+    emit({ severity: "ok", msg: "  ⓘ CLAUDE.md freshness skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
   } else {
     const claudeMdPath = resolve17(root4, "plugins", "sgc", "CLAUDE.md");
     const pkgPath = resolve17(root4, "package.json");
@@ -21974,7 +21082,7 @@ var exports_metrics = {};
 __export(exports_metrics, {
   runMetrics: () => runMetrics
 });
-import { mkdirSync as mkdirSync6, writeFileSync as writeFileSync9 } from "node:fs";
+import { mkdirSync as mkdirSync5, writeFileSync as writeFileSync9 } from "node:fs";
 import { dirname as dirname7, resolve as resolve19 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 async function runMetrics(opts = {}) {
@@ -21982,7 +21090,7 @@ async function runMetrics(opts = {}) {
   if (opts.writeBaseline) {
     const live = computeMetricsLive(root4);
     const path2 = resolve19(root4, "metrics", "metrics-baseline.yaml");
-    mkdirSync6(dirname7(path2), { recursive: true });
+    mkdirSync5(dirname7(path2), { recursive: true });
     writeFileSync9(path2, serializeBaseline(live), "utf8");
     console.error(`wrote: ${path2}`);
     return;
@@ -22242,7 +21350,7 @@ var init_watch_ci_failure = __esm(() => {
 // src/dispatcher/canary.ts
 import { mkdir as mkdir7, mkdtemp, rm, stat as stat3, writeFile as writeFile4 } from "node:fs/promises";
 import { tmpdir as osTmpdir } from "node:os";
-import { join as join9, resolve as resolve21 } from "node:path";
+import { join as join8, resolve as resolve21 } from "node:path";
 function clamp3(n2, lo, hi) {
   return Math.max(lo, Math.min(hi, n2));
 }
@@ -22275,7 +21383,7 @@ function deriveBinName(pkg) {
   return pkg;
 }
 async function defaultNpxSmoke(pkg, ver, bin) {
-  const dir = await mkdtemp(join9(osTmpdir(), "sgc-canary-smoke-"));
+  const dir = await mkdtemp(join8(osTmpdir(), "sgc-canary-smoke-"));
   try {
     const {
       stdout: installStdout,
@@ -22391,6 +21499,8 @@ async function runCanaryChecks(opts) {
         phaseOutputs.health_url = truncate(lastError ?? "health_url failed with no captured error", PHASE_OUTPUT_MAX_CHARS);
         return { status: "failure", failedPhase: "health_url", phaseOutputs };
       }
+    } else {
+      throw new Error(`unknown canary phase: ${String(phase)}`);
     }
   }
   return { status: "success", phaseOutputs };
@@ -22569,7 +21679,7 @@ var init_canary2 = __esm(() => {
 // src/dispatcher/handoff.ts
 import { existsSync as existsSync21 } from "node:fs";
 import * as fs from "node:fs/promises";
-import { join as join10 } from "node:path";
+import { join as join9 } from "node:path";
 import { spawn as nodeSpawn3 } from "node:child_process";
 function kebabize(s2) {
   return s2.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -22580,7 +21690,7 @@ function timestampFallback(now) {
 }
 async function deriveSlug(stateRoot2, now) {
   const dateStr = now.toISOString().slice(0, 10);
-  const decisionsDir = join10(stateRoot2, "decisions");
+  const decisionsDir = join9(stateRoot2, "decisions");
   if (!existsSync21(decisionsDir))
     return timestampFallback(now);
   const entries = await fs.readdir(decisionsDir, { withFileTypes: true });
@@ -22588,7 +21698,7 @@ async function deriveSlug(stateRoot2, now) {
   for (const e2 of entries) {
     if (!e2.isDirectory())
       continue;
-    const intentPath3 = join10(decisionsDir, e2.name, "intent.md");
+    const intentPath3 = join9(decisionsDir, e2.name, "intent.md");
     try {
       const stat5 = await fs.stat(intentPath3);
       intents.push({ path: intentPath3, mtime: stat5.mtimeMs, id: e2.name });
@@ -22644,7 +21754,7 @@ function inferVerifyCommand(snapshot) {
   };
 }
 async function gatherActiveIntent(stateRoot2) {
-  const decisionsDir = join10(stateRoot2, "decisions");
+  const decisionsDir = join9(stateRoot2, "decisions");
   if (!existsSync21(decisionsDir))
     return;
   try {
@@ -22653,7 +21763,7 @@ async function gatherActiveIntent(stateRoot2) {
     for (const e2 of entries) {
       if (!e2.isDirectory())
         continue;
-      const p = join10(decisionsDir, e2.name, "intent.md");
+      const p = join9(decisionsDir, e2.name, "intent.md");
       try {
         const stat5 = await fs.stat(p);
         refs.push({ path: p, mtime: stat5.mtimeMs, id: e2.name });
@@ -22718,7 +21828,7 @@ async function scanCaptureDir(dir, kind, seedField) {
         continue;
       const slug = name.slice(0, -3);
       try {
-        const text = await fs.readFile(join10(dir, name), "utf-8");
+        const text = await fs.readFile(join9(dir, name), "utf-8");
         const fm = parseFrontmatter(text).data;
         if (typeof fm.promoted_to === "string" && fm.promoted_to.length > 0)
           continue;
@@ -22734,13 +21844,13 @@ async function scanCaptureDir(dir, kind, seedField) {
 }
 async function gatherUnpromotedCaptures(stateRoot2) {
   const [ships, canaries] = await Promise.all([
-    scanCaptureDir(join10(stateRoot2, "ship-failures"), "ship-failure", "prevention_seed"),
-    scanCaptureDir(join10(stateRoot2, "canaries"), "canary", "regression_seed")
+    scanCaptureDir(join9(stateRoot2, "ship-failures"), "ship-failure", "prevention_seed"),
+    scanCaptureDir(join9(stateRoot2, "canaries"), "canary", "regression_seed")
   ]);
   return [...ships, ...canaries];
 }
 async function gatherUnclosedSpawns(stateRoot2, tailLines) {
-  const eventsPath2 = join10(stateRoot2, "progress", "events.ndjson");
+  const eventsPath2 = join9(stateRoot2, "progress", "events.ndjson");
   if (!existsSync21(eventsPath2))
     return [];
   try {
@@ -22974,10 +22084,10 @@ function renderHandoffMarkdown(snap) {
 `);
 }
 async function writeHandoffMarkdown(repoRoot2, slug, content) {
-  const tasksDir = join10(repoRoot2, "tasks");
+  const tasksDir = join9(repoRoot2, "tasks");
   await fs.mkdir(tasksDir, { recursive: true });
-  const target = join10(tasksDir, `${slug}-paused.md`);
-  const tmp = join10(tasksDir, `.${slug}-paused.md.tmp.${process.pid}.${Date.now()}`);
+  const target = join9(tasksDir, `${slug}-paused.md`);
+  const tmp = join9(tasksDir, `.${slug}-paused.md.tmp.${process.pid}.${Date.now()}`);
   await fs.writeFile(tmp, content, "utf-8");
   await fs.rename(tmp, target);
   return target;
@@ -22996,14 +22106,14 @@ __export(exports_handoff, {
 });
 import { existsSync as existsSync22 } from "node:fs";
 import * as fs2 from "node:fs/promises";
-import { join as join11 } from "node:path";
+import { join as join10 } from "node:path";
 async function runHandoff(opts) {
   const repoRoot2 = opts.repoRoot ?? process.cwd();
   const stateRoot2 = resolveStateRoot(opts.stateRoot);
   const stdout2 = opts.stdoutWrite ?? ((s2) => process.stdout.write(s2));
   const stderr = opts.stderrWrite ?? ((s2) => process.stderr.write(s2));
   if (typeof opts.print === "string" && opts.print.length > 0) {
-    const target = join11(repoRoot2, "tasks", `${opts.print}-paused.md`);
+    const target = join10(repoRoot2, "tasks", `${opts.print}-paused.md`);
     if (!existsSync22(target)) {
       stderr(`no paused.md for slug ${opts.print}
 `);
@@ -23321,10 +22431,841 @@ var init_land2 = __esm(() => {
   init_land();
 });
 
+// src/commands/plan.ts
+function generateTaskId2() {
+  return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
+}
+function nowIso10() {
+  return new Date().toISOString();
+}
+async function readLineSync2() {
+  const stdin2 = process.stdin;
+  return new Promise((resolve24) => {
+    stdin2.resume();
+    stdin2.setEncoding("utf8");
+    let buf = "";
+    const onData = (chunk) => {
+      buf += chunk;
+      const nl = buf.indexOf(`
+`);
+      if (nl !== -1) {
+        stdin2.removeListener("data", onData);
+        stdin2.pause();
+        resolve24(buf.slice(0, nl).trim());
+      }
+    };
+    stdin2.on("data", onData);
+  });
+}
+async function defaultReadConfirmation2() {
+  return readLineSync2();
+}
+async function runPlan2(taskDescription, opts = {}) {
+  const asyncChildJobId = process.env["SGC_PLAN_ASYNC_CHILD"];
+  if (opts.async && !asyncChildJobId) {
+    const parentLogger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
+    const childOpts = {};
+    if (opts.forceLevel !== undefined)
+      childOpts.forceLevel = opts.forceLevel;
+    if (opts.userSignature !== undefined)
+      childOpts.userSignature = opts.userSignature;
+    if (opts.motivation !== undefined)
+      childOpts.motivation = opts.motivation;
+    if (opts.autoConfirm !== undefined)
+      childOpts.autoConfirm = opts.autoConfirm;
+    if (opts.forceNewTask !== undefined)
+      childOpts.forceNewTask = opts.forceNewTask;
+    const fork = await forkAsyncPlanJob2(taskDescription, {
+      stateRoot: opts.stateRoot,
+      extraEnv: { SGC_PLAN_CHILD_OPTS: JSON.stringify(childOpts) }
+    });
+    emitAsyncStart2(fork.job.job_id, taskDescription, parentLogger, {
+      pid: fork.job.pid,
+      log_path: fork.job.log_path
+    });
+    process.stderr.write(`async plan job ${fork.job.job_id} (pid=${fork.job.pid})
+`);
+    process.stderr.write(`  task:    ${taskDescription}
+`);
+    process.stderr.write(`  log:     ${fork.job.log_path}
+`);
+    process.stderr.write(`  watch:   sgc plan --status ${fork.job.job_id}
+`);
+    process.stderr.write(`  events:  sgc tail --event-type plan.async_start,plan.async_complete,plan.async_failed --follow
+`);
+    return {
+      taskId: fork.job.job_id,
+      intentPath: fork.jobPath
+    };
+  }
+  if (asyncChildJobId) {
+    let childMerged = opts;
+    const rawChildOpts = process.env["SGC_PLAN_CHILD_OPTS"];
+    if (rawChildOpts) {
+      try {
+        const parsed = JSON.parse(rawChildOpts);
+        childMerged = { ...opts, ...parsed, async: false };
+      } catch {}
+    }
+    try {
+      const result = await runPlanCore2(taskDescription, childMerged);
+      await completePlanJob2(asyncChildJobId, {
+        taskId: result.taskId,
+        level: result.level,
+        intentPath: result.intentPath
+      }, { stateRoot: opts.stateRoot, logger: opts.logger });
+      return result;
+    } catch (err) {
+      await failPlanJob2(asyncChildJobId, err instanceof Error ? err.message : String(err), { stateRoot: opts.stateRoot, logger: opts.logger });
+      throw err;
+    }
+  }
+  return runPlanCore2(taskDescription, opts);
+}
+function planEvalLabel2(err) {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.replace(/\s+/g, " ").slice(0, 120);
+}
+function emitPlannerFailed2(agent, err, logger, taskId) {
+  logger.event({
+    task_id: taskId,
+    spawn_id: null,
+    agent,
+    event_type: "planner.spawn_failed",
+    level: "warn",
+    payload: {
+      error_class: err instanceof Error ? err.name : "unknown",
+      error_message: planEvalLabel2(err)
+    }
+  });
+}
+function degradedEngOutput2(err, logger, taskId) {
+  emitPlannerFailed2("planner.eng", err, logger, taskId);
+  return {
+    verdict: "revise",
+    concerns: [`planner.eng could not be evaluated (${planEvalLabel2(err)}) — treat as needs-review`],
+    structural_risks: []
+  };
+}
+function degradedCeoOutput2(err, logger, taskId) {
+  emitPlannerFailed2("planner.ceo", err, logger, taskId);
+  return {
+    verdict: "revise",
+    concerns: [`planner.ceo could not be evaluated (${planEvalLabel2(err)}) — treat as needs-review`],
+    rewrite_hints: []
+  };
+}
+async function runPlanCore2(taskDescription, opts = {}) {
+  const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
+  const log = (m2) => logger.say(m2);
+  const stateRoot2 = opts.stateRoot;
+  ensureSgcStructure(stateRoot2);
+  const existingHandoff = readHandoff(stateRoot2);
+  if (existingHandoff) {
+    const { handoff: handoff2 } = existingHandoff;
+    const isCompleted = handoff2.to_session_hint === "next task" || handoff2.summary?.includes("shipped") || handoff2.summary?.includes("Ready for next task");
+    if (!isCompleted && !opts.forceNewTask) {
+      log(`Active task detected in handoff: ${handoff2.from_session}.
+` + `Summary: ${handoff2.summary}
+` + `Pass --force-new-task to start a new task anyway.`);
+      throw new Error(`active task in handoff.md — complete it or pass --force-new-task`);
+    }
+  }
+  const taskId = generateTaskId2();
+  const createdAt = nowIso10();
+  log(`task_id = ${taskId}`);
+  const classRes = await spawn3("classifier.level", { user_request: taskDescription }, {
+    stateRoot: stateRoot2,
+    inlineStub: (i2) => opts.classifierOverride ?? classifierLevel(i2),
+    logger,
+    taskId
+  });
+  validateClassifierRationale(classRes.output.rationale);
+  const classified = applyHeuristicFloor(classRes.output, { user_request: taskDescription });
+  if (classified.level !== classRes.output.level) {
+    log(`classifier verdict ${classRes.output.level} raised to ${classified.level} ` + `by the deterministic heuristic floor (HARD escalation rule)`);
+  }
+  let level = classified.level;
+  log(`classifier verdict: ${level} — ${classified.rationale}`);
+  if (opts.forceLevel) {
+    if (LEVEL_RANK[opts.forceLevel] < LEVEL_RANK[level]) {
+      throw new Error(`forceLevel ${opts.forceLevel} would downgrade ${level} — refused (upgrade-only rule)`);
+    }
+    level = opts.forceLevel;
+    log(`level overridden to ${level} (upgrade)`);
+  }
+  const motivation = opts.motivation ?? taskDescription;
+  if (level !== "L0") {
+    const motivationWords = wordCount(motivation);
+    if (motivationWords < 20) {
+      throw new Error(`motivation must be ≥20 words (sgc-state.schema.yaml min_words rule); ` + `got ${motivationWords} word(s). Re-run with ` + `--motivation "<longer rationale describing why this matters and what changes>".`);
+    }
+  }
+  let plannerEngOut = null;
+  let plannerCeoOut = null;
+  let researcherOut = null;
+  let adversarialOut = null;
+  let capturedPriorPreventions = [];
+  if (LEVEL_RANK[level] >= 2) {
+    for (const hint of delegationHintsFor("plan.researcher"))
+      log(formatHint(hint));
+    if (level === "L3") {
+      for (const hint of delegationHintsFor("plan.adversarial"))
+        log(formatHint(hint));
+    }
+    const tasks = [
+      (async () => {
+        try {
+          return await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i2) => plannerEng(i2), logger, taskId });
+        } catch (err) {
+          return { output: degradedEngOutput2(err, logger, taskId) };
+        }
+      })(),
+      (async () => {
+        try {
+          return await spawn3("planner.ceo", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i2) => plannerCeo(i2), logger, taskId });
+        } catch (err) {
+          return { output: degradedCeoOutput2(err, logger, taskId) };
+        }
+      })(),
+      (async () => {
+        const candidates = await preFilterSolutions(taskDescription, stateRoot2);
+        if (candidates.length === 0) {
+          return {
+            output: {
+              prior_art: [],
+              warnings: ["no candidates from pre-filter"]
+            }
+          };
+        }
+        try {
+          const r3 = await spawn3("researcher.history", { intent_draft: taskDescription, candidates }, {
+            stateRoot: stateRoot2,
+            inlineStub: (i2) => researcherHistory(i2, { stateRoot: stateRoot2 }),
+            logger,
+            taskId
+          });
+          return { output: coerceLlmOutput(r3.output, candidates) };
+        } catch (err) {
+          return { output: handleCoerceFailure(err, logger, taskId) };
+        }
+      })()
+    ];
+    if (level === "L3") {
+      tasks.push((async () => {
+        let priorPreventions = [];
+        try {
+          priorPreventions = await extractPreventions(taskDescription, stateRoot2, { logger, taskId });
+          capturedPriorPreventions = priorPreventions;
+        } catch (err) {
+          const errName = err instanceof Error ? err.name : "unknown";
+          const errMsg = err instanceof Error ? err.message : "";
+          logger.event({
+            task_id: taskId,
+            spawn_id: null,
+            agent: "plan.preventions",
+            event_type: "prevention.extract_failed",
+            level: "warn",
+            payload: { error_class: errName, error_message: errMsg }
+          });
+        }
+        if (priorPreventions.length > 0) {
+          log(`prevention recall: ${priorPreventions.length} prior failure shape(s) matched`);
+          for (const p of priorPreventions) {
+            log(`  prevention: ${p.solution_ref}`);
+          }
+        }
+        const adversarialInput = {
+          intent_draft: taskDescription,
+          ...priorPreventions.length > 0 ? { prior_preventions: priorPreventions } : {}
+        };
+        return spawn3("planner.adversarial", adversarialInput, {
+          stateRoot: stateRoot2,
+          inlineStub: (i2) => opts.adversarialOverride ?? plannerAdversarial(i2),
+          logger,
+          taskId
+        });
+      })());
+    }
+    const results = await Promise.all(tasks);
+    plannerEngOut = results[0].output;
+    plannerCeoOut = results[1].output;
+    researcherOut = results[2].output;
+    if (level === "L3") {
+      adversarialOut = results[3].output;
+      if (capturedPriorPreventions.length > 0 && adversarialOut.failure_modes.length > 0) {
+        try {
+          const refs = extractAppliedSolutionRefs(adversarialOut.failure_modes, capturedPriorPreventions);
+          if (refs.length > 0) {
+            const appliedResult = recordApplied(stateRoot2, refs, taskId, { logger });
+            logger.event({
+              task_id: taskId,
+              spawn_id: null,
+              agent: "plan.applied",
+              event_type: "plan.applied_recorded",
+              level: "info",
+              payload: {
+                solution_refs_input: refs,
+                updated: appliedResult.updated,
+                skipped_already_applied: appliedResult.skipped_already_applied,
+                skipped_missing: appliedResult.skipped_missing,
+                skipped_malformed: appliedResult.skipped_malformed,
+                stale_skipped: appliedResult.stale_skipped,
+                write_failed: appliedResult.write_failed
+              }
+            });
+            if (appliedResult.updated.length > 0) {
+              log(`applied_in updated: ${appliedResult.updated.length} solution(s) tracked task ${taskId}`);
+            }
+          }
+        } catch (err) {
+          const errName = err instanceof Error ? err.name : "unknown";
+          const errMsg = err instanceof Error ? err.message : String(err);
+          logger.event({
+            task_id: taskId,
+            spawn_id: null,
+            agent: "plan.applied",
+            event_type: "plan.applied_wire_failed",
+            level: "warn",
+            payload: { error_class: errName, error_message: errMsg, reason: "wire_up_throw" }
+          });
+        }
+      }
+    }
+    const surfacedRefs = selectSurfacedRefs(researcherOut.prior_art);
+    if (surfacedRefs.length > 0) {
+      try {
+        const surfacedResult = recordSurfaced(stateRoot2, surfacedRefs, taskId, { logger });
+        logger.event({
+          task_id: taskId,
+          spawn_id: null,
+          agent: "plan.surfaced",
+          event_type: "plan.surfaced_recorded",
+          level: "info",
+          payload: {
+            solution_refs_input: surfacedRefs,
+            updated: surfacedResult.updated,
+            skipped_already_applied: surfacedResult.skipped_already_applied,
+            skipped_missing: surfacedResult.skipped_missing,
+            skipped_malformed: surfacedResult.skipped_malformed,
+            stale_skipped: surfacedResult.stale_skipped,
+            write_failed: surfacedResult.write_failed
+          }
+        });
+        if (surfacedResult.updated.length > 0) {
+          log(`surfaced_in updated: ${surfacedResult.updated.length} solution(s) tracked task ${taskId}`);
+        }
+      } catch (err) {
+        const errName = err instanceof Error ? err.name : "unknown";
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.event({
+          task_id: taskId,
+          spawn_id: null,
+          agent: "plan.surfaced",
+          event_type: "plan.surfaced_wire_failed",
+          level: "warn",
+          payload: { error_class: errName, error_message: errMsg, reason: "wire_up_throw" }
+        });
+      }
+    }
+    log(`planner.eng verdict: ${plannerEngOut.verdict}`);
+    if (plannerEngOut.concerns.length > 0) {
+      for (const c3 of plannerEngOut.concerns)
+        log(`  eng concern: ${c3}`);
+    }
+    log(`planner.ceo verdict: ${plannerCeoOut.verdict}`);
+    if (plannerCeoOut.concerns.length > 0) {
+      for (const c3 of plannerCeoOut.concerns)
+        log(`  ceo concern: ${c3}`);
+    }
+    if (plannerCeoOut.rewrite_hints.length > 0) {
+      for (const h2 of plannerCeoOut.rewrite_hints)
+        log(`  ceo hint: ${h2}`);
+    }
+    log(`researcher.history: ${researcherOut.prior_art.length} prior art entries${researcherOut.warnings.length ? `, ${researcherOut.warnings.length} warning(s)` : ""}`);
+    for (const w2 of researcherOut.warnings)
+      log(`  research warning: ${w2}`);
+    if (adversarialOut) {
+      log(`planner.adversarial: ${adversarialOut.failure_modes.length} failure mode(s)`);
+      for (const fm of adversarialOut.failure_modes) {
+        log(`  [${fm.probability}/${fm.impact}] ${fm.scenario}`);
+      }
+    }
+  } else if (LEVEL_RANK[level] >= 1) {
+    try {
+      const planRes = await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i2) => plannerEng(i2), logger, taskId });
+      plannerEngOut = planRes.output;
+    } catch (err) {
+      plannerEngOut = degradedEngOutput2(err, logger, taskId);
+    }
+    log(`planner.eng verdict: ${plannerEngOut.verdict}`);
+    if (plannerEngOut.concerns.length > 0) {
+      for (const c3 of plannerEngOut.concerns)
+        log(`  concern: ${c3}`);
+    }
+  }
+  if (level === "L3" && !opts.userSignature) {
+    throw new Error(`L3 plan requires human signature. Re-run with --signed-by <signer_id> ` + `to acknowledge architecture-level scope.`);
+  }
+  if (level === "L3" && opts.autoConfirm) {
+    throw new Error(`L3 plan refuses --auto (Invariant §4). Human confirmation at stdin is required.`);
+  }
+  let fused;
+  if (plannerCeoOut && plannerEngOut) {
+    fused = fusePlan({ ceo: plannerCeoOut, eng: plannerEngOut, adversarial: adversarialOut });
+  }
+  const fusedSection = fused ? renderFusedSection(fused) + `
+
+` : "";
+  const fusedVerdict = fused?.fused_verdict;
+  const deepActive = level !== "L0" && (LEVEL_RANK[level] >= 2 || level === "L1" && opts.deep === true);
+  let decomposed = null;
+  if (deepActive) {
+    const decomposeInput = {
+      intent_draft: taskDescription,
+      ...plannerEngOut ? { structural_risks: plannerEngOut.structural_risks } : {},
+      ...researcherOut ? { prior_art: researcherOut.prior_art } : {},
+      ...adversarialOut ? { failure_modes: adversarialOut.failure_modes } : {},
+      ...capturedPriorPreventions.length > 0 ? { prior_preventions: capturedPriorPreventions } : {}
+    };
+    const decRes = await spawn3("planner.decompose", decomposeInput, {
+      stateRoot: stateRoot2,
+      inlineStub: (i2) => plannerDecompose(i2),
+      logger,
+      taskId
+    });
+    decomposed = decRes.output;
+    log(`planner.decompose: ${decomposed.tasks.length} task(s)`);
+  }
+  if (level === "L3") {
+    log("");
+    log("=== L3 PLAN SUMMARY — confirm before intent.md is written (immutable) ===");
+    log(`  task_id:    ${taskId}`);
+    log(`  task:       ${taskDescription.slice(0, 120)}`);
+    log(`  classifier: ${classRes.output.rationale}`);
+    if (plannerEngOut)
+      log(`  eng:        ${plannerEngOut.verdict} (${plannerEngOut.concerns.length} concerns)`);
+    if (plannerCeoOut)
+      log(`  ceo:        ${plannerCeoOut.verdict} (${plannerCeoOut.concerns.length} concerns)`);
+    if (researcherOut)
+      log(`  research:   ${researcherOut.prior_art.length} prior art entries`);
+    if (adversarialOut)
+      log(`  pre-mortem: ${adversarialOut.failure_modes.length} failure mode(s)`);
+    if (fused) {
+      log(`  fused:      ${fused.fused_verdict} — ${fused.decision_basis} (advisory; human signature still required)`);
+    }
+    log(`  signer:     ${opts.userSignature.signer_id}`);
+    log("");
+    log("Type 'yes' to commit intent.md (or Ctrl+C to abort):");
+    const reader = opts.readConfirmation ?? defaultReadConfirmation2;
+    const answer = (await reader()).trim().toLowerCase();
+    if (answer !== "yes") {
+      throw new Error(`L3 plan not confirmed at stdin (got '${answer || "(empty)"}'); intent.md NOT written.`);
+    }
+    log("confirmed — writing intent.md");
+  }
+  let intentPath3 = "(skipped — L0)";
+  if (level !== "L0") {
+    const intent = {
+      task_id: taskId,
+      level,
+      created_at: createdAt,
+      title: taskDescription.slice(0, 120),
+      motivation,
+      affected_readers: classRes.output.affected_readers_candidates,
+      scope_tokens: computeCommandTokens("/plan"),
+      user_signature: opts.userSignature,
+      fused_verdict: fusedVerdict,
+      body: fusedSection + `## Classifier rationale
+
+${classified.rationale}
+
+` + (plannerEngOut ? `## Planner.eng verdict
+
+${plannerEngOut.verdict}
+
+` + (plannerEngOut.concerns.length ? `### Eng concerns
+
+${plannerEngOut.concerns.map((c3) => `- ${c3}`).join(`
+`)}
+
+` : "") : "") + (plannerCeoOut ? `## Planner.ceo verdict
+
+${plannerCeoOut.verdict}
+
+` + (plannerCeoOut.concerns.length ? `### CEO concerns
+
+${plannerCeoOut.concerns.map((c3) => `- ${c3}`).join(`
+`)}
+
+` : "") + (plannerCeoOut.rewrite_hints.length ? `### CEO rewrite hints
+
+${plannerCeoOut.rewrite_hints.map((h2) => `- ${h2}`).join(`
+`)}
+
+` : "") : "") + (researcherOut ? `${PRIOR_ART_SENTINEL_BEGIN}
+` + `## Prior art (researcher.history)
+
+` + (researcherOut.prior_art.length === 0 ? `_No prior art found._
+
+` : researcherOut.prior_art.map((p) => {
+        const excerpt = p.excerpt?.trim();
+        const ref = `- **${p.solution_ref}** (score ${p.relevance_score.toFixed(2)})`;
+        const head = excerpt ? `${ref}: ${excerpt}` : ref;
+        return p.relevance_reason ? `${head}
+  Reason: ${p.relevance_reason}` : head;
+      }).join(`
+`) + `
+
+`) + (researcherOut.warnings.length ? `### Research warnings
+
+${researcherOut.warnings.map((w2) => `- ${w2}`).join(`
+`)}
+
+` : "") + `${PRIOR_ART_SENTINEL_END}
+
+` : "") + (adversarialOut ? `${PRE_MORTEM_SENTINEL_BEGIN}
+` + `## Pre-mortem (planner.adversarial)
+
+` + adversarialOut.failure_modes.map((fm) => `### [${fm.probability}/${fm.impact}] ${fm.scenario}
+` + `Early signal: ${fm.early_signal}
+`).join(`
+`) + `
+${PRE_MORTEM_SENTINEL_END}
+` : "")
+    };
+    intentPath3 = writeIntent(intent, stateRoot2);
+    log(`wrote ${intentPath3}`);
+  } else {
+    log(`L0 task: skipping intent.md per schema (decisions/ not written for L0)`);
+  }
+  if (decomposed && decomposed.tasks.length > 0) {
+    const features = decomposed.tasks.map((t2) => ({
+      id: t2.id,
+      title: t2.title,
+      status: "pending",
+      files: t2.files,
+      steps: t2.steps,
+      ...t2.prior_art_refs.length > 0 ? { prior_art_refs: t2.prior_art_refs } : {}
+    }));
+    writeFeatureList({ features }, "Authored by `sgc plan` deep decomposition. Each task carries file-level scope + bite-sized TDD steps.\n", stateRoot2);
+    const slug = taskDescription.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "plan";
+    const dateIso = createdAt.slice(0, 10);
+    const md = renderPlanMarkdown({ features }, { title: taskDescription.slice(0, 120), level });
+    const docPath = writePlanDoc(slug, dateIso, md, stateRoot2);
+    log(`wrote plan doc ${docPath}`);
+  } else {
+    writeFeatureList({
+      features: [
+        {
+          id: "f1",
+          title: taskDescription.slice(0, 200),
+          status: "pending"
+        }
+      ]
+    }, "Refine this list during `sgc work`. The dispatcher does not infer fine-grained features in MVP.\n", stateRoot2);
+  }
+  writeCurrentTask({
+    task_id: taskId,
+    level,
+    active_feature: "f1",
+    session_start: createdAt,
+    last_activity: createdAt
+  }, "", stateRoot2);
+  const handoff = {
+    from_session: taskId,
+    to_session_hint: "sgc work",
+    summary: `Plan created for task ${taskId} at level ${level}.`,
+    open_questions: []
+  };
+  writeHandoff(handoff, `Plan written for task ${taskId}. Level ${level}. Resume via 'sgc work'.
+`, stateRoot2);
+  log(``);
+  log(`Plan complete. Run \`sgc work\` to begin execution.`);
+  return { taskId, level, intentPath: intentPath3 };
+}
+var init_plan2 = __esm(() => {
+  init_spawn();
+  init_classifier_level2();
+  init_planner_eng2();
+  init_planner_ceo2();
+  init_researcher_history();
+  init_planner_adversarial2();
+  init_planner_decompose2();
+  init_preventions();
+  init_applied_tracker();
+  init_rationale();
+  init_state();
+  init_capabilities();
+  init_delegation();
+  init_fuse_plan();
+  init_logger();
+  init_plan_jobs2();
+});
+
+// src/commands/review.ts
+function generateReportId3() {
+  return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
+}
+function nowIso11() {
+  return new Date().toISOString();
+}
+function captureDiff2(base, cwd, maxBytes) {
+  const r3 = spawnCaptureSync(["git", "diff", base], { cwd, maxBuffer: maxBytes });
+  if (r3.exitCode === 0)
+    return r3.stdout;
+  if (r3.exitCode === -1) {
+    throw new Error(`git diff capture failed (base=${base}) — the diff was not captured, ` + `so review cannot run against it: ${r3.stderr.slice(0, 200)}`);
+  }
+  return "";
+}
+function stripSentinelBlock2(body, begin, end, legacyHeadingRe) {
+  const beginIdx = body.indexOf(begin);
+  if (beginIdx !== -1) {
+    const endIdx = body.indexOf(end, beginIdx);
+    if (endIdx !== -1) {
+      const after = endIdx + end.length;
+      const cut = body[after] === `
+` ? after + 1 : after;
+      return body.slice(0, beginIdx) + body.slice(cut);
+    }
+    const tail = body.slice(beginIdx);
+    const next = /\n## /.exec(tail);
+    const cutEnd = beginIdx + (next?.index ?? tail.length);
+    return body.slice(0, beginIdx) + body.slice(cutEnd);
+  }
+  const m2 = legacyHeadingRe.exec(body);
+  if (!m2)
+    return body;
+  const afterHeading = body.slice(m2.index + m2[0].length);
+  const nextHeading = /^## /m.exec(afterHeading);
+  const sectionEnd = m2.index + m2[0].length + (nextHeading?.index ?? afterHeading.length);
+  return body.slice(0, m2.index) + body.slice(sectionEnd);
+}
+function stripBackChannelSections2(body) {
+  let stripped = body;
+  stripped = stripSentinelBlock2(stripped, PRIOR_ART_SENTINEL_BEGIN, PRIOR_ART_SENTINEL_END, /^## Prior art \(researcher\.history\)\r?\n/m);
+  stripped = stripSentinelBlock2(stripped, PRE_MORTEM_SENTINEL_BEGIN, PRE_MORTEM_SENTINEL_END, /^## Pre-mortem \(planner\.adversarial\)\r?\n/m);
+  return stripped;
+}
+function worstVerdict2(verdicts) {
+  return verdicts.reduce((acc, v2) => VERDICT_ORDER2[v2] > VERDICT_ORDER2[acc] ? v2 : acc, "pass");
+}
+async function runReview2(opts = {}) {
+  const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
+  const log = (m2) => logger.say(m2);
+  const stateRoot2 = opts.stateRoot;
+  const ct = readCurrentTask(stateRoot2);
+  if (!ct)
+    throw new Error("no active task — run `sgc plan <task>` first");
+  const taskId = ct.task.task_id;
+  const level = ct.task.level;
+  if (level === "L0") {
+    throw new Error("L0 tasks are fast-path: no intent.md is written and review/qa/ship are L2+ gates. Nothing to review.");
+  }
+  for (const hint of delegationHintsFor("review.cluster"))
+    log(formatHint(hint));
+  const intent = readIntent(taskId, stateRoot2);
+  const intentForReviewer = stripBackChannelSections2(intent.body ?? "");
+  const diff = opts.diffOverride ?? captureDiff2(opts.base ?? "HEAD");
+  const r3 = await spawn3("reviewer.correctness", { diff, intent: intentForReviewer }, {
+    stateRoot: stateRoot2,
+    inlineStub: (i2) => reviewerCorrectness(i2),
+    logger,
+    taskId
+  });
+  const correctnessReport = {
+    report_id: generateReportId3(),
+    task_id: taskId,
+    stage: "code",
+    reviewer_id: "reviewer.correctness",
+    reviewer_version: "0.1",
+    verdict: r3.output.verdict,
+    severity: r3.output.severity,
+    findings: r3.output.findings,
+    created_at: nowIso11(),
+    engine: r3.mode
+  };
+  const reportPath = appendReview(correctnessReport, "", stateRoot2, opts.appendAs);
+  log(`reviewer.correctness: ${correctnessReport.verdict} (severity: ${correctnessReport.severity}, ${correctnessReport.findings.length} finding(s))`);
+  for (const f3 of correctnessReport.findings.slice(0, 5)) {
+    log(`  - ${f3.description}`);
+  }
+  if (correctnessReport.findings.length > 5) {
+    log(`  ... ${correctnessReport.findings.length - 5} more findings (see ${reportPath})`);
+  }
+  const isL2Plus = level === "L2" || level === "L3";
+  const clusterReports = [];
+  async function runClusterReviewer(name, agent) {
+    const res = await spawn3(name, { diff, intent: intentForReviewer }, { stateRoot: stateRoot2, inlineStub: (i2) => agent(i2), logger, taskId });
+    const report = {
+      report_id: generateReportId3(),
+      task_id: taskId,
+      stage: "code",
+      reviewer_id: name,
+      reviewer_version: "0.1",
+      verdict: res.output.verdict,
+      severity: res.output.severity,
+      findings: res.output.findings,
+      created_at: nowIso11(),
+      engine: res.mode
+    };
+    const path2 = appendReview(report, "", stateRoot2, opts.appendAs);
+    clusterReports.push({
+      reviewerId: name,
+      verdict: res.output.verdict,
+      severity: res.output.severity,
+      reportPath: path2,
+      findingsCount: res.output.findings.length
+    });
+    log(`${name}: ${res.output.verdict} (severity: ${res.output.severity}, ${res.output.findings.length} finding(s))`);
+  }
+  if (isL2Plus) {
+    await runClusterReviewer("reviewer.tests", reviewerTests);
+    await runClusterReviewer("reviewer.maintainability", reviewerMaintainability);
+  }
+  const specialistReports = [];
+  if (isL2Plus) {
+    const matched = matchSpecialists(diff);
+    if (matched.length > 0) {
+      const specialistMode = process.env["SGC_REVIEW_SPECIALIST_LLM"] === "0" ? "inline" : undefined;
+      const specResults = await Promise.all(matched.map((s2) => spawn3(s2.name, { diff, intent: intentForReviewer }, {
+        stateRoot: stateRoot2,
+        inlineStub: (i2) => s2.agent(i2),
+        ...specialistMode ? { mode: specialistMode } : {},
+        logger,
+        taskId
+      })));
+      for (let i2 = 0;i2 < matched.length; i2++) {
+        const s2 = matched[i2];
+        const out = specResults[i2].output;
+        const report = {
+          report_id: generateReportId3(),
+          task_id: taskId,
+          stage: "code",
+          reviewer_id: s2.name,
+          reviewer_version: "0.1",
+          verdict: out.verdict,
+          severity: out.severity,
+          findings: out.findings,
+          created_at: nowIso11(),
+          engine: specResults[i2].mode
+        };
+        const path2 = appendReview(report, "", stateRoot2, opts.appendAs);
+        specialistReports.push({
+          reviewerId: s2.name,
+          verdict: out.verdict,
+          severity: out.severity,
+          reportPath: path2,
+          findingsCount: out.findings.length
+        });
+        log(`${s2.name}: ${out.verdict} (severity: ${out.severity}, ${out.findings.length} finding(s))`);
+        for (const f3 of out.findings.slice(0, 3)) {
+          log(`  - ${f3.description}`);
+        }
+      }
+    }
+  }
+  log(`wrote ${reportPath}${specialistReports.length > 0 ? ` (+${specialistReports.length} specialists)` : ""}`);
+  const aggregateVerdict = worstVerdict2([
+    correctnessReport.verdict,
+    ...clusterReports.map((s2) => s2.verdict),
+    ...specialistReports.map((s2) => s2.verdict)
+  ]);
+  return { taskId, verdict: aggregateVerdict, reportPath, specialistReports: [...clusterReports, ...specialistReports] };
+}
+var VERDICT_ORDER2;
+var init_review2 = __esm(() => {
+  init_subprocess();
+  init_spawn();
+  init_reviewer_correctness2();
+  init_reviewer_specialists();
+  init_reviewer_quality();
+  init_state();
+  init_delegation();
+  init_logger();
+  VERDICT_ORDER2 = { pass: 0, concern: 1, fail: 2 };
+});
+
+// src/commands/qa.ts
+import { mkdirSync as mkdirSync6 } from "node:fs";
+import { join as join11 } from "node:path";
+function qaScreenshotDir2(stateRoot2, taskId) {
+  return join11(resolveStateRoot(stateRoot2), "reviews", taskId, "qa");
+}
+function generateReportId4() {
+  return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
+}
+function nowIso12() {
+  return new Date().toISOString();
+}
+function verdictToSeverity2(v2) {
+  if (v2 === "pass")
+    return "none";
+  if (v2 === "concern")
+    return "low";
+  return "high";
+}
+async function runQa2(opts = {}) {
+  const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
+  const log = (m2) => logger.say(m2);
+  const stateRoot2 = opts.stateRoot;
+  const ct = readCurrentTask(stateRoot2);
+  if (!ct)
+    throw new Error("no active task — run `sgc plan <task>` first");
+  const taskId = ct.task.task_id;
+  const target = opts.target ?? "";
+  const flows = opts.flows ?? [];
+  const optIn = opts.browse === true || process.env["SGC_QA_REAL"] === "1";
+  let browseRunner = opts.browseRunner;
+  if (!browseRunner && optIn) {
+    const shotDir = qaScreenshotDir2(stateRoot2, String(taskId));
+    mkdirSync6(shotDir, { recursive: true });
+    browseRunner = makeBrowseRunner({ launch: launchPlaywrightSession, screenshotDir: shotDir });
+  }
+  const r3 = await spawn3("qa.browser", { target_url: target, user_flows: flows }, {
+    stateRoot: stateRoot2,
+    inlineStub: (i2) => qaBrowser(i2, browseRunner ? { browseRunner } : {}),
+    logger,
+    taskId
+  });
+  const realFlows = r3.output.failed_flows.filter((f3) => f3.step !== "note");
+  const report = {
+    report_id: generateReportId4(),
+    task_id: taskId,
+    stage: "qa",
+    reviewer_id: "qa.browser",
+    reviewer_version: "0.1",
+    verdict: r3.output.verdict,
+    severity: verdictToSeverity2(r3.output.verdict),
+    findings: realFlows.map((f3) => ({
+      location: f3.flow,
+      description: `Step '${f3.step}' failed: ${f3.observed}`
+    })),
+    evidence_refs: r3.output.evidence_refs,
+    created_at: nowIso12(),
+    engine: r3.mode
+  };
+  const reportPath = appendReview(report, "", stateRoot2);
+  log(`qa.browser: ${report.verdict} (severity: ${report.severity}, ${realFlows.length} failed flow(s), ${r3.output.evidence_refs.length} evidence ref(s))`);
+  for (const f3 of r3.output.failed_flows.slice(0, 5)) {
+    log(`  - [${f3.flow}] ${f3.step}: ${f3.observed}`);
+  }
+  log(`wrote ${reportPath}`);
+  return { taskId, verdict: report.verdict, reportPath };
+}
+var init_qa2 = __esm(() => {
+  init_spawn();
+  init_playwright_runner();
+  init_state();
+  init_logger();
+});
+
 // src/commands/loop.ts
 var exports_loop = {};
 __export(exports_loop, {
-  runLoopCommand: () => runLoopCommand
+  runLoopCommand: () => runLoopCommand,
+  defaultStepRunners: () => defaultStepRunners2
 });
 function renderRunSummary(run) {
   return [
@@ -23364,6 +23305,53 @@ next: fix the underlying issue, then \`sgc loop --resume ${id}\` to retry the fa
 run complete. All 6 steps done.`;
   }
 }
+function defaultStepRunners2() {
+  return {
+    plan: async (state, opts) => {
+      try {
+        const r3 = await runPlan2(state.task, {
+          stateRoot: opts.stateRoot,
+          motivation: opts.motivation,
+          userSignature: opts.userSignature,
+          forceLevel: opts.forceLevel,
+          ...process.stdin.isTTY ? {} : {
+            readConfirmation: async () => {
+              throw new LoopError("L3NeedsConfirmation", `task classified L3 — Invariant §4 requires a human confirmation at stdin, and ` + `this loop has no terminal attached. Plan it by hand first:
+` + `  sgc plan "${state.task}" --signed-by <you> --motivation "..."
+` + `then resume: sgc loop --resume ${state.run_id}`, { run_id: state.run_id, reason: "l3_needs_tty" });
+            }
+          }
+        });
+        return {
+          task_id: r3.taskId,
+          level: r3.level,
+          intent_path: r3.intentPath
+        };
+      } catch (e2) {
+        const msg = e2 instanceof Error ? e2.message : String(e2);
+        const existing = /active task/i.test(msg) ? readCurrentTask(opts.stateRoot) : null;
+        if (!existing)
+          throw e2;
+        const t2 = existing.task;
+        console.error(`loop: adopting active task ${t2.task_id} (level ${t2.level}) — already planned, not re-planning`);
+        return {
+          task_id: t2.task_id,
+          level: String(t2.level),
+          intent_path: t2.level === "L0" ? "(L0 — no intent.md)" : intentPath(t2.task_id, opts.stateRoot)
+        };
+      }
+    },
+    review: async (_state, opts) => {
+      await runReview2({ stateRoot: opts.stateRoot });
+    },
+    qa: async (_state, opts) => {
+      await runQa2({ stateRoot: opts.stateRoot });
+    },
+    compound: async (_state, opts) => {
+      await runCompound({ stateRoot: opts.stateRoot });
+    }
+  };
+}
 async function runLoopCommand(cliOpts) {
   if (cliOpts.runs) {
     const runs = await listLoopRuns({ stateRoot: cliOpts.stateRoot });
@@ -23387,6 +23375,7 @@ async function runLoopCommand(cliOpts) {
     return;
   }
   const opts = {
+    steps: defaultStepRunners2(),
     stateRoot: cliOpts.stateRoot,
     resume: cliOpts.resume,
     motivation: cliOpts.motivation,
@@ -23412,6 +23401,11 @@ async function runLoopCommand(cliOpts) {
 }
 var init_loop2 = __esm(() => {
   init_loop();
+  init_state();
+  init_plan2();
+  init_review2();
+  init_qa2();
+  init_compound2();
 });
 
 // src/commands/cso.ts
@@ -25787,8 +25781,8 @@ var compound = defineCommand({
   async run({ args }) {
     const fromCanary = args["from-canary"];
     if (fromCanary !== undefined && fromCanary.length > 0) {
-      const { runCanaryPromote: runCanaryPromote3 } = await Promise.resolve().then(() => (init_compound3(), exports_compound2));
-      const result = await runCanaryPromote3({
+      const { runCanaryPromote: runCanaryPromote2 } = await Promise.resolve().then(() => (init_compound3(), exports_compound));
+      const result = await runCanaryPromote2({
         slug: fromCanary,
         force: args.force,
         solutionSlug: args["solution-slug"]
@@ -25799,8 +25793,8 @@ var compound = defineCommand({
     }
     const fromRedGreen = args["from-red-green"];
     if (fromRedGreen !== undefined && fromRedGreen.length > 0) {
-      const { runRedGreenPromote: runRedGreenPromote3 } = await Promise.resolve().then(() => (init_compound3(), exports_compound2));
-      const result = await runRedGreenPromote3({
+      const { runRedGreenPromote: runRedGreenPromote2 } = await Promise.resolve().then(() => (init_compound3(), exports_compound));
+      const result = await runRedGreenPromote2({
         slug: fromRedGreen,
         force: args.force,
         solutionSlug: args["solution-slug"]
@@ -25811,8 +25805,8 @@ var compound = defineCommand({
     }
     const fromShipFailure = args["from-ship-failure"];
     if (fromShipFailure !== undefined && fromShipFailure.length > 0) {
-      const { runCompoundPromote: runCompoundPromote3 } = await Promise.resolve().then(() => (init_compound3(), exports_compound2));
-      const result = await runCompoundPromote3({
+      const { runCompoundPromote: runCompoundPromote2 } = await Promise.resolve().then(() => (init_compound3(), exports_compound));
+      const result = await runCompoundPromote2({
         slug: fromShipFailure,
         force: args.force,
         solutionSlug: args["solution-slug"]
@@ -25821,7 +25815,7 @@ var compound = defineCommand({
 `);
       return;
     }
-    const { runCompound: runCompound3 } = await Promise.resolve().then(() => (init_compound3(), exports_compound2));
+    const { runCompound: runCompound3 } = await Promise.resolve().then(() => (init_compound3(), exports_compound));
     await runCompound3({
       force: args.force,
       slug: args.slug

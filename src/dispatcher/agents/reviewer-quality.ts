@@ -3,8 +3,15 @@
 // runReview at L2+ spawns reviewer.correctness PLUS these two quality
 // reviewers (always), independent of the diff-conditional domain specialists
 // in reviewer-specialists.ts. Same SubagentManifest contract + output shape
-// (verdict / severity / findings); the LLM path replaces the stub via the
-// synthesized prompt (prompt_path: null in the manifest).
+// (verdict / severity / findings).
+//
+// The two take different LLM paths, and this comment claimed otherwise through
+// v1.36.0: reviewer.tests has `prompt_path: prompts/reviewer-tests.md` (v1.35.0
+// gave it one; 智能化 11/23 → 13/23), so with a key it runs that template and
+// falls back to the heuristic below without one. reviewer.maintainability has no
+// prompt_path and its LLM path is the synthesized prompt. deriveCliFact reads
+// that very field to pick a description shape, so a reader trusting this header
+// would mis-predict what ships.
 //
 // Invariant §1: these reviewers receive only { diff, intent } (intent already
 // stripped of prior-art/pre-mortem back-channel by review.ts) and hold no

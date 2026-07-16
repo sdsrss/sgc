@@ -141,7 +141,7 @@ export const PERFORMANCE_TERMS: readonly Term[] = [
   { display: "cache", re: "cache", wordBounded: true },
   { display: "cached/caching", re: "cach(ed|ing)", wordBounded: true },
   { display: "index", re: "index", wordBounded: true },
-  { display: "memoize", re: "memoi[sz]e", wordBounded: true },
+  { display: "memoize/memoise", re: "memoi[sz]e", wordBounded: true },
   { display: "debounce", re: "debounce", wordBounded: true },
   { display: "throttle", re: "throttle", wordBounded: true },
   { display: "n+1", re: String.raw`n\+1`, wordBounded: true },
@@ -204,6 +204,12 @@ export function reviewerInfra(input: ReviewerSpecialistInput): ReviewerSpecialis
 export interface SpecialistDescriptor {
   name: "reviewer.security" | "reviewer.migration" | "reviewer.performance" | "reviewer.infra"
   trigger: RegExp
+  /** Terms that SPAWN this specialist but that its matcher never reports on.
+   *  Empty for three of the four: their trigger is the matcher's own term list
+   *  with the word boundaries dropped, so it is wider in scope (whole diff vs
+   *  added lines) rather than in vocabulary. Only performance carries extras.
+   *  Read by agent-facts to say which of the two widths a description means. */
+  triggerOnly: readonly Term[]
   agent: (input: ReviewerSpecialistInput) => ReviewerSpecialistOutput
 }
 
@@ -262,21 +268,25 @@ export const DIFF_CONDITIONAL_SPECIALISTS: readonly SpecialistDescriptor[] = [
   {
     name: "reviewer.security",
     trigger: buildPattern(unbound(SECURITY_TERMS)),
+    triggerOnly: [],
     agent: reviewerSecurity,
   },
   {
     name: "reviewer.migration",
     trigger: buildPattern(unbound(MIGRATION_TERMS)),
+    triggerOnly: [],
     agent: reviewerMigration,
   },
   {
     name: "reviewer.performance",
     trigger: buildPattern(unbound([...PERFORMANCE_TERMS, ...PERFORMANCE_TRIGGER_ONLY])),
+    triggerOnly: PERFORMANCE_TRIGGER_ONLY,
     agent: reviewerPerformance,
   },
   {
     name: "reviewer.infra",
     trigger: buildPattern(unbound(INFRA_TERMS)),
+    triggerOnly: [],
     agent: reviewerInfra,
   },
 ] as const

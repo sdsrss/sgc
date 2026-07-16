@@ -1,6 +1,6 @@
 ---
 name: reviewer-tests
-description: "Test-adequacy review of a diff — whether new behaviour ships with tests, whether those tests would actually fail if the code were wrong (vacuous assertions, self-asserting mocks, snapshot-only coverage), whether the new branches and error paths are exercised, and whether the setup carries flakiness risk (wall-clock, real network, shared state, unseeded randomness). Dispatch this to judge test quality, not test presence. Separate fact for sgc CLI users: `sgc review` does not run this file's body — with an API key it runs prompts/reviewer-tests.md; without one it falls back to a file-path check over the diff's `+++ b/<path>` headers that only asks whether test files were touched, at medium severity."
+description: "Test-adequacy review of a diff — whether new behaviour ships with tests, whether those tests would actually fail if the code were wrong (vacuous assertions, self-asserting mocks, snapshot-only coverage), whether the new branches and error paths are exercised, and whether the setup carries flakiness risk (wall-clock, real network, shared state, unseeded randomness). Dispatch this to judge test quality, not test presence. Separate fact for sgc CLI users: `sgc review` does not run this file's body — with an API key it runs prompts/reviewer-tests.md; without one it falls back to a file-path check over the diff's `+++ b/<path>` headers that only asks whether source files changed without any test file changing, at medium severity."
 ---
 
 # Test Reviewer

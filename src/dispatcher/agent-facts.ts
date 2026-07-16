@@ -10,7 +10,7 @@
 import type { Severity } from "./types"
 import { getSubagentManifest } from "./schema"
 import { displayList } from "./agents/terms"
-import { SECURITY, MIGRATION, PERFORMANCE, INFRA } from "./agents/reviewer-specialists"
+import { SECURITY, MIGRATION, PERFORMANCE, INFRA, DIFF_CONDITIONAL_SPECIALISTS } from "./agents/reviewer-specialists"
 import {
   MAINT_MARKER_TERMS, MAX_LINE, MAINTAINABILITY_SEVERITY,
   TESTS_SEVERITY, TESTS_MECHANISM,
@@ -60,6 +60,34 @@ function severityOf(id: string): Severity {
   }
 }
 
+/**
+ * The spawn/report asymmetry — emitted only where it exists, and claiming only
+ * the width it actually has.
+ *
+ * v1.36.0 keyed this sentence to clause shape rather than to the hazard, which
+ * got it wrong in both directions. reviewer.security is diff-conditional and has
+ * the asymmetry, but drew Shape 2 (it has a prompt_path) and so said nothing;
+ * reviewer.infra said its trigger was "wider than that matcher" while the two
+ * regexes are byte-identical. Membership of DIFF_CONDITIONAL_SPECIALISTS decides
+ * whether the hazard applies; `triggerOnly` decides which width to claim.
+ *
+ * The width that is true of all four is scope: the trigger tests the whole diff —
+ * headers, context lines, removed lines — while the matcher reports only on added
+ * lines. Only performance also carries terms the matcher never reports on.
+ */
+function spawnCaveat(agentId: string): string {
+  const spec = DIFF_CONDITIONAL_SPECIALISTS.find((s) => s.name === agentId)
+  if (!spec) return "" // runs on every L2+ review; nothing spawns it selectively
+  // Two different widths, so two sentences. Folding the terms into the places
+  // list ("the whole diff — headers, context lines, removed lines, plus
+  // perf|performance") reads as one heterogeneous list of two unlike things.
+  const extra =
+    spec.triggerOnly.length > 0
+      ? ` It also spawns on ${displayList(spec.triggerOnly)}, which the matcher never reports on.`
+      : ""
+  return ` Its spawn trigger is wider than that matcher in scope: it tests the whole diff — file headers, context lines, removed lines — while the matcher reads only added lines.${extra} So a spawned reviewer reporting zero findings is not evidence of a clean diff.`
+}
+
 export function deriveCliFact(agentId: string): string {
   if (!DERIVED_AGENT_IDS.includes(agentId)) {
     throw new Error(`${agentId} is not in the derived set — see DERIVED_AGENT_IDS`)
@@ -80,9 +108,9 @@ export function deriveCliFact(agentId: string): string {
   if (m.prompt_path) {
     const fb =
       agentId === "reviewer.tests"
-        ? `${TESTS_MECHANISM} that only asks whether test files were touched, at ${severityOf(agentId)} severity`
+        ? `${TESTS_MECHANISM} that only asks whether source files changed without any test file changing, at ${severityOf(agentId)} severity`
         : `a keyword matcher (${fallbackTerms(agentId)}) at ${severityOf(agentId)} severity`
-    return `${CLI_FACT_MARKER} ${NO_BODY} — with an API key it runs ${m.prompt_path}; without one it falls back to ${fb}.`
+    return `${CLI_FACT_MARKER} ${NO_BODY} — with an API key it runs ${m.prompt_path}; without one it falls back to ${fb}.${spawnCaveat(agentId)}`
   }
 
   // Shape 3 — threshold + marker list.
@@ -98,5 +126,5 @@ export function deriveCliFact(agentId: string): string {
   }
 
   // Shape 1 — term-list matcher, no LLM path.
-  return `${CLI_FACT_MARKER} ${NO_BODY} — there, ${agentId} is a heuristic keyword matcher over added lines (${fallbackTerms(agentId)}) at ${severityOf(agentId)} severity, which matches words about the problem rather than detecting it. Its spawn trigger is deliberately wider than that matcher, so a spawned reviewer reporting zero findings is not evidence of a clean diff.`
+  return `${CLI_FACT_MARKER} ${NO_BODY} — there, ${agentId} is a heuristic keyword matcher over added lines (${fallbackTerms(agentId)}) at ${severityOf(agentId)} severity, which matches words about the problem rather than detecting it.${spawnCaveat(agentId)}`
 }

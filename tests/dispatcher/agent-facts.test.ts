@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { deriveCliFact, DERIVED_AGENT_IDS, CLI_FACT_MARKER } from "../../src/dispatcher/agent-facts"
 import { cliFactDrift, readAgentMdFiles, runDoctor, rewriteCliFact } from "../../src/commands/doctor"
-import { SECURITY, MIGRATION, PERFORMANCE, INFRA } from "../../src/dispatcher/agents/reviewer-specialists"
+import { SECURITY, MIGRATION, PERFORMANCE, INFRA, DIFF_CONDITIONAL_SPECIALISTS } from "../../src/dispatcher/agents/reviewer-specialists"
+import { getSubagentManifest } from "../../src/dispatcher/schema"
 import {
   MAINT_MARKER_TERMS, MAX_LINE, MAINTAINABILITY_SEVERITY,
   TESTS_SEVERITY, TESTS_MECHANISM,
@@ -340,6 +341,34 @@ describe("each clause is pinned to its own def's data, not to a literal", () => 
     const f = deriveCliFact("reviewer.tests")
     expect(f).toContain(TESTS_MECHANISM)
     expect(f).toContain(`at ${TESTS_SEVERITY} severity`)
+  })
+
+  test("the spawn caveat is keyed to the hazard, not to clause shape", () => {
+    // v1.36.0 keyed it to shape: reviewer.security is diff-conditional and has
+    // the asymmetry but drew Shape 2 (prompt_path) and said nothing, while
+    // reviewer.tests — which runs on every L2+ review, so nothing spawns it
+    // selectively — would have gained the caveat had it lacked a prompt_path.
+    const CAVEAT = /spawned reviewer reporting zero findings is not evidence/
+    const conditional = new Set<string>(DIFF_CONDITIONAL_SPECIALISTS.map((s) => s.name))
+    for (const id of DERIVED_AGENT_IDS) {
+      const m = getSubagentManifest(id)
+      if (m?.status === "slot-only" || m?.status === "manual-only") continue
+      expect(`${id}: ${CAVEAT.test(deriveCliFact(id))}`).toBe(`${id}: ${conditional.has(id)}`)
+    }
+  })
+
+  test("the caveat claims scope, and names trigger-only terms only where they exist", () => {
+    // infra's trigger regex is byte-identical to its matcher's — "wider" was a
+    // vocabulary claim it could not support. Scope is the width all four share.
+    for (const spec of DIFF_CONDITIONAL_SPECIALISTS) {
+      const f = deriveCliFact(spec.name)
+      expect(f).toContain("wider than that matcher in scope")
+      if (spec.triggerOnly.length > 0) {
+        expect(f).toContain(displayList(spec.triggerOnly))
+      } else {
+        expect(f).not.toContain("It also spawns on")
+      }
+    }
   })
 
   test("no two specialists advertise the same term list", () => {

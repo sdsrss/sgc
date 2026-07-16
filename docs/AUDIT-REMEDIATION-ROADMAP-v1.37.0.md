@@ -12,8 +12,8 @@
 |---|---|---|---|---|---|---|
 | A — P1（先修） | 已复现/确证的门失效 | 4 | 4 | 0 | 0 | **100%** |
 | B — P2（下一周期） | 降级诚实性 + 边界健壮性 + CI | 7 | 7 | 0 | 0 | **100%** |
-| C — P3（机会性清理） | 低危 + 重构 | 11 | 9 | 0 | 1 | 82% |
-| **合计** | | **22** | **20** | **0** | **1** | **91%** |
+| C — P3（机会性清理） | 低危 + 重构 | 11 | 10 | 0 | 1 | 91% |
+| **合计** | | **22** | **21** | **0** | **1** | **95%** |
 
 **B1（L3）收口状态**（2026-07-16）：走完 L3 流程（brainstorm → spec `docs/superpowers/specs/2026-07-16-b1-ship-degraded-review-gate-design.md` → 用户「执行」签名放行 → plan → TDD）。全量 1590 → **1597 pass / 0 fail**（+7）；`tsc` 0；`sgc doctor` 70 OK / 0 fail。**批次 A+B 现全部完成（11 项），仅剩批次 C 的 C2–C11（纯低危清理/重构）。** B1 的 CHANGELOG MIGRATION 段 + 版本号属发版步骤（需用户定版本），记为**发版时应交付**，代码+测试已就绪。README 无需改（B1 只是加强了它已宣传的 review 门，无声明变假）。全部未提交。
 
@@ -137,7 +137,7 @@
 | ✅ | C7 · Q-6 | `withFileLock` 2s 等待预算硬 throw | `src/dispatcher/file-lock.ts:199-224` | 预算改为调用方可配参数（默认维持 2s）。A4 落地时一并评估 | |
 | ✅ | C8 · Q-7 | bundle 模式 doctor 跳过理由与实际环境不符 | `src/commands/doctor.ts:41`（`repoRoot` 解析） | 跳过消息按 root 解析结果措辞（"running from bundle; source root not at ../.."）——与 v1.37.0 检查 (O) 同类的"跳过理由说谎"，只是在 root 层。验收：仓库根跑 bundle doctor 的跳过行不再宣称 "no source checkout" | |
 | ✅ | C9 · ARCH-2 | dispatcher→commands 分层倒置 | `src/dispatcher/loop.ts:247-251` | `getDefaultRunners` 装配挪到 `commands/loop.ts`，经既有 `opts.steps` 注入缝传入。验收：`dispatcher/` 对 `commands/` 零 import（可加 lint/doctor 守护） | |
-| ⬜ | C10 · ARCH-3/4 | `state.ts` god-module + `runDoctor` 千行单函数 | `state.ts`（1065 LOC / 24 扇入）、`doctor.ts:516-1012` | 按状态层拆 `state/{decisions,progress,solutions,reviews}.ts` + 共享 `atomic.ts`；doctor 每组检查拆成返回 `CheckRow[]` 的函数。纯重构，行为不变测试守护 | |
+| ✅ | C10 · ARCH-3/4 | `state.ts` god-module + `runDoctor` 千行单函数 | `state.ts`（1065 LOC / 24 扇入）、`doctor.ts:516-1012` | 按状态层拆 `state/{decisions,progress,solutions,reviews}.ts` + 共享 `atomic.ts`；doctor 每组检查拆成返回 `CheckRow[]` 的函数。纯重构，行为不变测试守护 | **完成于 v1.38.1**（commit d7c31b6）。`state.ts`→5 层文件 + re-export barrel（41 导出 / 72 消费者零改）；`runDoctor`→每检查一个 `checkX(ctx): CheckRow[]` + `CHECKS` 描述表（rows + 日志顺序逐字不变）。新鲜子代理审计：函数体逐字节一致、无行为变化。全量 1605 pass / 0 fail、tsc 0、doctor 70 OK。 |
 | ⏸️ | C11 · Q-4 | Node 内建 fetch 无视 HTTP(S)_PROXY | `openrouter-agent.ts:140,188`、`canary.ts:197` | undici `ProxyAgent`（env 存在时才启用）。**降级理由**：仅影响代理环境的可用性（挂到超时），非正确性/安全；当前操作环境未受影响。若用户报告代理环境问题则升回 P2 | ⏸️ defer（2026-07-16 用户裁决）：干净修法需**新增 prod 依赖 undici**（未安装 + 影响发布 bundle）→ §5 硬-AUTH。**更正**：当前环境其实**有**代理（`HTTP(S)_PROXY=…:10808`），但测试走 `SGC_FORCE_INLINE=1`（不发 openrouter）、canary 是发布后步骤，默认流无影响。`openrouter-agent.fetchFn` / `canary.httpFetch` 注入缝已具备，升级时零改测试面。 |
 
 **未入清单（有意不修，写明理由）**：

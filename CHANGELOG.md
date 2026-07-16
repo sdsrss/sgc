@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.38.2 — 2026-07-16 — the one call that ignored the proxy
+
+Node's global fetch — undici under the hood — does not read the `HTTP(S)_PROXY`
+environment variables that git, curl, and npm all honor. So on a proxied network
+sgc's two outbound HTTP paths were the odd ones out: OpenRouter LLM requests
+(LLM mode) and canary post-publish health checks would bypass the proxy and hang
+until their timeout. C11 closes the audit's last open finding by wiring undici's
+`ProxyAgent` in as the fetch dispatcher — but only when a proxy env var is
+present, so the no-proxy path is byte-for-byte unchanged. Both call sites reach
+it through their existing fetch-injection seams, so no test-facing surface moved.
+
+Migration note: this adds `undici` as a runtime dependency (pinned `^6` for
+Node 18.17+ support — deliberately not `^8`, which requires Node 22 — so the
+package's `engines: node >=18` and the Node-18 install path still hold). The
+plugin bundle grows accordingly (undici is inlined so the standalone bin works
+in the plugin channel too). No opt-out is needed: absent a proxy env var,
+behavior is identical to v1.38.1.
+
+Full suite 1605 → 1609 pass / 0 fail (+4 proxy-fetch tests); `tsc --noEmit` 0;
+`sgc doctor` 70 OK. This completes audit-v1.37.0 remediation — 22/22.
+
 ## v1.38.1 — 2026-07-16 — the last of the audit, and the god-modules that hid it
 
 Batch C closes the audit-v1.37.0 remediation. The correctness cluster fixes

@@ -112,7 +112,9 @@ test("computeRuntimeMetrics computes the real product four 化 (structural)", ()
   expect(m.intelligence.total_subagents).toBeGreaterThanOrEqual(m.intelligence.llm_invokable)
   expect(m.intelligence.llm_invokable).toBeGreaterThanOrEqual(11)
   expect(m.automation).toEqual({ automated_steps: 5, total_steps: 9 })
-  expect(m.efficiency.runtime_node).toBe(">=18")
+  // v1.38.3: tightened to match undici ^6's real floor (Node 18.17); this reads
+  // the real package.json engines, so it moves with the declared minimum.
+  expect(m.efficiency.runtime_node).toBe(">=18.17")
   // Regression: in source mode import.meta.url points at metrics.ts (~9 KB), so
   // measuring it mis-reported the bundle. It must resolve the real committed
   // bundle (~900 KB) — assert it's clearly the bundle, not the source file.

@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.38.3 — 2026-07-16 — the engines field, made honest
+
+v1.38.2 added `undici@^6`, whose real floor is Node 18.17 — but the package kept
+declaring `engines: node >=18`, under-claiming its own requirement. This tightens
+`engines.node` to `>=18.17` so the manifest states what it actually needs. No
+code change, no runtime behavior change.
+
+Practically this is a no-op for anyone: the effective floor was already 18.17 as
+of v1.38.2 (undici enforced it), and Node 18.0–18.16 are superseded by 18.20. The
+change only makes `npm install`'s engine check tell the truth instead of passing
+silently and letting undici fail later. Verified against CI's Node-18 (latest
+18.x ≥ 18.17) consumer e2e.
+
 ## v1.38.2 — 2026-07-16 — the one call that ignored the proxy
 
 Node's global fetch — undici under the hood — does not read the `HTTP(S)_PROXY`

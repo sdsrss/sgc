@@ -36567,7 +36567,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.38.2",
+    version: "1.38.3",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -36580,7 +36580,7 @@ var init_package = __esm(() => {
       "CHANGELOG.md"
     ],
     engines: {
-      node: ">=18"
+      node: ">=18.17"
     },
     publishConfig: {
       access: "public",
@@ -41899,7 +41899,7 @@ import { existsSync as existsSync27 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.38.2",
+  version: "1.38.3",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {
@@ -41912,7 +41912,7 @@ var package_default = {
     "CHANGELOG.md"
   ],
   engines: {
-    node: ">=18"
+    node: ">=18.17"
   },
   publishConfig: {
     access: "public",

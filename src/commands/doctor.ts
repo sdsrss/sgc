@@ -513,6 +513,522 @@ export interface DoctorReport {
   rows: CheckRow[]
 }
 
+// ── Check decomposition (ARCH-4, audit v1.37.0 C10) ──────────────────────────
+// runDoctor was a ~500-line single function. Each check group is now a function
+// returning CheckRow[] (async where it does I/O), driven by the CHECKS table
+// below. The orchestrator owns the shared setup, the section-header logging, and
+// the summary — so the logged stream and the returned `rows` are byte- and
+// order-identical to the former inline form.
+
+type SubagentManifest =
+  ReturnType<typeof getCapabilities>["subagents"][keyof ReturnType<
+    typeof getCapabilities
+  >["subagents"]]
+
+interface DoctorCtx {
+  root: string
+  hasSource: boolean
+  manifests: Array<[string, SubagentManifest]>
+  /** contracts/invariant-enforcement.yaml — shared by checks (G) and (I). */
+  iePath: string
+}
+
+// ── (A) manifest.prompt_path → embedded (bundle) or file exists (dev) ───
+function checkManifestPromptPath(ctx: DoctorCtx): CheckRow[] {
+  const rows: CheckRow[] = []
+  for (const [name, m] of ctx.manifests) {
+    if (m.prompt_path == null) continue
+    const present = EMBEDDED_PROMPTS[m.prompt_path] !== undefined
+    if (present) {
+      rows.push({ severity: "ok", msg: `  ✓ ${name} → ${m.prompt_path}` })
+    } else {
+      rows.push({
+        severity: "fail",
+        msg: `  ✗ ${name} → ${m.prompt_path} (NOT EMBEDDED)`,
+      })
+    }
+  }
+  return rows
+}
+
+// ── (B) prompts/*.md → referenced by some manifest ─────────────────────
+function checkPromptsReferenced(ctx: DoctorCtx): CheckRow[] {
+  const rows: CheckRow[] = []
+  const declaredPrompts = new Set<string>()
+  for (const [, m] of ctx.manifests) {
+    if (m.prompt_path) declaredPrompts.add(m.prompt_path)
+  }
+  for (const rel of listEmbeddedPromptKeys().sort()) {
+    if (declaredPrompts.has(rel)) {
+      rows.push({ severity: "ok", msg: `  ✓ ${rel}` })
+    } else {
+      rows.push({
+        severity: "warn",
+        msg: `  ⚠ ${rel} (orphan — embedded but unreferenced)`,
+      })
+    }
+  }
+  return rows
+}
+
+// ── (C) slot-only entries → prompt_path must be null/undefined ─────────
+function checkSlotOnly(ctx: DoctorCtx): CheckRow[] {
+  const rows: CheckRow[] = []
+  for (const [name, m] of ctx.manifests) {
+    if (m.status !== "slot-only") continue
+    if (m.prompt_path == null) {
+      rows.push({
+        severity: "ok",
+        msg: `  ✓ ${name} (slot-only, no prompt_path)`,
+      })
+    } else {
+      rows.push({
+        severity: "fail",
+        msg: `  ✗ ${name} (slot-only but declares prompt_path: ${m.prompt_path})`,
+      })
+    }
+  }
+  return rows
+}
+
+// ── (D) bunfig.toml [test] root="tests" — keeps `bun test` scoped ──────
+// A bare `bun test` must stay scoped to sgc's gate (tests/); otherwise it
+// would scan the whole repo instead of the dispatcher + eval suites.
+function checkBunfigRoot(ctx: DoctorCtx): CheckRow[] {
+  const rows: CheckRow[] = []
+  if (!ctx.hasSource) {
+    rows.push({ severity: "ok", msg: "  ⓘ bunfig.toml root skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
+  } else {
+    const bunfigPath = resolve(ctx.root, "bunfig.toml")
+    if (!existsSync(bunfigPath)) {
+      rows.push({
+        severity: "warn",
+        msg: '  ⚠ bunfig.toml not found — bare `bun test` may sweep vendored suites (R0)',
+      })
+    } else if (/root\s*=\s*["']tests["']/.test(readFileSync(bunfigPath, "utf8"))) {
+      rows.push({ severity: "ok", msg: '  ✓ bunfig.toml [test] root="tests"' })
+    } else {
+      rows.push({
+        severity: "fail",
+        msg: '  ✗ bunfig.toml present but [test] root!="tests" — bare `bun test` would scan the whole repo, not just tests/',
+      })
+    }
+  }
+  return rows
+}
+
+// ── (E) package.json "files" excludes vendored plugins/ ────────────────
+function checkPackageFiles(ctx: DoctorCtx): CheckRow[] {
+  const rows: CheckRow[] = []
+  if (!ctx.hasSource) {
+    rows.push({ severity: "ok", msg: "  ⓘ package.json files skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
+  } else {
+    const pkgPath = resolve(ctx.root, "package.json")
+    if (!existsSync(pkgPath)) {
+      rows.push({ severity: "warn", msg: "  ⚠ package.json not found" })
+    } else {
+      let files: string[] = []
+      try {
+        const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { files?: unknown }
+        files = Array.isArray(pkg.files) ? (pkg.files as string[]) : []
+      } catch (e) {
+        rows.push({
+          severity: "fail",
+          msg: `  ✗ package.json parse error: ${(e as Error).message.slice(0, 80)}`,
+        })
+        files = []
+      }
+      // Flag any entry under "plugins" that would publish the plugin payload
+      // (markdown, skills, etc.) to npm. Only files under the committed bundle
+      // dir "plugins/sgc/bin/" (e.g. "plugins/sgc/bin/sgc.mjs") are intentional
+      // npm artifacts — every other plugins path (directory-style OR an explicit
+      // non-bin file like "plugins/sgc/skills/qa/SKILL.md") is a leak.
+      const leaks = files.filter((f) => {
+        const norm = f.replace(/^\.?\//, "")
+        if (!norm.startsWith("plugins")) return false
+        const last = norm.split("/").at(-1) ?? ""
+        if (last === "" || !last.includes(".")) return true // directory-style → flag
+        return !norm.startsWith("plugins/sgc/bin/") // explicit non-bin plugins file → flag
+      })
+      if (files.length === 0) {
+        rows.push({
+          severity: "warn",
+          msg: '  ⚠ package.json has no "files" allowlist — npm would publish the plugin payload',
+        })
+      } else if (leaks.length) {
+        rows.push({
+          severity: "fail",
+          msg: `  ✗ package.json files includes vendored path(s): ${leaks.join(", ")}`,
+        })
+      } else {
+        rows.push({
+          severity: "ok",
+          msg: "  ✓ package.json files excludes plugins/ (plugin payload not npm-published)",
+        })
+      }
+    }
+  }
+  return rows
+}
+
+// ── (G) invariant-enforcement.yaml coverage ────────────────────────────
+function checkInvariantEnforcementCoverage(ctx: DoctorCtx): CheckRow[] {
+  const rows: CheckRow[] = []
+  const iePath = ctx.iePath
+  if (!ctx.hasSource) {
+    rows.push({ severity: "ok", msg: "  ⓘ invariant-enforcement.yaml skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
+  } else if (!existsSync(iePath)) {
+    rows.push({
+      severity: "warn",
+      msg: "  ⚠ contracts/invariant-enforcement.yaml not found — invariant→test map unverified",
+    })
+  } else {
+    let inv: Record<string, Record<string, unknown>> | null = {}
+    try {
+      const doc = yamlLoad(readFileSync(iePath, "utf8")) as { invariants?: unknown }
+      inv =
+        doc?.invariants && typeof doc.invariants === "object"
+          ? (doc.invariants as Record<string, Record<string, unknown>>)
+          : {}
+    } catch (e) {
+      rows.push({
+        severity: "fail",
+        msg: `  ✗ invariant-enforcement.yaml parse error: ${(e as Error).message.slice(0, 80)}`,
+      })
+      inv = null
+    }
+    if (inv) {
+      const missingSections: string[] = []
+      for (let n = 1; n <= 13; n++) if (inv[String(n)] == null) missingSections.push(`§${n}`)
+      if (missingSections.length) {
+        rows.push({
+          severity: "fail",
+          msg: `  ✗ invariant map missing: ${missingSections.join(", ")}`,
+        })
+      }
+      let machineCount = 0
+      for (let n = 1; n <= 13; n++) {
+        const e = inv[String(n)]
+        if (e == null) continue
+        const title = typeof e["title"] === "string" ? (e["title"] as string).slice(0, 32) : ""
+        if (e["machine_enforced"] === true) {
+          machineCount++
+          const tests = Array.isArray(e["tests"]) ? (e["tests"] as string[]) : []
+          if (tests.length === 0) {
+            rows.push({ severity: "fail", msg: `  ✗ §${n} machine_enforced but lists no tests` })
+          } else {
+            const missingTests = tests.filter((t) => !existsSync(resolve(ctx.root, t)))
+            if (missingTests.length) {
+              rows.push({
+                severity: "fail",
+                msg: `  ✗ §${n} cites missing test file(s): ${missingTests.join(", ")}`,
+              })
+            } else {
+              rows.push({ severity: "ok", msg: `  ✓ §${n} ${title} (${tests.length} test file(s))` })
+            }
+          }
+        } else {
+          rows.push({ severity: "ok", msg: `  ✓ §${n} ${title} (procedural)` })
+        }
+      }
+      rows.push({ severity: "ok", msg: `  · machine-enforced invariants: ${machineCount}/13` })
+    }
+  }
+  return rows
+}
+
+// ── (H) slash commands ↔ CLI subcommands parity ───────────────────────
+// The CLI (src/sgc.ts subCommands) and the plugin slash layer
+// (plugins/sgc/commands/*.md) must agree. CLI-only automation tools that
+// are intentionally NOT exposed as interactive slash commands are exempt
+// (post-publish / CI tooling; audit 2026-06-01, user-confirmed scope A).
+// In an npm-install layout the plugins/ tree is absent → warn-skip.
+function checkSlashParity(ctx: DoctorCtx): CheckRow[] {
+  const rows: CheckRow[] = []
+  const SLASH_EXEMPT = new Set(["canary", "watch-ci-failure", "land"])
+  if (!ctx.hasSource) {
+    rows.push({ severity: "ok", msg: "  ⓘ slash↔CLI parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
+  } else {
+    const sgcSrcPath = resolve(ctx.root, "src/sgc.ts")
+    const commandsDir = resolve(ctx.root, "plugins/sgc/commands")
+    if (!existsSync(sgcSrcPath) || !existsSync(commandsDir)) {
+      rows.push({
+        severity: "warn",
+        msg: "  ⚠ src/sgc.ts or plugins/sgc/commands/ not found — slash parity unchecked (npm-install layout?)",
+      })
+    } else {
+      const cliNames = extractCliSubcommands(readFileSync(sgcSrcPath, "utf8"))
+      const slashNames = new Set(
+        readdirSync(commandsDir)
+          .filter((f) => f.endsWith(".md"))
+          .map((f) => f.slice(0, -3)),
+      )
+      if (cliNames.length === 0) {
+        rows.push({ severity: "warn", msg: "  ⚠ could not parse subCommands block in src/sgc.ts" })
+      }
+      for (const name of cliNames) {
+        if (slashNames.has(name)) {
+          rows.push({ severity: "ok", msg: `  ✓ ${name} (CLI + slash command)` })
+        } else if (SLASH_EXEMPT.has(name)) {
+          rows.push({ severity: "ok", msg: `  ✓ ${name} (CLI-only, slash-exempt)` })
+        } else {
+          rows.push({
+            severity: "fail",
+            msg: `  ✗ ${name} (CLI subcommand has no slash command — add plugins/sgc/commands/${name}.md or add to SLASH_EXEMPT)`,
+          })
+        }
+      }
+      const cliSet = new Set(cliNames)
+      for (const slash of [...slashNames].sort()) {
+        if (!cliSet.has(slash)) {
+          rows.push({
+            severity: "warn",
+            msg: `  ⚠ ${slash}.md (orphan slash command — no matching CLI subcommand)`,
+          })
+        }
+      }
+    }
+  }
+  return rows
+}
+
+// ── (I) invariant-source parity (sgc-invariants.md ↔ enforcement yaml) ──
+// Two files define the invariant set: the prose spec (sgc-invariants.md,
+// `## §N.` headings) and the enforcement map (invariant-enforcement.yaml).
+// They must define the SAME §-numbers, else the "N invariants" claim in the
+// docs drifts (audit 2026-06-01: README said 12, both contracts said 13).
+function checkInvariantSourceParity(ctx: DoctorCtx): CheckRow[] {
+  const rows: CheckRow[] = []
+  const iePath = ctx.iePath
+  if (!ctx.hasSource) {
+    rows.push({ severity: "ok", msg: "  ⓘ invariant-source parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
+  } else {
+    const invMdPath = resolve(ctx.root, "contracts/sgc-invariants.md")
+    if (!existsSync(invMdPath) || !existsSync(iePath)) {
+      rows.push({
+        severity: "warn",
+        msg: "  ⚠ sgc-invariants.md or invariant-enforcement.yaml missing — § parity unchecked",
+      })
+    } else {
+      const mdNums = new Set<number>()
+      const secRe = /^##\s*§(\d+)\./gm
+      let sm: RegExpExecArray | null
+      const mdText = readFileSync(invMdPath, "utf8")
+      while ((sm = secRe.exec(mdText)) !== null) mdNums.add(Number(sm[1]))
+      const yamlNums = new Set<number>()
+      try {
+        const doc = yamlLoad(readFileSync(iePath, "utf8")) as {
+          invariants?: Record<string, unknown>
+        }
+        if (doc?.invariants) for (const k of Object.keys(doc.invariants)) yamlNums.add(Number(k))
+      } catch {
+        /* (G) already surfaced the parse error */
+      }
+      const onlyMd = [...mdNums].filter((n) => !yamlNums.has(n)).sort((a, b) => a - b)
+      const onlyYaml = [...yamlNums].filter((n) => !mdNums.has(n)).sort((a, b) => a - b)
+      if (mdNums.size > 0 && onlyMd.length === 0 && onlyYaml.length === 0) {
+        rows.push({
+          severity: "ok",
+          msg: `  ✓ both sources define §1–§${Math.max(...mdNums)} (${mdNums.size} invariants)`,
+        })
+      } else {
+        rows.push({
+          severity: "fail",
+          msg: `  ✗ invariant sources disagree — only in .md: [${onlyMd.join(",") || "—"}], only in .yaml: [${onlyYaml.join(",") || "—"}]`,
+        })
+      }
+    }
+  }
+  return rows
+}
+
+// ── (J) bundle-hash parity (dev/CI only — skips in bundle context) ────────
+async function checkBundleParity(ctx: DoctorCtx): Promise<CheckRow[]> {
+  return [await bundleParityCheck(ctx.root)]
+}
+
+// ── (K) metrics baseline drift ──────────────────────────────────────────
+function checkMetricsBaseline(ctx: DoctorCtx): CheckRow[] {
+  const rows: CheckRow[] = []
+  const baselinePath = resolve(ctx.root, "metrics", "metrics-baseline.yaml")
+  if (!ctx.hasSource) {
+    rows.push({ severity: "ok", msg: "  ⓘ metrics baseline skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
+  } else if (!existsSync(baselinePath)) {
+    rows.push({ severity: "fail", msg: "  ✗ metrics/metrics-baseline.yaml missing — run `sgc metrics --write-baseline`" })
+  } else {
+    try {
+      const live = computeMetricsLive(ctx.root)
+      const baseline = parseBaseline(readFileSync(baselinePath, "utf8"))
+      const drifts = diffMetrics(live, baseline)
+      if (drifts.length === 0) {
+        rows.push({ severity: "ok", msg: "  ✓ metrics baseline in sync (live == baseline; bundle_bytes excluded)" })
+      } else {
+        for (const d of drifts) rows.push({ severity: "fail", msg: `  ✗ metrics drift — ${d}` })
+        rows.push({ severity: "fail", msg: "  ✗ regenerate: `sgc metrics --write-baseline`" })
+      }
+    } catch (e) {
+      rows.push({ severity: "fail", msg: `  ✗ metrics baseline check error: ${(e as Error).message.slice(0, 80)}` })
+    }
+  }
+  return rows
+}
+
+// ── (N) agent registry ↔ manifest honesty ───────────────────────────────
+function checkAgentRegistry(ctx: DoctorCtx): CheckRow[] {
+  const rows: CheckRow[] = []
+  // M4: readAgentMdFiles walks the filesystem, so a broken symlink or an
+  // unreadable dir under agents/ threw statSync/readdirSync straight out of
+  // runDoctor instead of producing the ✗ this catch exists for. It belongs
+  // inside the try.
+  try {
+    const files = readAgentMdFiles(ctx.root)
+    if (files.length === 0) {
+      rows.push({ severity: "ok", msg: "  ⓘ agent registry check skipped (no plugins/sgc/agents/ — npm channel)" })
+    } else {
+      const drifts = agentMetadataDrift(
+        files,
+        (id) => getSubagentManifest(id) ?? null,
+        Object.keys(getCapabilities().subagents),
+      )
+      if (drifts.length === 0) {
+        // Deliberately not "descriptions are accurate" — see agentMetadataDrift's
+        // docblock. This check enforces wiring and disclosure; only a human
+        // reading the implementation can confirm the prose.
+        rows.push({ severity: "ok", msg: `  ✓ ${files.length} agent descriptions wired to manifest (disclosure checked, not accuracy)` })
+      } else {
+        for (const d of drifts) rows.push({ severity: "fail", msg: `  ✗ agent metadata drift — ${d}` })
+      }
+    }
+  } catch (e) {
+    rows.push({ severity: "fail", msg: `  ✗ agent registry check error: ${(e as Error).message.slice(0, 80)}` })
+  }
+  return rows
+}
+
+// ── (O) agent description ↔ derived CLI fact ────────────────────────────
+function checkCliFactDerivation(ctx: DoctorCtx): CheckRow[] {
+  const rows: CheckRow[] = []
+  if (!ctx.hasSource) {
+    // States what it tested. `hasSource` is `existsSync(root/src/sgc.ts)`, so
+    // "no plugins/sgc/agents/" was a reason this branch never checked — true of
+    // the npm tarball by luck, false of any checkout carrying the registry but no
+    // src/. A check that misreports why it skipped is the defect check (O) exists
+    // to catch, in check (O)'s own skip line. The agents/-absent case is the
+    // files.length === 0 branch below, which did test what it claims.
+    rows.push({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no src/sgc.ts — npm channel, no derivation to check against)" })
+  } else {
+    // Same failure mode check (N) above already learned the hard way: a broken
+    // symlink or unreadable dir under agents/ makes readAgentMdFiles throw
+    // straight out of runDoctor. It belongs inside the try.
+    try {
+      const files = readAgentMdFiles(ctx.root)
+      if (files.length === 0) {
+        // Mirrors check (N)'s own distinction directly above: no plugins/sgc/agents/
+        // at all is "nothing to check" (npm channel, or a dev checkout that simply
+        // doesn't carry this registry) — not "9 files missing". An incomplete-but-
+        // present registry (some files, not all 9) is the real drift, handled below.
+        rows.push({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no plugins/sgc/agents/ — npm channel)" })
+      } else {
+        const present = new Set(files.map((f) => f.id))
+        const missingIds = DERIVED_AGENT_IDS.filter((id) => !present.has(id))
+        for (const id of missingIds) {
+          rows.push({
+            severity: "fail",
+            msg: `  ✗ ${id}: no plugins/sgc/agents/${id.replace(".", "/")}.md — a missing file cannot carry the derived clause`,
+          })
+        }
+        const factDrifts = cliFactDrift(files)
+        if (factDrifts.length === 0 && missingIds.length === 0) {
+          // The count actually checked, not the constant DERIVED_AGENT_IDS.length —
+          // a hardcoded count here would claim 9 verified while having seen fewer.
+          const checked = files.filter((f) => DERIVED_AGENT_IDS.includes(f.id)).length
+          rows.push({ severity: "ok", msg: `  ✓ ${checked} agent CLI-fact clauses match the code` })
+        } else {
+          for (const d of factDrifts) rows.push({ severity: "fail", msg: `  ✗ ${d}` })
+        }
+      }
+    } catch (e) {
+      rows.push({ severity: "fail", msg: `  ✗ CLI-fact check error: ${(e as Error).message.slice(0, 80)}` })
+    }
+  }
+  return rows
+}
+
+// ── (M) README four-化 scorecard ↔ live metrics parity ──────────────────
+function checkReadmeScorecard(ctx: DoctorCtx): CheckRow[] {
+  const rows: CheckRow[] = []
+  if (!ctx.hasSource) {
+    rows.push({ severity: "ok", msg: "  ⓘ README scorecard parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
+  } else {
+    const readmePath = resolve(ctx.root, "README.md")
+    if (!existsSync(readmePath)) {
+      rows.push({ severity: "warn", msg: "  ⚠ README.md not found" })
+    } else {
+      try {
+        const drifts = readmeScorecardDrift(readFileSync(readmePath, "utf8"), computeMetricsLive(ctx.root))
+        if (drifts.length === 0) {
+          rows.push({ severity: "ok", msg: "  ✓ README scorecard matches live metrics" })
+        } else {
+          for (const d of drifts) rows.push({ severity: "fail", msg: `  ✗ README scorecard drift — ${d}` })
+          rows.push({ severity: "fail", msg: "  ✗ fix README.md to match `sgc metrics` output" })
+        }
+      } catch (e) {
+        rows.push({ severity: "fail", msg: `  ✗ README scorecard check error: ${(e as Error).message.slice(0, 80)}` })
+      }
+    }
+  }
+  return rows
+}
+
+// ── (L) plugins/sgc/CLAUDE.md status header not behind package.json ──────
+function checkStatusHeaderFreshness(ctx: DoctorCtx): CheckRow[] {
+  const rows: CheckRow[] = []
+  if (!ctx.hasSource) {
+    rows.push({ severity: "ok", msg: "  ⓘ CLAUDE.md freshness skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
+  } else {
+    const claudeMdPath = resolve(ctx.root, "plugins", "sgc", "CLAUDE.md")
+    const pkgPath = resolve(ctx.root, "package.json")
+    if (!existsSync(claudeMdPath) || !existsSync(pkgPath)) {
+      rows.push({ severity: "warn", msg: "  ⚠ plugins/sgc/CLAUDE.md or package.json not found" })
+    } else {
+      try {
+        const pkgVer = (JSON.parse(readFileSync(pkgPath, "utf8")) as { version?: string }).version ?? ""
+        const r = statusHeaderFreshness(readFileSync(claudeMdPath, "utf8"), pkgVer)
+        rows.push({ severity: r.severity, msg: `  ${r.severity === "ok" ? "✓" : "⚠"} ${r.msg}` })
+      } catch (e) {
+        rows.push({ severity: "warn", msg: `  ⚠ CLAUDE.md freshness check error: ${(e as Error).message.slice(0, 80)}` })
+      }
+    }
+  }
+  return rows
+}
+
+/**
+ * The ordered check table. Order == the historical inline order (A B C D E G H
+ * I J K N O M L — F is a retired letter) and IS the output order. Each entry's
+ * `header` is logged before its rows; the runner injects the blank separator
+ * line between groups.
+ */
+const CHECKS: Array<{
+  header: string
+  run: (ctx: DoctorCtx) => CheckRow[] | Promise<CheckRow[]>
+}> = [
+  { header: "=== Manifest prompt_path ↔ prompts/ ===", run: checkManifestPromptPath },
+  { header: "=== prompts/ ↔ manifest ===", run: checkPromptsReferenced },
+  { header: "=== status: slot-only ↔ prompt_path: null ===", run: checkSlotOnly },
+  { header: "=== bunfig.toml [test] root ===", run: checkBunfigRoot },
+  { header: "=== package.json files ↔ no vendored plugins/ ===", run: checkPackageFiles },
+  { header: "=== invariant-enforcement.yaml coverage ===", run: checkInvariantEnforcementCoverage },
+  { header: "=== slash commands ↔ CLI subcommands ===", run: checkSlashParity },
+  { header: "=== invariant sources aligned (§ count) ===", run: checkInvariantSourceParity },
+  { header: "=== bundle parity ===", run: checkBundleParity },
+  { header: "=== metrics baseline drift ===", run: checkMetricsBaseline },
+  { header: "=== agent registry ↔ manifest ===", run: checkAgentRegistry },
+  { header: "=== agent description ↔ derived CLI fact ===", run: checkCliFactDerivation },
+  { header: "=== README four-化 scorecard parity ===", run: checkReadmeScorecard },
+  { header: "=== plugins/sgc/CLAUDE.md status header freshness ===", run: checkStatusHeaderFreshness },
+]
+
 export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport> {
   const log = opts.log ?? ((m: string) => console.log(m))
   const root = opts.repoRoot ?? repoRoot
@@ -524,7 +1040,7 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   }
 
   const caps = getCapabilities()
-  const manifests = Object.entries(caps.subagents)
+  const manifests = Object.entries(caps.subagents) as Array<[string, SubagentManifest]>
 
   // Detect whether a source checkout is present. Checks that read repo source/config
   // files (D/E/F/G/H/I) are only meaningful in dev/CI; in a shipped bundle those
@@ -555,449 +1071,20 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
     }
   }
 
-  // ── (A) manifest.prompt_path → embedded (bundle) or file exists (dev) ───
-  log("=== Manifest prompt_path ↔ prompts/ ===")
-  for (const [name, m] of manifests) {
-    if (m.prompt_path == null) continue
-    const present = EMBEDDED_PROMPTS[m.prompt_path] !== undefined
-    if (present) {
-      emit({ severity: "ok", msg: `  ✓ ${name} → ${m.prompt_path}` })
-    } else {
-      emit({
-        severity: "fail",
-        msg: `  ✗ ${name} → ${m.prompt_path} (NOT EMBEDDED)`,
-      })
-    }
+  const ctx: DoctorCtx = {
+    root,
+    hasSource,
+    manifests,
+    iePath: resolve(root, "contracts/invariant-enforcement.yaml"),
   }
 
-  // ── (B) prompts/*.md → referenced by some manifest ─────────────────────
-  log("")
-  log("=== prompts/ ↔ manifest ===")
-  const declaredPrompts = new Set<string>()
-  for (const [, m] of manifests) {
-    if (m.prompt_path) declaredPrompts.add(m.prompt_path)
-  }
-  for (const rel of listEmbeddedPromptKeys().sort()) {
-    if (declaredPrompts.has(rel)) {
-      emit({ severity: "ok", msg: `  ✓ ${rel}` })
-    } else {
-      emit({
-        severity: "warn",
-        msg: `  ⚠ ${rel} (orphan — embedded but unreferenced)`,
-      })
-    }
-  }
-
-  // ── (C) slot-only entries → prompt_path must be null/undefined ─────────
-  log("")
-  log("=== status: slot-only ↔ prompt_path: null ===")
-  for (const [name, m] of manifests) {
-    if (m.status !== "slot-only") continue
-    if (m.prompt_path == null) {
-      emit({
-        severity: "ok",
-        msg: `  ✓ ${name} (slot-only, no prompt_path)`,
-      })
-    } else {
-      emit({
-        severity: "fail",
-        msg: `  ✗ ${name} (slot-only but declares prompt_path: ${m.prompt_path})`,
-      })
-    }
-  }
-
-  // ── (D) bunfig.toml [test] root="tests" — keeps `bun test` scoped ──────
-  // A bare `bun test` must stay scoped to sgc's gate (tests/); otherwise it
-  // would scan the whole repo instead of the dispatcher + eval suites.
-  log("")
-  log("=== bunfig.toml [test] root ===")
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ bunfig.toml root skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
-  } else {
-    const bunfigPath = resolve(root, "bunfig.toml")
-    if (!existsSync(bunfigPath)) {
-      emit({
-        severity: "warn",
-        msg: '  ⚠ bunfig.toml not found — bare `bun test` may sweep vendored suites (R0)',
-      })
-    } else if (/root\s*=\s*["']tests["']/.test(readFileSync(bunfigPath, "utf8"))) {
-      emit({ severity: "ok", msg: '  ✓ bunfig.toml [test] root="tests"' })
-    } else {
-      emit({
-        severity: "fail",
-        msg: '  ✗ bunfig.toml present but [test] root!="tests" — bare `bun test` would scan the whole repo, not just tests/',
-      })
-    }
-  }
-
-  // ── (E) package.json "files" excludes vendored plugins/ ────────────────
-  log("")
-  log("=== package.json files ↔ no vendored plugins/ ===")
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ package.json files skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
-  } else {
-    const pkgPath = resolve(root, "package.json")
-    if (!existsSync(pkgPath)) {
-      emit({ severity: "warn", msg: "  ⚠ package.json not found" })
-    } else {
-      let files: string[] = []
-      try {
-        const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { files?: unknown }
-        files = Array.isArray(pkg.files) ? (pkg.files as string[]) : []
-      } catch (e) {
-        emit({
-          severity: "fail",
-          msg: `  ✗ package.json parse error: ${(e as Error).message.slice(0, 80)}`,
-        })
-        files = []
-      }
-      // Flag any entry under "plugins" that would publish the plugin payload
-      // (markdown, skills, etc.) to npm. Only files under the committed bundle
-      // dir "plugins/sgc/bin/" (e.g. "plugins/sgc/bin/sgc.mjs") are intentional
-      // npm artifacts — every other plugins path (directory-style OR an explicit
-      // non-bin file like "plugins/sgc/skills/qa/SKILL.md") is a leak.
-      const leaks = files.filter((f) => {
-        const norm = f.replace(/^\.?\//, "")
-        if (!norm.startsWith("plugins")) return false
-        const last = norm.split("/").at(-1) ?? ""
-        if (last === "" || !last.includes(".")) return true // directory-style → flag
-        return !norm.startsWith("plugins/sgc/bin/") // explicit non-bin plugins file → flag
-      })
-      if (files.length === 0) {
-        emit({
-          severity: "warn",
-          msg: '  ⚠ package.json has no "files" allowlist — npm would publish the plugin payload',
-        })
-      } else if (leaks.length) {
-        emit({
-          severity: "fail",
-          msg: `  ✗ package.json files includes vendored path(s): ${leaks.join(", ")}`,
-        })
-      } else {
-        emit({
-          severity: "ok",
-          msg: "  ✓ package.json files excludes plugins/ (plugin payload not npm-published)",
-        })
-      }
-    }
-  }
-
-  // ── (G) invariant-enforcement.yaml coverage ────────────────────────────
-  log("")
-  log("=== invariant-enforcement.yaml coverage ===")
-  // iePath is also referenced by check (I); declare it here so both share scope.
-  const iePath = resolve(root, "contracts/invariant-enforcement.yaml")
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ invariant-enforcement.yaml skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
-  } else if (!existsSync(iePath)) {
-    emit({
-      severity: "warn",
-      msg: "  ⚠ contracts/invariant-enforcement.yaml not found — invariant→test map unverified",
-    })
-  } else {
-    let inv: Record<string, Record<string, unknown>> | null = {}
-    try {
-      const doc = yamlLoad(readFileSync(iePath, "utf8")) as { invariants?: unknown }
-      inv =
-        doc?.invariants && typeof doc.invariants === "object"
-          ? (doc.invariants as Record<string, Record<string, unknown>>)
-          : {}
-    } catch (e) {
-      emit({
-        severity: "fail",
-        msg: `  ✗ invariant-enforcement.yaml parse error: ${(e as Error).message.slice(0, 80)}`,
-      })
-      inv = null
-    }
-    if (inv) {
-      const missingSections: string[] = []
-      for (let n = 1; n <= 13; n++) if (inv[String(n)] == null) missingSections.push(`§${n}`)
-      if (missingSections.length) {
-        emit({
-          severity: "fail",
-          msg: `  ✗ invariant map missing: ${missingSections.join(", ")}`,
-        })
-      }
-      let machineCount = 0
-      for (let n = 1; n <= 13; n++) {
-        const e = inv[String(n)]
-        if (e == null) continue
-        const title = typeof e["title"] === "string" ? (e["title"] as string).slice(0, 32) : ""
-        if (e["machine_enforced"] === true) {
-          machineCount++
-          const tests = Array.isArray(e["tests"]) ? (e["tests"] as string[]) : []
-          if (tests.length === 0) {
-            emit({ severity: "fail", msg: `  ✗ §${n} machine_enforced but lists no tests` })
-          } else {
-            const missingTests = tests.filter((t) => !existsSync(resolve(root, t)))
-            if (missingTests.length) {
-              emit({
-                severity: "fail",
-                msg: `  ✗ §${n} cites missing test file(s): ${missingTests.join(", ")}`,
-              })
-            } else {
-              emit({ severity: "ok", msg: `  ✓ §${n} ${title} (${tests.length} test file(s))` })
-            }
-          }
-        } else {
-          emit({ severity: "ok", msg: `  ✓ §${n} ${title} (procedural)` })
-        }
-      }
-      emit({ severity: "ok", msg: `  · machine-enforced invariants: ${machineCount}/13` })
-    }
-  }
-
-  // ── (H) slash commands ↔ CLI subcommands parity ───────────────────────
-  // The CLI (src/sgc.ts subCommands) and the plugin slash layer
-  // (plugins/sgc/commands/*.md) must agree. CLI-only automation tools that
-  // are intentionally NOT exposed as interactive slash commands are exempt
-  // (post-publish / CI tooling; audit 2026-06-01, user-confirmed scope A).
-  // In an npm-install layout the plugins/ tree is absent → warn-skip.
-  const SLASH_EXEMPT = new Set(["canary", "watch-ci-failure", "land"])
-  log("")
-  log("=== slash commands ↔ CLI subcommands ===")
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ slash↔CLI parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
-  } else {
-    const sgcSrcPath = resolve(root, "src/sgc.ts")
-    const commandsDir = resolve(root, "plugins/sgc/commands")
-    if (!existsSync(sgcSrcPath) || !existsSync(commandsDir)) {
-      emit({
-        severity: "warn",
-        msg: "  ⚠ src/sgc.ts or plugins/sgc/commands/ not found — slash parity unchecked (npm-install layout?)",
-      })
-    } else {
-      const cliNames = extractCliSubcommands(readFileSync(sgcSrcPath, "utf8"))
-      const slashNames = new Set(
-        readdirSync(commandsDir)
-          .filter((f) => f.endsWith(".md"))
-          .map((f) => f.slice(0, -3)),
-      )
-      if (cliNames.length === 0) {
-        emit({ severity: "warn", msg: "  ⚠ could not parse subCommands block in src/sgc.ts" })
-      }
-      for (const name of cliNames) {
-        if (slashNames.has(name)) {
-          emit({ severity: "ok", msg: `  ✓ ${name} (CLI + slash command)` })
-        } else if (SLASH_EXEMPT.has(name)) {
-          emit({ severity: "ok", msg: `  ✓ ${name} (CLI-only, slash-exempt)` })
-        } else {
-          emit({
-            severity: "fail",
-            msg: `  ✗ ${name} (CLI subcommand has no slash command — add plugins/sgc/commands/${name}.md or add to SLASH_EXEMPT)`,
-          })
-        }
-      }
-      const cliSet = new Set(cliNames)
-      for (const slash of [...slashNames].sort()) {
-        if (!cliSet.has(slash)) {
-          emit({
-            severity: "warn",
-            msg: `  ⚠ ${slash}.md (orphan slash command — no matching CLI subcommand)`,
-          })
-        }
-      }
-    }
-  }
-
-  // ── (I) invariant-source parity (sgc-invariants.md ↔ enforcement yaml) ──
-  // Two files define the invariant set: the prose spec (sgc-invariants.md,
-  // `## §N.` headings) and the enforcement map (invariant-enforcement.yaml).
-  // They must define the SAME §-numbers, else the "N invariants" claim in the
-  // docs drifts (audit 2026-06-01: README said 12, both contracts said 13).
-  log("")
-  log("=== invariant sources aligned (§ count) ===")
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ invariant-source parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
-  } else {
-    const invMdPath = resolve(root, "contracts/sgc-invariants.md")
-    if (!existsSync(invMdPath) || !existsSync(iePath)) {
-      emit({
-        severity: "warn",
-        msg: "  ⚠ sgc-invariants.md or invariant-enforcement.yaml missing — § parity unchecked",
-      })
-    } else {
-      const mdNums = new Set<number>()
-      const secRe = /^##\s*§(\d+)\./gm
-      let sm: RegExpExecArray | null
-      const mdText = readFileSync(invMdPath, "utf8")
-      while ((sm = secRe.exec(mdText)) !== null) mdNums.add(Number(sm[1]))
-      const yamlNums = new Set<number>()
-      try {
-        const doc = yamlLoad(readFileSync(iePath, "utf8")) as {
-          invariants?: Record<string, unknown>
-        }
-        if (doc?.invariants) for (const k of Object.keys(doc.invariants)) yamlNums.add(Number(k))
-      } catch {
-        /* (G) already surfaced the parse error */
-      }
-      const onlyMd = [...mdNums].filter((n) => !yamlNums.has(n)).sort((a, b) => a - b)
-      const onlyYaml = [...yamlNums].filter((n) => !mdNums.has(n)).sort((a, b) => a - b)
-      if (mdNums.size > 0 && onlyMd.length === 0 && onlyYaml.length === 0) {
-        emit({
-          severity: "ok",
-          msg: `  ✓ both sources define §1–§${Math.max(...mdNums)} (${mdNums.size} invariants)`,
-        })
-      } else {
-        emit({
-          severity: "fail",
-          msg: `  ✗ invariant sources disagree — only in .md: [${onlyMd.join(",") || "—"}], only in .yaml: [${onlyYaml.join(",") || "—"}]`,
-        })
-      }
-    }
-  }
-
-  // ── (J) bundle-hash parity (dev/CI only — skips in bundle context) ────────
-  log("")
-  log("=== bundle parity ===")
-  emit(await bundleParityCheck(root))
-
-  // ── (K) metrics baseline drift ──────────────────────────────────────────
-  log("")
-  log("=== metrics baseline drift ===")
-  const baselinePath = resolve(root, "metrics", "metrics-baseline.yaml")
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ metrics baseline skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
-  } else if (!existsSync(baselinePath)) {
-    emit({ severity: "fail", msg: "  ✗ metrics/metrics-baseline.yaml missing — run `sgc metrics --write-baseline`" })
-  } else {
-    try {
-      const live = computeMetricsLive(root)
-      const baseline = parseBaseline(readFileSync(baselinePath, "utf8"))
-      const drifts = diffMetrics(live, baseline)
-      if (drifts.length === 0) {
-        emit({ severity: "ok", msg: "  ✓ metrics baseline in sync (live == baseline; bundle_bytes excluded)" })
-      } else {
-        for (const d of drifts) emit({ severity: "fail", msg: `  ✗ metrics drift — ${d}` })
-        emit({ severity: "fail", msg: "  ✗ regenerate: `sgc metrics --write-baseline`" })
-      }
-    } catch (e) {
-      emit({ severity: "fail", msg: `  ✗ metrics baseline check error: ${(e as Error).message.slice(0, 80)}` })
-    }
-  }
-
-  // ── (N) agent registry ↔ manifest honesty ───────────────────────────────
-  log("")
-  log("=== agent registry ↔ manifest ===")
-  {
-    // M4: readAgentMdFiles walks the filesystem, so a broken symlink or an
-    // unreadable dir under agents/ threw statSync/readdirSync straight out of
-    // runDoctor instead of producing the ✗ this catch exists for. It belongs
-    // inside the try.
-    try {
-      const files = readAgentMdFiles(root)
-      if (files.length === 0) {
-        emit({ severity: "ok", msg: "  ⓘ agent registry check skipped (no plugins/sgc/agents/ — npm channel)" })
-      } else {
-        const drifts = agentMetadataDrift(
-          files,
-          (id) => getSubagentManifest(id) ?? null,
-          Object.keys(getCapabilities().subagents),
-        )
-        if (drifts.length === 0) {
-          // Deliberately not "descriptions are accurate" — see agentMetadataDrift's
-          // docblock. This check enforces wiring and disclosure; only a human
-          // reading the implementation can confirm the prose.
-          emit({ severity: "ok", msg: `  ✓ ${files.length} agent descriptions wired to manifest (disclosure checked, not accuracy)` })
-        } else {
-          for (const d of drifts) emit({ severity: "fail", msg: `  ✗ agent metadata drift — ${d}` })
-        }
-      }
-    } catch (e) {
-      emit({ severity: "fail", msg: `  ✗ agent registry check error: ${(e as Error).message.slice(0, 80)}` })
-    }
-  }
-
-  // ── (O) agent description ↔ derived CLI fact ────────────────────────────
-  log("")
-  log("=== agent description ↔ derived CLI fact ===")
-  if (!hasSource) {
-    // States what it tested. `hasSource` is `existsSync(root/src/sgc.ts)`, so
-    // "no plugins/sgc/agents/" was a reason this branch never checked — true of
-    // the npm tarball by luck, false of any checkout carrying the registry but no
-    // src/. A check that misreports why it skipped is the defect check (O) exists
-    // to catch, in check (O)'s own skip line. The agents/-absent case is the
-    // files.length === 0 branch below, which did test what it claims.
-    emit({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no src/sgc.ts — npm channel, no derivation to check against)" })
-  } else {
-    // Same failure mode check (N) above already learned the hard way: a broken
-    // symlink or unreadable dir under agents/ makes readAgentMdFiles throw
-    // straight out of runDoctor. It belongs inside the try.
-    try {
-      const files = readAgentMdFiles(root)
-      if (files.length === 0) {
-        // Mirrors check (N)'s own distinction directly above: no plugins/sgc/agents/
-        // at all is "nothing to check" (npm channel, or a dev checkout that simply
-        // doesn't carry this registry) — not "9 files missing". An incomplete-but-
-        // present registry (some files, not all 9) is the real drift, handled below.
-        emit({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no plugins/sgc/agents/ — npm channel)" })
-      } else {
-        const present = new Set(files.map((f) => f.id))
-        const missingIds = DERIVED_AGENT_IDS.filter((id) => !present.has(id))
-        for (const id of missingIds) {
-          emit({
-            severity: "fail",
-            msg: `  ✗ ${id}: no plugins/sgc/agents/${id.replace(".", "/")}.md — a missing file cannot carry the derived clause`,
-          })
-        }
-        const factDrifts = cliFactDrift(files)
-        if (factDrifts.length === 0 && missingIds.length === 0) {
-          // The count actually checked, not the constant DERIVED_AGENT_IDS.length —
-          // a hardcoded count here would claim 9 verified while having seen fewer.
-          const checked = files.filter((f) => DERIVED_AGENT_IDS.includes(f.id)).length
-          emit({ severity: "ok", msg: `  ✓ ${checked} agent CLI-fact clauses match the code` })
-        } else {
-          for (const d of factDrifts) emit({ severity: "fail", msg: `  ✗ ${d}` })
-        }
-      }
-    } catch (e) {
-      emit({ severity: "fail", msg: `  ✗ CLI-fact check error: ${(e as Error).message.slice(0, 80)}` })
-    }
-  }
-
-  // ── (M) README four-化 scorecard ↔ live metrics parity ──────────────────
-  log("")
-  log("=== README four-化 scorecard parity ===")
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ README scorecard parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
-  } else {
-    const readmePath = resolve(root, "README.md")
-    if (!existsSync(readmePath)) {
-      emit({ severity: "warn", msg: "  ⚠ README.md not found" })
-    } else {
-      try {
-        const drifts = readmeScorecardDrift(readFileSync(readmePath, "utf8"), computeMetricsLive(root))
-        if (drifts.length === 0) {
-          emit({ severity: "ok", msg: "  ✓ README scorecard matches live metrics" })
-        } else {
-          for (const d of drifts) emit({ severity: "fail", msg: `  ✗ README scorecard drift — ${d}` })
-          emit({ severity: "fail", msg: "  ✗ fix README.md to match `sgc metrics` output" })
-        }
-      } catch (e) {
-        emit({ severity: "fail", msg: `  ✗ README scorecard check error: ${(e as Error).message.slice(0, 80)}` })
-      }
-    }
-  }
-
-  // ── (L) plugins/sgc/CLAUDE.md status header not behind package.json ──────
-  log("")
-  log("=== plugins/sgc/CLAUDE.md status header freshness ===")
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ CLAUDE.md freshness skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
-  } else {
-    const claudeMdPath = resolve(root, "plugins", "sgc", "CLAUDE.md")
-    const pkgPath = resolve(root, "package.json")
-    if (!existsSync(claudeMdPath) || !existsSync(pkgPath)) {
-      emit({ severity: "warn", msg: "  ⚠ plugins/sgc/CLAUDE.md or package.json not found" })
-    } else {
-      try {
-        const pkgVer = (JSON.parse(readFileSync(pkgPath, "utf8")) as { version?: string }).version ?? ""
-        const r = statusHeaderFreshness(readFileSync(claudeMdPath, "utf8"), pkgVer)
-        emit({ severity: r.severity, msg: `  ${r.severity === "ok" ? "✓" : "⚠"} ${r.msg}` })
-      } catch (e) {
-        emit({ severity: "warn", msg: `  ⚠ CLAUDE.md freshness check error: ${(e as Error).message.slice(0, 80)}` })
-      }
-    }
+  for (let i = 0; i < CHECKS.length; i++) {
+    const check = CHECKS[i]!
+    // Check (A) prints its header with no leading blank; every subsequent group
+    // is separated by one — matching the former inline `log("")` placement.
+    if (i > 0) log("")
+    log(check.header)
+    for (const row of await check.run(ctx)) emit(row)
   }
 
   const ok = rows.filter((r) => r.severity === "ok").length

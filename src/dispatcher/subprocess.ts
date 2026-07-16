@@ -25,6 +25,14 @@ export interface CaptureResult {
 export const MAX_CAPTURE_BYTES = 64 * 1024 * 1024
 
 /**
+ * C6/Q-5: grace window between SIGTERM and SIGKILL when reaping a child. A child
+ * that ignores SIGTERM (trapped signal, wedged in uninterruptible I/O, or a
+ * runaway loop) would otherwise survive a timeout/overflow kill. After this many
+ * ms with no exit, escalate to SIGKILL, which cannot be trapped.
+ */
+export const KILL_GRACE_MS = 2000
+
+/**
  * B6 (audit v1.37.0 Q-2/Q-3): accumulate a child stream's bytes and decode ONCE
  * at the end. Two bugs the old `stdout += chunk.toString()` pattern had:
  *   Q-2 — a UTF-8 sequence split across two `data` events was decoded per chunk,

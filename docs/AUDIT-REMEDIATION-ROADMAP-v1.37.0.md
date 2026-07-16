@@ -12,8 +12,8 @@
 |---|---|---|---|---|---|---|
 | A — P1（先修） | 已复现/确证的门失效 | 4 | 4 | 0 | 0 | **100%** |
 | B — P2（下一周期） | 降级诚实性 + 边界健壮性 + CI | 7 | 7 | 0 | 0 | **100%** |
-| C — P3（机会性清理） | 低危 + 重构 | 11 | 5 | 0 | 0 | 45% |
-| **合计** | | **22** | **16** | **0** | **0** | **73%** |
+| C — P3（机会性清理） | 低危 + 重构 | 11 | 8 | 0 | 0 | 73% |
+| **合计** | | **22** | **19** | **0** | **0** | **86%** |
 
 **B1（L3）收口状态**（2026-07-16）：走完 L3 流程（brainstorm → spec `docs/superpowers/specs/2026-07-16-b1-ship-degraded-review-gate-design.md` → 用户「执行」签名放行 → plan → TDD）。全量 1590 → **1597 pass / 0 fail**（+7）；`tsc` 0；`sgc doctor` 70 OK / 0 fail。**批次 A+B 现全部完成（11 项），仅剩批次 C 的 C2–C11（纯低危清理/重构）。** B1 的 CHANGELOG MIGRATION 段 + 版本号属发版步骤（需用户定版本），记为**发版时应交付**，代码+测试已就绪。README 无需改（B1 只是加强了它已宣传的 review 门，无声明变假）。全部未提交。
 
@@ -131,10 +131,10 @@
 | ✅ | C1 · ALG-3 | §11 具体性门近乎失效（`e.g.` / `12:30` / 高频词即过） | `src/dispatcher/rationale.ts:52-68` | 本 session（未提交）。`FILE_EXT_RE` 改真实扩展名白名单（ts/md/json/…）+ 新增 `PATH_RE`（含斜杠的路径）；`LINE_NUM_RE` 要求冒号前是非数字字符（`review.ts:42` ✓、`12:30` ✗）。**未去高频关键词**——error/test/null 在编码理由里是真具体，去掉会误拒真理由（过度拒绝对可满足的门更糟）；两个正则假阳才是审核点名的确证 bypass。验收 `tests/dispatcher/rationale-concrete.test.ts`（"looks simple, e.g. nothing risky" / "U.S." / "12:30" 均被拒；真 file/line/path/keyword 仍过）+ 既有 rationale 共 22 例全绿。 | v-本session |
 | ✅ | C2 · ALG-4 | fuse-plan 关切合并丢升级方内容 | `src/dispatcher/fuse-plan.ts:99-119` | merge 时 severity 升级方的 text/source/mitigation 一并采纳（或并列保留）；`also_flagged_by` 去重自身。验收：ceo-low 先到 + eng-high 后到 → 输出含 eng 文本 | |
 | ✅ | C3 · ALG-5 | canary 未知 phase 静默通过 | `src/dispatcher/canary.ts:253-331` | phase 循环补兜底 else → throw/fail。验收：注入联盟外 phase 字符串 → 显式失败（§9 并行路径完备性） | |
-| ⬜ | C4 · ALG-6 | applied-tracker mtime CAS 是 TOCTOU | `src/dispatcher/applied-tracker.ts:213-260` | 复用 file-lock（与 A4 同模式）；或文档维持"低争用接受"并链接 A4 的锁先例。二选一都算收口，但要写明理由 | |
+| ✅ | C4 · ALG-6 | applied-tracker mtime CAS 是 TOCTOU | `src/dispatcher/applied-tracker.ts:213-260` | 复用 file-lock（与 A4 同模式）；或文档维持"低争用接受"并链接 A4 的锁先例。二选一都算收口，但要写明理由 | |
 | ✅ | C5 · ALG-7 | specialist 无界词 substring 误报进报告（`helm`→"overwhelm"） | `src/dispatcher/agents/reviewer-specialists.ts:76-90,173-188` | 报告侧 matcher 加词界（`\b`，CJK 词另议）；spawn 触发侧可保持宽松。验收：`+ const cargo` 不再产出 infra finding | |
-| ⬜ | C6 · Q-5 | 超时/收割无 SIGKILL 升级 | `src/dispatcher/claude-cli-agent.ts:84-90`、`spawn.ts:191` | SIGTERM 后计时 ~2s 未退则 SIGKILL；drain 退出前同样升级。验收：忽略 SIGTERM 的假子进程被收割 | |
-| ⬜ | C7 · Q-6 | `withFileLock` 2s 等待预算硬 throw | `src/dispatcher/file-lock.ts:199-224` | 预算改为调用方可配参数（默认维持 2s）。A4 落地时一并评估 | |
+| ✅ | C6 · Q-5 | 超时/收割无 SIGKILL 升级 | `src/dispatcher/claude-cli-agent.ts:84-90`、`spawn.ts:191` | SIGTERM 后计时 ~2s 未退则 SIGKILL；drain 退出前同样升级。验收：忽略 SIGTERM 的假子进程被收割 | |
+| ✅ | C7 · Q-6 | `withFileLock` 2s 等待预算硬 throw | `src/dispatcher/file-lock.ts:199-224` | 预算改为调用方可配参数（默认维持 2s）。A4 落地时一并评估 | |
 | ✅ | C8 · Q-7 | bundle 模式 doctor 跳过理由与实际环境不符 | `src/commands/doctor.ts:41`（`repoRoot` 解析） | 跳过消息按 root 解析结果措辞（"running from bundle; source root not at ../.."）——与 v1.37.0 检查 (O) 同类的"跳过理由说谎"，只是在 root 层。验收：仓库根跑 bundle doctor 的跳过行不再宣称 "no source checkout" | |
 | ⬜ | C9 · ARCH-2 | dispatcher→commands 分层倒置 | `src/dispatcher/loop.ts:247-251` | `getDefaultRunners` 装配挪到 `commands/loop.ts`，经既有 `opts.steps` 注入缝传入。验收：`dispatcher/` 对 `commands/` 零 import（可加 lint/doctor 守护） | |
 | ⬜ | C10 · ARCH-3/4 | `state.ts` god-module + `runDoctor` 千行单函数 | `state.ts`（1065 LOC / 24 扇入）、`doctor.ts:516-1012` | 按状态层拆 `state/{decisions,progress,solutions,reviews}.ts` + 共享 `atomic.ts`；doctor 每组检查拆成返回 `CheckRow[]` 的函数。纯重构，行为不变测试守护 | |

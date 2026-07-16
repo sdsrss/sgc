@@ -233,6 +233,21 @@ function recordOne(
       [field]: [...existing, task_id],
     }
     // Re-check mtime; if it changed under us, the read is stale.
+    //
+    // C4/ALG-6 — decision (option b, documented): this mtime compare-and-swap is
+    // a best-effort TOCTOU guard, not airtight. Two writers landing inside the
+    // same mtime tick (ms resolution), or a write between this re-read and the
+    // writeAtomic below, can still lose an update. It is left best-effort on
+    // purpose: recordOne is the §3 metadata-only carve-out (it appends a task_id
+    // to applied_in/surfaced_in), so the worst case is a dropped score-feedback
+    // datapoint — never corrupted knowledge — and the path is low-contention
+    // (plan-time, one writer per task). If real contention ever shows up, the
+    // airtight fix is to route this read-modify-write through the same lock A4
+    // gave writeSolutionLocked — `withFileLock(solutionLockPath(category, slug,
+    // stateRoot), …)` — so recordApplied and writeSolution mutually exclude on
+    // the file. Not done now because it forces recordApplied/recordSurfaced/
+    // recordInto/recordOne async through ~12 sync call sites for a metadata blip,
+    // and an unverified lock is worse than a documented best-effort one (#10367).
     const mtimeReread = statSync(filePath).mtimeMs
     if (mtimeReread !== mtimeBefore) {
       if (attempt === MAX_MTIME_RETRIES) {

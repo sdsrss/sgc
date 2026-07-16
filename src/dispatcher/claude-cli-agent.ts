@@ -24,7 +24,7 @@
 import { spawn } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { load as yamlLoad } from "js-yaml"
-import { CappedStreamBuffer } from "./subprocess"
+import { CappedStreamBuffer, KILL_GRACE_MS } from "./subprocess"
 import type { SubagentManifest } from "./types"
 import type { LlmAgentContext, LlmRequestPayload, LlmResponsePayload } from "./logger"
 
@@ -81,14 +81,42 @@ export const defaultRunner: SubprocessRunner = async (argv, timeoutMs, onSpawn, 
       child.stdin?.on("error", () => {})
       child.stdin?.end(stdin)
     }
-    // STAB-2: expose a kill handle so a signal drain can SIGTERM this child.
-    onSpawn?.(() => {
+    // C6/Q-5: reap with escalation. SIGTERM first (lets the child flush/exit
+    // cleanly); if it is still alive after KILL_GRACE_MS, SIGKILL it — a child
+    // that traps or ignores SIGTERM would otherwise survive a timeout/overflow
+    // kill and leak. The escalation timer is unref'd so it never keeps the
+    // event loop (or the test runner) alive on its own, and is cleared the
+    // moment the child exits.
+    const killEscalate = (): void => {
       try {
-        child.kill()
+        child.kill("SIGTERM")
       } catch {
-        // already exited / not killable — nothing to reap.
+        return // already exited / not killable — nothing to reap.
       }
+      const sigkill = setTimeout(() => {
+        try {
+          child.kill("SIGKILL")
+        } catch {
+          // exited between SIGTERM and the grace deadline — nothing to do.
+        }
+      }, KILL_GRACE_MS)
+      if (typeof sigkill.unref === "function") sigkill.unref()
+      child.once("exit", () => clearTimeout(sigkill))
+    }
+    // The timeout abort delivers SIGTERM via `signal`; escalate to SIGKILL too.
+    controller.signal.addEventListener("abort", () => {
+      const sigkill = setTimeout(() => {
+        try {
+          child.kill("SIGKILL")
+        } catch {
+          // already reaped by the abort's SIGTERM.
+        }
+      }, KILL_GRACE_MS)
+      if (typeof sigkill.unref === "function") sigkill.unref()
+      child.once("exit", () => clearTimeout(sigkill))
     })
+    // STAB-2: expose a kill handle so a signal drain can reap this child.
+    onSpawn?.(killEscalate)
     // Parity with subprocess.ts: explicit single-resolve guard so exactly one
     // of error/close wins, eliminating the close-before-error path that would
     // otherwise drop the error text.
@@ -111,10 +139,10 @@ export const defaultRunner: SubprocessRunner = async (argv, timeoutMs, onSpawn, 
     const out = new CappedStreamBuffer()
     const err = new CappedStreamBuffer()
     child.stdout?.on("data", (c: Buffer) => {
-      if (!out.push(c)) child.kill()
+      if (!out.push(c)) killEscalate()
     })
     child.stderr?.on("data", (c: Buffer) => {
-      if (!err.push(c)) child.kill()
+      if (!err.push(c)) killEscalate()
     })
     child.on("error", (e) => {
       // On timeout, drop any partial stdout as untrustworthy (truncated mid-write).

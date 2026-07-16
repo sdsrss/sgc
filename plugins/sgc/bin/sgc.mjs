@@ -1128,48 +1128,6 @@ var init_dedup = __esm(() => {
   SEGMENTER = new Intl.Segmenter([], { granularity: "word" });
 });
 
-// src/dispatcher/spawn-protocol.ts
-import { existsSync, readdirSync } from "node:fs";
-import { resolve as resolve2 } from "node:path";
-function parseSpawnId(spawnId) {
-  const dashIdx = spawnId.indexOf("-");
-  if (dashIdx === -1) {
-    throw new Error(`invalid spawn_id: no dash in ${spawnId}`);
-  }
-  return {
-    ulid: spawnId.slice(0, dashIdx),
-    agentName: spawnId.slice(dashIdx + 1)
-  };
-}
-function promptPath(spawnId, stateRoot) {
-  return resolve2(stateRoot, "progress/agent-prompts", `${spawnId}.md`);
-}
-function resultPath(spawnId, stateRoot) {
-  return resolve2(stateRoot, "progress/agent-results", `${spawnId}.md`);
-}
-function listAllSpawns(stateRoot) {
-  const promptsDir = resolve2(stateRoot, "progress/agent-prompts");
-  if (!existsSync(promptsDir))
-    return [];
-  return readdirSync(promptsDir).filter((f3) => f3.endsWith(".md")).sort().map((f3) => {
-    const spawnId = f3.slice(0, -3);
-    const { agentName } = parseSpawnId(spawnId);
-    const pp = promptPath(spawnId, stateRoot);
-    const rp = resultPath(spawnId, stateRoot);
-    return {
-      spawnId,
-      agentName,
-      promptPath: pp,
-      resultPath: rp,
-      hasResult: existsSync(rp)
-    };
-  });
-}
-function listPendingSpawns(stateRoot) {
-  return listAllSpawns(stateRoot).filter((s2) => !s2.hasResult);
-}
-var init_spawn_protocol = () => {};
-
 // node_modules/js-yaml/dist/js-yaml.mjs
 function getDefaultExportFromCjs2(x2) {
   return x2 && x2.__esModule && Object.prototype.hasOwnProperty.call(x2, "default") ? x2["default"] : x2;
@@ -4253,6 +4211,111 @@ var init_js_yaml = __esm(() => {
   } = yaml);
 });
 
+// src/dispatcher/state/atomic.ts
+import {
+  existsSync,
+  mkdirSync as mkdirSync2,
+  readFileSync as readFileSync2,
+  renameSync as renameSync2,
+  unlinkSync as unlinkSync2,
+  writeFileSync as writeFileSync2
+} from "node:fs";
+import { randomBytes as randomBytes2 } from "node:crypto";
+import { dirname as dirname2, resolve as resolve2 } from "node:path";
+function resolveStateRoot(custom) {
+  return resolve2(custom ?? process.env["SGC_STATE_ROOT"] ?? DEFAULT_STATE_DIR);
+}
+function ensureDefaultStateGitignored(custom) {
+  if (custom !== undefined || process.env["SGC_STATE_ROOT"])
+    return;
+  if (!existsSync(resolve2(".git")))
+    return;
+  const giPath = resolve2(".gitignore");
+  let content = "";
+  try {
+    content = readFileSync2(giPath, "utf8");
+  } catch {}
+  const alreadyIgnored = content.split(/\r?\n/).map((l2) => l2.trim()).some((l2) => l2 === ".sgc" || l2 === ".sgc/" || l2 === "/.sgc" || l2 === "/.sgc/");
+  if (alreadyIgnored)
+    return;
+  const lead = content.length === 0 ? "" : content.endsWith(`
+`) ? `
+` : `
+
+`;
+  const block = `${lead}# sgc runtime state (not source) — safe to delete; recreated on next run
+.sgc/
+`;
+  try {
+    writeFileSync2(giPath, content + block);
+  } catch {}
+}
+function ensureSgcStructure(stateRoot) {
+  const r3 = root(stateRoot);
+  for (const layer of LAYERS) {
+    mkdirSync2(resolve2(r3, layer), { recursive: true });
+  }
+  ensureDefaultStateGitignored(stateRoot);
+  return r3;
+}
+function parseFrontmatter(text, source) {
+  const match = FRONTMATTER_RE.exec(text);
+  if (!match) {
+    const where = source ? `${source}: ` : "";
+    const hint = source ? " — corrupt or partially written; .sgc/ is regenerable runtime state (delete it and re-run, or restore this file)" : "";
+    throw new StateError("NoFrontmatter", `${where}file missing YAML frontmatter${hint}`);
+  }
+  const data = load(match[1]) ?? {};
+  const body = (match[2] ?? "").replace(/^\n+/, "");
+  return { data, body };
+}
+function serializeFrontmatter(data, body = "") {
+  const yaml2 = dump(data, { lineWidth: -1, sortKeys: false }).trimEnd();
+  const trimmedBody = body.replace(/^\n+/, "");
+  return `---
+${yaml2}
+---
+
+${trimmedBody}`;
+}
+function writeAtomic(path, content) {
+  mkdirSync2(dirname2(path), { recursive: true });
+  const tmp = `${path}.tmp.${process.pid}.${Date.now()}.${atomicWriteSeq++}.${randomBytes2(4).toString("hex")}`;
+  writeFileSync2(tmp, content, "utf8");
+  try {
+    renameSync2(tmp, path);
+  } catch (err) {
+    try {
+      unlinkSync2(tmp);
+    } catch {}
+    throw err;
+  }
+}
+function wordCount(text) {
+  let n2 = 0;
+  for (const seg of WORD_SEGMENTER.segment(text)) {
+    if (seg.isWordLike)
+      n2++;
+  }
+  return n2;
+}
+var StateError, DEFAULT_STATE_DIR = ".sgc", root, LAYERS, FRONTMATTER_RE, atomicWriteSeq = 0, WORD_SEGMENTER;
+var init_atomic = __esm(() => {
+  init_js_yaml();
+  StateError = class StateError extends Error {
+    code;
+    constructor(code, message) {
+      super(message);
+      this.code = code;
+      this.name = "StateError";
+    }
+  };
+  root = resolveStateRoot;
+  LAYERS = ["decisions", "progress", "solutions", "reviews"];
+  FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
+  WORD_SEGMENTER = new Intl.Segmenter([], { granularity: "word" });
+});
+
 // src/dispatcher/types.ts
 function isHeuristicMode(mode) {
   return mode === "inline";
@@ -4263,9 +4326,422 @@ var init_types = __esm(() => {
   PLAN_VERDICTS = ["approve", "revise", "reject"];
 });
 
+// src/dispatcher/state/decisions.ts
+import { existsSync as existsSync2, readFileSync as readFileSync3 } from "node:fs";
+import { resolve as resolve3 } from "node:path";
+function validateIntent(intent) {
+  for (const f3 of REQUIRED_INTENT_FIELDS) {
+    const v2 = intent[f3];
+    if (v2 === undefined || v2 === null) {
+      throw new StateError("SchemaViolation", `intent missing required field: ${f3}`);
+    }
+  }
+  if (!Array.isArray(intent.affected_readers) || intent.affected_readers.length < 1) {
+    throw new StateError("SchemaViolation", "affected_readers must be a non-empty array (required even at L1)");
+  }
+  if (!LEVELS.includes(intent.level)) {
+    throw new StateError("SchemaViolation", `level must be one of L0|L1|L2|L3 (got '${intent.level}')`);
+  }
+  const mwords = wordCount(intent.motivation);
+  if (mwords < 20) {
+    throw new StateError("SchemaViolation", `motivation must be ≥20 words (got ${mwords}); pass --motivation "<longer rationale>"`);
+  }
+  if (intent.level === "L3" && !intent.user_signature) {
+    throw new StateError("SchemaViolation", "L3 intent requires user_signature (Invariant §4)");
+  }
+  if (intent.fused_verdict !== undefined && !PLAN_VERDICTS.includes(intent.fused_verdict)) {
+    throw new StateError("SchemaViolation", `fused_verdict must be one of approve|revise|reject (got '${intent.fused_verdict}')`);
+  }
+}
+function intentPath(taskId, stateRoot) {
+  return resolve3(resolveStateRoot(stateRoot), "decisions", taskId, "intent.md");
+}
+function writeIntent(intent, stateRoot) {
+  const path = intentPath(intent.task_id, stateRoot);
+  if (existsSync2(path)) {
+    throw new StateError("IntentImmutable", `intent.md exists for ${intent.task_id} — Invariant §2 (immutable)`);
+  }
+  validateIntent(intent);
+  const { body, ...frontmatter } = intent;
+  writeAtomic(path, serializeFrontmatter(frontmatter, body ?? ""));
+  return path;
+}
+function readIntent(taskId, stateRoot) {
+  const path = intentPath(taskId, stateRoot);
+  if (!existsSync2(path)) {
+    throw new StateError("NotFound", `intent.md not found for ${taskId}`);
+  }
+  const { data, body } = parseFrontmatter(readFileSync3(path, "utf8"), path);
+  return { ...data, body };
+}
+function validateShip(ship) {
+  for (const f3 of REQUIRED_SHIP_FIELDS) {
+    const v2 = ship[f3];
+    if (v2 === undefined || v2 === null) {
+      throw new StateError("SchemaViolation", `ship missing required field: ${f3}`);
+    }
+  }
+  if (ship.outcome === "reverted" && !ship.rollback_ref) {
+    throw new StateError("SchemaViolation", "ship outcome=reverted requires rollback_ref");
+  }
+}
+function shipPath(taskId, stateRoot) {
+  return resolve3(resolveStateRoot(stateRoot), "decisions", taskId, "ship.md");
+}
+function writeShip(ship, body = "", stateRoot) {
+  const path = shipPath(ship.task_id, stateRoot);
+  if (existsSync2(path)) {
+    throw new StateError("ShipImmutable", `ship.md exists for ${ship.task_id}`);
+  }
+  validateShip(ship);
+  writeAtomic(path, serializeFrontmatter(ship, body));
+  return path;
+}
+function readShip(taskId, stateRoot) {
+  const path = shipPath(taskId, stateRoot);
+  if (!existsSync2(path)) {
+    throw new StateError("NotFound", `ship.md not found for ${taskId}`);
+  }
+  const { data, body } = parseFrontmatter(readFileSync3(path, "utf8"), path);
+  return { ship: data, body };
+}
+var REQUIRED_INTENT_FIELDS, REQUIRED_SHIP_FIELDS;
+var init_decisions = __esm(() => {
+  init_types();
+  init_atomic();
+  REQUIRED_INTENT_FIELDS = [
+    "task_id",
+    "level",
+    "created_at",
+    "title",
+    "motivation",
+    "affected_readers",
+    "scope_tokens"
+  ];
+  REQUIRED_SHIP_FIELDS = [
+    "task_id",
+    "shipped_at",
+    "outcome",
+    "deviations",
+    "residuals",
+    "linked_reviews"
+  ];
+});
+
+// src/dispatcher/state/progress.ts
+import { existsSync as existsSync3, mkdirSync as mkdirSync3, readFileSync as readFileSync4 } from "node:fs";
+import { join, resolve as resolve4 } from "node:path";
+function progressPath(file, stateRoot) {
+  return resolve4(resolveStateRoot(stateRoot), "progress", `${file}.md`);
+}
+function validateCurrentTask(task) {
+  for (const f3 of REQUIRED_CURRENT_TASK_FIELDS) {
+    const v2 = task[f3];
+    if (v2 === undefined || v2 === null) {
+      throw new StateError("SchemaViolation", `current-task missing required field: ${f3}`);
+    }
+  }
+}
+function writeCurrentTask(task, body = "", stateRoot) {
+  validateCurrentTask(task);
+  const path = progressPath("current-task", stateRoot);
+  writeAtomic(path, serializeFrontmatter(task, body));
+  return path;
+}
+function readCurrentTask(stateRoot) {
+  const path = progressPath("current-task", stateRoot);
+  if (!existsSync3(path))
+    return null;
+  const { data, body } = parseFrontmatter(readFileSync4(path, "utf8"), path);
+  return { task: data, body };
+}
+function validateFeatureList(list) {
+  if (!Array.isArray(list?.features)) {
+    throw new StateError("SchemaViolation", "feature-list missing required field: features (array)");
+  }
+  for (let i2 = 0;i2 < list.features.length; i2++) {
+    const ft = list.features[i2];
+    if (ft === null || typeof ft !== "object") {
+      throw new StateError("SchemaViolation", `feature-list.features[${i2}] is not an object`);
+    }
+    for (const f3 of REQUIRED_FEATURE_FIELDS) {
+      if (ft[f3] === undefined || ft[f3] === null) {
+        throw new StateError("SchemaViolation", `feature-list.features[${i2}] missing required field: ${f3}`);
+      }
+    }
+  }
+}
+function writeFeatureList(list, body = "", stateRoot) {
+  validateFeatureList(list);
+  const path = progressPath("feature-list", stateRoot);
+  writeAtomic(path, serializeFrontmatter(list, body));
+  return path;
+}
+function writePlanDoc(slug, dateIso, content, base) {
+  const dir = join(base ?? process.cwd(), "docs", "superpowers", "plans");
+  mkdirSync3(dir, { recursive: true });
+  const path = join(dir, `${dateIso}-${slug}.md`);
+  writeAtomic(path, content);
+  return path;
+}
+function readFeatureList(stateRoot) {
+  const path = progressPath("feature-list", stateRoot);
+  if (!existsSync3(path))
+    return null;
+  const { data, body } = parseFrontmatter(readFileSync4(path, "utf8"), path);
+  return { list: data, body };
+}
+function validateHandoff(handoff) {
+  for (const f3 of REQUIRED_HANDOFF_FIELDS) {
+    const v2 = handoff[f3];
+    if (v2 === undefined || v2 === null) {
+      throw new StateError("SchemaViolation", `handoff missing required field: ${f3}`);
+    }
+  }
+  if (!Array.isArray(handoff?.open_questions)) {
+    throw new StateError("SchemaViolation", "handoff.open_questions must be an array");
+  }
+}
+function writeHandoff(handoff, body = "", stateRoot) {
+  validateHandoff(handoff);
+  const path = progressPath("handoff", stateRoot);
+  writeAtomic(path, serializeFrontmatter(handoff, body));
+  return path;
+}
+function readHandoff(stateRoot) {
+  const path = progressPath("handoff", stateRoot);
+  if (!existsSync3(path))
+    return null;
+  const { data, body } = parseFrontmatter(readFileSync4(path, "utf8"), path);
+  return { handoff: data, body };
+}
+var REQUIRED_CURRENT_TASK_FIELDS, REQUIRED_FEATURE_FIELDS, REQUIRED_HANDOFF_FIELDS;
+var init_progress = __esm(() => {
+  init_atomic();
+  REQUIRED_CURRENT_TASK_FIELDS = [
+    "task_id",
+    "level",
+    "session_start",
+    "last_activity"
+  ];
+  REQUIRED_FEATURE_FIELDS = ["id", "title", "status"];
+  REQUIRED_HANDOFF_FIELDS = [
+    "from_session",
+    "to_session_hint",
+    "summary"
+  ];
+});
+
+// src/dispatcher/state/reviews.ts
+import { existsSync as existsSync4, mkdirSync as mkdirSync4, readFileSync as readFileSync5, readdirSync } from "node:fs";
+import { resolve as resolve5 } from "node:path";
+function redGreenSlug(title, taskId) {
+  const base = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "feature";
+  return `${base}-${taskId.slice(0, 8).toLowerCase()}`;
+}
+function writeRedGreenCapture(fm, stateRoot) {
+  const dir = resolve5(resolveStateRoot(stateRoot), "red-green");
+  mkdirSync4(dir, { recursive: true });
+  const baseSlug = redGreenSlug(fm.title, fm.task_id);
+  let slug = baseSlug;
+  let n2 = 1;
+  while (existsSync4(resolve5(dir, `${slug}.md`))) {
+    n2 += 1;
+    slug = `${baseSlug}-${n2}`;
+    if (n2 > 50)
+      throw new Error(`red-green slug collision overflow for ${fm.task_id}`);
+  }
+  const data = {
+    kind: "red-green",
+    captured_at: new Date().toISOString(),
+    task_id: fm.task_id,
+    feature_id: fm.feature_id,
+    level: fm.level,
+    prior_red: fm.prior_red,
+    red_output: fm.red_output,
+    verify_command: fm.verify_command,
+    ...fm.evidence ? { evidence: fm.evidence } : {},
+    prevention_seed: RED_GREEN_PLACEHOLDER
+  };
+  const body = `## RED→GREEN
+
+- prior RED: ${fm.prior_red}
+- observed: ${fm.red_output}
+` + `- verified by: ${fm.verify_command}
+
+Fill \`prevention_seed:\` with the ` + `reusable safeguard, then run \`sgc compound --from-red-green ${slug}\`.
+`;
+  writeAtomic(resolve5(dir, `${slug}.md`), serializeFrontmatter(data, body));
+  return slug;
+}
+function validateReview(report) {
+  for (const f3 of REQUIRED_REVIEW_FIELDS) {
+    const v2 = report[f3];
+    if (v2 === undefined || v2 === null) {
+      throw new StateError("SchemaViolation", `review missing required field: ${f3}`);
+    }
+  }
+  if (report.override) {
+    const r3 = report.override.reason ?? "";
+    if (r3.length < 40) {
+      throw new StateError("SchemaViolation", `review override.reason must be ≥40 chars (Invariant §5); got ${r3.length}`);
+    }
+    if ((report.override.by ?? "").trim().length === 0) {
+      throw new StateError("SchemaViolation", "review override.by (the signer) must be a non-empty name (Invariant §5)");
+    }
+  }
+}
+function reviewPath(taskId, stage, reviewerId, stateRoot, suffix) {
+  const base = suffix ? `${reviewerId}.${suffix}.md` : `${reviewerId}.md`;
+  return resolve5(resolveStateRoot(stateRoot), "reviews", taskId, stage, base);
+}
+function appendReview(report, body = "", stateRoot, suffix) {
+  if (suffix !== undefined && !REVIEW_SUFFIX_RE.test(suffix)) {
+    throw new StateError("SchemaViolation", `invalid review suffix ${JSON.stringify(suffix)} — must match ${REVIEW_SUFFIX_RE.source}`);
+  }
+  const path = reviewPath(report.task_id, report.stage, report.reviewer_id, stateRoot, suffix);
+  if (existsSync4(path)) {
+    const ref = suffix ? `${report.reviewer_id}.${suffix}` : report.reviewer_id;
+    throw new StateError("AppendOnly", `review ${ref} already exists for ${report.task_id}/${report.stage} — append-only per Invariant §6`);
+  }
+  validateReview(report);
+  writeAtomic(path, serializeFrontmatter(report, body));
+  return path;
+}
+function readReview(taskId, stage, reviewerId, stateRoot) {
+  const path = reviewPath(taskId, stage, reviewerId, stateRoot);
+  if (!existsSync4(path))
+    return null;
+  const { data, body } = parseFrontmatter(readFileSync5(path, "utf8"));
+  return { report: data, body };
+}
+function hasQaEvidence(taskId, stateRoot) {
+  const qaDir = resolve5(resolveStateRoot(stateRoot), "reviews", taskId, "qa");
+  if (!existsSync4(qaDir))
+    return false;
+  try {
+    return readdirSync(qaDir).some((f3) => f3.endsWith(".md"));
+  } catch {
+    return false;
+  }
+}
+function validateJanitorDecision(d2) {
+  for (const f3 of REQUIRED_JANITOR_FIELDS) {
+    const v2 = d2[f3];
+    if (v2 === undefined || v2 === null || typeof v2 === "string" && v2.length === 0) {
+      throw new StateError("SchemaViolation", `janitor decision missing: ${f3}`);
+    }
+  }
+}
+function janitorDecisionPath(taskId, stateRoot) {
+  return resolve5(resolveStateRoot(stateRoot), "reviews", taskId, "janitor", "compound-decision.md");
+}
+function writeJanitorDecision(decision, body = "", stateRoot) {
+  const path = janitorDecisionPath(decision.task_id, stateRoot);
+  if (existsSync4(path)) {
+    throw new StateError("AppendOnly", `janitor decision already written for ${decision.task_id} (Invariant §6)`);
+  }
+  validateJanitorDecision(decision);
+  writeAtomic(path, serializeFrontmatter(decision, body));
+  return path;
+}
+function readJanitorDecision(taskId, stateRoot) {
+  const path = janitorDecisionPath(taskId, stateRoot);
+  if (!existsSync4(path))
+    return null;
+  const { data } = parseFrontmatter(readFileSync5(path, "utf8"));
+  return data;
+}
+function listReviewsForStage(taskId, stage, stateRoot) {
+  const dir = resolve5(resolveStateRoot(stateRoot), "reviews", taskId, stage);
+  if (!existsSync4(dir))
+    return [];
+  let files;
+  try {
+    files = readdirSync(dir).filter((f3) => f3.endsWith(".md"));
+  } catch {
+    return [];
+  }
+  const reports = [];
+  for (const f3 of files) {
+    try {
+      const text = readFileSync5(resolve5(dir, f3), "utf8");
+      const { data } = parseFrontmatter(text);
+      reports.push(data);
+    } catch {}
+  }
+  return reports;
+}
+var RED_GREEN_PLACEHOLDER = "TODO: operator-fill the reusable prevention", REQUIRED_REVIEW_FIELDS, REVIEW_SUFFIX_RE, REQUIRED_JANITOR_FIELDS;
+var init_reviews = __esm(() => {
+  init_atomic();
+  REQUIRED_REVIEW_FIELDS = [
+    "report_id",
+    "task_id",
+    "stage",
+    "reviewer_id",
+    "reviewer_version",
+    "verdict",
+    "severity",
+    "findings",
+    "created_at"
+  ];
+  REVIEW_SUFFIX_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,30}$/;
+  REQUIRED_JANITOR_FIELDS = [
+    "task_id",
+    "decision",
+    "reason_code",
+    "reason_human",
+    "inputs_hash",
+    "created_at"
+  ];
+});
+
+// src/dispatcher/spawn-protocol.ts
+import { existsSync as existsSync5, readdirSync as readdirSync2 } from "node:fs";
+import { resolve as resolve6 } from "node:path";
+function parseSpawnId(spawnId) {
+  const dashIdx = spawnId.indexOf("-");
+  if (dashIdx === -1) {
+    throw new Error(`invalid spawn_id: no dash in ${spawnId}`);
+  }
+  return {
+    ulid: spawnId.slice(0, dashIdx),
+    agentName: spawnId.slice(dashIdx + 1)
+  };
+}
+function promptPath(spawnId, stateRoot) {
+  return resolve6(stateRoot, "progress/agent-prompts", `${spawnId}.md`);
+}
+function resultPath(spawnId, stateRoot) {
+  return resolve6(stateRoot, "progress/agent-results", `${spawnId}.md`);
+}
+function listAllSpawns(stateRoot) {
+  const promptsDir = resolve6(stateRoot, "progress/agent-prompts");
+  if (!existsSync5(promptsDir))
+    return [];
+  return readdirSync2(promptsDir).filter((f3) => f3.endsWith(".md")).sort().map((f3) => {
+    const spawnId = f3.slice(0, -3);
+    const { agentName } = parseSpawnId(spawnId);
+    const pp = promptPath(spawnId, stateRoot);
+    const rp = resultPath(spawnId, stateRoot);
+    return {
+      spawnId,
+      agentName,
+      promptPath: pp,
+      resultPath: rp,
+      hasResult: existsSync5(rp)
+    };
+  });
+}
+function listPendingSpawns(stateRoot) {
+  return listAllSpawns(stateRoot).filter((s2) => !s2.hasResult);
+}
+var init_spawn_protocol = () => {};
+
 // src/dispatcher/fingerprint.ts
-import { existsSync as existsSync2, readdirSync as readdirSync2, readFileSync as readFileSync2, statSync as statSync2 } from "node:fs";
-import { join, resolve as resolve3 } from "node:path";
+import { existsSync as existsSync6, readdirSync as readdirSync3, readFileSync as readFileSync6, statSync as statSync2 } from "node:fs";
+import { join as join2, resolve as resolve7 } from "node:path";
 import { createHash as createHash2 } from "node:crypto";
 function isFingerprintable(line) {
   const trimmed = line.trim();
@@ -4284,7 +4760,7 @@ function hashLine(line) {
 }
 function safeReaddir(dir) {
   try {
-    return readdirSync2(dir);
+    return readdirSync3(dir);
   } catch {
     return [];
   }
@@ -4298,24 +4774,24 @@ function isDir(path) {
 }
 function safeReadFile(path) {
   try {
-    return readFileSync2(path, "utf8");
+    return readFileSync6(path, "utf8");
   } catch {
     return null;
   }
 }
 function loadSolutionsFingerprints(stateRoot) {
-  const dir = resolve3(stateRoot, "solutions");
+  const dir = resolve7(stateRoot, "solutions");
   const set2 = new Set;
-  if (!existsSync2(dir))
+  if (!existsSync6(dir))
     return set2;
   for (const cat of safeReaddir(dir)) {
-    const catPath = join(dir, cat);
+    const catPath = join2(dir, cat);
     if (!isDir(catPath))
       continue;
     for (const file of safeReaddir(catPath)) {
       if (!file.endsWith(".md"))
         continue;
-      const text = safeReadFile(join(catPath, file));
+      const text = safeReadFile(join2(catPath, file));
       if (!text)
         continue;
       for (const line of text.split(`
@@ -4329,7 +4805,7 @@ function loadSolutionsFingerprints(stateRoot) {
   return set2;
 }
 function getFingerprintsCached(stateRoot) {
-  const key = resolve3(stateRoot);
+  const key = resolve7(stateRoot);
   let v2 = fpCache.get(key);
   if (!v2) {
     v2 = loadSolutionsFingerprints(key);
@@ -4382,320 +4858,9 @@ var init_fingerprint = __esm(() => {
   fpCache = new Map;
 });
 
-// src/dispatcher/state.ts
-import {
-  existsSync as existsSync3,
-  mkdirSync as mkdirSync2,
-  readFileSync as readFileSync3,
-  readdirSync as readdirSync3,
-  renameSync as renameSync2,
-  unlinkSync as unlinkSync2,
-  writeFileSync as writeFileSync2
-} from "node:fs";
-import { randomBytes as randomBytes2 } from "node:crypto";
-import { dirname as dirname2, join as join2, resolve as resolve4 } from "node:path";
-function resolveStateRoot(custom) {
-  return resolve4(custom ?? process.env["SGC_STATE_ROOT"] ?? DEFAULT_STATE_DIR);
-}
-function ensureDefaultStateGitignored(custom) {
-  if (custom !== undefined || process.env["SGC_STATE_ROOT"])
-    return;
-  if (!existsSync3(resolve4(".git")))
-    return;
-  const giPath = resolve4(".gitignore");
-  let content = "";
-  try {
-    content = readFileSync3(giPath, "utf8");
-  } catch {}
-  const alreadyIgnored = content.split(/\r?\n/).map((l2) => l2.trim()).some((l2) => l2 === ".sgc" || l2 === ".sgc/" || l2 === "/.sgc" || l2 === "/.sgc/");
-  if (alreadyIgnored)
-    return;
-  const lead = content.length === 0 ? "" : content.endsWith(`
-`) ? `
-` : `
-
-`;
-  const block = `${lead}# sgc runtime state (not source) — safe to delete; recreated on next run
-.sgc/
-`;
-  try {
-    writeFileSync2(giPath, content + block);
-  } catch {}
-}
-function ensureSgcStructure(stateRoot) {
-  const r3 = root(stateRoot);
-  for (const layer of LAYERS) {
-    mkdirSync2(resolve4(r3, layer), { recursive: true });
-  }
-  ensureDefaultStateGitignored(stateRoot);
-  return r3;
-}
-function parseFrontmatter(text, source) {
-  const match = FRONTMATTER_RE.exec(text);
-  if (!match) {
-    const where = source ? `${source}: ` : "";
-    const hint = source ? " — corrupt or partially written; .sgc/ is regenerable runtime state (delete it and re-run, or restore this file)" : "";
-    throw new StateError("NoFrontmatter", `${where}file missing YAML frontmatter${hint}`);
-  }
-  const data = load(match[1]) ?? {};
-  const body = (match[2] ?? "").replace(/^\n+/, "");
-  return { data, body };
-}
-function serializeFrontmatter(data, body = "") {
-  const yaml2 = dump(data, { lineWidth: -1, sortKeys: false }).trimEnd();
-  const trimmedBody = body.replace(/^\n+/, "");
-  return `---
-${yaml2}
----
-
-${trimmedBody}`;
-}
-function writeAtomic(path, content) {
-  mkdirSync2(dirname2(path), { recursive: true });
-  const tmp = `${path}.tmp.${process.pid}.${Date.now()}.${atomicWriteSeq++}.${randomBytes2(4).toString("hex")}`;
-  writeFileSync2(tmp, content, "utf8");
-  try {
-    renameSync2(tmp, path);
-  } catch (err) {
-    try {
-      unlinkSync2(tmp);
-    } catch {}
-    throw err;
-  }
-}
-function redGreenSlug(title, taskId) {
-  const base = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "feature";
-  return `${base}-${taskId.slice(0, 8).toLowerCase()}`;
-}
-function writeRedGreenCapture(fm, stateRoot) {
-  const dir = resolve4(root(stateRoot), "red-green");
-  mkdirSync2(dir, { recursive: true });
-  const baseSlug = redGreenSlug(fm.title, fm.task_id);
-  let slug = baseSlug;
-  let n2 = 1;
-  while (existsSync3(resolve4(dir, `${slug}.md`))) {
-    n2 += 1;
-    slug = `${baseSlug}-${n2}`;
-    if (n2 > 50)
-      throw new Error(`red-green slug collision overflow for ${fm.task_id}`);
-  }
-  const data = {
-    kind: "red-green",
-    captured_at: new Date().toISOString(),
-    task_id: fm.task_id,
-    feature_id: fm.feature_id,
-    level: fm.level,
-    prior_red: fm.prior_red,
-    red_output: fm.red_output,
-    verify_command: fm.verify_command,
-    ...fm.evidence ? { evidence: fm.evidence } : {},
-    prevention_seed: RED_GREEN_PLACEHOLDER
-  };
-  const body = `## RED→GREEN
-
-- prior RED: ${fm.prior_red}
-- observed: ${fm.red_output}
-` + `- verified by: ${fm.verify_command}
-
-Fill \`prevention_seed:\` with the ` + `reusable safeguard, then run \`sgc compound --from-red-green ${slug}\`.
-`;
-  writeAtomic(resolve4(dir, `${slug}.md`), serializeFrontmatter(data, body));
-  return slug;
-}
-function wordCount(text) {
-  let n2 = 0;
-  for (const seg of WORD_SEGMENTER.segment(text)) {
-    if (seg.isWordLike)
-      n2++;
-  }
-  return n2;
-}
-function validateIntent(intent) {
-  for (const f3 of REQUIRED_INTENT_FIELDS) {
-    const v2 = intent[f3];
-    if (v2 === undefined || v2 === null) {
-      throw new StateError("SchemaViolation", `intent missing required field: ${f3}`);
-    }
-  }
-  if (!Array.isArray(intent.affected_readers) || intent.affected_readers.length < 1) {
-    throw new StateError("SchemaViolation", "affected_readers must be a non-empty array (required even at L1)");
-  }
-  if (!LEVELS.includes(intent.level)) {
-    throw new StateError("SchemaViolation", `level must be one of L0|L1|L2|L3 (got '${intent.level}')`);
-  }
-  const mwords = wordCount(intent.motivation);
-  if (mwords < 20) {
-    throw new StateError("SchemaViolation", `motivation must be ≥20 words (got ${mwords}); pass --motivation "<longer rationale>"`);
-  }
-  if (intent.level === "L3" && !intent.user_signature) {
-    throw new StateError("SchemaViolation", "L3 intent requires user_signature (Invariant §4)");
-  }
-  if (intent.fused_verdict !== undefined && !PLAN_VERDICTS.includes(intent.fused_verdict)) {
-    throw new StateError("SchemaViolation", `fused_verdict must be one of approve|revise|reject (got '${intent.fused_verdict}')`);
-  }
-}
-function intentPath(taskId, stateRoot) {
-  return resolve4(root(stateRoot), "decisions", taskId, "intent.md");
-}
-function writeIntent(intent, stateRoot) {
-  const path = intentPath(intent.task_id, stateRoot);
-  if (existsSync3(path)) {
-    throw new StateError("IntentImmutable", `intent.md exists for ${intent.task_id} — Invariant §2 (immutable)`);
-  }
-  validateIntent(intent);
-  const { body, ...frontmatter } = intent;
-  writeAtomic(path, serializeFrontmatter(frontmatter, body ?? ""));
-  return path;
-}
-function readIntent(taskId, stateRoot) {
-  const path = intentPath(taskId, stateRoot);
-  if (!existsSync3(path)) {
-    throw new StateError("NotFound", `intent.md not found for ${taskId}`);
-  }
-  const { data, body } = parseFrontmatter(readFileSync3(path, "utf8"), path);
-  return { ...data, body };
-}
-function validateShip(ship) {
-  for (const f3 of REQUIRED_SHIP_FIELDS) {
-    const v2 = ship[f3];
-    if (v2 === undefined || v2 === null) {
-      throw new StateError("SchemaViolation", `ship missing required field: ${f3}`);
-    }
-  }
-  if (ship.outcome === "reverted" && !ship.rollback_ref) {
-    throw new StateError("SchemaViolation", "ship outcome=reverted requires rollback_ref");
-  }
-}
-function shipPath(taskId, stateRoot) {
-  return resolve4(root(stateRoot), "decisions", taskId, "ship.md");
-}
-function writeShip(ship, body = "", stateRoot) {
-  const path = shipPath(ship.task_id, stateRoot);
-  if (existsSync3(path)) {
-    throw new StateError("ShipImmutable", `ship.md exists for ${ship.task_id}`);
-  }
-  validateShip(ship);
-  writeAtomic(path, serializeFrontmatter(ship, body));
-  return path;
-}
-function progressPath(file, stateRoot) {
-  return resolve4(root(stateRoot), "progress", `${file}.md`);
-}
-function validateCurrentTask(task) {
-  for (const f3 of REQUIRED_CURRENT_TASK_FIELDS) {
-    const v2 = task[f3];
-    if (v2 === undefined || v2 === null) {
-      throw new StateError("SchemaViolation", `current-task missing required field: ${f3}`);
-    }
-  }
-}
-function writeCurrentTask(task, body = "", stateRoot) {
-  validateCurrentTask(task);
-  const path = progressPath("current-task", stateRoot);
-  writeAtomic(path, serializeFrontmatter(task, body));
-  return path;
-}
-function readCurrentTask(stateRoot) {
-  const path = progressPath("current-task", stateRoot);
-  if (!existsSync3(path))
-    return null;
-  const { data, body } = parseFrontmatter(readFileSync3(path, "utf8"), path);
-  return { task: data, body };
-}
-function validateFeatureList(list) {
-  if (!Array.isArray(list?.features)) {
-    throw new StateError("SchemaViolation", "feature-list missing required field: features (array)");
-  }
-  for (let i2 = 0;i2 < list.features.length; i2++) {
-    const ft = list.features[i2];
-    if (ft === null || typeof ft !== "object") {
-      throw new StateError("SchemaViolation", `feature-list.features[${i2}] is not an object`);
-    }
-    for (const f3 of REQUIRED_FEATURE_FIELDS) {
-      if (ft[f3] === undefined || ft[f3] === null) {
-        throw new StateError("SchemaViolation", `feature-list.features[${i2}] missing required field: ${f3}`);
-      }
-    }
-  }
-}
-function writeFeatureList(list, body = "", stateRoot) {
-  validateFeatureList(list);
-  const path = progressPath("feature-list", stateRoot);
-  writeAtomic(path, serializeFrontmatter(list, body));
-  return path;
-}
-function writePlanDoc(slug, dateIso, content, base) {
-  const dir = join2(base ?? process.cwd(), "docs", "superpowers", "plans");
-  mkdirSync2(dir, { recursive: true });
-  const path = join2(dir, `${dateIso}-${slug}.md`);
-  writeAtomic(path, content);
-  return path;
-}
-function readFeatureList(stateRoot) {
-  const path = progressPath("feature-list", stateRoot);
-  if (!existsSync3(path))
-    return null;
-  const { data, body } = parseFrontmatter(readFileSync3(path, "utf8"), path);
-  return { list: data, body };
-}
-function validateHandoff(handoff) {
-  for (const f3 of REQUIRED_HANDOFF_FIELDS) {
-    const v2 = handoff[f3];
-    if (v2 === undefined || v2 === null) {
-      throw new StateError("SchemaViolation", `handoff missing required field: ${f3}`);
-    }
-  }
-  if (!Array.isArray(handoff?.open_questions)) {
-    throw new StateError("SchemaViolation", "handoff.open_questions must be an array");
-  }
-}
-function writeHandoff(handoff, body = "", stateRoot) {
-  validateHandoff(handoff);
-  const path = progressPath("handoff", stateRoot);
-  writeAtomic(path, serializeFrontmatter(handoff, body));
-  return path;
-}
-function readHandoff(stateRoot) {
-  const path = progressPath("handoff", stateRoot);
-  if (!existsSync3(path))
-    return null;
-  const { data, body } = parseFrontmatter(readFileSync3(path, "utf8"), path);
-  return { handoff: data, body };
-}
-function validateReview(report) {
-  for (const f3 of REQUIRED_REVIEW_FIELDS) {
-    const v2 = report[f3];
-    if (v2 === undefined || v2 === null) {
-      throw new StateError("SchemaViolation", `review missing required field: ${f3}`);
-    }
-  }
-  if (report.override) {
-    const r3 = report.override.reason ?? "";
-    if (r3.length < 40) {
-      throw new StateError("SchemaViolation", `review override.reason must be ≥40 chars (Invariant §5); got ${r3.length}`);
-    }
-    if ((report.override.by ?? "").trim().length === 0) {
-      throw new StateError("SchemaViolation", "review override.by (the signer) must be a non-empty name (Invariant §5)");
-    }
-  }
-}
-function reviewPath(taskId, stage, reviewerId, stateRoot, suffix) {
-  const base = suffix ? `${reviewerId}.${suffix}.md` : `${reviewerId}.md`;
-  return resolve4(root(stateRoot), "reviews", taskId, stage, base);
-}
-function appendReview(report, body = "", stateRoot, suffix) {
-  if (suffix !== undefined && !REVIEW_SUFFIX_RE.test(suffix)) {
-    throw new StateError("SchemaViolation", `invalid review suffix ${JSON.stringify(suffix)} — must match ${REVIEW_SUFFIX_RE.source}`);
-  }
-  const path = reviewPath(report.task_id, report.stage, report.reviewer_id, stateRoot, suffix);
-  if (existsSync3(path)) {
-    const ref = suffix ? `${report.reviewer_id}.${suffix}` : report.reviewer_id;
-    throw new StateError("AppendOnly", `review ${ref} already exists for ${report.task_id}/${report.stage} — append-only per Invariant §6`);
-  }
-  validateReview(report);
-  writeAtomic(path, serializeFrontmatter(report, body));
-  return path;
-}
+// src/dispatcher/state/solutions.ts
+import { existsSync as existsSync7, mkdirSync as mkdirSync5, readFileSync as readFileSync7, readdirSync as readdirSync4 } from "node:fs";
+import { dirname as dirname3, resolve as resolve8 } from "node:path";
 function validateSolution(entry) {
   for (const f3 of REQUIRED_SOLUTION_FIELDS) {
     const v2 = entry[f3];
@@ -4717,7 +4882,7 @@ function validateSolution(entry) {
   }
 }
 function solutionPath(category, slug, stateRoot) {
-  return resolve4(root(stateRoot), "solutions", category, `${slug}.md`);
+  return resolve8(resolveStateRoot(stateRoot), "solutions", category, `${slug}.md`);
 }
 function validateDedupStamp(stamp, stateRoot) {
   if (!stamp || typeof stamp !== "object") {
@@ -4746,8 +4911,8 @@ function validateDedupStamp(stamp, stateRoot) {
   if (agentName !== "compound.related") {
     throw new StateError("DedupStampMissing", `dedup_stamp.compound_related_spawn_id must name a compound.related spawn, got "${agentName}" ` + `(Invariant §3: only compound.related's deterministic verdict authorizes a solutions write)`);
   }
-  const evidence = resultPath(stamp.compound_related_spawn_id, root(stateRoot));
-  if (!existsSync3(evidence)) {
+  const evidence = resultPath(stamp.compound_related_spawn_id, resolveStateRoot(stateRoot));
+  if (!existsSync7(evidence)) {
     throw new StateError("DedupStampMissing", `dedup_stamp cites compound.related spawn "${stamp.compound_related_spawn_id}" but no result ` + `exists at ${evidence} — the dedup verdict must be earned by running the agent (Invariant §3)`);
   }
 }
@@ -4757,8 +4922,8 @@ function writeSolution(entry, slug, dedupStamp, body = "", stateRoot) {
   const path = solutionPath(entry.category, slug, stateRoot);
   let finalEntry = entry;
   let finalBody = body;
-  if (existsSync3(path)) {
-    const existing = parseFrontmatter(readFileSync3(path, "utf8"));
+  if (existsSync7(path)) {
+    const existing = parseFrontmatter(readFileSync7(path, "utf8"));
     const mergedTasks = Array.from(new Set([...existing.data.source_task_ids ?? [], ...entry.source_task_ids]));
     const mergedWdw = [
       ...existing.data.what_didnt_work ?? [],
@@ -4782,35 +4947,42 @@ function solutionLockPath(category, slug, stateRoot) {
   return solutionPath(category, slug, stateRoot) + ".lock";
 }
 async function writeSolutionLocked(entry, slug, dedupStamp, body = "", stateRoot, lockOpts = {}) {
-  mkdirSync2(dirname2(solutionPath(entry.category, slug, stateRoot)), { recursive: true });
+  mkdirSync5(dirname3(solutionPath(entry.category, slug, stateRoot)), { recursive: true });
   const lockPath = solutionLockPath(entry.category, slug, stateRoot);
   return withFileLock(lockPath, () => writeSolution(entry, slug, dedupStamp, body, stateRoot), lockOpts);
 }
+function readSolution(category, slug, stateRoot) {
+  const path = solutionPath(category, slug, stateRoot);
+  if (!existsSync7(path))
+    return null;
+  const { data, body } = parseFrontmatter(readFileSync7(path, "utf8"));
+  return { entry: data, body };
+}
 function listSolutions(stateRoot) {
-  const dir = resolve4(root(stateRoot), "solutions");
-  if (!existsSync3(dir))
+  const dir = resolve8(resolveStateRoot(stateRoot), "solutions");
+  if (!existsSync7(dir))
     return [];
   const out = [];
   let categories;
   try {
-    categories = readdirSync3(dir, { withFileTypes: true }).filter((e2) => e2.isDirectory()).map((e2) => e2.name);
+    categories = readdirSync4(dir, { withFileTypes: true }).filter((e2) => e2.isDirectory()).map((e2) => e2.name);
   } catch {
     return [];
   }
   for (const cat of categories) {
     if (!SOLUTION_CATEGORIES.has(cat))
       continue;
-    const catDir = resolve4(dir, cat);
+    const catDir = resolve8(dir, cat);
     let files;
     try {
-      files = readdirSync3(catDir).filter((f3) => f3.endsWith(".md"));
+      files = readdirSync4(catDir).filter((f3) => f3.endsWith(".md"));
     } catch {
       continue;
     }
     for (const f3 of files) {
-      const fpath = resolve4(catDir, f3);
+      const fpath = resolve8(catDir, f3);
       try {
-        const { data, body } = parseFrontmatter(readFileSync3(fpath, "utf8"));
+        const { data, body } = parseFrontmatter(readFileSync7(fpath, "utf8"));
         out.push({
           category: cat,
           slug: f3.replace(/\.md$/, ""),
@@ -4823,106 +4995,15 @@ function listSolutions(stateRoot) {
   }
   return out;
 }
-function validateJanitorDecision(d2) {
-  for (const f3 of REQUIRED_JANITOR_FIELDS) {
-    const v2 = d2[f3];
-    if (v2 === undefined || v2 === null || typeof v2 === "string" && v2.length === 0) {
-      throw new StateError("SchemaViolation", `janitor decision missing: ${f3}`);
-    }
-  }
+function deleteSolution(_category, _slug, _stateRoot) {
+  throw new StateError("SolutionDeleteForbidden", "solutions/ is delete-forbidden per sgc-state.schema.yaml (delete_policy: forbidden)");
 }
-function janitorDecisionPath(taskId, stateRoot) {
-  return resolve4(root(stateRoot), "reviews", taskId, "janitor", "compound-decision.md");
-}
-function writeJanitorDecision(decision, body = "", stateRoot) {
-  const path = janitorDecisionPath(decision.task_id, stateRoot);
-  if (existsSync3(path)) {
-    throw new StateError("AppendOnly", `janitor decision already written for ${decision.task_id} (Invariant §6)`);
-  }
-  validateJanitorDecision(decision);
-  writeAtomic(path, serializeFrontmatter(decision, body));
-  return path;
-}
-function listReviewsForStage(taskId, stage, stateRoot) {
-  const dir = resolve4(root(stateRoot), "reviews", taskId, stage);
-  if (!existsSync3(dir))
-    return [];
-  let files;
-  try {
-    files = readdirSync3(dir).filter((f3) => f3.endsWith(".md"));
-  } catch {
-    return [];
-  }
-  const reports = [];
-  for (const f3 of files) {
-    try {
-      const text = readFileSync3(resolve4(dir, f3), "utf8");
-      const { data } = parseFrontmatter(text);
-      reports.push(data);
-    } catch {}
-  }
-  return reports;
-}
-var StateError, DEFAULT_STATE_DIR = ".sgc", root, LAYERS, FRONTMATTER_RE, atomicWriteSeq = 0, RED_GREEN_PLACEHOLDER = "TODO: operator-fill the reusable prevention", REQUIRED_INTENT_FIELDS, WORD_SEGMENTER, REQUIRED_SHIP_FIELDS, REQUIRED_CURRENT_TASK_FIELDS, REQUIRED_FEATURE_FIELDS, REQUIRED_HANDOFF_FIELDS, REQUIRED_REVIEW_FIELDS, REVIEW_SUFFIX_RE, SOLUTION_CATEGORIES, REQUIRED_SOLUTION_FIELDS, REQUIRED_JANITOR_FIELDS;
-var init_state = __esm(() => {
+var SOLUTION_CATEGORIES, REQUIRED_SOLUTION_FIELDS;
+var init_solutions = __esm(() => {
   init_spawn_protocol();
-  init_js_yaml();
-  init_types();
   init_fingerprint();
   init_file_lock();
-  StateError = class StateError extends Error {
-    code;
-    constructor(code, message) {
-      super(message);
-      this.code = code;
-      this.name = "StateError";
-    }
-  };
-  root = resolveStateRoot;
-  LAYERS = ["decisions", "progress", "solutions", "reviews"];
-  FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
-  REQUIRED_INTENT_FIELDS = [
-    "task_id",
-    "level",
-    "created_at",
-    "title",
-    "motivation",
-    "affected_readers",
-    "scope_tokens"
-  ];
-  WORD_SEGMENTER = new Intl.Segmenter([], { granularity: "word" });
-  REQUIRED_SHIP_FIELDS = [
-    "task_id",
-    "shipped_at",
-    "outcome",
-    "deviations",
-    "residuals",
-    "linked_reviews"
-  ];
-  REQUIRED_CURRENT_TASK_FIELDS = [
-    "task_id",
-    "level",
-    "session_start",
-    "last_activity"
-  ];
-  REQUIRED_FEATURE_FIELDS = ["id", "title", "status"];
-  REQUIRED_HANDOFF_FIELDS = [
-    "from_session",
-    "to_session_hint",
-    "summary"
-  ];
-  REQUIRED_REVIEW_FIELDS = [
-    "report_id",
-    "task_id",
-    "stage",
-    "reviewer_id",
-    "reviewer_version",
-    "verdict",
-    "severity",
-    "findings",
-    "created_at"
-  ];
-  REVIEW_SUFFIX_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,30}$/;
+  init_atomic();
   SOLUTION_CATEGORIES = new Set([
     "runtime",
     "build",
@@ -4948,14 +5029,15 @@ var init_state = __esm(() => {
     "times_referenced",
     "source_task_ids"
   ];
-  REQUIRED_JANITOR_FIELDS = [
-    "task_id",
-    "decision",
-    "reason_code",
-    "reason_human",
-    "inputs_hash",
-    "created_at"
-  ];
+});
+
+// src/dispatcher/state.ts
+var init_state = __esm(() => {
+  init_atomic();
+  init_decisions();
+  init_progress();
+  init_reviews();
+  init_solutions();
 });
 
 // src/dispatcher/validation.ts
@@ -5159,11 +5241,11 @@ var init_validation = __esm(() => {
 });
 
 // src/dispatcher/agents/researcher-history.ts
-import { existsSync as existsSync4 } from "node:fs";
+import { existsSync as existsSync8 } from "node:fs";
 import { readFile, readdir, stat } from "node:fs/promises";
-import { resolve as resolve5 } from "node:path";
+import { resolve as resolve9 } from "node:path";
 async function walkSolutionsCorpus(stateRoot, keywords) {
-  const dir = resolve5(stateRoot, "solutions");
+  const dir = resolve9(stateRoot, "solutions");
   if (keywords.length === 0)
     return [];
   let categories;
@@ -5175,7 +5257,7 @@ async function walkSolutionsCorpus(stateRoot, keywords) {
   }
   const out = [];
   for (const cat of categories) {
-    const catPath = resolve5(dir, cat);
+    const catPath = resolve9(dir, cat);
     let files;
     try {
       const entries = await readdir(catPath, { withFileTypes: true });
@@ -5184,7 +5266,7 @@ async function walkSolutionsCorpus(stateRoot, keywords) {
       continue;
     }
     for (const file of files) {
-      const filePath = resolve5(catPath, file);
+      const filePath = resolve9(catPath, file);
       let raw;
       try {
         const st = await stat(filePath);
@@ -5273,7 +5355,7 @@ async function researcherHistoryHeuristic(input, opts = {}) {
   if (keywords.length === 0) {
     warnings.push("intent_draft produced no keywords (too short or stopwords only); no scan performed");
   }
-  if (prior_art.length === 0 && keywords.length > 0 && existsSync4(resolve5(stateRoot, "solutions"))) {
+  if (prior_art.length === 0 && keywords.length > 0 && existsSync8(resolve9(stateRoot, "solutions"))) {
     warnings.push("no relevant prior solutions found in .sgc/solutions/");
   }
   return { prior_art, warnings };
@@ -5358,7 +5440,7 @@ __export(exports_debug, {
   deriveInvestigationId: () => deriveInvestigationId,
   defaultHeuristic: () => defaultHeuristic
 });
-import { existsSync as existsSync5 } from "node:fs";
+import { existsSync as existsSync9 } from "node:fs";
 import { readFile as readFile2, readdir as readdir2, writeFile, rename, mkdir } from "node:fs/promises";
 import { join as join3 } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -5656,11 +5738,11 @@ async function writeInvestigation(opts) {
 }
 async function resolveCollisionId(stateRoot, baseId) {
   const dir = join3(stateRoot, "investigations");
-  if (!existsSync5(join3(dir, `${baseId}.md`)))
+  if (!existsSync9(join3(dir, `${baseId}.md`)))
     return baseId;
   for (let n2 = 2;n2 < 100; n2++) {
     const candidate = `${baseId}-${n2}`;
-    if (!existsSync5(join3(dir, `${candidate}.md`)))
+    if (!existsSync9(join3(dir, `${candidate}.md`)))
       return candidate;
   }
   throw new Error(`collision: too many same-minute investigations for ${baseId}`);
@@ -8375,8 +8457,8 @@ Write only the YAML above. No prose outside the YAML block.
 var init_reviewer_tests = () => {};
 
 // src/dispatcher/embedded-data.ts
-import { readFileSync as readFileSync4 } from "node:fs";
-import { resolve as resolve6, dirname as dirname3 } from "node:path";
+import { readFileSync as readFileSync8 } from "node:fs";
+import { resolve as resolve10, dirname as dirname4 } from "node:path";
 import { fileURLToPath } from "node:url";
 function listEmbeddedPromptKeys() {
   return Object.keys(EMBEDDED_PROMPTS);
@@ -8384,26 +8466,26 @@ function listEmbeddedPromptKeys() {
 function readContract(filename) {
   const override = process.env["SGC_CONTRACTS_DIR"];
   if (override)
-    return readDisk(resolve6(override, filename), filename, "SGC_CONTRACTS_DIR");
+    return readDisk(resolve10(override, filename), filename, "SGC_CONTRACTS_DIR");
   const embedded = EMBEDDED_CONTRACTS[filename];
   if (embedded !== undefined)
     return embedded;
-  return readDisk(resolve6(diskContractsDir, filename), filename, "SGC_CONTRACTS_DIR");
+  return readDisk(resolve10(diskContractsDir, filename), filename, "SGC_CONTRACTS_DIR");
 }
 function readPrompt(relPath) {
   const override = process.env["SGC_PROMPTS_DIR"];
   if (override) {
     const base = relPath.replace(/^prompts\//, "");
-    return readDisk(resolve6(override, base), relPath, "SGC_PROMPTS_DIR");
+    return readDisk(resolve10(override, base), relPath, "SGC_PROMPTS_DIR");
   }
   const embedded = EMBEDDED_PROMPTS[relPath];
   if (embedded !== undefined)
     return embedded;
-  return readDisk(resolve6(diskRepoRoot, relPath), relPath, "SGC_PROMPTS_DIR");
+  return readDisk(resolve10(diskRepoRoot, relPath), relPath, "SGC_PROMPTS_DIR");
 }
 function readDisk(path, label, envVar) {
   try {
-    return readFileSync4(path, "utf8");
+    return readFileSync8(path, "utf8");
   } catch (err) {
     const e2 = err;
     if (e2.code === "ENOENT") {
@@ -8452,9 +8534,9 @@ var init_embedded_data = __esm(() => {
     "prompts/reviewer-security.md": reviewer_security_default,
     "prompts/reviewer-tests.md": reviewer_tests_default
   };
-  moduleDir = dirname3(fileURLToPath(import.meta.url));
-  diskContractsDir = resolve6(moduleDir, "..", "..", "contracts");
-  diskRepoRoot = resolve6(moduleDir, "..", "..");
+  moduleDir = dirname4(fileURLToPath(import.meta.url));
+  diskContractsDir = resolve10(moduleDir, "..", "..", "contracts");
+  diskRepoRoot = resolve10(moduleDir, "..", "..");
 });
 
 // src/dispatcher/schema.ts
@@ -8632,7 +8714,7 @@ var init_subprocess = __esm(() => {
 
 // src/dispatcher/claude-cli-agent.ts
 import { spawn as spawn2 } from "node:child_process";
-import { readFileSync as readFileSync5 } from "node:fs";
+import { readFileSync as readFileSync9 } from "node:fs";
 function extractYamlBody(resultText) {
   const fenced = /```(?:yaml|yml)?\s*\n([\s\S]*?)\n```/.exec(resultText);
   if (fenced)
@@ -8643,7 +8725,7 @@ function extractYamlBody(resultText) {
   return resultText.trim();
 }
 async function runClaudeCliAgent(promptPath2, manifest, runner = defaultRunner, ctx) {
-  const promptText = readFileSync5(promptPath2, "utf8");
+  const promptText = readFileSync9(promptPath2, "utf8");
   const timeoutMs = (manifest.timeout_s ?? 60) * 1000;
   const argv2 = ["claude", "-p", "--output-format", "json"];
   const model = "claude-cli";
@@ -9029,7 +9111,7 @@ var init_values = __esm(() => {
 });
 
 // node_modules/@anthropic-ai/sdk/internal/utils/sleep.mjs
-var sleep = (ms) => new Promise((resolve7) => setTimeout(resolve7, ms));
+var sleep = (ms) => new Promise((resolve11) => setTimeout(resolve11, ms));
 
 // node_modules/@anthropic-ai/sdk/version.mjs
 var VERSION = "0.91.1";
@@ -9745,8 +9827,8 @@ var init_api_promise = __esm(() => {
   init_parse();
   APIPromise = class APIPromise extends Promise {
     constructor(client, responsePromise, parseResponse = defaultParseResponse) {
-      super((resolve7) => {
-        resolve7(null);
+      super((resolve11) => {
+        resolve11(null);
       });
       this.responsePromise = responsePromise;
       this.parseResponse = parseResponse;
@@ -11116,12 +11198,12 @@ var init_BetaMessageStream = __esm(() => {
         }
         return this._emit("error", new AnthropicError(String(error2)));
       });
-      __classPrivateFieldSet(this, _BetaMessageStream_connectedPromise, new Promise((resolve7, reject) => {
-        __classPrivateFieldSet(this, _BetaMessageStream_resolveConnectedPromise, resolve7, "f");
+      __classPrivateFieldSet(this, _BetaMessageStream_connectedPromise, new Promise((resolve11, reject) => {
+        __classPrivateFieldSet(this, _BetaMessageStream_resolveConnectedPromise, resolve11, "f");
         __classPrivateFieldSet(this, _BetaMessageStream_rejectConnectedPromise, reject, "f");
       }), "f");
-      __classPrivateFieldSet(this, _BetaMessageStream_endPromise, new Promise((resolve7, reject) => {
-        __classPrivateFieldSet(this, _BetaMessageStream_resolveEndPromise, resolve7, "f");
+      __classPrivateFieldSet(this, _BetaMessageStream_endPromise, new Promise((resolve11, reject) => {
+        __classPrivateFieldSet(this, _BetaMessageStream_resolveEndPromise, resolve11, "f");
         __classPrivateFieldSet(this, _BetaMessageStream_rejectEndPromise, reject, "f");
       }), "f");
       __classPrivateFieldGet(this, _BetaMessageStream_connectedPromise, "f").catch(() => {});
@@ -11242,11 +11324,11 @@ var init_BetaMessageStream = __esm(() => {
       return this;
     }
     emitted(event) {
-      return new Promise((resolve7, reject) => {
+      return new Promise((resolve11, reject) => {
         __classPrivateFieldSet(this, _BetaMessageStream_catchingPromiseCreated, true, "f");
         if (event !== "error")
           this.once("error", reject);
-        this.once(event, resolve7);
+        this.once(event, resolve11);
       });
     }
     async done() {
@@ -11579,7 +11661,7 @@ var init_BetaMessageStream = __esm(() => {
             if (done) {
               return { value: undefined, done: true };
             }
-            return new Promise((resolve7, reject) => readQueue.push({ resolve: resolve7, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: undefined, done: true });
+            return new Promise((resolve11, reject) => readQueue.push({ resolve: resolve11, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: undefined, done: true });
           }
           const chunk = pushQueue.shift();
           return { value: chunk, done: false };
@@ -11641,13 +11723,13 @@ Wrap your summary in <summary></summary> tags.`;
 
 // node_modules/@anthropic-ai/sdk/lib/tools/BetaToolRunner.mjs
 function promiseWithResolvers() {
-  let resolve7;
+  let resolve11;
   let reject;
   const promise = new Promise((res, rej) => {
-    resolve7 = res;
+    resolve11 = res;
     reject = rej;
   });
-  return { promise, resolve: resolve7, reject };
+  return { promise, resolve: resolve11, reject };
 }
 async function generateToolResponse(params, lastMessage = params.messages.at(-1), requestOptions) {
   if (!lastMessage || lastMessage.role !== "assistant" || !lastMessage.content || typeof lastMessage.content === "string") {
@@ -12786,12 +12868,12 @@ var init_MessageStream = __esm(() => {
         }
         return this._emit("error", new AnthropicError(String(error2)));
       });
-      __classPrivateFieldSet(this, _MessageStream_connectedPromise, new Promise((resolve7, reject) => {
-        __classPrivateFieldSet(this, _MessageStream_resolveConnectedPromise, resolve7, "f");
+      __classPrivateFieldSet(this, _MessageStream_connectedPromise, new Promise((resolve11, reject) => {
+        __classPrivateFieldSet(this, _MessageStream_resolveConnectedPromise, resolve11, "f");
         __classPrivateFieldSet(this, _MessageStream_rejectConnectedPromise, reject, "f");
       }), "f");
-      __classPrivateFieldSet(this, _MessageStream_endPromise, new Promise((resolve7, reject) => {
-        __classPrivateFieldSet(this, _MessageStream_resolveEndPromise, resolve7, "f");
+      __classPrivateFieldSet(this, _MessageStream_endPromise, new Promise((resolve11, reject) => {
+        __classPrivateFieldSet(this, _MessageStream_resolveEndPromise, resolve11, "f");
         __classPrivateFieldSet(this, _MessageStream_rejectEndPromise, reject, "f");
       }), "f");
       __classPrivateFieldGet(this, _MessageStream_connectedPromise, "f").catch(() => {});
@@ -12912,11 +12994,11 @@ var init_MessageStream = __esm(() => {
       return this;
     }
     emitted(event) {
-      return new Promise((resolve7, reject) => {
+      return new Promise((resolve11, reject) => {
         __classPrivateFieldSet(this, _MessageStream_catchingPromiseCreated, true, "f");
         if (event !== "error")
           this.once("error", reject);
-        this.once(event, resolve7);
+        this.once(event, resolve11);
       });
     }
     async done() {
@@ -13224,7 +13306,7 @@ var init_MessageStream = __esm(() => {
             if (done) {
               return { value: undefined, done: true };
             }
-            return new Promise((resolve7, reject) => readQueue.push({ resolve: resolve7, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: undefined, done: true });
+            return new Promise((resolve11, reject) => readQueue.push({ resolve: resolve11, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: undefined, done: true });
           }
           const chunk = pushQueue.shift();
           return { value: chunk, done: false };
@@ -13866,7 +13948,7 @@ var init_sdk = __esm(() => {
 });
 
 // src/dispatcher/anthropic-sdk-agent.ts
-import { readFileSync as readFileSync6 } from "node:fs";
+import { readFileSync as readFileSync10 } from "node:fs";
 function splitPrompt(text) {
   const markerRe = /\r?\n##[ \t]+Input[ \t]*\r?\n/;
   const match = markerRe.exec(text);
@@ -13879,7 +13961,7 @@ function splitPrompt(text) {
   };
 }
 async function runAnthropicSdkAgent(promptPath2, manifest, clientFactory, ctx) {
-  const promptText = readFileSync6(promptPath2, "utf8");
+  const promptText = readFileSync10(promptPath2, "utf8");
   const { systemPart, userPart } = splitPrompt(promptText);
   const client = clientFactory ? clientFactory() : new Anthropic;
   const maxTokens = Math.min(manifest.token_budget ?? 4096, MAX_TOKENS_CAP);
@@ -14015,7 +14097,7 @@ var init_anthropic_sdk_agent = __esm(() => {
 });
 
 // src/dispatcher/openrouter-agent.ts
-import { readFileSync as readFileSync7 } from "node:fs";
+import { readFileSync as readFileSync11 } from "node:fs";
 function noticeThirdPartyEgress(model) {
   if (egressNoticeShown)
     return;
@@ -14038,7 +14120,7 @@ async function runOpenRouterAgent(promptPath2, manifest, fetchFn, ctx) {
   if (!apiKey) {
     throw new OpenRouterError("OPENROUTER_API_KEY not set");
   }
-  const promptText = readFileSync7(promptPath2, "utf8");
+  const promptText = readFileSync11(promptPath2, "utf8");
   const { systemPart, userPart } = splitPrompt(promptText);
   const maxTokens = Math.min(manifest.token_budget ?? 4096, MAX_TOKENS_CAP2);
   const timeoutMs = (manifest.timeout_s ?? 60) * 1000;
@@ -14176,8 +14258,8 @@ var init_openrouter_agent = __esm(() => {
 });
 
 // src/dispatcher/spawn.ts
-import { existsSync as existsSync6, readFileSync as readFileSync8 } from "node:fs";
-import { resolve as resolve7 } from "node:path";
+import { existsSync as existsSync10, readFileSync as readFileSync12 } from "node:fs";
+import { resolve as resolve11 } from "node:path";
 function clampTimeout(rawMs) {
   return Math.max(MIN_TIMEOUT_MS, Math.min(MAX_TIMEOUT_MS, rawMs));
 }
@@ -14375,8 +14457,8 @@ ${inputBlock}`;
 async function pollForResult(resultPath2, timeoutMs, intervalMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (existsSync6(resultPath2)) {
-      const text = readFileSync8(resultPath2, "utf8");
+    if (existsSync10(resultPath2)) {
+      const text = readFileSync12(resultPath2, "utf8");
       const { data } = parseFrontmatter(text);
       return data;
     }
@@ -14496,7 +14578,7 @@ async function spawn3(agentName, input, opts = {}) {
     deregisterOpenSpawn(spawnId);
   }
 }
-var MIN_TIMEOUT_MS = 30000, MAX_TIMEOUT_MS = 300000, SpawnTimeout, defaultSleep = (ms) => new Promise((r3) => setTimeout(r3, ms)), openSpawns, signalHandlersInstalled = false, SpawnError, PRIOR_ART_SENTINEL_BEGIN = "<!-- sgc:prior-art:begin -->", PRIOR_ART_SENTINEL_END = "<!-- sgc:prior-art:end -->", PRE_MORTEM_SENTINEL_BEGIN = "<!-- sgc:pre-mortem:begin -->", PRE_MORTEM_SENTINEL_END = "<!-- sgc:pre-mortem:end -->", PRIOR_ART_BACK_CHANNEL_RE, PRE_MORTEM_BACK_CHANNEL_RE, root2 = (custom) => resolve7(custom ?? process.env["SGC_STATE_ROOT"] ?? ".sgc"), VALID_ENV_MODES, ROUTES;
+var MIN_TIMEOUT_MS = 30000, MAX_TIMEOUT_MS = 300000, SpawnTimeout, defaultSleep = (ms) => new Promise((r3) => setTimeout(r3, ms)), openSpawns, signalHandlersInstalled = false, SpawnError, PRIOR_ART_SENTINEL_BEGIN = "<!-- sgc:prior-art:begin -->", PRIOR_ART_SENTINEL_END = "<!-- sgc:prior-art:end -->", PRE_MORTEM_SENTINEL_BEGIN = "<!-- sgc:pre-mortem:begin -->", PRE_MORTEM_SENTINEL_END = "<!-- sgc:pre-mortem:end -->", PRIOR_ART_BACK_CHANNEL_RE, PRE_MORTEM_BACK_CHANNEL_RE, root2 = (custom) => resolve11(custom ?? process.env["SGC_STATE_ROOT"] ?? ".sgc"), VALID_ENV_MODES, ROUTES;
 var init_spawn = __esm(() => {
   init_js_yaml();
   init_capabilities();
@@ -14749,15 +14831,15 @@ __export(exports_plan_jobs, {
 });
 import {
   closeSync,
-  existsSync as existsSync7,
+  existsSync as existsSync11,
   openSync,
-  readdirSync as readdirSync4,
-  readFileSync as readFileSync9,
+  readdirSync as readdirSync5,
+  readFileSync as readFileSync13,
   writeFileSync as writeFileSync3
 } from "node:fs";
 import { mkdir as mkdir2 } from "node:fs/promises";
 import { spawn as nodeSpawn } from "node:child_process";
-import { resolve as resolve8 } from "node:path";
+import { resolve as resolve12 } from "node:path";
 function generateUlid2() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
@@ -14790,27 +14872,27 @@ function defaultSpawnImpl(argv2, opts) {
   return { pid: proc.pid ?? -1 };
 }
 function jobsDir(stateRoot) {
-  return resolve8(resolveStateRoot(stateRoot), "plan-jobs");
+  return resolve12(resolveStateRoot(stateRoot), "plan-jobs");
 }
 function jobPath(stateRoot, jobId) {
-  return resolve8(jobsDir(stateRoot), `${jobId}.md`);
+  return resolve12(jobsDir(stateRoot), `${jobId}.md`);
 }
 function forkLockPath(stateRoot) {
-  return resolve8(jobsDir(stateRoot), ".fork.lock");
+  return resolve12(jobsDir(stateRoot), ".fork.lock");
 }
 function logPathFor(stateRoot, jobId) {
-  return resolve8(jobsDir(stateRoot), `${jobId}.log`);
+  return resolve12(jobsDir(stateRoot), `${jobId}.log`);
 }
 function doneSentinel(stateRoot, jobId) {
-  return resolve8(jobsDir(stateRoot), `${jobId}.done`);
+  return resolve12(jobsDir(stateRoot), `${jobId}.done`);
 }
 function failedSentinel(stateRoot, jobId) {
-  return resolve8(jobsDir(stateRoot), `${jobId}.failed`);
+  return resolve12(jobsDir(stateRoot), `${jobId}.failed`);
 }
 function readJob(path2) {
   let text;
   try {
-    text = readFileSync9(path2, "utf8");
+    text = readFileSync13(path2, "utf8");
   } catch (err) {
     throw new PlanJobError("MalformedJobFile", `plan-job file unreadable at ${path2}: ${err.message}`, { path: path2 });
   }
@@ -14827,14 +14909,14 @@ function writeJob(path2, job) {
 }
 function listJobsRaw(stateRoot) {
   const dir = jobsDir(stateRoot);
-  if (!existsSync7(dir))
+  if (!existsSync11(dir))
     return [];
   const out = [];
-  for (const fn of readdirSync4(dir)) {
+  for (const fn of readdirSync5(dir)) {
     if (!fn.endsWith(".md"))
       continue;
     try {
-      out.push(readJob(resolve8(dir, fn)));
+      out.push(readJob(resolve12(dir, fn)));
     } catch {}
   }
   return out;
@@ -14926,15 +15008,15 @@ async function listJobs(opts = {}) {
 }
 async function showJob(jobId, opts = {}) {
   const path2 = jobPath(opts.stateRoot, jobId);
-  if (!existsSync7(path2)) {
+  if (!existsSync11(path2)) {
     throw new PlanJobError("JobNotFound", `plan-jobs/${jobId}.md not found under ${resolveStateRoot(opts.stateRoot)}`, { job_id: jobId });
   }
   const raw = readJob(path2);
   const isAlive = opts.isAlive ?? defaultIsAlive2;
   const job = applyStaleProbe(raw, opts.stateRoot, isAlive);
   let logTail = "";
-  if (existsSync7(job.log_path)) {
-    const text = readFileSync9(job.log_path, "utf8");
+  if (existsSync11(job.log_path)) {
+    const text = readFileSync13(job.log_path, "utf8");
     const lines = text.split(`
 `);
     if (lines.length > 0 && lines[lines.length - 1] === "")
@@ -14948,7 +15030,7 @@ async function showJob(jobId, opts = {}) {
 }
 async function completePlanJob(jobId, completion, opts = {}) {
   const path2 = jobPath(opts.stateRoot, jobId);
-  if (!existsSync7(path2)) {
+  if (!existsSync11(path2)) {
     throw new PlanJobError("JobNotFound", `plan-jobs/${jobId}.md not found`);
   }
   const job = readJob(path2);
@@ -14983,7 +15065,7 @@ async function completePlanJob(jobId, completion, opts = {}) {
 }
 async function failPlanJob(jobId, error2, opts = {}) {
   const path2 = jobPath(opts.stateRoot, jobId);
-  if (!existsSync7(path2)) {
+  if (!existsSync11(path2)) {
     throw new PlanJobError("JobNotFound", `plan-jobs/${jobId}.md not found`);
   }
   const job = readJob(path2);
@@ -15431,7 +15513,7 @@ var init_preventions = __esm(() => {
 });
 
 // src/dispatcher/applied-tracker.ts
-import { existsSync as existsSync8, readFileSync as readFileSync10, statSync as statSync3 } from "node:fs";
+import { existsSync as existsSync12, readFileSync as readFileSync14, statSync as statSync3 } from "node:fs";
 function selectSurfacedRefs(prior_art, floor = SURFACED_RELEVANCE_FLOOR) {
   return Array.from(new Set(prior_art.filter((p) => p.relevance_score >= floor).map((p) => p.solution_ref)));
 }
@@ -15481,7 +15563,7 @@ function recordOne(ref, task_id, stateRoot, opts, result, field, eventAgent) {
   }
   const [category, slug] = ref.split("/");
   const filePath = solutionPath(category, slug, stateRoot);
-  if (!existsSync8(filePath)) {
+  if (!existsSync12(filePath)) {
     result.skipped_missing.push(ref);
     return;
   }
@@ -15489,7 +15571,7 @@ function recordOne(ref, task_id, stateRoot, opts, result, field, eventAgent) {
     const mtimeBefore = statSync3(filePath).mtimeMs;
     let parsed;
     try {
-      parsed = parseFrontmatter(readFileSync10(filePath, "utf8"));
+      parsed = parseFrontmatter(readFileSync14(filePath, "utf8"));
     } catch (err) {
       result.skipped_malformed.push(ref);
       emitFailed(opts, task_id, ref, "parse_failed", err instanceof Error ? err.message : String(err), eventAgent);
@@ -15634,9 +15716,9 @@ var init_rationale = __esm(() => {
 });
 
 // src/dispatcher/delegation.ts
-import { existsSync as existsSync9, readFileSync as readFileSync11 } from "node:fs";
+import { existsSync as existsSync13, readFileSync as readFileSync15 } from "node:fs";
 import { homedir } from "node:os";
-import { resolve as resolve9 } from "node:path";
+import { resolve as resolve13 } from "node:path";
 function parsePluginSet(installedJson) {
   try {
     const data = JSON.parse(installedJson);
@@ -15655,13 +15737,13 @@ function parsePluginSet(installedJson) {
 function detectInstalledPlugins() {
   if (cached)
     return cached;
-  const path2 = process.env["SGC_PLUGIN_REGISTRY"] ?? resolve9(homedir(), ".claude/plugins/installed_plugins.json");
-  if (!existsSync9(path2)) {
+  const path2 = process.env["SGC_PLUGIN_REGISTRY"] ?? resolve13(homedir(), ".claude/plugins/installed_plugins.json");
+  if (!existsSync13(path2)) {
     cached = { ...EMPTY_PLUGIN_SET };
     return cached;
   }
   try {
-    cached = parsePluginSet(readFileSync11(path2, "utf8"));
+    cached = parsePluginSet(readFileSync15(path2, "utf8"));
   } catch {
     cached = { ...EMPTY_PLUGIN_SET };
   }
@@ -15866,15 +15948,15 @@ var init_fuse_plan = __esm(() => {
 // src/dispatcher/plan-jobs.ts
 import {
   closeSync as closeSync2,
-  existsSync as existsSync10,
+  existsSync as existsSync14,
   openSync as openSync2,
-  readdirSync as readdirSync5,
-  readFileSync as readFileSync12,
+  readdirSync as readdirSync6,
+  readFileSync as readFileSync16,
   writeFileSync as writeFileSync4
 } from "node:fs";
 import { mkdir as mkdir3 } from "node:fs/promises";
 import { spawn as nodeSpawn2 } from "node:child_process";
-import { resolve as resolve10 } from "node:path";
+import { resolve as resolve14 } from "node:path";
 function generateUlid3() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
@@ -15907,27 +15989,27 @@ function defaultSpawnImpl2(argv2, opts) {
   return { pid: proc.pid ?? -1 };
 }
 function jobsDir2(stateRoot) {
-  return resolve10(resolveStateRoot(stateRoot), "plan-jobs");
+  return resolve14(resolveStateRoot(stateRoot), "plan-jobs");
 }
 function jobPath2(stateRoot, jobId) {
-  return resolve10(jobsDir2(stateRoot), `${jobId}.md`);
+  return resolve14(jobsDir2(stateRoot), `${jobId}.md`);
 }
 function forkLockPath2(stateRoot) {
-  return resolve10(jobsDir2(stateRoot), ".fork.lock");
+  return resolve14(jobsDir2(stateRoot), ".fork.lock");
 }
 function logPathFor2(stateRoot, jobId) {
-  return resolve10(jobsDir2(stateRoot), `${jobId}.log`);
+  return resolve14(jobsDir2(stateRoot), `${jobId}.log`);
 }
 function doneSentinel2(stateRoot, jobId) {
-  return resolve10(jobsDir2(stateRoot), `${jobId}.done`);
+  return resolve14(jobsDir2(stateRoot), `${jobId}.done`);
 }
 function failedSentinel2(stateRoot, jobId) {
-  return resolve10(jobsDir2(stateRoot), `${jobId}.failed`);
+  return resolve14(jobsDir2(stateRoot), `${jobId}.failed`);
 }
 function readJob2(path2) {
   let text;
   try {
-    text = readFileSync12(path2, "utf8");
+    text = readFileSync16(path2, "utf8");
   } catch (err) {
     throw new PlanJobError2("MalformedJobFile", `plan-job file unreadable at ${path2}: ${err.message}`, { path: path2 });
   }
@@ -15944,14 +16026,14 @@ function writeJob2(path2, job) {
 }
 function listJobsRaw2(stateRoot) {
   const dir = jobsDir2(stateRoot);
-  if (!existsSync10(dir))
+  if (!existsSync14(dir))
     return [];
   const out = [];
-  for (const fn of readdirSync5(dir)) {
+  for (const fn of readdirSync6(dir)) {
     if (!fn.endsWith(".md"))
       continue;
     try {
-      out.push(readJob2(resolve10(dir, fn)));
+      out.push(readJob2(resolve14(dir, fn)));
     } catch {}
   }
   return out;
@@ -16043,7 +16125,7 @@ async function listJobs2(opts = {}) {
 }
 async function completePlanJob2(jobId, completion, opts = {}) {
   const path2 = jobPath2(opts.stateRoot, jobId);
-  if (!existsSync10(path2)) {
+  if (!existsSync14(path2)) {
     throw new PlanJobError2("JobNotFound", `plan-jobs/${jobId}.md not found`);
   }
   const job = readJob2(path2);
@@ -16078,7 +16160,7 @@ async function completePlanJob2(jobId, completion, opts = {}) {
 }
 async function failPlanJob2(jobId, error2, opts = {}) {
   const path2 = jobPath2(opts.stateRoot, jobId);
-  if (!existsSync10(path2)) {
+  if (!existsSync14(path2)) {
     throw new PlanJobError2("JobNotFound", `plan-jobs/${jobId}.md not found`);
   }
   const job = readJob2(path2);
@@ -16144,7 +16226,7 @@ function nowIso() {
 }
 async function readLineSync() {
   const stdin2 = process.stdin;
-  return new Promise((resolve11) => {
+  return new Promise((resolve15) => {
     stdin2.resume();
     stdin2.setEncoding("utf8");
     let buf = "";
@@ -16155,7 +16237,7 @@ async function readLineSync() {
       if (nl !== -1) {
         stdin2.removeListener("data", onData);
         stdin2.pause();
-        resolve11(buf.slice(0, nl).trim());
+        resolve15(buf.slice(0, nl).trim());
       }
     };
     stdin2.on("data", onData);
@@ -17546,7 +17628,7 @@ __export(exports_qa, {
   runQa: () => runQa,
   qaScreenshotDir: () => qaScreenshotDir
 });
-import { mkdirSync as mkdirSync3 } from "node:fs";
+import { mkdirSync as mkdirSync6 } from "node:fs";
 import { join as join6 } from "node:path";
 function qaScreenshotDir(stateRoot, taskId) {
   return join6(resolveStateRoot(stateRoot), "reviews", taskId, "qa");
@@ -17578,7 +17660,7 @@ async function runQa(opts = {}) {
   let browseRunner = opts.browseRunner;
   if (!browseRunner && optIn) {
     const shotDir = qaScreenshotDir(stateRoot, String(taskId));
-    mkdirSync3(shotDir, { recursive: true });
+    mkdirSync6(shotDir, { recursive: true });
     browseRunner = makeBrowseRunner({ launch: launchPlaywrightSession, screenshotDir: shotDir });
   }
   const r3 = await spawn3("qa.browser", { target_url: target, user_flows: flows }, {
@@ -17860,8 +17942,8 @@ var init_compound = __esm(() => {
 });
 
 // src/dispatcher/compound-promote.ts
-import { existsSync as existsSync11, readFileSync as readFileSync13, writeFileSync as writeFileSync5 } from "node:fs";
-import { resolve as resolve11 } from "node:path";
+import { existsSync as existsSync15, readFileSync as readFileSync17, writeFileSync as writeFileSync5 } from "node:fs";
+import { resolve as resolve15 } from "node:path";
 function nowIso5() {
   return new Date().toISOString();
 }
@@ -17879,11 +17961,11 @@ function extractStepSummary(body) {
 async function promoteShipFailure(opts) {
   const stateRoot = opts.stateRoot;
   const root3 = resolveStateRoot(stateRoot);
-  const shipFailurePath = resolve11(root3, "ship-failures", `${opts.slug}.md`);
-  if (!existsSync11(shipFailurePath)) {
+  const shipFailurePath = resolve15(root3, "ship-failures", `${opts.slug}.md`);
+  if (!existsSync15(shipFailurePath)) {
     throw new PromoteError("MissingShipFailure", `ship-failures/${opts.slug}.md does not exist under ${root3}. ` + `Run \`ls ${root3}/ship-failures/\` to see available slugs.`, { slug: opts.slug, stateRoot: root3 });
   }
-  const raw = readFileSync13(shipFailurePath, "utf8");
+  const raw = readFileSync17(shipFailurePath, "utf8");
   const parsed = parseFrontmatter(raw);
   const fm = parsed.data;
   if (typeof fm.promoted_to === "string" && fm.promoted_to.length > 0) {
@@ -17961,11 +18043,11 @@ ${fm.workflow_name}`;
 async function promoteRedGreen(opts) {
   const stateRoot = opts.stateRoot;
   const root3 = resolveStateRoot(stateRoot);
-  const capturePath = resolve11(root3, "red-green", `${opts.slug}.md`);
-  if (!existsSync11(capturePath)) {
+  const capturePath = resolve15(root3, "red-green", `${opts.slug}.md`);
+  if (!existsSync15(capturePath)) {
     throw new PromoteError("MissingRedGreen", `red-green/${opts.slug}.md does not exist under ${root3}. ` + `Run \`ls ${root3}/red-green/\` to see available slugs.`, { slug: opts.slug, stateRoot: root3 });
   }
-  const raw = readFileSync13(capturePath, "utf8");
+  const raw = readFileSync17(capturePath, "utf8");
   const parsed = parseFrontmatter(raw);
   const fm = parsed.data;
   if (typeof fm.promoted_to === "string" && fm.promoted_to.length > 0) {
@@ -18055,8 +18137,8 @@ var init_compound_promote = __esm(() => {
 });
 
 // src/dispatcher/canary-promote.ts
-import { existsSync as existsSync12, readFileSync as readFileSync14, writeFileSync as writeFileSync6 } from "node:fs";
-import { resolve as resolve12 } from "node:path";
+import { existsSync as existsSync16, readFileSync as readFileSync18, writeFileSync as writeFileSync6 } from "node:fs";
+import { resolve as resolve16 } from "node:path";
 function nowIso6() {
   return new Date().toISOString();
 }
@@ -18074,11 +18156,11 @@ function extractPhaseOutput(body) {
 async function promoteCanaryFailure(opts) {
   const stateRoot = opts.stateRoot;
   const root3 = resolveStateRoot(stateRoot);
-  const canaryPath = resolve12(root3, "canaries", `${opts.slug}.md`);
-  if (!existsSync12(canaryPath)) {
+  const canaryPath = resolve16(root3, "canaries", `${opts.slug}.md`);
+  if (!existsSync16(canaryPath)) {
     throw new PromoteCanaryError("MissingCanaryFailure", `canaries/${opts.slug}.md does not exist under ${root3}. ` + `Run \`ls ${root3}/canaries/\` to see available slugs.`, { slug: opts.slug, stateRoot: root3 });
   }
-  const raw = readFileSync14(canaryPath, "utf8");
+  const raw = readFileSync18(canaryPath, "utf8");
   const parsed = parseFrontmatter(raw);
   const fm = parsed.data;
   if (typeof fm.promoted_to === "string" && fm.promoted_to.length > 0) {
@@ -18176,7 +18258,7 @@ var init_canary_promote = __esm(() => {
 });
 
 // src/commands/compound.ts
-import { existsSync as existsSync13 } from "node:fs";
+import { existsSync as existsSync17 } from "node:fs";
 function nowIso7() {
   return new Date().toISOString();
 }
@@ -18196,7 +18278,7 @@ async function runCompound(opts = {}) {
   const taskId = ct.task.task_id;
   const level = ct.task.level;
   let intentText = "";
-  if (level !== "L0" && existsSync13(intentPath(taskId, stateRoot))) {
+  if (level !== "L0" && existsSync17(intentPath(taskId, stateRoot))) {
     const intent = readIntent(taskId, stateRoot);
     intentText = `${intent.title}
 
@@ -18204,7 +18286,7 @@ ${intent.motivation}`;
   } else {
     intentText = `${ct.task.task_id} (L0 task; no intent.md)`;
   }
-  const reviews = listReviewsForStage(taskId, "code", stateRoot);
+  const reviews2 = listReviewsForStage(taskId, "code", stateRoot);
   const ctxRes = await spawn3("compound.context", { task_id: taskId, intent: intentText }, {
     stateRoot,
     inlineStub: (i2) => compoundContext(i2),
@@ -18247,7 +18329,7 @@ ${intent.motivation}`;
     };
   }
   const [solRes, prevRes] = await Promise.all([
-    spawn3("compound.solution", { context, reviews }, {
+    spawn3("compound.solution", { context, reviews: reviews2 }, {
       stateRoot,
       inlineStub: (i2) => compoundSolution(i2),
       logger,
@@ -18313,7 +18395,7 @@ __export(exports_ship, {
 });
 import { createHash as createHash3 } from "node:crypto";
 import { execSync } from "node:child_process";
-import { existsSync as existsSync14 } from "node:fs";
+import { existsSync as existsSync18 } from "node:fs";
 function nowIso8() {
   return new Date().toISOString();
 }
@@ -18338,7 +18420,7 @@ function gitDiffLineCount(cwd) {
 }
 async function readLineFromStdin() {
   const stdin2 = process.stdin;
-  return new Promise((resolve13) => {
+  return new Promise((resolve17) => {
     stdin2.resume();
     stdin2.setEncoding("utf8");
     let buf = "";
@@ -18349,7 +18431,7 @@ async function readLineFromStdin() {
       if (nl !== -1) {
         stdin2.removeListener("data", onData);
         stdin2.pause();
-        resolve13(buf.slice(0, nl).trim());
+        resolve17(buf.slice(0, nl).trim());
       }
     };
     stdin2.on("data", onData);
@@ -18377,7 +18459,7 @@ async function runShip(opts = {}) {
     throw new Error(`${remaining.length} feature(s) not done: ${remaining.map((f3) => f3.id).join(", ")}`);
   }
   if (level !== "L0") {
-    if (!existsSync14(intentPath(taskId, stateRoot))) {
+    if (!existsSync18(intentPath(taskId, stateRoot))) {
       throw new Error(`no decisions/${taskId}/intent.md — cannot ship L${level} without intent`);
     }
   }
@@ -18590,7 +18672,7 @@ __export(exports_compound, {
   runCompound: () => runCompound2,
   runCanaryPromote: () => runCanaryPromote
 });
-import { existsSync as existsSync15 } from "node:fs";
+import { existsSync as existsSync19 } from "node:fs";
 function nowIso9() {
   return new Date().toISOString();
 }
@@ -18610,7 +18692,7 @@ async function runCompound2(opts = {}) {
   const taskId = ct.task.task_id;
   const level = ct.task.level;
   let intentText = "";
-  if (level !== "L0" && existsSync15(intentPath(taskId, stateRoot))) {
+  if (level !== "L0" && existsSync19(intentPath(taskId, stateRoot))) {
     const intent = readIntent(taskId, stateRoot);
     intentText = `${intent.title}
 
@@ -18618,7 +18700,7 @@ ${intent.motivation}`;
   } else {
     intentText = `${ct.task.task_id} (L0 task; no intent.md)`;
   }
-  const reviews = listReviewsForStage(taskId, "code", stateRoot);
+  const reviews2 = listReviewsForStage(taskId, "code", stateRoot);
   const ctxRes = await spawn3("compound.context", { task_id: taskId, intent: intentText }, {
     stateRoot,
     inlineStub: (i2) => compoundContext(i2),
@@ -18661,7 +18743,7 @@ ${intent.motivation}`;
     };
   }
   const [solRes, prevRes] = await Promise.all([
-    spawn3("compound.solution", { context, reviews }, {
+    spawn3("compound.solution", { context, reviews: reviews2 }, {
       stateRoot,
       inlineStub: (i2) => compoundSolution(i2),
       logger,
@@ -18732,659 +18814,50 @@ var init_compound3 = __esm(() => {
 // src/dispatcher/state.ts
 var exports_state = {};
 __export(exports_state, {
-  writeSolutionLocked: () => writeSolutionLocked2,
-  writeSolution: () => writeSolution2,
-  writeShip: () => writeShip2,
-  writeRedGreenCapture: () => writeRedGreenCapture2,
-  writePlanDoc: () => writePlanDoc2,
-  writeJanitorDecision: () => writeJanitorDecision2,
-  writeIntent: () => writeIntent2,
-  writeHandoff: () => writeHandoff2,
-  writeFeatureList: () => writeFeatureList2,
-  writeCurrentTask: () => writeCurrentTask2,
-  writeAtomic: () => writeAtomic2,
-  wordCount: () => wordCount2,
-  solutionPath: () => solutionPath2,
-  solutionLockPath: () => solutionLockPath2,
-  shipPath: () => shipPath2,
-  serializeFrontmatter: () => serializeFrontmatter2,
-  reviewPath: () => reviewPath2,
-  resolveStateRoot: () => resolveStateRoot2,
+  writeSolutionLocked: () => writeSolutionLocked,
+  writeSolution: () => writeSolution,
+  writeShip: () => writeShip,
+  writeRedGreenCapture: () => writeRedGreenCapture,
+  writePlanDoc: () => writePlanDoc,
+  writeJanitorDecision: () => writeJanitorDecision,
+  writeIntent: () => writeIntent,
+  writeHandoff: () => writeHandoff,
+  writeFeatureList: () => writeFeatureList,
+  writeCurrentTask: () => writeCurrentTask,
+  writeAtomic: () => writeAtomic,
+  wordCount: () => wordCount,
+  solutionPath: () => solutionPath,
+  solutionLockPath: () => solutionLockPath,
+  shipPath: () => shipPath,
+  serializeFrontmatter: () => serializeFrontmatter,
+  reviewPath: () => reviewPath,
+  resolveStateRoot: () => resolveStateRoot,
   readSolution: () => readSolution,
   readShip: () => readShip,
   readReview: () => readReview,
   readJanitorDecision: () => readJanitorDecision,
-  readIntent: () => readIntent2,
-  readHandoff: () => readHandoff2,
-  readFeatureList: () => readFeatureList2,
-  readCurrentTask: () => readCurrentTask2,
-  parseFrontmatter: () => parseFrontmatter2,
-  listSolutions: () => listSolutions2,
-  listReviewsForStage: () => listReviewsForStage2,
-  janitorDecisionPath: () => janitorDecisionPath2,
-  intentPath: () => intentPath2,
+  readIntent: () => readIntent,
+  readHandoff: () => readHandoff,
+  readFeatureList: () => readFeatureList,
+  readCurrentTask: () => readCurrentTask,
+  parseFrontmatter: () => parseFrontmatter,
+  listSolutions: () => listSolutions,
+  listReviewsForStage: () => listReviewsForStage,
+  janitorDecisionPath: () => janitorDecisionPath,
+  intentPath: () => intentPath,
   hasQaEvidence: () => hasQaEvidence,
-  ensureSgcStructure: () => ensureSgcStructure2,
+  ensureSgcStructure: () => ensureSgcStructure,
   deleteSolution: () => deleteSolution,
-  appendReview: () => appendReview2,
-  StateError: () => StateError2,
-  RED_GREEN_PLACEHOLDER: () => RED_GREEN_PLACEHOLDER2
+  appendReview: () => appendReview,
+  StateError: () => StateError,
+  RED_GREEN_PLACEHOLDER: () => RED_GREEN_PLACEHOLDER
 });
-import {
-  existsSync as existsSync16,
-  mkdirSync as mkdirSync4,
-  readFileSync as readFileSync15,
-  readdirSync as readdirSync6,
-  renameSync as renameSync3,
-  unlinkSync as unlinkSync3,
-  writeFileSync as writeFileSync7
-} from "node:fs";
-import { randomBytes as randomBytes3 } from "node:crypto";
-import { dirname as dirname4, join as join7, resolve as resolve13 } from "node:path";
-function resolveStateRoot2(custom) {
-  return resolve13(custom ?? process.env["SGC_STATE_ROOT"] ?? DEFAULT_STATE_DIR2);
-}
-function ensureDefaultStateGitignored2(custom) {
-  if (custom !== undefined || process.env["SGC_STATE_ROOT"])
-    return;
-  if (!existsSync16(resolve13(".git")))
-    return;
-  const giPath = resolve13(".gitignore");
-  let content = "";
-  try {
-    content = readFileSync15(giPath, "utf8");
-  } catch {}
-  const alreadyIgnored = content.split(/\r?\n/).map((l2) => l2.trim()).some((l2) => l2 === ".sgc" || l2 === ".sgc/" || l2 === "/.sgc" || l2 === "/.sgc/");
-  if (alreadyIgnored)
-    return;
-  const lead = content.length === 0 ? "" : content.endsWith(`
-`) ? `
-` : `
-
-`;
-  const block = `${lead}# sgc runtime state (not source) — safe to delete; recreated on next run
-.sgc/
-`;
-  try {
-    writeFileSync7(giPath, content + block);
-  } catch {}
-}
-function ensureSgcStructure2(stateRoot) {
-  const r3 = root3(stateRoot);
-  for (const layer of LAYERS2) {
-    mkdirSync4(resolve13(r3, layer), { recursive: true });
-  }
-  ensureDefaultStateGitignored2(stateRoot);
-  return r3;
-}
-function parseFrontmatter2(text, source) {
-  const match = FRONTMATTER_RE2.exec(text);
-  if (!match) {
-    const where = source ? `${source}: ` : "";
-    const hint = source ? " — corrupt or partially written; .sgc/ is regenerable runtime state (delete it and re-run, or restore this file)" : "";
-    throw new StateError2("NoFrontmatter", `${where}file missing YAML frontmatter${hint}`);
-  }
-  const data = load(match[1]) ?? {};
-  const body = (match[2] ?? "").replace(/^\n+/, "");
-  return { data, body };
-}
-function serializeFrontmatter2(data, body = "") {
-  const yaml2 = dump(data, { lineWidth: -1, sortKeys: false }).trimEnd();
-  const trimmedBody = body.replace(/^\n+/, "");
-  return `---
-${yaml2}
----
-
-${trimmedBody}`;
-}
-function writeAtomic2(path2, content) {
-  mkdirSync4(dirname4(path2), { recursive: true });
-  const tmp = `${path2}.tmp.${process.pid}.${Date.now()}.${atomicWriteSeq2++}.${randomBytes3(4).toString("hex")}`;
-  writeFileSync7(tmp, content, "utf8");
-  try {
-    renameSync3(tmp, path2);
-  } catch (err) {
-    try {
-      unlinkSync3(tmp);
-    } catch {}
-    throw err;
-  }
-}
-function redGreenSlug2(title, taskId) {
-  const base = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "feature";
-  return `${base}-${taskId.slice(0, 8).toLowerCase()}`;
-}
-function writeRedGreenCapture2(fm, stateRoot) {
-  const dir = resolve13(root3(stateRoot), "red-green");
-  mkdirSync4(dir, { recursive: true });
-  const baseSlug = redGreenSlug2(fm.title, fm.task_id);
-  let slug = baseSlug;
-  let n2 = 1;
-  while (existsSync16(resolve13(dir, `${slug}.md`))) {
-    n2 += 1;
-    slug = `${baseSlug}-${n2}`;
-    if (n2 > 50)
-      throw new Error(`red-green slug collision overflow for ${fm.task_id}`);
-  }
-  const data = {
-    kind: "red-green",
-    captured_at: new Date().toISOString(),
-    task_id: fm.task_id,
-    feature_id: fm.feature_id,
-    level: fm.level,
-    prior_red: fm.prior_red,
-    red_output: fm.red_output,
-    verify_command: fm.verify_command,
-    ...fm.evidence ? { evidence: fm.evidence } : {},
-    prevention_seed: RED_GREEN_PLACEHOLDER2
-  };
-  const body = `## RED→GREEN
-
-- prior RED: ${fm.prior_red}
-- observed: ${fm.red_output}
-` + `- verified by: ${fm.verify_command}
-
-Fill \`prevention_seed:\` with the ` + `reusable safeguard, then run \`sgc compound --from-red-green ${slug}\`.
-`;
-  writeAtomic2(resolve13(dir, `${slug}.md`), serializeFrontmatter2(data, body));
-  return slug;
-}
-function wordCount2(text) {
-  let n2 = 0;
-  for (const seg of WORD_SEGMENTER2.segment(text)) {
-    if (seg.isWordLike)
-      n2++;
-  }
-  return n2;
-}
-function validateIntent2(intent) {
-  for (const f3 of REQUIRED_INTENT_FIELDS2) {
-    const v2 = intent[f3];
-    if (v2 === undefined || v2 === null) {
-      throw new StateError2("SchemaViolation", `intent missing required field: ${f3}`);
-    }
-  }
-  if (!Array.isArray(intent.affected_readers) || intent.affected_readers.length < 1) {
-    throw new StateError2("SchemaViolation", "affected_readers must be a non-empty array (required even at L1)");
-  }
-  if (!LEVELS.includes(intent.level)) {
-    throw new StateError2("SchemaViolation", `level must be one of L0|L1|L2|L3 (got '${intent.level}')`);
-  }
-  const mwords = wordCount2(intent.motivation);
-  if (mwords < 20) {
-    throw new StateError2("SchemaViolation", `motivation must be ≥20 words (got ${mwords}); pass --motivation "<longer rationale>"`);
-  }
-  if (intent.level === "L3" && !intent.user_signature) {
-    throw new StateError2("SchemaViolation", "L3 intent requires user_signature (Invariant §4)");
-  }
-  if (intent.fused_verdict !== undefined && !PLAN_VERDICTS.includes(intent.fused_verdict)) {
-    throw new StateError2("SchemaViolation", `fused_verdict must be one of approve|revise|reject (got '${intent.fused_verdict}')`);
-  }
-}
-function intentPath2(taskId, stateRoot) {
-  return resolve13(root3(stateRoot), "decisions", taskId, "intent.md");
-}
-function writeIntent2(intent, stateRoot) {
-  const path2 = intentPath2(intent.task_id, stateRoot);
-  if (existsSync16(path2)) {
-    throw new StateError2("IntentImmutable", `intent.md exists for ${intent.task_id} — Invariant §2 (immutable)`);
-  }
-  validateIntent2(intent);
-  const { body, ...frontmatter } = intent;
-  writeAtomic2(path2, serializeFrontmatter2(frontmatter, body ?? ""));
-  return path2;
-}
-function readIntent2(taskId, stateRoot) {
-  const path2 = intentPath2(taskId, stateRoot);
-  if (!existsSync16(path2)) {
-    throw new StateError2("NotFound", `intent.md not found for ${taskId}`);
-  }
-  const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"), path2);
-  return { ...data, body };
-}
-function validateShip2(ship) {
-  for (const f3 of REQUIRED_SHIP_FIELDS2) {
-    const v2 = ship[f3];
-    if (v2 === undefined || v2 === null) {
-      throw new StateError2("SchemaViolation", `ship missing required field: ${f3}`);
-    }
-  }
-  if (ship.outcome === "reverted" && !ship.rollback_ref) {
-    throw new StateError2("SchemaViolation", "ship outcome=reverted requires rollback_ref");
-  }
-}
-function shipPath2(taskId, stateRoot) {
-  return resolve13(root3(stateRoot), "decisions", taskId, "ship.md");
-}
-function writeShip2(ship, body = "", stateRoot) {
-  const path2 = shipPath2(ship.task_id, stateRoot);
-  if (existsSync16(path2)) {
-    throw new StateError2("ShipImmutable", `ship.md exists for ${ship.task_id}`);
-  }
-  validateShip2(ship);
-  writeAtomic2(path2, serializeFrontmatter2(ship, body));
-  return path2;
-}
-function readShip(taskId, stateRoot) {
-  const path2 = shipPath2(taskId, stateRoot);
-  if (!existsSync16(path2)) {
-    throw new StateError2("NotFound", `ship.md not found for ${taskId}`);
-  }
-  const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"), path2);
-  return { ship: data, body };
-}
-function progressPath2(file, stateRoot) {
-  return resolve13(root3(stateRoot), "progress", `${file}.md`);
-}
-function validateCurrentTask2(task) {
-  for (const f3 of REQUIRED_CURRENT_TASK_FIELDS2) {
-    const v2 = task[f3];
-    if (v2 === undefined || v2 === null) {
-      throw new StateError2("SchemaViolation", `current-task missing required field: ${f3}`);
-    }
-  }
-}
-function writeCurrentTask2(task, body = "", stateRoot) {
-  validateCurrentTask2(task);
-  const path2 = progressPath2("current-task", stateRoot);
-  writeAtomic2(path2, serializeFrontmatter2(task, body));
-  return path2;
-}
-function readCurrentTask2(stateRoot) {
-  const path2 = progressPath2("current-task", stateRoot);
-  if (!existsSync16(path2))
-    return null;
-  const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"), path2);
-  return { task: data, body };
-}
-function validateFeatureList2(list) {
-  if (!Array.isArray(list?.features)) {
-    throw new StateError2("SchemaViolation", "feature-list missing required field: features (array)");
-  }
-  for (let i2 = 0;i2 < list.features.length; i2++) {
-    const ft = list.features[i2];
-    if (ft === null || typeof ft !== "object") {
-      throw new StateError2("SchemaViolation", `feature-list.features[${i2}] is not an object`);
-    }
-    for (const f3 of REQUIRED_FEATURE_FIELDS2) {
-      if (ft[f3] === undefined || ft[f3] === null) {
-        throw new StateError2("SchemaViolation", `feature-list.features[${i2}] missing required field: ${f3}`);
-      }
-    }
-  }
-}
-function writeFeatureList2(list, body = "", stateRoot) {
-  validateFeatureList2(list);
-  const path2 = progressPath2("feature-list", stateRoot);
-  writeAtomic2(path2, serializeFrontmatter2(list, body));
-  return path2;
-}
-function writePlanDoc2(slug, dateIso, content, base) {
-  const dir = join7(base ?? process.cwd(), "docs", "superpowers", "plans");
-  mkdirSync4(dir, { recursive: true });
-  const path2 = join7(dir, `${dateIso}-${slug}.md`);
-  writeAtomic2(path2, content);
-  return path2;
-}
-function readFeatureList2(stateRoot) {
-  const path2 = progressPath2("feature-list", stateRoot);
-  if (!existsSync16(path2))
-    return null;
-  const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"), path2);
-  return { list: data, body };
-}
-function validateHandoff2(handoff) {
-  for (const f3 of REQUIRED_HANDOFF_FIELDS2) {
-    const v2 = handoff[f3];
-    if (v2 === undefined || v2 === null) {
-      throw new StateError2("SchemaViolation", `handoff missing required field: ${f3}`);
-    }
-  }
-  if (!Array.isArray(handoff?.open_questions)) {
-    throw new StateError2("SchemaViolation", "handoff.open_questions must be an array");
-  }
-}
-function writeHandoff2(handoff, body = "", stateRoot) {
-  validateHandoff2(handoff);
-  const path2 = progressPath2("handoff", stateRoot);
-  writeAtomic2(path2, serializeFrontmatter2(handoff, body));
-  return path2;
-}
-function readHandoff2(stateRoot) {
-  const path2 = progressPath2("handoff", stateRoot);
-  if (!existsSync16(path2))
-    return null;
-  const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"), path2);
-  return { handoff: data, body };
-}
-function validateReview2(report) {
-  for (const f3 of REQUIRED_REVIEW_FIELDS2) {
-    const v2 = report[f3];
-    if (v2 === undefined || v2 === null) {
-      throw new StateError2("SchemaViolation", `review missing required field: ${f3}`);
-    }
-  }
-  if (report.override) {
-    const r3 = report.override.reason ?? "";
-    if (r3.length < 40) {
-      throw new StateError2("SchemaViolation", `review override.reason must be ≥40 chars (Invariant §5); got ${r3.length}`);
-    }
-    if ((report.override.by ?? "").trim().length === 0) {
-      throw new StateError2("SchemaViolation", "review override.by (the signer) must be a non-empty name (Invariant §5)");
-    }
-  }
-}
-function reviewPath2(taskId, stage, reviewerId, stateRoot, suffix) {
-  const base = suffix ? `${reviewerId}.${suffix}.md` : `${reviewerId}.md`;
-  return resolve13(root3(stateRoot), "reviews", taskId, stage, base);
-}
-function appendReview2(report, body = "", stateRoot, suffix) {
-  if (suffix !== undefined && !REVIEW_SUFFIX_RE2.test(suffix)) {
-    throw new StateError2("SchemaViolation", `invalid review suffix ${JSON.stringify(suffix)} — must match ${REVIEW_SUFFIX_RE2.source}`);
-  }
-  const path2 = reviewPath2(report.task_id, report.stage, report.reviewer_id, stateRoot, suffix);
-  if (existsSync16(path2)) {
-    const ref = suffix ? `${report.reviewer_id}.${suffix}` : report.reviewer_id;
-    throw new StateError2("AppendOnly", `review ${ref} already exists for ${report.task_id}/${report.stage} — append-only per Invariant §6`);
-  }
-  validateReview2(report);
-  writeAtomic2(path2, serializeFrontmatter2(report, body));
-  return path2;
-}
-function readReview(taskId, stage, reviewerId, stateRoot) {
-  const path2 = reviewPath2(taskId, stage, reviewerId, stateRoot);
-  if (!existsSync16(path2))
-    return null;
-  const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"));
-  return { report: data, body };
-}
-function hasQaEvidence(taskId, stateRoot) {
-  const qaDir = resolve13(root3(stateRoot), "reviews", taskId, "qa");
-  if (!existsSync16(qaDir))
-    return false;
-  try {
-    return readdirSync6(qaDir).some((f3) => f3.endsWith(".md"));
-  } catch {
-    return false;
-  }
-}
-function validateSolution2(entry) {
-  for (const f3 of REQUIRED_SOLUTION_FIELDS2) {
-    const v2 = entry[f3];
-    if (v2 === undefined || v2 === null) {
-      throw new StateError2("SchemaViolation", `solution missing required field: ${f3}`);
-    }
-  }
-  if (!SOLUTION_CATEGORIES2.has(entry.category)) {
-    throw new StateError2("SchemaViolation", `solution.category '${entry.category}' not in {${Array.from(SOLUTION_CATEGORIES2).join(", ")}}`);
-  }
-  if (!Array.isArray(entry.tags) || entry.tags.length < 1) {
-    throw new StateError2("SchemaViolation", "solution.tags must be a non-empty array");
-  }
-  if (!Array.isArray(entry.symptoms) || entry.symptoms.length < 1) {
-    throw new StateError2("SchemaViolation", "solution.symptoms must be a non-empty array");
-  }
-  if (!Array.isArray(entry.source_task_ids) || entry.source_task_ids.length < 1) {
-    throw new StateError2("SchemaViolation", "solution.source_task_ids must be a non-empty array");
-  }
-}
-function solutionPath2(category, slug, stateRoot) {
-  return resolve13(root3(stateRoot), "solutions", category, `${slug}.md`);
-}
-function validateDedupStamp2(stamp, stateRoot) {
-  if (!stamp || typeof stamp !== "object") {
-    throw new StateError2("DedupStampMissing", "writeSolution requires a dedup_stamp (Invariant §3). " + "Callers must route through runCompound or construct a stamp from " + "an explicit compound.related spawn.");
-  }
-  if (typeof stamp.compound_related_spawn_id !== "string" || stamp.compound_related_spawn_id.length === 0) {
-    throw new StateError2("DedupStampMissing", "dedup_stamp.compound_related_spawn_id is required and must reference an on-disk spawn");
-  }
-  if (stamp.threshold_met_or_forced !== true) {
-    throw new StateError2("DedupStampMissing", `dedup_stamp.threshold_met_or_forced is false — compound.related denied the write (Invariant §3)`);
-  }
-  const allowedReasons = [
-    "new_entry",
-    "update_existing_dedup",
-    "user_forced"
-  ];
-  if (!allowedReasons.includes(stamp.reason)) {
-    throw new StateError2("DedupStampMissing", `dedup_stamp.reason must be one of ${allowedReasons.join(", ")}`);
-  }
-  let agentName;
-  try {
-    agentName = parseSpawnId(stamp.compound_related_spawn_id).agentName;
-  } catch {
-    throw new StateError2("DedupStampMissing", `dedup_stamp.compound_related_spawn_id "${stamp.compound_related_spawn_id}" is not a spawn id ` + `(expected "<ulid>-compound.related")`);
-  }
-  if (agentName !== "compound.related") {
-    throw new StateError2("DedupStampMissing", `dedup_stamp.compound_related_spawn_id must name a compound.related spawn, got "${agentName}" ` + `(Invariant §3: only compound.related's deterministic verdict authorizes a solutions write)`);
-  }
-  const evidence = resultPath(stamp.compound_related_spawn_id, root3(stateRoot));
-  if (!existsSync16(evidence)) {
-    throw new StateError2("DedupStampMissing", `dedup_stamp cites compound.related spawn "${stamp.compound_related_spawn_id}" but no result ` + `exists at ${evidence} — the dedup verdict must be earned by running the agent (Invariant §3)`);
-  }
-}
-function writeSolution2(entry, slug, dedupStamp, body = "", stateRoot) {
-  validateDedupStamp2(dedupStamp, stateRoot);
-  validateSolution2(entry);
-  const path2 = solutionPath2(entry.category, slug, stateRoot);
-  let finalEntry = entry;
-  let finalBody = body;
-  if (existsSync16(path2)) {
-    const existing = parseFrontmatter2(readFileSync15(path2, "utf8"));
-    const mergedTasks = Array.from(new Set([...existing.data.source_task_ids ?? [], ...entry.source_task_ids]));
-    const mergedWdw = [
-      ...existing.data.what_didnt_work ?? [],
-      ...entry.what_didnt_work.filter((nw) => !(existing.data.what_didnt_work ?? []).some((ew) => ew.approach === nw.approach))
-    ];
-    finalEntry = {
-      ...existing.data,
-      source_task_ids: mergedTasks,
-      what_didnt_work: mergedWdw,
-      last_updated: entry.last_updated,
-      times_referenced: (existing.data.times_referenced ?? 0) + 1
-    };
-    finalBody = existing.body;
-  }
-  const { body: _bodyField, ...fm } = finalEntry;
-  writeAtomic2(path2, serializeFrontmatter2(fm, finalBody));
-  clearFingerprintCache();
-  return { path: path2, entry: finalEntry };
-}
-function solutionLockPath2(category, slug, stateRoot) {
-  return solutionPath2(category, slug, stateRoot) + ".lock";
-}
-async function writeSolutionLocked2(entry, slug, dedupStamp, body = "", stateRoot, lockOpts = {}) {
-  mkdirSync4(dirname4(solutionPath2(entry.category, slug, stateRoot)), { recursive: true });
-  const lockPath = solutionLockPath2(entry.category, slug, stateRoot);
-  return withFileLock(lockPath, () => writeSolution2(entry, slug, dedupStamp, body, stateRoot), lockOpts);
-}
-function readSolution(category, slug, stateRoot) {
-  const path2 = solutionPath2(category, slug, stateRoot);
-  if (!existsSync16(path2))
-    return null;
-  const { data, body } = parseFrontmatter2(readFileSync15(path2, "utf8"));
-  return { entry: data, body };
-}
-function listSolutions2(stateRoot) {
-  const dir = resolve13(root3(stateRoot), "solutions");
-  if (!existsSync16(dir))
-    return [];
-  const out = [];
-  let categories;
-  try {
-    categories = readdirSync6(dir, { withFileTypes: true }).filter((e2) => e2.isDirectory()).map((e2) => e2.name);
-  } catch {
-    return [];
-  }
-  for (const cat of categories) {
-    if (!SOLUTION_CATEGORIES2.has(cat))
-      continue;
-    const catDir = resolve13(dir, cat);
-    let files;
-    try {
-      files = readdirSync6(catDir).filter((f3) => f3.endsWith(".md"));
-    } catch {
-      continue;
-    }
-    for (const f3 of files) {
-      const fpath = resolve13(catDir, f3);
-      try {
-        const { data, body } = parseFrontmatter2(readFileSync15(fpath, "utf8"));
-        out.push({
-          category: cat,
-          slug: f3.replace(/\.md$/, ""),
-          path: fpath,
-          entry: data,
-          body
-        });
-      } catch {}
-    }
-  }
-  return out;
-}
-function deleteSolution(_category, _slug, _stateRoot) {
-  throw new StateError2("SolutionDeleteForbidden", "solutions/ is delete-forbidden per sgc-state.schema.yaml (delete_policy: forbidden)");
-}
-function validateJanitorDecision2(d2) {
-  for (const f3 of REQUIRED_JANITOR_FIELDS2) {
-    const v2 = d2[f3];
-    if (v2 === undefined || v2 === null || typeof v2 === "string" && v2.length === 0) {
-      throw new StateError2("SchemaViolation", `janitor decision missing: ${f3}`);
-    }
-  }
-}
-function janitorDecisionPath2(taskId, stateRoot) {
-  return resolve13(root3(stateRoot), "reviews", taskId, "janitor", "compound-decision.md");
-}
-function writeJanitorDecision2(decision, body = "", stateRoot) {
-  const path2 = janitorDecisionPath2(decision.task_id, stateRoot);
-  if (existsSync16(path2)) {
-    throw new StateError2("AppendOnly", `janitor decision already written for ${decision.task_id} (Invariant §6)`);
-  }
-  validateJanitorDecision2(decision);
-  writeAtomic2(path2, serializeFrontmatter2(decision, body));
-  return path2;
-}
-function readJanitorDecision(taskId, stateRoot) {
-  const path2 = janitorDecisionPath2(taskId, stateRoot);
-  if (!existsSync16(path2))
-    return null;
-  const { data } = parseFrontmatter2(readFileSync15(path2, "utf8"));
-  return data;
-}
-function listReviewsForStage2(taskId, stage, stateRoot) {
-  const dir = resolve13(root3(stateRoot), "reviews", taskId, stage);
-  if (!existsSync16(dir))
-    return [];
-  let files;
-  try {
-    files = readdirSync6(dir).filter((f3) => f3.endsWith(".md"));
-  } catch {
-    return [];
-  }
-  const reports = [];
-  for (const f3 of files) {
-    try {
-      const text = readFileSync15(resolve13(dir, f3), "utf8");
-      const { data } = parseFrontmatter2(text);
-      reports.push(data);
-    } catch {}
-  }
-  return reports;
-}
-var StateError2, DEFAULT_STATE_DIR2 = ".sgc", root3, LAYERS2, FRONTMATTER_RE2, atomicWriteSeq2 = 0, RED_GREEN_PLACEHOLDER2 = "TODO: operator-fill the reusable prevention", REQUIRED_INTENT_FIELDS2, WORD_SEGMENTER2, REQUIRED_SHIP_FIELDS2, REQUIRED_CURRENT_TASK_FIELDS2, REQUIRED_FEATURE_FIELDS2, REQUIRED_HANDOFF_FIELDS2, REQUIRED_REVIEW_FIELDS2, REVIEW_SUFFIX_RE2, SOLUTION_CATEGORIES2, REQUIRED_SOLUTION_FIELDS2, REQUIRED_JANITOR_FIELDS2;
 var init_state2 = __esm(() => {
-  init_spawn_protocol();
-  init_js_yaml();
-  init_types();
-  init_fingerprint();
-  init_file_lock();
-  StateError2 = class StateError2 extends Error {
-    code;
-    constructor(code, message) {
-      super(message);
-      this.code = code;
-      this.name = "StateError";
-    }
-  };
-  root3 = resolveStateRoot2;
-  LAYERS2 = ["decisions", "progress", "solutions", "reviews"];
-  FRONTMATTER_RE2 = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
-  REQUIRED_INTENT_FIELDS2 = [
-    "task_id",
-    "level",
-    "created_at",
-    "title",
-    "motivation",
-    "affected_readers",
-    "scope_tokens"
-  ];
-  WORD_SEGMENTER2 = new Intl.Segmenter([], { granularity: "word" });
-  REQUIRED_SHIP_FIELDS2 = [
-    "task_id",
-    "shipped_at",
-    "outcome",
-    "deviations",
-    "residuals",
-    "linked_reviews"
-  ];
-  REQUIRED_CURRENT_TASK_FIELDS2 = [
-    "task_id",
-    "level",
-    "session_start",
-    "last_activity"
-  ];
-  REQUIRED_FEATURE_FIELDS2 = ["id", "title", "status"];
-  REQUIRED_HANDOFF_FIELDS2 = [
-    "from_session",
-    "to_session_hint",
-    "summary"
-  ];
-  REQUIRED_REVIEW_FIELDS2 = [
-    "report_id",
-    "task_id",
-    "stage",
-    "reviewer_id",
-    "reviewer_version",
-    "verdict",
-    "severity",
-    "findings",
-    "created_at"
-  ];
-  REVIEW_SUFFIX_RE2 = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,30}$/;
-  SOLUTION_CATEGORIES2 = new Set([
-    "runtime",
-    "build",
-    "auth",
-    "data",
-    "perf",
-    "ui",
-    "infra",
-    "other"
-  ]);
-  REQUIRED_SOLUTION_FIELDS2 = [
-    "id",
-    "signature",
-    "category",
-    "problem",
-    "symptoms",
-    "what_didnt_work",
-    "solution",
-    "prevention",
-    "tags",
-    "first_seen",
-    "last_updated",
-    "times_referenced",
-    "source_task_ids"
-  ];
-  REQUIRED_JANITOR_FIELDS2 = [
-    "task_id",
-    "decision",
-    "reason_code",
-    "reason_human",
-    "inputs_hash",
-    "created_at"
-  ];
+  init_atomic();
+  init_decisions();
+  init_progress();
+  init_reviews();
+  init_solutions();
 });
 
 // src/commands/tail.ts
@@ -19392,8 +18865,8 @@ var exports_tail = {};
 __export(exports_tail, {
   runTail: () => runTail
 });
-import { closeSync as closeSync3, existsSync as existsSync17, openSync as openSync3, readSync, statSync as statSync4 } from "node:fs";
-import { resolve as resolve14 } from "node:path";
+import { closeSync as closeSync3, existsSync as existsSync20, openSync as openSync3, readSync, statSync as statSync4 } from "node:fs";
+import { resolve as resolve17 } from "node:path";
 function globMatch(pattern, value) {
   if (value === null)
     return false;
@@ -19412,8 +18885,8 @@ function matchFilters(e2, opts) {
   return true;
 }
 function eventsPath(stateRoot) {
-  const root4 = stateRoot ?? process.env["SGC_STATE_ROOT"] ?? ".sgc";
-  return resolve14(root4, "progress/events.ndjson");
+  const root3 = stateRoot ?? process.env["SGC_STATE_ROOT"] ?? ".sgc";
+  return resolve17(root3, "progress/events.ndjson");
 }
 function parseLine(line) {
   try {
@@ -19480,7 +18953,7 @@ async function runTail(opts = {}) {
       say(m2);
   };
   const readNew = () => {
-    if (!existsSync17(path2))
+    if (!existsSync20(path2))
       return;
     const sz = statSync4(path2).size;
     if (sz < lastSize) {
@@ -19526,7 +18999,7 @@ var exports_agent_loop = {};
 __export(exports_agent_loop, {
   runAgentLoop: () => runAgentLoop
 });
-import { existsSync as existsSync18, readFileSync as readFileSync16 } from "node:fs";
+import { existsSync as existsSync21, readFileSync as readFileSync19 } from "node:fs";
 function stateRoot(custom) {
   return custom ?? process.env["SGC_STATE_ROOT"] ?? ".sgc";
 }
@@ -19540,11 +19013,11 @@ async function readAllStdin() {
 async function runAgentLoop(opts = {}) {
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
   const log = (m2) => logger.say(m2);
-  const root4 = stateRoot(opts.stateRoot);
+  const root3 = stateRoot(opts.stateRoot);
   if (opts.list) {
-    const all = listAllSpawns(root4);
+    const all = listAllSpawns(root3);
     if (all.length === 0) {
-      log(`no spawns under ${root4}/progress/agent-prompts/`);
+      log(`no spawns under ${root3}/progress/agent-prompts/`);
       return { action: "list" };
     }
     const pending2 = all.filter((s2) => !s2.hasResult).length;
@@ -19556,11 +19029,11 @@ async function runAgentLoop(opts = {}) {
     return { action: "list" };
   }
   if (opts.show) {
-    const pp = promptPath(opts.show, root4);
-    if (!existsSync18(pp)) {
+    const pp = promptPath(opts.show, root3);
+    if (!existsSync21(pp)) {
       throw new Error(`prompt file not found: ${pp}`);
     }
-    log(readFileSync16(pp, "utf8"));
+    log(readFileSync19(pp, "utf8"));
     return { action: "show" };
   }
   if (opts.submit) {
@@ -19569,22 +19042,22 @@ async function runAgentLoop(opts = {}) {
     if (!manifest) {
       throw new Error(`unknown agent '${agentName}' (from spawn_id ${opts.submit})`);
     }
-    const pp = promptPath(opts.submit, root4);
-    const rp = resultPath(opts.submit, root4);
-    if (!existsSync18(pp)) {
+    const pp = promptPath(opts.submit, root3);
+    const rp = resultPath(opts.submit, root3);
+    if (!existsSync21(pp)) {
       throw new Error(`no prompt file for ${opts.submit}; maybe typo, or the spawn was never requested`);
     }
-    if (existsSync18(rp)) {
+    if (existsSync21(rp)) {
       throw new Error(`result already written for ${opts.submit}; submissions are one-shot`);
     }
-    const text = opts.fromFile ? readFileSync16(opts.fromFile, "utf8") : await (opts.readStdin ?? readAllStdin)();
+    const text = opts.fromFile ? readFileSync19(opts.fromFile, "utf8") : await (opts.readStdin ?? readAllStdin)();
     const stripped = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text)?.[1] ?? text;
     const parsed = load(stripped);
     if (typeof parsed !== "object" || parsed === null) {
       throw new Error("submitted YAML must parse to an object");
     }
     validateOutputShape(manifest, parsed);
-    const leak = scanOutputForLeak(agentName, parsed, getFingerprintsCached(root4));
+    const leak = scanOutputForLeak(agentName, parsed, getFingerprintsCached(root3));
     if (leak.hit) {
       logger.event({
         task_id: null,
@@ -19600,7 +19073,7 @@ async function runAgentLoop(opts = {}) {
     log(`wrote ${rp}`);
     return { action: "submit", submittedTo: rp };
   }
-  const pending = listPendingSpawns(root4);
+  const pending = listPendingSpawns(root3);
   if (pending.length === 0) {
     log(`no pending spawns; dispatcher has nothing to process`);
     return { action: "interactive" };
@@ -19717,26 +19190,26 @@ var init_agent_facts = __esm(() => {
 });
 
 // src/dispatcher/loop.ts
-import { existsSync as existsSync19, readdirSync as readdirSync7, readFileSync as readFileSync17 } from "node:fs";
+import { existsSync as existsSync22, readdirSync as readdirSync7, readFileSync as readFileSync20 } from "node:fs";
 import { mkdir as mkdir4 } from "node:fs/promises";
-import { resolve as resolve15 } from "node:path";
+import { resolve as resolve18 } from "node:path";
 function generateUlid8() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
 function loopRunsDir(stateRoot2) {
-  return resolve15(resolveStateRoot(stateRoot2), "loop-runs");
+  return resolve18(resolveStateRoot(stateRoot2), "loop-runs");
 }
 function runPath(stateRoot2, runId) {
-  return resolve15(loopRunsDir(stateRoot2), `${runId}.md`);
+  return resolve18(loopRunsDir(stateRoot2), `${runId}.md`);
 }
 function loopClaimLockPath(stateRoot2) {
-  return resolve15(loopRunsDir(stateRoot2), ".claim.lock");
+  return resolve18(loopRunsDir(stateRoot2), ".claim.lock");
 }
 function runExecLockPath(stateRoot2, runId) {
-  return resolve15(loopRunsDir(stateRoot2), `.${runId}.exec.lock`);
+  return resolve18(loopRunsDir(stateRoot2), `.${runId}.exec.lock`);
 }
 function readRun(path2) {
-  const text = readFileSync17(path2, "utf8");
+  const text = readFileSync20(path2, "utf8");
   try {
     const { data } = parseFrontmatter(text);
     return data;
@@ -19767,7 +19240,7 @@ async function runLoop(task, opts) {
   let runFilePath;
   if (opts.resume) {
     runFilePath = runPath(stateRoot2, opts.resume);
-    if (!existsSync19(runFilePath)) {
+    if (!existsSync22(runFilePath)) {
       throw new LoopError("RunNotFound", `loop-runs/${opts.resume}.md does not exist under ${resolveStateRoot(stateRoot2)}`, { run_id: opts.resume });
     }
     run = readRun(runFilePath);
@@ -19918,14 +19391,14 @@ async function runLoop(task, opts) {
 }
 function listRunsRaw(stateRoot2) {
   const dir = loopRunsDir(stateRoot2);
-  if (!existsSync19(dir))
+  if (!existsSync22(dir))
     return [];
   const out = [];
   for (const fn of readdirSync7(dir)) {
     if (!fn.endsWith(".md"))
       continue;
     try {
-      out.push(readRun(resolve15(dir, fn)));
+      out.push(readRun(resolve18(dir, fn)));
     } catch {}
   }
   return out;
@@ -19937,7 +19410,7 @@ async function listLoopRuns(opts = {}) {
 }
 async function showLoopRun(runId, opts = {}) {
   const path2 = runPath(opts.stateRoot, runId);
-  if (!existsSync19(path2)) {
+  if (!existsSync22(path2)) {
     throw new LoopError("RunNotFound", `loop-runs/${runId}.md not found under ${resolveStateRoot(opts.stateRoot)}`, { run_id: runId });
   }
   return readRun(path2);
@@ -19972,7 +19445,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.38.0",
+    version: "1.38.1",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -20036,8 +19509,8 @@ var init_package = __esm(() => {
 });
 
 // src/dispatcher/metrics.ts
-import { readFileSync as readFileSync18, statSync as statSync5 } from "node:fs";
-import { resolve as resolve16, dirname as dirname5 } from "node:path";
+import { readFileSync as readFileSync21, statSync as statSync5 } from "node:fs";
+import { resolve as resolve19, dirname as dirname5 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 function computeStandardization(invariantYaml) {
   const doc = load(invariantYaml);
@@ -20071,17 +19544,17 @@ function computeFromInputs(inputs) {
     efficiency: { install_steps: 1, runtime_node: inputs.runtimeNode, bundle_bytes: inputs.bundleBytes }
   };
 }
-function computeMetricsLive(root4) {
-  const pkg = JSON.parse(readFileSync18(resolve16(root4, "package.json"), "utf8"));
+function computeMetricsLive(root3) {
+  const pkg = JSON.parse(readFileSync21(resolve19(root3, "package.json"), "utf8"));
   let bundleBytes = 0;
   try {
-    bundleBytes = statSync5(resolve16(root4, "plugins/sgc/bin/sgc.mjs")).size;
+    bundleBytes = statSync5(resolve19(root3, "plugins/sgc/bin/sgc.mjs")).size;
   } catch {
     bundleBytes = 0;
   }
   return computeFromInputs({
-    invariantYaml: readFileSync18(resolve16(root4, "contracts/invariant-enforcement.yaml"), "utf8"),
-    capabilitiesYaml: readFileSync18(resolve16(root4, "contracts/sgc-capabilities.yaml"), "utf8"),
+    invariantYaml: readFileSync21(resolve19(root3, "contracts/invariant-enforcement.yaml"), "utf8"),
+    capabilitiesYaml: readFileSync21(resolve19(root3, "contracts/sgc-capabilities.yaml"), "utf8"),
     runtimeNode: pkg.engines?.node ?? "unknown",
     bundleBytes
   });
@@ -20093,8 +19566,8 @@ function computeRuntimeMetrics() {
     if (self.endsWith("sgc.mjs")) {
       bundleBytes = statSync5(self).size;
     } else {
-      const repoRoot = resolve16(dirname5(self), "..", "..");
-      bundleBytes = statSync5(resolve16(repoRoot, "plugins/sgc/bin/sgc.mjs")).size;
+      const repoRoot = resolve19(dirname5(self), "..", "..");
+      bundleBytes = statSync5(resolve19(repoRoot, "plugins/sgc/bin/sgc.mjs")).size;
     }
   } catch {
     bundleBytes = 0;
@@ -20193,9 +19666,9 @@ __export(exports_doctor, {
   agentMetadataDrift: () => agentMetadataDrift
 });
 import { createHash as createHash4 } from "node:crypto";
-import { existsSync as existsSync20, mkdtempSync, readdirSync as readdirSync8, readFileSync as readFileSync19, rmSync, statSync as statSync6, writeFileSync as writeFileSync8 } from "node:fs";
+import { existsSync as existsSync23, mkdtempSync, readdirSync as readdirSync8, readFileSync as readFileSync22, rmSync, statSync as statSync6, writeFileSync as writeFileSync7 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname as dirname6, resolve as resolve17 } from "node:path";
+import { dirname as dirname6, resolve as resolve20 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 function extractCliSubcommands(src2) {
   const marker = "subCommands: {";
@@ -20352,13 +19825,13 @@ function readFrontmatterDescription(text) {
   const d2 = parsed["description"];
   return typeof d2 === "string" ? d2 : "";
 }
-function readAgentMdFiles(root4) {
-  const dir = resolve17(root4, "plugins", "sgc", "agents");
-  if (!existsSync20(dir))
+function readAgentMdFiles(root3) {
+  const dir = resolve20(root3, "plugins", "sgc", "agents");
+  if (!existsSync23(dir))
     return [];
   const out = [];
   for (const group of readdirSync8(dir)) {
-    const gdir = resolve17(dir, group);
+    const gdir = resolve20(dir, group);
     if (!statSync6(gdir).isDirectory())
       continue;
     for (const f3 of readdirSync8(gdir)) {
@@ -20367,7 +19840,7 @@ function readAgentMdFiles(root4) {
       out.push({
         id: `${group}.${f3.slice(0, -3)}`,
         file: `plugins/sgc/agents/${group}/${f3}`,
-        text: readFileSync19(resolve17(gdir, f3), "utf8")
+        text: readFileSync22(resolve20(gdir, f3), "utf8")
       });
     }
   }
@@ -20389,32 +19862,32 @@ function bundleStaleSeverity(localBun, ciBun) {
     msg: "  ✗ committed bundle STALE — run `npm run build:cli` and commit"
   };
 }
-async function bundleParityCheck(root4) {
-  const srcEntry = resolve17(root4, "src", "sgc.ts");
-  const committed = resolve17(root4, "plugins", "sgc", "bin", "sgc.mjs");
-  const buildScript = resolve17(root4, "scripts", "build-cli.mjs");
-  if (!existsSync20(srcEntry) || !existsSync20(committed) || !existsSync20(buildScript)) {
+async function bundleParityCheck(root3) {
+  const srcEntry = resolve20(root3, "src", "sgc.ts");
+  const committed = resolve20(root3, "plugins", "sgc", "bin", "sgc.mjs");
+  const buildScript = resolve20(root3, "scripts", "build-cli.mjs");
+  if (!existsSync23(srcEntry) || !existsSync23(committed) || !existsSync23(buildScript)) {
     return { severity: "ok", msg: "  ⓘ bundle-hash parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" };
   }
-  const tmp = mkdtempSync(resolve17(tmpdir(), "sgc-bundle-"));
-  const out = resolve17(tmp, "sgc.mjs");
+  const tmp = mkdtempSync(resolve20(tmpdir(), "sgc-bundle-"));
+  const out = resolve20(tmp, "sgc.mjs");
   try {
-    const r3 = await spawnCapture(["node", buildScript, "--outfile", out], { cwd: root4 });
+    const r3 = await spawnCapture(["node", buildScript, "--outfile", out], { cwd: root3 });
     if (r3.exitCode !== 0)
       return { severity: "warn", msg: `  ⚠ bundle-hash parity: rebuild failed (${r3.stderr.slice(0, 120)})` };
     const sha = (buf) => createHash4("sha256").update(buf).digest("hex");
     const strip2 = (b3) => Buffer.from(b3.toString("utf8").replace(/^#![^\n]*\n/, ""));
-    const a2 = sha(strip2(readFileSync19(out)));
-    const b2 = sha(strip2(readFileSync19(committed)));
+    const a2 = sha(strip2(readFileSync22(out)));
+    const b2 = sha(strip2(readFileSync22(committed)));
     if (a2 !== b2) {
-      const localBun = (await spawnCapture(["bun", "--version"], { cwd: root4 })).stdout.trim() || null;
+      const localBun = (await spawnCapture(["bun", "--version"], { cwd: root3 })).stdout.trim() || null;
       let ciBun = null;
       try {
-        ciBun = ciPinnedBunVersion(readFileSync19(resolve17(root4, ".github/workflows/test.yml"), "utf8"));
+        ciBun = ciPinnedBunVersion(readFileSync22(resolve20(root3, ".github/workflows/test.yml"), "utf8"));
       } catch {}
       return bundleStaleSeverity(localBun, ciBun);
     }
-    const ls = await spawnCapture(["git", "ls-files", "--stage", "plugins/sgc/bin/sgc.mjs"], { cwd: root4 });
+    const ls = await spawnCapture(["git", "ls-files", "--stage", "plugins/sgc/bin/sgc.mjs"], { cwd: root3 });
     const execOk = ls.exitCode === 0 ? bundleExecBitOk(ls.stdout) : null;
     if (execOk === false) {
       return {
@@ -20427,117 +19900,98 @@ async function bundleParityCheck(root4) {
     rmSync(tmp, { recursive: true, force: true });
   }
 }
-async function runDoctor(opts = {}) {
-  const log = opts.log ?? ((m2) => console.log(m2));
-  const root4 = opts.repoRoot ?? repoRoot;
+function checkManifestPromptPath(ctx) {
   const rows = [];
-  const emit = (row) => {
-    rows.push(row);
-    log(row.msg);
-  };
-  const caps = getCapabilities();
-  const manifests = Object.entries(caps.subagents);
-  const hasSource = existsSync20(resolve17(root4, "src", "sgc.ts"));
-  if (opts.writeDescriptions) {
-    try {
-      const written = [];
-      for (const f3 of readAgentMdFiles(root4)) {
-        if (!DERIVED_AGENT_IDS.includes(f3.id))
-          continue;
-        const next = rewriteCliFact(f3.text, f3.id);
-        if (next !== f3.text) {
-          writeFileSync8(resolve17(root4, f3.file), next, "utf8");
-          written.push(f3.id);
-        }
-      }
-      log(written.length > 0 ? `wrote CLI-fact clause for: ${written.join(", ")}` : "all CLI-fact clauses already match the code");
-    } catch (e2) {
-      log(`✗ --write-descriptions failed: ${e2.message.slice(0, 120)}`);
-    }
-  }
-  log("=== Manifest prompt_path ↔ prompts/ ===");
-  for (const [name, m2] of manifests) {
+  for (const [name, m2] of ctx.manifests) {
     if (m2.prompt_path == null)
       continue;
     const present = EMBEDDED_PROMPTS[m2.prompt_path] !== undefined;
     if (present) {
-      emit({ severity: "ok", msg: `  ✓ ${name} → ${m2.prompt_path}` });
+      rows.push({ severity: "ok", msg: `  ✓ ${name} → ${m2.prompt_path}` });
     } else {
-      emit({
+      rows.push({
         severity: "fail",
         msg: `  ✗ ${name} → ${m2.prompt_path} (NOT EMBEDDED)`
       });
     }
   }
-  log("");
-  log("=== prompts/ ↔ manifest ===");
+  return rows;
+}
+function checkPromptsReferenced(ctx) {
+  const rows = [];
   const declaredPrompts = new Set;
-  for (const [, m2] of manifests) {
+  for (const [, m2] of ctx.manifests) {
     if (m2.prompt_path)
       declaredPrompts.add(m2.prompt_path);
   }
   for (const rel of listEmbeddedPromptKeys().sort()) {
     if (declaredPrompts.has(rel)) {
-      emit({ severity: "ok", msg: `  ✓ ${rel}` });
+      rows.push({ severity: "ok", msg: `  ✓ ${rel}` });
     } else {
-      emit({
+      rows.push({
         severity: "warn",
         msg: `  ⚠ ${rel} (orphan — embedded but unreferenced)`
       });
     }
   }
-  log("");
-  log("=== status: slot-only ↔ prompt_path: null ===");
-  for (const [name, m2] of manifests) {
+  return rows;
+}
+function checkSlotOnly(ctx) {
+  const rows = [];
+  for (const [name, m2] of ctx.manifests) {
     if (m2.status !== "slot-only")
       continue;
     if (m2.prompt_path == null) {
-      emit({
+      rows.push({
         severity: "ok",
         msg: `  ✓ ${name} (slot-only, no prompt_path)`
       });
     } else {
-      emit({
+      rows.push({
         severity: "fail",
         msg: `  ✗ ${name} (slot-only but declares prompt_path: ${m2.prompt_path})`
       });
     }
   }
-  log("");
-  log("=== bunfig.toml [test] root ===");
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ bunfig.toml root skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
+  return rows;
+}
+function checkBunfigRoot(ctx) {
+  const rows = [];
+  if (!ctx.hasSource) {
+    rows.push({ severity: "ok", msg: "  ⓘ bunfig.toml root skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
   } else {
-    const bunfigPath = resolve17(root4, "bunfig.toml");
-    if (!existsSync20(bunfigPath)) {
-      emit({
+    const bunfigPath = resolve20(ctx.root, "bunfig.toml");
+    if (!existsSync23(bunfigPath)) {
+      rows.push({
         severity: "warn",
         msg: "  ⚠ bunfig.toml not found — bare `bun test` may sweep vendored suites (R0)"
       });
-    } else if (/root\s*=\s*["']tests["']/.test(readFileSync19(bunfigPath, "utf8"))) {
-      emit({ severity: "ok", msg: '  ✓ bunfig.toml [test] root="tests"' });
+    } else if (/root\s*=\s*["']tests["']/.test(readFileSync22(bunfigPath, "utf8"))) {
+      rows.push({ severity: "ok", msg: '  ✓ bunfig.toml [test] root="tests"' });
     } else {
-      emit({
+      rows.push({
         severity: "fail",
         msg: '  ✗ bunfig.toml present but [test] root!="tests" — bare `bun test` would scan the whole repo, not just tests/'
       });
     }
   }
-  log("");
-  log("=== package.json files ↔ no vendored plugins/ ===");
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ package.json files skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
+  return rows;
+}
+function checkPackageFiles(ctx) {
+  const rows = [];
+  if (!ctx.hasSource) {
+    rows.push({ severity: "ok", msg: "  ⓘ package.json files skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
   } else {
-    const pkgPath = resolve17(root4, "package.json");
-    if (!existsSync20(pkgPath)) {
-      emit({ severity: "warn", msg: "  ⚠ package.json not found" });
+    const pkgPath = resolve20(ctx.root, "package.json");
+    if (!existsSync23(pkgPath)) {
+      rows.push({ severity: "warn", msg: "  ⚠ package.json not found" });
     } else {
       let files = [];
       try {
-        const pkg = JSON.parse(readFileSync19(pkgPath, "utf8"));
+        const pkg = JSON.parse(readFileSync22(pkgPath, "utf8"));
         files = Array.isArray(pkg.files) ? pkg.files : [];
       } catch (e2) {
-        emit({
+        rows.push({
           severity: "fail",
           msg: `  ✗ package.json parse error: ${e2.message.slice(0, 80)}`
         });
@@ -20553,40 +20007,42 @@ async function runDoctor(opts = {}) {
         return !norm.startsWith("plugins/sgc/bin/");
       });
       if (files.length === 0) {
-        emit({
+        rows.push({
           severity: "warn",
           msg: '  ⚠ package.json has no "files" allowlist — npm would publish the plugin payload'
         });
       } else if (leaks.length) {
-        emit({
+        rows.push({
           severity: "fail",
           msg: `  ✗ package.json files includes vendored path(s): ${leaks.join(", ")}`
         });
       } else {
-        emit({
+        rows.push({
           severity: "ok",
           msg: "  ✓ package.json files excludes plugins/ (plugin payload not npm-published)"
         });
       }
     }
   }
-  log("");
-  log("=== invariant-enforcement.yaml coverage ===");
-  const iePath = resolve17(root4, "contracts/invariant-enforcement.yaml");
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ invariant-enforcement.yaml skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
-  } else if (!existsSync20(iePath)) {
-    emit({
+  return rows;
+}
+function checkInvariantEnforcementCoverage(ctx) {
+  const rows = [];
+  const iePath = ctx.iePath;
+  if (!ctx.hasSource) {
+    rows.push({ severity: "ok", msg: "  ⓘ invariant-enforcement.yaml skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
+  } else if (!existsSync23(iePath)) {
+    rows.push({
       severity: "warn",
       msg: "  ⚠ contracts/invariant-enforcement.yaml not found — invariant→test map unverified"
     });
   } else {
     let inv = {};
     try {
-      const doc = load(readFileSync19(iePath, "utf8"));
+      const doc = load(readFileSync22(iePath, "utf8"));
       inv = doc?.invariants && typeof doc.invariants === "object" ? doc.invariants : {};
     } catch (e2) {
-      emit({
+      rows.push({
         severity: "fail",
         msg: `  ✗ invariant-enforcement.yaml parse error: ${e2.message.slice(0, 80)}`
       });
@@ -20598,7 +20054,7 @@ async function runDoctor(opts = {}) {
         if (inv[String(n2)] == null)
           missingSections.push(`§${n2}`);
       if (missingSections.length) {
-        emit({
+        rows.push({
           severity: "fail",
           msg: `  ✗ invariant map missing: ${missingSections.join(", ")}`
         });
@@ -20613,51 +20069,53 @@ async function runDoctor(opts = {}) {
           machineCount++;
           const tests = Array.isArray(e2["tests"]) ? e2["tests"] : [];
           if (tests.length === 0) {
-            emit({ severity: "fail", msg: `  ✗ §${n2} machine_enforced but lists no tests` });
+            rows.push({ severity: "fail", msg: `  ✗ §${n2} machine_enforced but lists no tests` });
           } else {
-            const missingTests = tests.filter((t2) => !existsSync20(resolve17(root4, t2)));
+            const missingTests = tests.filter((t2) => !existsSync23(resolve20(ctx.root, t2)));
             if (missingTests.length) {
-              emit({
+              rows.push({
                 severity: "fail",
                 msg: `  ✗ §${n2} cites missing test file(s): ${missingTests.join(", ")}`
               });
             } else {
-              emit({ severity: "ok", msg: `  ✓ §${n2} ${title} (${tests.length} test file(s))` });
+              rows.push({ severity: "ok", msg: `  ✓ §${n2} ${title} (${tests.length} test file(s))` });
             }
           }
         } else {
-          emit({ severity: "ok", msg: `  ✓ §${n2} ${title} (procedural)` });
+          rows.push({ severity: "ok", msg: `  ✓ §${n2} ${title} (procedural)` });
         }
       }
-      emit({ severity: "ok", msg: `  · machine-enforced invariants: ${machineCount}/13` });
+      rows.push({ severity: "ok", msg: `  · machine-enforced invariants: ${machineCount}/13` });
     }
   }
+  return rows;
+}
+function checkSlashParity(ctx) {
+  const rows = [];
   const SLASH_EXEMPT = new Set(["canary", "watch-ci-failure", "land"]);
-  log("");
-  log("=== slash commands ↔ CLI subcommands ===");
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ slash↔CLI parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
+  if (!ctx.hasSource) {
+    rows.push({ severity: "ok", msg: "  ⓘ slash↔CLI parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
   } else {
-    const sgcSrcPath = resolve17(root4, "src/sgc.ts");
-    const commandsDir = resolve17(root4, "plugins/sgc/commands");
-    if (!existsSync20(sgcSrcPath) || !existsSync20(commandsDir)) {
-      emit({
+    const sgcSrcPath = resolve20(ctx.root, "src/sgc.ts");
+    const commandsDir = resolve20(ctx.root, "plugins/sgc/commands");
+    if (!existsSync23(sgcSrcPath) || !existsSync23(commandsDir)) {
+      rows.push({
         severity: "warn",
         msg: "  ⚠ src/sgc.ts or plugins/sgc/commands/ not found — slash parity unchecked (npm-install layout?)"
       });
     } else {
-      const cliNames = extractCliSubcommands(readFileSync19(sgcSrcPath, "utf8"));
+      const cliNames = extractCliSubcommands(readFileSync22(sgcSrcPath, "utf8"));
       const slashNames = new Set(readdirSync8(commandsDir).filter((f3) => f3.endsWith(".md")).map((f3) => f3.slice(0, -3)));
       if (cliNames.length === 0) {
-        emit({ severity: "warn", msg: "  ⚠ could not parse subCommands block in src/sgc.ts" });
+        rows.push({ severity: "warn", msg: "  ⚠ could not parse subCommands block in src/sgc.ts" });
       }
       for (const name of cliNames) {
         if (slashNames.has(name)) {
-          emit({ severity: "ok", msg: `  ✓ ${name} (CLI + slash command)` });
+          rows.push({ severity: "ok", msg: `  ✓ ${name} (CLI + slash command)` });
         } else if (SLASH_EXEMPT.has(name)) {
-          emit({ severity: "ok", msg: `  ✓ ${name} (CLI-only, slash-exempt)` });
+          rows.push({ severity: "ok", msg: `  ✓ ${name} (CLI-only, slash-exempt)` });
         } else {
-          emit({
+          rows.push({
             severity: "fail",
             msg: `  ✗ ${name} (CLI subcommand has no slash command — add plugins/sgc/commands/${name}.md or add to SLASH_EXEMPT)`
           });
@@ -20666,7 +20124,7 @@ async function runDoctor(opts = {}) {
       const cliSet = new Set(cliNames);
       for (const slash of [...slashNames].sort()) {
         if (!cliSet.has(slash)) {
-          emit({
+          rows.push({
             severity: "warn",
             msg: `  ⚠ ${slash}.md (orphan slash command — no matching CLI subcommand)`
           });
@@ -20674,14 +20132,17 @@ async function runDoctor(opts = {}) {
       }
     }
   }
-  log("");
-  log("=== invariant sources aligned (§ count) ===");
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ invariant-source parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
+  return rows;
+}
+function checkInvariantSourceParity(ctx) {
+  const rows = [];
+  const iePath = ctx.iePath;
+  if (!ctx.hasSource) {
+    rows.push({ severity: "ok", msg: "  ⓘ invariant-source parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
   } else {
-    const invMdPath = resolve17(root4, "contracts/sgc-invariants.md");
-    if (!existsSync20(invMdPath) || !existsSync20(iePath)) {
-      emit({
+    const invMdPath = resolve20(ctx.root, "contracts/sgc-invariants.md");
+    if (!existsSync23(invMdPath) || !existsSync23(iePath)) {
+      rows.push({
         severity: "warn",
         msg: "  ⚠ sgc-invariants.md or invariant-enforcement.yaml missing — § parity unchecked"
       });
@@ -20689,12 +20150,12 @@ async function runDoctor(opts = {}) {
       const mdNums = new Set;
       const secRe = /^##\s*§(\d+)\./gm;
       let sm;
-      const mdText = readFileSync19(invMdPath, "utf8");
+      const mdText = readFileSync22(invMdPath, "utf8");
       while ((sm = secRe.exec(mdText)) !== null)
         mdNums.add(Number(sm[1]));
       const yamlNums = new Set;
       try {
-        const doc = load(readFileSync19(iePath, "utf8"));
+        const doc = load(readFileSync22(iePath, "utf8"));
         if (doc?.invariants)
           for (const k2 of Object.keys(doc.invariants))
             yamlNums.add(Number(k2));
@@ -20702,78 +20163,82 @@ async function runDoctor(opts = {}) {
       const onlyMd = [...mdNums].filter((n2) => !yamlNums.has(n2)).sort((a2, b2) => a2 - b2);
       const onlyYaml = [...yamlNums].filter((n2) => !mdNums.has(n2)).sort((a2, b2) => a2 - b2);
       if (mdNums.size > 0 && onlyMd.length === 0 && onlyYaml.length === 0) {
-        emit({
+        rows.push({
           severity: "ok",
           msg: `  ✓ both sources define §1–§${Math.max(...mdNums)} (${mdNums.size} invariants)`
         });
       } else {
-        emit({
+        rows.push({
           severity: "fail",
           msg: `  ✗ invariant sources disagree — only in .md: [${onlyMd.join(",") || "—"}], only in .yaml: [${onlyYaml.join(",") || "—"}]`
         });
       }
     }
   }
-  log("");
-  log("=== bundle parity ===");
-  emit(await bundleParityCheck(root4));
-  log("");
-  log("=== metrics baseline drift ===");
-  const baselinePath = resolve17(root4, "metrics", "metrics-baseline.yaml");
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ metrics baseline skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
-  } else if (!existsSync20(baselinePath)) {
-    emit({ severity: "fail", msg: "  ✗ metrics/metrics-baseline.yaml missing — run `sgc metrics --write-baseline`" });
+  return rows;
+}
+async function checkBundleParity(ctx) {
+  return [await bundleParityCheck(ctx.root)];
+}
+function checkMetricsBaseline(ctx) {
+  const rows = [];
+  const baselinePath = resolve20(ctx.root, "metrics", "metrics-baseline.yaml");
+  if (!ctx.hasSource) {
+    rows.push({ severity: "ok", msg: "  ⓘ metrics baseline skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
+  } else if (!existsSync23(baselinePath)) {
+    rows.push({ severity: "fail", msg: "  ✗ metrics/metrics-baseline.yaml missing — run `sgc metrics --write-baseline`" });
   } else {
     try {
-      const live = computeMetricsLive(root4);
-      const baseline = parseBaseline(readFileSync19(baselinePath, "utf8"));
+      const live = computeMetricsLive(ctx.root);
+      const baseline = parseBaseline(readFileSync22(baselinePath, "utf8"));
       const drifts = diffMetrics(live, baseline);
       if (drifts.length === 0) {
-        emit({ severity: "ok", msg: "  ✓ metrics baseline in sync (live == baseline; bundle_bytes excluded)" });
+        rows.push({ severity: "ok", msg: "  ✓ metrics baseline in sync (live == baseline; bundle_bytes excluded)" });
       } else {
         for (const d2 of drifts)
-          emit({ severity: "fail", msg: `  ✗ metrics drift — ${d2}` });
-        emit({ severity: "fail", msg: "  ✗ regenerate: `sgc metrics --write-baseline`" });
+          rows.push({ severity: "fail", msg: `  ✗ metrics drift — ${d2}` });
+        rows.push({ severity: "fail", msg: "  ✗ regenerate: `sgc metrics --write-baseline`" });
       }
     } catch (e2) {
-      emit({ severity: "fail", msg: `  ✗ metrics baseline check error: ${e2.message.slice(0, 80)}` });
+      rows.push({ severity: "fail", msg: `  ✗ metrics baseline check error: ${e2.message.slice(0, 80)}` });
     }
   }
-  log("");
-  log("=== agent registry ↔ manifest ===");
-  {
-    try {
-      const files = readAgentMdFiles(root4);
-      if (files.length === 0) {
-        emit({ severity: "ok", msg: "  ⓘ agent registry check skipped (no plugins/sgc/agents/ — npm channel)" });
+  return rows;
+}
+function checkAgentRegistry(ctx) {
+  const rows = [];
+  try {
+    const files = readAgentMdFiles(ctx.root);
+    if (files.length === 0) {
+      rows.push({ severity: "ok", msg: "  ⓘ agent registry check skipped (no plugins/sgc/agents/ — npm channel)" });
+    } else {
+      const drifts = agentMetadataDrift(files, (id) => getSubagentManifest(id) ?? null, Object.keys(getCapabilities().subagents));
+      if (drifts.length === 0) {
+        rows.push({ severity: "ok", msg: `  ✓ ${files.length} agent descriptions wired to manifest (disclosure checked, not accuracy)` });
       } else {
-        const drifts = agentMetadataDrift(files, (id) => getSubagentManifest(id) ?? null, Object.keys(getCapabilities().subagents));
-        if (drifts.length === 0) {
-          emit({ severity: "ok", msg: `  ✓ ${files.length} agent descriptions wired to manifest (disclosure checked, not accuracy)` });
-        } else {
-          for (const d2 of drifts)
-            emit({ severity: "fail", msg: `  ✗ agent metadata drift — ${d2}` });
-        }
+        for (const d2 of drifts)
+          rows.push({ severity: "fail", msg: `  ✗ agent metadata drift — ${d2}` });
       }
-    } catch (e2) {
-      emit({ severity: "fail", msg: `  ✗ agent registry check error: ${e2.message.slice(0, 80)}` });
     }
+  } catch (e2) {
+    rows.push({ severity: "fail", msg: `  ✗ agent registry check error: ${e2.message.slice(0, 80)}` });
   }
-  log("");
-  log("=== agent description ↔ derived CLI fact ===");
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no src/sgc.ts — npm channel, no derivation to check against)" });
+  return rows;
+}
+function checkCliFactDerivation(ctx) {
+  const rows = [];
+  if (!ctx.hasSource) {
+    rows.push({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no src/sgc.ts — npm channel, no derivation to check against)" });
   } else {
     try {
-      const files = readAgentMdFiles(root4);
+      const files = readAgentMdFiles(ctx.root);
       if (files.length === 0) {
-        emit({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no plugins/sgc/agents/ — npm channel)" });
+        rows.push({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no plugins/sgc/agents/ — npm channel)" });
       } else {
         const present = new Set(files.map((f3) => f3.id));
         const missingIds = DERIVED_AGENT_IDS.filter((id) => !present.has(id));
         for (const id of missingIds) {
-          emit({
+          rows.push({
             severity: "fail",
             msg: `  ✗ ${id}: no plugins/sgc/agents/${id.replace(".", "/")}.md — a missing file cannot carry the derived clause`
           });
@@ -20781,57 +20246,105 @@ async function runDoctor(opts = {}) {
         const factDrifts = cliFactDrift(files);
         if (factDrifts.length === 0 && missingIds.length === 0) {
           const checked = files.filter((f3) => DERIVED_AGENT_IDS.includes(f3.id)).length;
-          emit({ severity: "ok", msg: `  ✓ ${checked} agent CLI-fact clauses match the code` });
+          rows.push({ severity: "ok", msg: `  ✓ ${checked} agent CLI-fact clauses match the code` });
         } else {
           for (const d2 of factDrifts)
-            emit({ severity: "fail", msg: `  ✗ ${d2}` });
+            rows.push({ severity: "fail", msg: `  ✗ ${d2}` });
         }
       }
     } catch (e2) {
-      emit({ severity: "fail", msg: `  ✗ CLI-fact check error: ${e2.message.slice(0, 80)}` });
+      rows.push({ severity: "fail", msg: `  ✗ CLI-fact check error: ${e2.message.slice(0, 80)}` });
     }
   }
-  log("");
-  log("=== README four-化 scorecard parity ===");
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ README scorecard parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
+  return rows;
+}
+function checkReadmeScorecard(ctx) {
+  const rows = [];
+  if (!ctx.hasSource) {
+    rows.push({ severity: "ok", msg: "  ⓘ README scorecard parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
   } else {
-    const readmePath = resolve17(root4, "README.md");
-    if (!existsSync20(readmePath)) {
-      emit({ severity: "warn", msg: "  ⚠ README.md not found" });
+    const readmePath = resolve20(ctx.root, "README.md");
+    if (!existsSync23(readmePath)) {
+      rows.push({ severity: "warn", msg: "  ⚠ README.md not found" });
     } else {
       try {
-        const drifts = readmeScorecardDrift(readFileSync19(readmePath, "utf8"), computeMetricsLive(root4));
+        const drifts = readmeScorecardDrift(readFileSync22(readmePath, "utf8"), computeMetricsLive(ctx.root));
         if (drifts.length === 0) {
-          emit({ severity: "ok", msg: "  ✓ README scorecard matches live metrics" });
+          rows.push({ severity: "ok", msg: "  ✓ README scorecard matches live metrics" });
         } else {
           for (const d2 of drifts)
-            emit({ severity: "fail", msg: `  ✗ README scorecard drift — ${d2}` });
-          emit({ severity: "fail", msg: "  ✗ fix README.md to match `sgc metrics` output" });
+            rows.push({ severity: "fail", msg: `  ✗ README scorecard drift — ${d2}` });
+          rows.push({ severity: "fail", msg: "  ✗ fix README.md to match `sgc metrics` output" });
         }
       } catch (e2) {
-        emit({ severity: "fail", msg: `  ✗ README scorecard check error: ${e2.message.slice(0, 80)}` });
+        rows.push({ severity: "fail", msg: `  ✗ README scorecard check error: ${e2.message.slice(0, 80)}` });
       }
     }
   }
-  log("");
-  log("=== plugins/sgc/CLAUDE.md status header freshness ===");
-  if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ CLAUDE.md freshness skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
+  return rows;
+}
+function checkStatusHeaderFreshness(ctx) {
+  const rows = [];
+  if (!ctx.hasSource) {
+    rows.push({ severity: "ok", msg: "  ⓘ CLAUDE.md freshness skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
   } else {
-    const claudeMdPath = resolve17(root4, "plugins", "sgc", "CLAUDE.md");
-    const pkgPath = resolve17(root4, "package.json");
-    if (!existsSync20(claudeMdPath) || !existsSync20(pkgPath)) {
-      emit({ severity: "warn", msg: "  ⚠ plugins/sgc/CLAUDE.md or package.json not found" });
+    const claudeMdPath = resolve20(ctx.root, "plugins", "sgc", "CLAUDE.md");
+    const pkgPath = resolve20(ctx.root, "package.json");
+    if (!existsSync23(claudeMdPath) || !existsSync23(pkgPath)) {
+      rows.push({ severity: "warn", msg: "  ⚠ plugins/sgc/CLAUDE.md or package.json not found" });
     } else {
       try {
-        const pkgVer = JSON.parse(readFileSync19(pkgPath, "utf8")).version ?? "";
-        const r3 = statusHeaderFreshness(readFileSync19(claudeMdPath, "utf8"), pkgVer);
-        emit({ severity: r3.severity, msg: `  ${r3.severity === "ok" ? "✓" : "⚠"} ${r3.msg}` });
+        const pkgVer = JSON.parse(readFileSync22(pkgPath, "utf8")).version ?? "";
+        const r3 = statusHeaderFreshness(readFileSync22(claudeMdPath, "utf8"), pkgVer);
+        rows.push({ severity: r3.severity, msg: `  ${r3.severity === "ok" ? "✓" : "⚠"} ${r3.msg}` });
       } catch (e2) {
-        emit({ severity: "warn", msg: `  ⚠ CLAUDE.md freshness check error: ${e2.message.slice(0, 80)}` });
+        rows.push({ severity: "warn", msg: `  ⚠ CLAUDE.md freshness check error: ${e2.message.slice(0, 80)}` });
       }
     }
+  }
+  return rows;
+}
+async function runDoctor(opts = {}) {
+  const log = opts.log ?? ((m2) => console.log(m2));
+  const root3 = opts.repoRoot ?? repoRoot;
+  const rows = [];
+  const emit = (row) => {
+    rows.push(row);
+    log(row.msg);
+  };
+  const caps = getCapabilities();
+  const manifests = Object.entries(caps.subagents);
+  const hasSource = existsSync23(resolve20(root3, "src", "sgc.ts"));
+  if (opts.writeDescriptions) {
+    try {
+      const written = [];
+      for (const f3 of readAgentMdFiles(root3)) {
+        if (!DERIVED_AGENT_IDS.includes(f3.id))
+          continue;
+        const next = rewriteCliFact(f3.text, f3.id);
+        if (next !== f3.text) {
+          writeFileSync7(resolve20(root3, f3.file), next, "utf8");
+          written.push(f3.id);
+        }
+      }
+      log(written.length > 0 ? `wrote CLI-fact clause for: ${written.join(", ")}` : "all CLI-fact clauses already match the code");
+    } catch (e2) {
+      log(`✗ --write-descriptions failed: ${e2.message.slice(0, 120)}`);
+    }
+  }
+  const ctx = {
+    root: root3,
+    hasSource,
+    manifests,
+    iePath: resolve20(root3, "contracts/invariant-enforcement.yaml")
+  };
+  for (let i2 = 0;i2 < CHECKS.length; i2++) {
+    const check = CHECKS[i2];
+    if (i2 > 0)
+      log("");
+    log(check.header);
+    for (const row of await check.run(ctx))
+      emit(row);
   }
   const ok = rows.filter((r3) => r3.severity === "ok").length;
   const warn = rows.filter((r3) => r3.severity === "warn").length;
@@ -20841,7 +20354,7 @@ async function runDoctor(opts = {}) {
   log(`${ok} OK · ${warn} warn · ${fail} fail`);
   return { ok, warn, fail, rows };
 }
-var moduleDir2, repoRoot, REGISTRY_EXEMPT_IDS;
+var moduleDir2, repoRoot, REGISTRY_EXEMPT_IDS, CHECKS;
 var init_doctor = __esm(() => {
   init_subprocess();
   init_js_yaml();
@@ -20850,13 +20363,29 @@ var init_doctor = __esm(() => {
   init_embedded_data();
   init_metrics();
   moduleDir2 = dirname6(fileURLToPath3(import.meta.url));
-  repoRoot = resolve17(moduleDir2, "..", "..");
+  repoRoot = resolve20(moduleDir2, "..", "..");
   REGISTRY_EXEMPT_IDS = new Set(["clarifier.discover", "planner.decompose"]);
+  CHECKS = [
+    { header: "=== Manifest prompt_path ↔ prompts/ ===", run: checkManifestPromptPath },
+    { header: "=== prompts/ ↔ manifest ===", run: checkPromptsReferenced },
+    { header: "=== status: slot-only ↔ prompt_path: null ===", run: checkSlotOnly },
+    { header: "=== bunfig.toml [test] root ===", run: checkBunfigRoot },
+    { header: "=== package.json files ↔ no vendored plugins/ ===", run: checkPackageFiles },
+    { header: "=== invariant-enforcement.yaml coverage ===", run: checkInvariantEnforcementCoverage },
+    { header: "=== slash commands ↔ CLI subcommands ===", run: checkSlashParity },
+    { header: "=== invariant sources aligned (§ count) ===", run: checkInvariantSourceParity },
+    { header: "=== bundle parity ===", run: checkBundleParity },
+    { header: "=== metrics baseline drift ===", run: checkMetricsBaseline },
+    { header: "=== agent registry ↔ manifest ===", run: checkAgentRegistry },
+    { header: "=== agent description ↔ derived CLI fact ===", run: checkCliFactDerivation },
+    { header: "=== README four-化 scorecard parity ===", run: checkReadmeScorecard },
+    { header: "=== plugins/sgc/CLAUDE.md status header freshness ===", run: checkStatusHeaderFreshness }
+  ];
 });
 
 // src/dispatcher/reflect.ts
 import { readFile as readFile3, readdir as readdir3, mkdir as mkdir5, writeFile as writeFile2 } from "node:fs/promises";
-import { resolve as resolve18 } from "node:path";
+import { resolve as resolve21 } from "node:path";
 function slicePreMortem(raw) {
   const idx = raw.indexOf(PRE_MORTEM_HEADER);
   if (idx < 0)
@@ -20904,8 +20433,8 @@ function detectDiscussion(preMortem, solutionRef, preventionText, earlySignals) 
   return { discussed: false, evidence: null };
 }
 async function auditDecision(taskId, stateRoot2, _opts = {}) {
-  const root4 = resolveStateRoot(stateRoot2);
-  const decisionPath = resolve18(root4, "decisions", taskId, "intent.md");
+  const root3 = resolveStateRoot(stateRoot2);
+  const decisionPath = resolve21(root3, "decisions", taskId, "intent.md");
   let raw;
   try {
     raw = await readFile3(decisionPath, "utf8");
@@ -20924,7 +20453,7 @@ ${frontmatter.title ?? ""}`;
   if (keywords.length === 0) {
     return { task_id: taskId, decision_path: decisionPath, candidates: [] };
   }
-  const scans = await walkSolutionsCorpus(root4, keywords);
+  const scans = await walkSolutionsCorpus(root3, keywords);
   const preMortem = slicePreMortem(raw);
   const earlySignals = extractEarlySignals(preMortem);
   const candidates = [];
@@ -20959,8 +20488,8 @@ ${frontmatter.title ?? ""}`;
   return { task_id: taskId, decision_path: decisionPath, candidates };
 }
 async function auditAllDecisions(stateRoot2, opts = {}) {
-  const root4 = resolveStateRoot(stateRoot2);
-  const decisionsDir = resolve18(root4, "decisions");
+  const root3 = resolveStateRoot(stateRoot2);
+  const decisionsDir = resolve21(root3, "decisions");
   let entries;
   try {
     entries = await readdir3(decisionsDir, { withFileTypes: true });
@@ -20975,10 +20504,10 @@ async function auditAllDecisions(stateRoot2, opts = {}) {
   for (const entry of entries) {
     if (!entry.isDirectory())
       continue;
-    const intentPath3 = resolve18(decisionsDir, entry.name, "intent.md");
+    const intentPath2 = resolve21(decisionsDir, entry.name, "intent.md");
     let raw;
     try {
-      raw = await readFile3(intentPath3, "utf8");
+      raw = await readFile3(intentPath2, "utf8");
     } catch {
       continue;
     }
@@ -20996,7 +20525,7 @@ async function auditAllDecisions(stateRoot2, opts = {}) {
   pending.sort((a2, b2) => b2.createdAtMs - a2.createdAtMs);
   const reports = [];
   for (const p of pending) {
-    reports.push(await auditDecision(p.taskId, root4));
+    reports.push(await auditDecision(p.taskId, root3));
   }
   return reports;
 }
@@ -21029,10 +20558,10 @@ function formatReport(report) {
 `);
 }
 async function writeReflectionFile(report, stateRoot2) {
-  const root4 = resolveStateRoot(stateRoot2);
-  const dir = resolve18(root4, "reflections");
+  const root3 = resolveStateRoot(stateRoot2);
+  const dir = resolve21(root3, "reflections");
   await mkdir5(dir, { recursive: true });
-  const path2 = resolve18(dir, `${report.task_id}.md`);
+  const path2 = resolve21(dir, `${report.task_id}.md`);
   await writeFile2(path2, formatReport(report), "utf8");
   return path2;
 }
@@ -21082,32 +20611,32 @@ var exports_metrics = {};
 __export(exports_metrics, {
   runMetrics: () => runMetrics
 });
-import { mkdirSync as mkdirSync5, writeFileSync as writeFileSync9 } from "node:fs";
-import { dirname as dirname7, resolve as resolve19 } from "node:path";
+import { mkdirSync as mkdirSync7, writeFileSync as writeFileSync8 } from "node:fs";
+import { dirname as dirname7, resolve as resolve22 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 async function runMetrics(opts = {}) {
-  const root4 = opts.repoRoot ?? defaultRoot;
+  const root3 = opts.repoRoot ?? defaultRoot;
   if (opts.writeBaseline) {
-    const live = computeMetricsLive(root4);
-    const path2 = resolve19(root4, "metrics", "metrics-baseline.yaml");
-    mkdirSync5(dirname7(path2), { recursive: true });
-    writeFileSync9(path2, serializeBaseline(live), "utf8");
+    const live = computeMetricsLive(root3);
+    const path2 = resolve22(root3, "metrics", "metrics-baseline.yaml");
+    mkdirSync7(dirname7(path2), { recursive: true });
+    writeFileSync8(path2, serializeBaseline(live), "utf8");
     console.error(`wrote: ${path2}`);
     return;
   }
-  const m2 = opts.repoRoot ? computeMetricsLive(root4) : computeRuntimeMetrics();
+  const m2 = opts.repoRoot ? computeMetricsLive(root3) : computeRuntimeMetrics();
   console.log(opts.json ? JSON.stringify(m2, null, 2) : formatScorecard(m2));
 }
 var moduleDir3, defaultRoot;
 var init_metrics2 = __esm(() => {
   init_metrics();
   moduleDir3 = dirname7(fileURLToPath4(import.meta.url));
-  defaultRoot = resolve19(moduleDir3, "..", "..");
+  defaultRoot = resolve22(moduleDir3, "..", "..");
 });
 
 // src/dispatcher/ship-failure.ts
 import { mkdir as mkdir6, stat as stat2, writeFile as writeFile3 } from "node:fs/promises";
-import { resolve as resolve20 } from "node:path";
+import { resolve as resolve23 } from "node:path";
 function clamp2(n2, lo, hi) {
   return Math.max(lo, Math.min(hi, n2));
 }
@@ -21249,11 +20778,11 @@ function renderBody(failure) {
 }
 async function captureShipFailure(failure, stateRoot2, opts = {}) {
   const now = opts.now ?? Date.now;
-  const root4 = resolveStateRoot(stateRoot2);
-  const dir = resolve20(root4, "ship-failures");
+  const root3 = resolveStateRoot(stateRoot2);
+  const dir = resolve23(root3, "ship-failures");
   await mkdir6(dir, { recursive: true });
   const slug = `${todayUtcDate(now)}-${shortSha3(failure.commitSha)}`;
-  const path2 = resolve20(dir, `${slug}.md`);
+  const path2 = resolve23(dir, `${slug}.md`);
   try {
     await stat2(path2);
     return { action: "deduped", path: path2 };
@@ -21350,7 +20879,7 @@ var init_watch_ci_failure = __esm(() => {
 // src/dispatcher/canary.ts
 import { mkdir as mkdir7, mkdtemp, rm, stat as stat3, writeFile as writeFile4 } from "node:fs/promises";
 import { tmpdir as osTmpdir } from "node:os";
-import { join as join8, resolve as resolve21 } from "node:path";
+import { join as join7, resolve as resolve24 } from "node:path";
 function clamp3(n2, lo, hi) {
   return Math.max(lo, Math.min(hi, n2));
 }
@@ -21383,7 +20912,7 @@ function deriveBinName(pkg) {
   return pkg;
 }
 async function defaultNpxSmoke(pkg, ver, bin) {
-  const dir = await mkdtemp(join8(osTmpdir(), "sgc-canary-smoke-"));
+  const dir = await mkdtemp(join7(osTmpdir(), "sgc-canary-smoke-"));
   try {
     const {
       stdout: installStdout,
@@ -21398,7 +20927,7 @@ async function defaultNpxSmoke(pkg, ver, bin) {
       };
     }
     const binName = bin ?? deriveBinName(pkg);
-    const binPath = resolve21(dir, "node_modules", ".bin", binName);
+    const binPath = resolve24(dir, "node_modules", ".bin", binName);
     const { stdout: stdout2, stderr, exitCode } = await spawnCapture([binPath, "--version"]);
     return { stdout: stdout2, stderr, exitCode };
   } finally {
@@ -21533,11 +21062,11 @@ function renderBody2(failure) {
 }
 async function captureCanaryFailure(failure, stateRoot2, opts = {}) {
   const now = opts.now ?? Date.now;
-  const root4 = resolveStateRoot(stateRoot2);
-  const dir = resolve21(root4, "canaries");
+  const root3 = resolveStateRoot(stateRoot2);
+  const dir = resolve24(root3, "canaries");
   await mkdir7(dir, { recursive: true });
   const slug = `${todayUtcDate2(now)}-${shortSha4(failure.commitSha)}-${failure.failedPhase}`;
-  const path2 = resolve21(dir, `${slug}.md`);
+  const path2 = resolve24(dir, `${slug}.md`);
   try {
     await stat3(path2);
     return { action: "deduped", path: path2 };
@@ -21579,7 +21108,7 @@ __export(exports_canary, {
   VALID_PHASES: () => VALID_PHASES
 });
 import { readFile as readFile4 } from "node:fs/promises";
-import { resolve as resolve22 } from "node:path";
+import { resolve as resolve25 } from "node:path";
 async function gitOutput3(args) {
   const { stdout: stdout2, exitCode } = await spawnCapture(["git", ...args]);
   if (exitCode !== 0)
@@ -21589,7 +21118,7 @@ async function gitOutput3(args) {
 }
 async function readPackageJson() {
   try {
-    const raw = await readFile4(resolve22(process.cwd(), "package.json"), "utf8");
+    const raw = await readFile4(resolve25(process.cwd(), "package.json"), "utf8");
     return JSON.parse(raw);
   } catch {
     return null;
@@ -21677,9 +21206,9 @@ var init_canary2 = __esm(() => {
 });
 
 // src/dispatcher/handoff.ts
-import { existsSync as existsSync21 } from "node:fs";
+import { existsSync as existsSync24 } from "node:fs";
 import * as fs from "node:fs/promises";
-import { join as join9 } from "node:path";
+import { join as join8 } from "node:path";
 import { spawn as nodeSpawn3 } from "node:child_process";
 function kebabize(s2) {
   return s2.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -21690,18 +21219,18 @@ function timestampFallback(now) {
 }
 async function deriveSlug(stateRoot2, now) {
   const dateStr = now.toISOString().slice(0, 10);
-  const decisionsDir = join9(stateRoot2, "decisions");
-  if (!existsSync21(decisionsDir))
+  const decisionsDir = join8(stateRoot2, "decisions");
+  if (!existsSync24(decisionsDir))
     return timestampFallback(now);
   const entries = await fs.readdir(decisionsDir, { withFileTypes: true });
   const intents = [];
   for (const e2 of entries) {
     if (!e2.isDirectory())
       continue;
-    const intentPath3 = join9(decisionsDir, e2.name, "intent.md");
+    const intentPath2 = join8(decisionsDir, e2.name, "intent.md");
     try {
-      const stat5 = await fs.stat(intentPath3);
-      intents.push({ path: intentPath3, mtime: stat5.mtimeMs, id: e2.name });
+      const stat5 = await fs.stat(intentPath2);
+      intents.push({ path: intentPath2, mtime: stat5.mtimeMs, id: e2.name });
     } catch {}
   }
   if (intents.length === 0)
@@ -21754,8 +21283,8 @@ function inferVerifyCommand(snapshot) {
   };
 }
 async function gatherActiveIntent(stateRoot2) {
-  const decisionsDir = join9(stateRoot2, "decisions");
-  if (!existsSync21(decisionsDir))
+  const decisionsDir = join8(stateRoot2, "decisions");
+  if (!existsSync24(decisionsDir))
     return;
   try {
     const entries = await fs.readdir(decisionsDir, { withFileTypes: true });
@@ -21763,7 +21292,7 @@ async function gatherActiveIntent(stateRoot2) {
     for (const e2 of entries) {
       if (!e2.isDirectory())
         continue;
-      const p = join9(decisionsDir, e2.name, "intent.md");
+      const p = join8(decisionsDir, e2.name, "intent.md");
       try {
         const stat5 = await fs.stat(p);
         refs.push({ path: p, mtime: stat5.mtimeMs, id: e2.name });
@@ -21818,7 +21347,7 @@ async function gatherLoopRuns(stateRoot2) {
   }
 }
 async function scanCaptureDir(dir, kind, seedField) {
-  if (!existsSync21(dir))
+  if (!existsSync24(dir))
     return [];
   try {
     const entries = await fs.readdir(dir);
@@ -21828,7 +21357,7 @@ async function scanCaptureDir(dir, kind, seedField) {
         continue;
       const slug = name.slice(0, -3);
       try {
-        const text = await fs.readFile(join9(dir, name), "utf-8");
+        const text = await fs.readFile(join8(dir, name), "utf-8");
         const fm = parseFrontmatter(text).data;
         if (typeof fm.promoted_to === "string" && fm.promoted_to.length > 0)
           continue;
@@ -21844,14 +21373,14 @@ async function scanCaptureDir(dir, kind, seedField) {
 }
 async function gatherUnpromotedCaptures(stateRoot2) {
   const [ships, canaries] = await Promise.all([
-    scanCaptureDir(join9(stateRoot2, "ship-failures"), "ship-failure", "prevention_seed"),
-    scanCaptureDir(join9(stateRoot2, "canaries"), "canary", "regression_seed")
+    scanCaptureDir(join8(stateRoot2, "ship-failures"), "ship-failure", "prevention_seed"),
+    scanCaptureDir(join8(stateRoot2, "canaries"), "canary", "regression_seed")
   ]);
   return [...ships, ...canaries];
 }
 async function gatherUnclosedSpawns(stateRoot2, tailLines) {
-  const eventsPath2 = join9(stateRoot2, "progress", "events.ndjson");
-  if (!existsSync21(eventsPath2))
+  const eventsPath2 = join8(stateRoot2, "progress", "events.ndjson");
+  if (!existsSync24(eventsPath2))
     return [];
   try {
     const text = await fs.readFile(eventsPath2, "utf-8");
@@ -21894,7 +21423,7 @@ async function gatherUnclosedSpawns(stateRoot2, tailLines) {
   }
 }
 async function runGit(args, cwd = process.cwd()) {
-  return new Promise((resolve23, reject) => {
+  return new Promise((resolve26, reject) => {
     const child = nodeSpawn3("git", args, { cwd });
     let stdout2 = "";
     let stderr = "";
@@ -21903,7 +21432,7 @@ async function runGit(args, cwd = process.cwd()) {
     child.on("error", (err) => reject(err));
     child.on("close", (code) => {
       if (code === 0)
-        resolve23(stdout2);
+        resolve26(stdout2);
       else
         reject(new Error(`git ${args.join(" ")} exited ${code}: ${stderr}`));
     });
@@ -22084,10 +21613,10 @@ function renderHandoffMarkdown(snap) {
 `);
 }
 async function writeHandoffMarkdown(repoRoot2, slug, content) {
-  const tasksDir = join9(repoRoot2, "tasks");
+  const tasksDir = join8(repoRoot2, "tasks");
   await fs.mkdir(tasksDir, { recursive: true });
-  const target = join9(tasksDir, `${slug}-paused.md`);
-  const tmp = join9(tasksDir, `.${slug}-paused.md.tmp.${process.pid}.${Date.now()}`);
+  const target = join8(tasksDir, `${slug}-paused.md`);
+  const tmp = join8(tasksDir, `.${slug}-paused.md.tmp.${process.pid}.${Date.now()}`);
   await fs.writeFile(tmp, content, "utf-8");
   await fs.rename(tmp, target);
   return target;
@@ -22104,17 +21633,17 @@ var exports_handoff = {};
 __export(exports_handoff, {
   runHandoff: () => runHandoff
 });
-import { existsSync as existsSync22 } from "node:fs";
+import { existsSync as existsSync25 } from "node:fs";
 import * as fs2 from "node:fs/promises";
-import { join as join10 } from "node:path";
+import { join as join9 } from "node:path";
 async function runHandoff(opts) {
   const repoRoot2 = opts.repoRoot ?? process.cwd();
   const stateRoot2 = resolveStateRoot(opts.stateRoot);
   const stdout2 = opts.stdoutWrite ?? ((s2) => process.stdout.write(s2));
   const stderr = opts.stderrWrite ?? ((s2) => process.stderr.write(s2));
   if (typeof opts.print === "string" && opts.print.length > 0) {
-    const target = join10(repoRoot2, "tasks", `${opts.print}-paused.md`);
-    if (!existsSync22(target)) {
+    const target = join9(repoRoot2, "tasks", `${opts.print}-paused.md`);
+    if (!existsSync25(target)) {
       stderr(`no paused.md for slug ${opts.print}
 `);
       return { exitCode: 1 };
@@ -22148,7 +21677,7 @@ var init_handoff2 = __esm(() => {
 
 // src/dispatcher/land.ts
 import { readFile as readFile7 } from "node:fs/promises";
-import { resolve as resolve23 } from "node:path";
+import { resolve as resolve26 } from "node:path";
 async function deriveLandInputs(opts) {
   const repoRoot2 = opts.repoRoot ?? process.cwd();
   let pkgName = opts.package;
@@ -22156,7 +21685,7 @@ async function deriveLandInputs(opts) {
   if (!pkgName || !pkgVersion) {
     let parsed = null;
     try {
-      const raw = await readFile7(resolve23(repoRoot2, "package.json"), "utf8");
+      const raw = await readFile7(resolve26(repoRoot2, "package.json"), "utf8");
       parsed = JSON.parse(raw);
     } catch {
       parsed = null;
@@ -22186,7 +21715,7 @@ function emitLandEvent(logger, event_type, level, payload) {
 }
 async function runLand(opts = {}) {
   const repoRoot2 = opts.repoRoot ?? process.cwd();
-  const stateRoot2 = resolveStateRoot(opts.stateRoot ?? (opts.repoRoot ? resolve23(opts.repoRoot, ".sgc") : undefined));
+  const stateRoot2 = resolveStateRoot(opts.stateRoot ?? (opts.repoRoot ? resolve26(opts.repoRoot, ".sgc") : undefined));
   const stdoutWrite = opts.stdoutWrite ?? ((c3) => {
     process.stdout.write(c3);
   });
@@ -22440,7 +21969,7 @@ function nowIso10() {
 }
 async function readLineSync2() {
   const stdin2 = process.stdin;
-  return new Promise((resolve24) => {
+  return new Promise((resolve27) => {
     stdin2.resume();
     stdin2.setEncoding("utf8");
     let buf = "";
@@ -22451,7 +21980,7 @@ async function readLineSync2() {
       if (nl !== -1) {
         stdin2.removeListener("data", onData);
         stdin2.pause();
-        resolve24(buf.slice(0, nl).trim());
+        resolve27(buf.slice(0, nl).trim());
       }
     };
     stdin2.on("data", onData);
@@ -22864,7 +22393,7 @@ async function runPlanCore2(taskDescription, opts = {}) {
     }
     log("confirmed — writing intent.md");
   }
-  let intentPath3 = "(skipped — L0)";
+  let intentPath2 = "(skipped — L0)";
   if (level !== "L0") {
     const intent = {
       task_id: taskId,
@@ -22934,8 +22463,8 @@ ${researcherOut.warnings.map((w2) => `- ${w2}`).join(`
 ${PRE_MORTEM_SENTINEL_END}
 ` : "")
     };
-    intentPath3 = writeIntent(intent, stateRoot2);
-    log(`wrote ${intentPath3}`);
+    intentPath2 = writeIntent(intent, stateRoot2);
+    log(`wrote ${intentPath2}`);
   } else {
     log(`L0 task: skipping intent.md per schema (decisions/ not written for L0)`);
   }
@@ -22982,7 +22511,7 @@ ${PRE_MORTEM_SENTINEL_END}
 `, stateRoot2);
   log(``);
   log(`Plan complete. Run \`sgc work\` to begin execution.`);
-  return { taskId, level, intentPath: intentPath3 };
+  return { taskId, level, intentPath: intentPath2 };
 }
 var init_plan2 = __esm(() => {
   init_spawn();
@@ -23188,10 +22717,10 @@ var init_review2 = __esm(() => {
 });
 
 // src/commands/qa.ts
-import { mkdirSync as mkdirSync6 } from "node:fs";
-import { join as join11 } from "node:path";
+import { mkdirSync as mkdirSync8 } from "node:fs";
+import { join as join10 } from "node:path";
 function qaScreenshotDir2(stateRoot2, taskId) {
-  return join11(resolveStateRoot(stateRoot2), "reviews", taskId, "qa");
+  return join10(resolveStateRoot(stateRoot2), "reviews", taskId, "qa");
 }
 function generateReportId4() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
@@ -23220,7 +22749,7 @@ async function runQa2(opts = {}) {
   let browseRunner = opts.browseRunner;
   if (!browseRunner && optIn) {
     const shotDir = qaScreenshotDir2(stateRoot2, String(taskId));
-    mkdirSync6(shotDir, { recursive: true });
+    mkdirSync8(shotDir, { recursive: true });
     browseRunner = makeBrowseRunner({ launch: launchPlaywrightSession, screenshotDir: shotDir });
   }
   const r3 = await spawn3("qa.browser", { target_url: target, user_flows: flows }, {
@@ -23422,8 +22951,8 @@ __export(exports_cso, {
   aggregateVerdict: () => aggregateVerdict
 });
 import { execSync as execSync2 } from "node:child_process";
-import { existsSync as existsSync23, mkdirSync as mkdirSync7, readFileSync as readFileSync20, statSync as statSync7 } from "node:fs";
-import { resolve as resolve24 } from "node:path";
+import { existsSync as existsSync26, mkdirSync as mkdirSync9, readFileSync as readFileSync23, statSync as statSync7 } from "node:fs";
+import { resolve as resolve27 } from "node:path";
 function isoStamp() {
   const d2 = new Date;
   const iso = d2.toISOString();
@@ -23441,9 +22970,9 @@ function aggregateVerdict(checks) {
   return worst;
 }
 function ensureCsoDir(stateRoot2) {
-  const root4 = resolveStateRoot(stateRoot2);
-  const dir = resolve24(root4, "cso");
-  mkdirSync7(dir, { recursive: true });
+  const root3 = resolveStateRoot(stateRoot2);
+  const dir = resolve27(root3, "cso");
+  mkdirSync9(dir, { recursive: true });
   return dir;
 }
 function renderReportBody(report) {
@@ -23518,8 +23047,8 @@ function scanSecrets(repoRoot2) {
   const findings = [];
   const capBytes = maxScanBytes();
   for (const rel of files) {
-    const abs = resolve24(repoRoot2, rel);
-    if (!existsSync23(abs))
+    const abs = resolve27(repoRoot2, rel);
+    if (!existsSync26(abs))
       continue;
     let stat5;
     try {
@@ -23535,7 +23064,7 @@ function scanSecrets(repoRoot2) {
     }
     let content;
     try {
-      content = readFileSync20(abs, "utf8");
+      content = readFileSync23(abs, "utf8");
     } catch {
       continue;
     }
@@ -23690,7 +23219,7 @@ function auditDependencies(repoRoot2) {
 }
 function readEventsTail2(eventsPath2) {
   const warnings = [];
-  if (!existsSync23(eventsPath2)) {
+  if (!existsSync26(eventsPath2)) {
     warnings.push(`events.ndjson not found at ${eventsPath2}; anomaly check skipped`);
     return { lines: [], warnings };
   }
@@ -23701,7 +23230,7 @@ function readEventsTail2(eventsPath2) {
       warnings.push("events.ndjson is empty; anomaly check skipped");
       return { lines: [], warnings };
     }
-    raw = readFileSync20(eventsPath2, "utf8");
+    raw = readFileSync23(eventsPath2, "utf8");
     if (raw.length > ANOMALY_TAIL_BYTES) {
       const tail = raw.slice(-ANOMALY_TAIL_BYTES);
       const firstNl = tail.indexOf(`
@@ -23732,8 +23261,8 @@ function parseEventLine(line) {
   }
 }
 function detectAnomalies(stateRoot2) {
-  const root4 = resolveStateRoot(stateRoot2);
-  const eventsPath2 = resolve24(root4, "progress/events.ndjson");
+  const root3 = resolveStateRoot(stateRoot2);
+  const eventsPath2 = resolve27(root3, "progress/events.ndjson");
   const findings = [];
   const { lines, warnings } = readEventsTail2(eventsPath2);
   if (lines.length === 0) {
@@ -23783,10 +23312,10 @@ async function runCso(opts = {}) {
     checks
   };
   const slug = reportSlug(stamp);
-  const mdPath = resolve24(dir, `${slug}.md`);
+  const mdPath = resolve27(dir, `${slug}.md`);
   const md = serializeFrontmatter({ generated_at: stamp.iso, verdict: report.verdict, slug }, renderReportBody(report));
   writeAtomic(mdPath, md);
-  const lastReportPath = resolve24(dir, "last-report.json");
+  const lastReportPath = resolve27(dir, "last-report.json");
   writeAtomic(lastReportPath, JSON.stringify(report, null, 2) + `
 `);
   log(`cso verdict: ${report.verdict}`);
@@ -25242,11 +24771,11 @@ async function runMain(cmd, opts = {}) {
 }
 
 // src/sgc.ts
-import { existsSync as existsSync24 } from "fs";
+import { existsSync as existsSync27 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.38.0",
+  version: "1.38.1",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {
@@ -25828,14 +25357,14 @@ var status = defineCommand({
     description: "Show current task state, decisions history, and knowledge stats"
   },
   async run() {
-    const { readCurrentTask: readCurrentTask3 } = await Promise.resolve().then(() => (init_state2(), exports_state));
+    const { readCurrentTask: readCurrentTask2 } = await Promise.resolve().then(() => (init_state2(), exports_state));
     const stateRoot2 = process.env["SGC_STATE_ROOT"] ?? ".sgc";
-    if (!existsSync24(stateRoot2)) {
+    if (!existsSync27(stateRoot2)) {
       console.log(`No .sgc/ state directory at ${stateRoot2}.`);
       console.log(`Run 'sgc plan <task>' to start your first task.`);
       return;
     }
-    const ct = readCurrentTask3(stateRoot2);
+    const ct = readCurrentTask2(stateRoot2);
     if (!ct) {
       console.log(`State directory exists at ${stateRoot2} but no active task.`);
       console.log(`Run 'sgc plan <task>' to begin one.`);

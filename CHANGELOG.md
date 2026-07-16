@@ -1,5 +1,32 @@
 # Changelog
 
+## v1.38.1 — 2026-07-16 — the last of the audit, and the god-modules that hid it
+
+Batch C closes the audit-v1.37.0 remediation. The correctness cluster fixes
+paths that reported success while doing the wrong thing: a fuse-plan
+severity-upgrade that raised the severity but kept the *low*-severity text
+(dropping the informative high-severity finding), a canary phase loop that
+silently skipped an unknown `--phases` value and still reported success, a
+report matcher where `overwhelm`/`cargo` produced spurious `helm`/`argo` infra
+findings, and nine `sgc doctor` skip rows that claimed "no source checkout" when
+the real reason was "src/ isn't at the resolved root" (bundle running from
+inside a checkout). Robustness: the claude-cli child reaper now escalates
+SIGTERM→SIGKILL after a 2s grace, so a child that traps SIGTERM no longer leaks.
+Layering: `dispatcher/` no longer reaches up into `commands/` to assemble
+default step runners — the wiring moved to `commands/loop.ts` and is injected;
+a new `layering.test.ts` structurally forbids the import direction.
+
+C10 splits the two god-modules the audit kept tripping over, behavior-preserving:
+`state.ts` (1065 lines) is now five per-layer modules under `state/` behind a
+re-export barrel — all 41 exports and 72 consumers unchanged — and `runDoctor`
+(~500-line function) is one `checkX(ctx): CheckRow[]` per check group driven by a
+descriptor table, with the returned rows and logged output order-identical.
+C11 (proxy-aware fetch) stays deferred — the clean fix needs a new prod
+dependency (`undici`), a §5 hard-AUTH item, and the default flow is unaffected.
+
+Full suite 1605 pass / 0 fail (unchanged across the refactor); `tsc --noEmit` 0;
+`sgc doctor` 70 OK. No user-visible behavior change beyond the batch-C fixes.
+
 ## v1.38.0 — 2026-07-16 — a report exists is not the code was reviewed
 
 The default install has no LLM. In that mode every code reviewer is heuristic —

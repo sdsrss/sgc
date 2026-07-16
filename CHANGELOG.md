@@ -1,5 +1,90 @@
 # Changelog
 
+## v1.37.0 — 2026-07-16 — the gate's own remedy was laundering the bug
+
+v1.36.0 made the CLI-fact clause machine-generated so it could not drift. A code
+review of the shipped batch found the correspondence had not been deleted — it had
+moved. `deriveCliFact` reaches its data through two hand-written switches keyed by
+agent id, one level above where v1.36.0's headline criterion looks.
+
+Point an arm at the wrong def and exactly one test noticed. Its failure message
+said `fix: sgc doctor --write-descriptions`. Running that exact command
+regenerated the file **from the bad mapping** and turned everything green — 1548
+pass / 0 fail, doctor `✓ 9 agent CLI-fact clauses match the code`, while
+`migration.md` told Claude Code that the schema-migration reviewer matches
+`Dockerfile|kubectl|terraform|helm`. The gate did not merely miss it; its remedy
+erased the evidence.
+
+v1.36.0's criterion — *"reproducing any M4/M5 defect must require editing code,
+not prose"* — was satisfied the whole time. It never required that the code edit
+be **caught**.
+
+### MIGRATION — read this if you edit agent descriptions
+
+**Description text changed for 6 of the 9 agents.** No `sgc review` behaviour
+changed: no matcher, trigger, severity or `prompt_path` moved. The capability
+sentences of all 9 remain byte-identical to v1.35.0's baseline (`95d0421`),
+verified per file — if you route on these descriptions, the sentence your router
+keys on has not moved since before v1.36.0.
+
+What moved, and why you might notice:
+
+- **`reviewer.security` gained the spawned-but-silent caveat** it should have had
+  in v1.36.0. It is diff-conditional and has the asymmetry; it drew the LLM-backed
+  clause shape and so said nothing about it.
+- **`reviewer.infra`, `migration`, `performance` now say "wider in scope"**, not
+  "wider than that matcher". infra's and security's trigger regexes are
+  byte-identical to their matchers — only the scope differs (whole diff vs added
+  lines). Only performance carries extra terms, and now names them.
+- **`reviewer.maintainability` got its disclosure back.** v1.36.0 shortened M4's
+  enumeration to a bare "That is the whole of it", which asserts the same thing and
+  tells the reader nothing. It again names what the CLI does *not* do — no function
+  length, no file size, no naming/coupling/design analysis — which is what stops a
+  reader carrying its capability sentence's promises onto the CLI path. It also now
+  states that the marker match is case-sensitive.
+- **`reviewer.tests`' mechanism is stated accurately.** It said it "only asks
+  whether test files were touched"; the predicate is *source changed and no test
+  file changed*, so a test-only or docs-only diff passes — which the old phrasing
+  did not predict.
+- **`reviewer.performance` advertises `memoize/memoise`**, not `memoize`. The
+  regex always matched both; the display name dropped one while its siblings
+  (`cached/caching`, `p95/p99`) show both.
+
+**Nothing to do.** `sgc doctor --write-descriptions` regenerates on demand as
+before; `sgc doctor` still fails if a clause drifts. **Revert path**: `npm i
+@sdsrs/sgc@1.36.0`, or pin `"@sdsrs/sgc": "1.36.0"`.
+
+### What actually got fixed
+
+- **Each clause is pinned to its own def's data, not to a literal.** Every
+  mis-mapping that changes output now fails 2–4 tests whose expected side is read
+  from the def — so regeneration writes the side under test and cannot reconcile
+  them. (Swaps between same-valued severities stay undetectable; they change no
+  output, so they are not defects.)
+- **`severityOf` returns `Severity`, not `string`.** A wrong arm is now
+  `TS2322`, not a shipped description. That is what let a dead arm return
+  `"BOGUS-UNREACHABLE"` and typecheck.
+- **`severityOf`'s `reviewer.maintainability` arm was dead** — the identical
+  defect found and fixed for `reviewer.tests` three lines up in the same switch,
+  with the mutation protocol written down and never run on the sibling. Mutating
+  it changed nothing; now it fails 3 tests.
+- **The spawn caveat is derived, not hardcoded.** `DIFF_CONDITIONAL_SPECIALISTS`
+  membership decides whether the hazard applies; `triggerOnly` — which the plan
+  specified for `SpecialistDescriptor` from the start and v1.36.0 replaced with a
+  module-private const — decides which width to claim.
+- **check (O)'s skip line states what it tested.** `hasSource` is
+  `existsSync(src/sgc.ts)`; the message said "no plugins/sgc/agents/" — true of
+  the npm tarball by luck, false of any checkout carrying the registry but no
+  `src/`. A check misreporting its own skip reason, in the skip line of the check
+  built to catch exactly that.
+- **`reviewer-quality.ts`'s header** claimed both quality reviewers take the
+  synthesized prompt (`prompt_path: null`). `reviewer.tests` has had one since
+  v1.35.0, and `deriveCliFact` reads that field to pick a clause shape.
+
+Suite 1548 → 1557 (+9). `sgc doctor` 70 OK / 0 fail. No behaviour change to `sgc
+review`, re-verified: 401,380 differential inputs across all 8 matcher and trigger
+patterns against the v1.35.0 originals, 0 disagreements.
+
 ## v1.36.0 — 2026-07-16 — the drifting half of a description is now derived
 
 v1.35.0 aimed the descriptions at the right reader. It did not stop them going stale.

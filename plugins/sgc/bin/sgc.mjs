@@ -16858,7 +16858,7 @@ var init_reviewer_specialists = __esm(() => {
     { display: "cache", re: "cache", wordBounded: true },
     { display: "cached/caching", re: "cach(ed|ing)", wordBounded: true },
     { display: "index", re: "index", wordBounded: true },
-    { display: "memoize", re: "memoi[sz]e", wordBounded: true },
+    { display: "memoize/memoise", re: "memoi[sz]e", wordBounded: true },
     { display: "debounce", re: "debounce", wordBounded: true },
     { display: "throttle", re: "throttle", wordBounded: true },
     { display: "n+1", re: String.raw`n\+1`, wordBounded: true },
@@ -16901,21 +16901,25 @@ var init_reviewer_specialists = __esm(() => {
     {
       name: "reviewer.security",
       trigger: buildPattern(unbound(SECURITY_TERMS)),
+      triggerOnly: [],
       agent: reviewerSecurity
     },
     {
       name: "reviewer.migration",
       trigger: buildPattern(unbound(MIGRATION_TERMS)),
+      triggerOnly: [],
       agent: reviewerMigration
     },
     {
       name: "reviewer.performance",
       trigger: buildPattern(unbound([...PERFORMANCE_TERMS, ...PERFORMANCE_TRIGGER_ONLY])),
+      triggerOnly: PERFORMANCE_TRIGGER_ONLY,
       agent: reviewerPerformance
     },
     {
       name: "reviewer.infra",
       trigger: buildPattern(unbound(INFRA_TERMS)),
+      triggerOnly: [],
       agent: reviewerInfra
     }
   ];
@@ -19485,6 +19489,13 @@ function severityOf(id) {
       throw new Error(`${id} has no severity`);
   }
 }
+function spawnCaveat(agentId) {
+  const spec = DIFF_CONDITIONAL_SPECIALISTS.find((s2) => s2.name === agentId);
+  if (!spec)
+    return "";
+  const extra = spec.triggerOnly.length > 0 ? ` It also spawns on ${displayList(spec.triggerOnly)}, which the matcher never reports on.` : "";
+  return ` Its spawn trigger is wider than that matcher in scope: it tests the whole diff — file headers, context lines, removed lines — while the matcher reads only added lines.${extra} So a spawned reviewer reporting zero findings is not evidence of a clean diff.`;
+}
 function deriveCliFact(agentId) {
   if (!DERIVED_AGENT_IDS.includes(agentId)) {
     throw new Error(`${agentId} is not in the derived set — see DERIVED_AGENT_IDS`);
@@ -19497,13 +19508,13 @@ function deriveCliFact(agentId) {
     return `${CLI_FACT_MARKER} ${why} (manifest status: ${m2.status}), so \`sgc review\` never produces a result for it — Claude Code dispatch is the only executor.`;
   }
   if (m2.prompt_path) {
-    const fb = agentId === "reviewer.tests" ? `${TESTS_MECHANISM} that only asks whether test files were touched, at ${severityOf(agentId)} severity` : `a keyword matcher (${fallbackTerms(agentId)}) at ${severityOf(agentId)} severity`;
-    return `${CLI_FACT_MARKER} ${NO_BODY} — with an API key it runs ${m2.prompt_path}; without one it falls back to ${fb}.`;
+    const fb = agentId === "reviewer.tests" ? `${TESTS_MECHANISM} that only asks whether source files changed without any test file changing, at ${severityOf(agentId)} severity` : `a keyword matcher (${fallbackTerms(agentId)}) at ${severityOf(agentId)} severity`;
+    return `${CLI_FACT_MARKER} ${NO_BODY} — with an API key it runs ${m2.prompt_path}; without one it falls back to ${fb}.${spawnCaveat(agentId)}`;
   }
   if (agentId === "reviewer.maintainability") {
-    return `${CLI_FACT_MARKER} ${NO_BODY} — there, reviewer.maintainability is a heuristic matcher over added lines: longer than ${MAX_LINE} characters, or carrying a suppression marker (${displayList(MAINT_MARKER_TERMS)}), at ${MAINTAINABILITY_SEVERITY} severity. That is the whole of it.`;
+    return `${CLI_FACT_MARKER} ${NO_BODY} — there, reviewer.maintainability is a heuristic matcher over added lines: longer than ${MAX_LINE} characters, or carrying a suppression marker (${displayList(MAINT_MARKER_TERMS)}, matched case-sensitively), at ${severityOf(agentId)} severity. That is the whole of it: no function length, no file size, no naming, coupling or design analysis.`;
   }
-  return `${CLI_FACT_MARKER} ${NO_BODY} — there, ${agentId} is a heuristic keyword matcher over added lines (${fallbackTerms(agentId)}) at ${severityOf(agentId)} severity, which matches words about the problem rather than detecting it. Its spawn trigger is deliberately wider than that matcher, so a spawned reviewer reporting zero findings is not evidence of a clean diff.`;
+  return `${CLI_FACT_MARKER} ${NO_BODY} — there, ${agentId} is a heuristic keyword matcher over added lines (${fallbackTerms(agentId)}) at ${severityOf(agentId)} severity, which matches words about the problem rather than detecting it.${spawnCaveat(agentId)}`;
 }
 var CLI_FACT_MARKER = "Separate fact for sgc CLI users:", DERIVED_AGENT_IDS, NO_BODY = "`sgc review` does not run this file's body";
 var init_agent_facts = __esm(() => {
@@ -20677,7 +20688,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.36.0",
+    version: "1.37.0",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -21464,7 +21475,7 @@ async function runDoctor(opts = {}) {
   log("");
   log("=== agent description ↔ derived CLI fact ===");
   if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no plugins/sgc/agents/ — npm channel)" });
+    emit({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no src/sgc.ts — npm channel, no derivation to check against)" });
   } else {
     try {
       const files = readAgentMdFiles(root4);
@@ -25061,7 +25072,7 @@ import { existsSync as existsSync24 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.36.0",
+  version: "1.37.0",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {

@@ -11,7 +11,7 @@
     {
       "name": "sgc",
       "source": "./plugins/sgc",
-      "description": "SGC — self-contained engineering super-plugin: plan, execute, review, QA, security, ship, and compound knowledge. All-in-one, one-command install, runs standalone (Node >= 18, no other plugins required)."
+      "description": "SGC — self-contained engineering super-plugin: plan, execute, review, QA, security, ship, and compound knowledge. All-in-one, one-command install, runs standalone (Node >= 18.17, no other plugins required)."
     }
   ]
 }

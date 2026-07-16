@@ -1,7 +1,7 @@
 # sgc — All-in-One Engineering Workflow & Knowledge Engine for Claude Code
 
 [![npm version](https://img.shields.io/npm/v/@sdsrs/sgc?logo=npm)](https://www.npmjs.com/package/@sdsrs/sgc)
-[![install size](https://img.shields.io/badge/runtime-node%20%E2%89%A518-339933?logo=node.js&logoColor=white)](#install)
+[![install size](https://img.shields.io/badge/runtime-node%20%E2%89%A518.17-339933?logo=node.js&logoColor=white)](#install)
 [![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-d97757)](https://docs.claude.com/en/docs/claude-code)
 [![license](https://img.shields.io/npm/l/@sdsrs/sgc)](LICENSE)
 
@@ -13,7 +13,7 @@ sgc consolidates — natively, in-process — the engineering capabilities you'd
 
 ## Why sgc?
 
-- **One-command install, zero runtime hassle.** `/plugin install sgc` ships a self-contained Node bundle — works on any machine that runs Claude Code (Node ≥ 18). No `bun`, no second install step, no global setup.
+- **One-command install, zero runtime hassle.** `/plugin install sgc` ships a self-contained Node bundle — works on any machine that runs Claude Code (Node ≥ 18.17). No `bun`, no second install step, no global setup.
 - **Right-sized process per task.** Every task is classified **L0–L3** (typo → architecture) and gets exactly the planning, review depth, and human gates its risk warrants — no ceremony on a typo, full adversarial review + human signature on a migration.
 - **13 runtime invariants, enforced — not suggested.** Generator/evaluator separation, immutable decisions, dedup-gated knowledge writes, scope tokens pinned at spawn, two-tier event audit. The protocol is machine-checked at every write.
 - **A knowledge engine that compounds.** Every shipped task can promote a reusable solution/prevention into a deduplicated corpus; future plans surface prior art automatically, so lessons accumulate instead of evaporating.
@@ -35,7 +35,7 @@ npm install -g @sdsrs/sgc
 sgc --version
 ```
 
-The npm package runs on Node ≥ 18 (no `bun` runtime required). Both channels ship the **same bundle**; when both are present, the plugin-bundled CLI wins for version determinism.
+The npm package runs on Node ≥ 18.17 (no `bun` runtime required). Both channels ship the **same bundle**; when both are present, the plugin-bundled CLI wins for version determinism.
 
 <details>
 <summary><strong>From source</strong> (to hack on sgc itself)</summary>
@@ -117,7 +117,7 @@ State lives under `.sgc/` in the project (override via `SGC_STATE_ROOT`); it's `
 
 20 commands total — 17 are also exposed as `/sgc:*` slash commands inside Claude Code; `canary`, `watch-ci-failure`, and `land` are CLI-only. Real-browser QA uses **Playwright** (opt-in via `--browse` / `SGC_QA_REAL=1`; needs a browser — `npx playwright install chromium`, or `SGC_QA_BROWSER=chrome` for system Chrome); `sgc qa` defaults to a non-rubber-stamping stub.
 
-**Four-化 scorecard** (run `sgc metrics` to reproduce): 规范化 12/13 · 智能化 13/23 LLM-invokable · 自动化 5/9 · 高效化 1 step·node≥18. These numbers are produced by `sgc metrics`; see `metrics/metrics-baseline.yaml` — they are not hand-maintained, and `sgc doctor` fails if this line drifts from the live output.
+**Four-化 scorecard** (run `sgc metrics` to reproduce): 规范化 12/13 · 智能化 13/23 LLM-invokable · 自动化 5/9 · 高效化 1 step·node≥18.17. These numbers are produced by `sgc metrics`; see `metrics/metrics-baseline.yaml` — they are not hand-maintained, and `sgc doctor` fails if this line drifts from the live output.
 
 ## Task levels (L0–L3)
 
@@ -188,7 +188,7 @@ CI (`.github/workflows/test.yml`) runs the dispatcher suite + typecheck + a bund
 ## FAQ
 
 **Do I need bun, Superpowers, or gstack to use sgc?**
-No. As of v1.24.0 the CLI ships as a self-contained Node bundle — `/plugin install sgc` gives you a working CLI on any machine with Node ≥ 18. sgc runs the full loop standalone; if `superpowers` / `gstack` are installed it can interoperate, but neither is required.
+No. As of v1.24.0 the CLI ships as a self-contained Node bundle — `/plugin install sgc` gives you a working CLI on any machine with Node ≥ 18.17. sgc runs the full loop standalone; if `superpowers` / `gstack` are installed it can interoperate, but neither is required.
 
 **How does sgc install in one command?**
 `/plugin marketplace add sdsrss/sgc` then `/plugin install sgc`. The plugin payload contains the compiled Node bundle plus the slash-command prompt layer, so there is no separate CLI install step.

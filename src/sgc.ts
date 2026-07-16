@@ -2,7 +2,7 @@
 //
 // sgc — self-contained engineering super-plugin CLI (citty).
 //
-// All-in-one, runs standalone (Node >= 18, no other plugins required); absorbs
+// All-in-one, runs standalone (Node >= 18.17, no other plugins required); absorbs
 // the plan / execute / review / QA / security / ship / compound-knowledge loop
 // natively. Installed plugins (sp / gs / code-graph) are optional richer paths,
 // surfaced as non-binding hints — never required (see dispatcher/delegation.ts).

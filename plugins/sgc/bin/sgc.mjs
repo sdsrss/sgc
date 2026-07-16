@@ -15428,7 +15428,7 @@ var require_request = __commonJS((exports, module) => {
   var invalidPathRegex = /[^\u0021-\u00ff]/;
   var kHandler = Symbol("handler");
 
-  class Request {
+  class Request2 {
     constructor(origin, {
       path: path2,
       method,
@@ -15730,7 +15730,7 @@ var require_request = __commonJS((exports, module) => {
       request.headers.push(key, val);
     }
   }
-  module.exports = Request;
+  module.exports = Request2;
 });
 
 // node_modules/undici/lib/dispatcher/dispatcher.js
@@ -20840,7 +20840,7 @@ var require_client = __commonJS((exports, module) => {
   var http = __require("node:http");
   var util = require_util();
   var { channels } = require_diagnostics();
-  var Request = require_request();
+  var Request2 = require_request();
   var DispatcherBase = require_dispatcher_base();
   var {
     InvalidArgumentError,
@@ -21073,7 +21073,7 @@ var require_client = __commonJS((exports, module) => {
     }
     [kDispatch](opts, handler) {
       const origin = opts.origin || this[kUrl].origin;
-      const request = new Request(origin, opts, handler);
+      const request = new Request2(origin, opts, handler);
       this[kQueue].push(request);
       if (this[kResuming]) {} else if (util.bodyLength(request.body) == null && util.isIterable(request.body)) {
         this[kResuming] = 1;
@@ -25730,7 +25730,7 @@ var require_request2 = __commonJS((exports, module) => {
   }
   var patchMethodWarning = false;
 
-  class Request {
+  class Request2 {
     constructor(input, init2 = {}) {
       webidl.util.markAsUncloneable(this);
       if (input === kConstruct) {
@@ -25759,7 +25759,7 @@ var require_request2 = __commonJS((exports, module) => {
         fallbackMode = "cors";
       } else {
         this[kDispatcher] = init2.dispatcher || input[kDispatcher];
-        assert(input instanceof Request);
+        assert(input instanceof Request2);
         request = input[kState];
         signal = input[kSignal];
       }
@@ -25933,7 +25933,7 @@ var require_request2 = __commonJS((exports, module) => {
           fillHeaders(this[kHeaders], headers);
         }
       }
-      const inputBody = input instanceof Request ? input[kState].body : null;
+      const inputBody = input instanceof Request2 ? input[kState].body : null;
       if ((init2.body != null || inputBody != null) && (request.method === "GET" || request.method === "HEAD")) {
         throw new TypeError("Request with GET/HEAD method cannot have body.");
       }
@@ -25971,23 +25971,23 @@ var require_request2 = __commonJS((exports, module) => {
       this[kState].body = finalBody;
     }
     get method() {
-      webidl.brandCheck(this, Request);
+      webidl.brandCheck(this, Request2);
       return this[kState].method;
     }
     get url() {
-      webidl.brandCheck(this, Request);
+      webidl.brandCheck(this, Request2);
       return URLSerializer(this[kState].url);
     }
     get headers() {
-      webidl.brandCheck(this, Request);
+      webidl.brandCheck(this, Request2);
       return this[kHeaders];
     }
     get destination() {
-      webidl.brandCheck(this, Request);
+      webidl.brandCheck(this, Request2);
       return this[kState].destination;
     }
     get referrer() {
-      webidl.brandCheck(this, Request);
+      webidl.brandCheck(this, Request2);
       if (this[kState].referrer === "no-referrer") {
         return "";
       }
@@ -25997,58 +25997,58 @@ var require_request2 = __commonJS((exports, module) => {
       return this[kState].referrer.toString();
     }
     get referrerPolicy() {
-      webidl.brandCheck(this, Request);
+      webidl.brandCheck(this, Request2);
       return this[kState].referrerPolicy;
     }
     get mode() {
-      webidl.brandCheck(this, Request);
+      webidl.brandCheck(this, Request2);
       return this[kState].mode;
     }
     get credentials() {
       return this[kState].credentials;
     }
     get cache() {
-      webidl.brandCheck(this, Request);
+      webidl.brandCheck(this, Request2);
       return this[kState].cache;
     }
     get redirect() {
-      webidl.brandCheck(this, Request);
+      webidl.brandCheck(this, Request2);
       return this[kState].redirect;
     }
     get integrity() {
-      webidl.brandCheck(this, Request);
+      webidl.brandCheck(this, Request2);
       return this[kState].integrity;
     }
     get keepalive() {
-      webidl.brandCheck(this, Request);
+      webidl.brandCheck(this, Request2);
       return this[kState].keepalive;
     }
     get isReloadNavigation() {
-      webidl.brandCheck(this, Request);
+      webidl.brandCheck(this, Request2);
       return this[kState].reloadNavigation;
     }
     get isHistoryNavigation() {
-      webidl.brandCheck(this, Request);
+      webidl.brandCheck(this, Request2);
       return this[kState].historyNavigation;
     }
     get signal() {
-      webidl.brandCheck(this, Request);
+      webidl.brandCheck(this, Request2);
       return this[kSignal];
     }
     get body() {
-      webidl.brandCheck(this, Request);
+      webidl.brandCheck(this, Request2);
       return this[kState].body ? this[kState].body.stream : null;
     }
     get bodyUsed() {
-      webidl.brandCheck(this, Request);
+      webidl.brandCheck(this, Request2);
       return !!this[kState].body && util.isDisturbed(this[kState].body.stream);
     }
     get duplex() {
-      webidl.brandCheck(this, Request);
+      webidl.brandCheck(this, Request2);
       return "half";
     }
     clone() {
-      webidl.brandCheck(this, Request);
+      webidl.brandCheck(this, Request2);
       if (bodyUnusable(this)) {
         throw new TypeError("unusable");
       }
@@ -26093,7 +26093,7 @@ var require_request2 = __commonJS((exports, module) => {
       return `Request ${nodeUtil.formatWithOptions(options, properties)}`;
     }
   }
-  mixinBody(Request);
+  mixinBody(Request2);
   function makeRequest(init2) {
     return {
       method: init2.method ?? "GET",
@@ -26144,7 +26144,7 @@ var require_request2 = __commonJS((exports, module) => {
     return newRequest;
   }
   function fromInnerRequest(innerRequest, signal, guard) {
-    const request = new Request(kConstruct);
+    const request = new Request2(kConstruct);
     request[kState] = innerRequest;
     request[kSignal] = signal;
     request[kHeaders] = new Headers2(kConstruct);
@@ -26152,7 +26152,7 @@ var require_request2 = __commonJS((exports, module) => {
     setHeadersGuard(request[kHeaders], guard);
     return request;
   }
-  Object.defineProperties(Request.prototype, {
+  Object.defineProperties(Request2.prototype, {
     method: kEnumerableProperty,
     url: kEnumerableProperty,
     headers: kEnumerableProperty,
@@ -26178,12 +26178,12 @@ var require_request2 = __commonJS((exports, module) => {
       configurable: true
     }
   });
-  webidl.converters.Request = webidl.interfaceConverter(Request);
+  webidl.converters.Request = webidl.interfaceConverter(Request2);
   webidl.converters.RequestInfo = function(V2, prefix, argument) {
     if (typeof V2 === "string") {
       return webidl.converters.USVString(V2, prefix, argument);
     }
-    if (V2 instanceof Request) {
+    if (V2 instanceof Request2) {
       return webidl.converters.Request(V2, prefix, argument);
     }
     return webidl.converters.USVString(V2, prefix, argument);
@@ -26257,7 +26257,7 @@ var require_request2 = __commonJS((exports, module) => {
       converter: webidl.converters.any
     }
   ]);
-  module.exports = { Request, makeRequest, fromInnerRequest, cloneRequest };
+  module.exports = { Request: Request2, makeRequest, fromInnerRequest, cloneRequest };
 });
 
 // node_modules/undici/lib/web/fetch/index.js
@@ -26270,7 +26270,7 @@ var require_fetch = __commonJS((exports, module) => {
     fromInnerResponse
   } = require_response();
   var { HeadersList } = require_headers();
-  var { Request, cloneRequest } = require_request2();
+  var { Request: Request2, cloneRequest } = require_request2();
   var zlib = __require("node:zlib");
   var {
     bytesMatch,
@@ -26365,7 +26365,7 @@ var require_fetch = __commonJS((exports, module) => {
     let p = createDeferredPromise();
     let requestObject;
     try {
-      requestObject = new Request(input, init2);
+      requestObject = new Request2(input, init2);
     } catch (e2) {
       p.reject(e2);
       return p.promise;
@@ -28069,7 +28069,7 @@ var require_cache = __commonJS((exports, module) => {
   var { kEnumerableProperty, isDisturbed } = require_util();
   var { webidl } = require_webidl();
   var { Response: Response2, cloneResponse, fromInnerResponse } = require_response();
-  var { Request, fromInnerRequest } = require_request2();
+  var { Request: Request2, fromInnerRequest } = require_request2();
   var { kState } = require_symbols2();
   var { fetching } = require_fetch();
   var { urlIsHttpHttpsScheme, createDeferredPromise, readAllBytes } = require_util2();
@@ -28141,7 +28141,7 @@ var require_cache = __commonJS((exports, module) => {
       }
       const fetchControllers = [];
       for (const request of requests) {
-        const r3 = new Request(request)[kState];
+        const r3 = new Request2(request)[kState];
         if (!urlIsHttpHttpsScheme(r3.url)) {
           throw webidl.errors.exception({
             header: prefix,
@@ -28222,10 +28222,10 @@ var require_cache = __commonJS((exports, module) => {
       request = webidl.converters.RequestInfo(request, prefix, "request");
       response = webidl.converters.Response(response, prefix, "response");
       let innerRequest = null;
-      if (request instanceof Request) {
+      if (request instanceof Request2) {
         innerRequest = request[kState];
       } else {
-        innerRequest = new Request(request)[kState];
+        innerRequest = new Request2(request)[kState];
       }
       if (!urlIsHttpHttpsScheme(innerRequest.url) || innerRequest.method !== "GET") {
         throw webidl.errors.exception({
@@ -28300,14 +28300,14 @@ var require_cache = __commonJS((exports, module) => {
       request = webidl.converters.RequestInfo(request, prefix, "request");
       options = webidl.converters.CacheQueryOptions(options, prefix, "options");
       let r3 = null;
-      if (request instanceof Request) {
+      if (request instanceof Request2) {
         r3 = request[kState];
         if (r3.method !== "GET" && !options.ignoreMethod) {
           return false;
         }
       } else {
         assert(typeof request === "string");
-        r3 = new Request(request)[kState];
+        r3 = new Request2(request)[kState];
       }
       const operations = [];
       const operation = {
@@ -28341,13 +28341,13 @@ var require_cache = __commonJS((exports, module) => {
       options = webidl.converters.CacheQueryOptions(options, prefix, "options");
       let r3 = null;
       if (request !== undefined) {
-        if (request instanceof Request) {
+        if (request instanceof Request2) {
           r3 = request[kState];
           if (r3.method !== "GET" && !options.ignoreMethod) {
             return [];
           }
         } else if (typeof request === "string") {
-          r3 = new Request(request)[kState];
+          r3 = new Request2(request)[kState];
         }
       }
       const promise = createDeferredPromise();
@@ -28489,13 +28489,13 @@ var require_cache = __commonJS((exports, module) => {
     #internalMatchAll(request, options, maxResponses = Infinity) {
       let r3 = null;
       if (request !== undefined) {
-        if (request instanceof Request) {
+        if (request instanceof Request2) {
           r3 = request[kState];
           if (r3.method !== "GET" && !options.ignoreMethod) {
             return [];
           }
         } else if (typeof request === "string") {
-          r3 = new Request(request)[kState];
+          r3 = new Request2(request)[kState];
         }
       }
       const responses = [];
@@ -31195,20 +31195,69 @@ var init_undici = __esm(() => {
 function proxyUrlFromEnv(env2) {
   return env2["HTTPS_PROXY"] || env2["https_proxy"] || env2["HTTP_PROXY"] || env2["http_proxy"] || undefined;
 }
-function dispatcherForEnv(env2) {
-  const url = proxyUrlFromEnv(env2);
-  if (!url)
-    return;
-  if (cached?.url !== url)
-    cached = { url, agent: new $ProxyAgent(url) };
-  return cached.agent;
+function noProxyEntries(env2) {
+  const raw = env2["NO_PROXY"] || env2["no_proxy"] || "";
+  return raw.split(",").map((s2) => s2.trim().toLowerCase()).filter(Boolean);
 }
-function makeProxyAwareFetch(baseFetch = globalThis.fetch, env2 = process.env) {
+function hostOf(input) {
+  try {
+    if (typeof input === "string")
+      return new URL(input).hostname.toLowerCase();
+    if (input instanceof URL)
+      return input.hostname.toLowerCase();
+    if (input instanceof Request)
+      return new URL(input.url).hostname.toLowerCase();
+    return new URL(String(input)).hostname.toLowerCase();
+  } catch {
+    return;
+  }
+}
+function isLoopback(host) {
+  return host === "localhost" || host.endsWith(".localhost") || host === "::1" || host === "[::1]" || host === "0.0.0.0" || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);
+}
+function shouldBypass(host, noProxy) {
+  if (!host)
+    return false;
+  if (isLoopback(host))
+    return true;
+  for (const raw of noProxy) {
+    if (raw === "*")
+      return true;
+    const entry = (raw.split(":")[0] ?? "").replace(/^\*?\./, "");
+    if (!entry)
+      continue;
+    if (host === entry || host.endsWith("." + entry))
+      return true;
+  }
+  return false;
+}
+function dispatcherFor(url) {
+  if (cached?.url === url)
+    return cached.agent;
+  try {
+    new URL(url);
+  } catch {
+    throw new Error(`invalid proxy URL in HTTP(S)_PROXY (${JSON.stringify(url)}): not a valid URL`);
+  }
+  if (cached) {
+    try {
+      cached.agent.close();
+    } catch {}
+  }
+  const agent = new $ProxyAgent(url);
+  cached = { url, agent };
+  return agent;
+}
+function makeProxyAwareFetch(baseFetch, env2 = process.env) {
   return (input, init2) => {
-    const dispatcher = dispatcherForEnv(env2);
-    if (!dispatcher)
-      return baseFetch(input, init2);
-    return baseFetch(input, { ...init2, dispatcher });
+    const base = baseFetch ?? globalThis.fetch;
+    const url = proxyUrlFromEnv(env2);
+    if (!url)
+      return base(input, init2);
+    if (shouldBypass(hostOf(input), noProxyEntries(env2)))
+      return base(input, init2);
+    const dispatcher = dispatcherFor(url);
+    return base(input, { ...init2, dispatcher });
   };
 }
 var cached, proxyAwareFetch;
@@ -36567,7 +36616,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.38.3",
+    version: "1.38.4",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -41899,7 +41948,7 @@ import { existsSync as existsSync27 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.38.3",
+  version: "1.38.4",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {

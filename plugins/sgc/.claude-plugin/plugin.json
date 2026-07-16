@@ -1,7 +1,7 @@
 {
   "name": "sgc",
-  "version": "1.38.3",
-  "description": "All-in-one engineering workflow + knowledge engine for Claude Code — plan, review, QA, security, ship, and compound knowledge with L0-L3 task classification and 13 runtime invariants. Self-contained: installs in one command and runs standalone (Node >= 18, no bun, no other plugins required).",
+  "version": "1.38.4",
+  "description": "All-in-one engineering workflow + knowledge engine for Claude Code — plan, review, QA, security, ship, and compound knowledge with L0-L3 task classification and 13 runtime invariants. Self-contained: installs in one command and runs standalone (Node >= 18.17, no bun, no other plugins required).",
   "author": {
     "name": "SDS"
   },

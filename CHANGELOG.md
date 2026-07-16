@@ -1,5 +1,30 @@
 # Changelog
 
+## v1.38.4 — 2026-07-16 — the proxy, but not to your own machine
+
+Follow-up to a code review of the C11 proxy work (v1.38.2). Three fixes:
+
+- **NO_PROXY + loopback bypass.** The proxy dispatcher now honors `NO_PROXY`
+  (bare hosts, `.suffix` / `*.suffix` domains, `*`) and always reaches loopback
+  targets (`localhost`, `127.0.0.0/8`, `::1`) directly. Before, with `HTTP_PROXY`
+  set, a `sgc canary --health-url http://localhost:…` probe was forced through
+  the proxy and would fail — routing a request to your own machine through an
+  external proxy is never right. A malformed `HTTP(S)_PROXY` value now fails fast
+  with a message naming the env var instead of a naked throw at first request.
+- **Seam regression guards.** The feature hinges on the OpenRouter agent and the
+  canary health-check *defaulting* to `proxyAwareFetch`. Every other test in
+  those suites injects its own fetch, so a change reverting either seam to raw
+  `globalThis.fetch` would pass the whole suite while silently disabling proxy
+  support. Two tests now drive the real default path (stubbed `globalThis.fetch`
+  + `HTTPS_PROXY`) and assert the outbound request carried an undici dispatcher.
+- **Node ≥ 18.17 prose sync.** v1.38.3 tightened `engines.node` to `>=18.17` but
+  left the README, marketplace/plugin descriptions, and a workflow comment still
+  saying "Node ≥ 18". Synced them so the human- and LLM-visible prose matches the
+  manifest — the same under-claim v1.38.3 set out to fix.
+
+No behavior change on the no-proxy path. Full suite 1609 → 1618 pass / 0 fail
+(+9: 7 new proxy-fetch cases + 2 seam guards); `tsc --noEmit` 0; `sgc doctor` 70 OK.
+
 ## v1.38.3 — 2026-07-16 — the engines field, made honest
 
 v1.38.2 added `undici@^6`, whose real floor is Node 18.17 — but the package kept

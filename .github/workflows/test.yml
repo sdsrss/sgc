@@ -8,8 +8,8 @@ on:
 
 jobs:
   # P2-12 (audit v1.31.8): the two install-surface promises had no CI behind
-  # them. package.json says `engines.node: >=18` and the README sells "one
-  # command, npx/global, node ≥ 18" — but every job ran Node 24 only, and
+  # them. package.json says `engines.node: >=18.17` and the README sells "one
+  # command, npx/global, node ≥ 18.17" — but every job ran Node 24 only, and
   # tests/e2e/npm-isolated-install.test.sh existed while being wired into
   # nothing. Both claims were asserted, never tested. This job tests them: it
   # packs the real tarball, installs it into a clean tree, and drives the

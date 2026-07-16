@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test"
 import { deriveCliFact, DERIVED_AGENT_IDS, CLI_FACT_MARKER } from "../../src/dispatcher/agent-facts"
 import { cliFactDrift, readAgentMdFiles, runDoctor, rewriteCliFact } from "../../src/commands/doctor"
+import { SECURITY, MIGRATION, PERFORMANCE, INFRA } from "../../src/dispatcher/agents/reviewer-specialists"
+import {
+  MAINT_MARKER_TERMS, MAX_LINE, MAINTAINABILITY_SEVERITY,
+  TESTS_SEVERITY, TESTS_MECHANISM,
+} from "../../src/dispatcher/agents/reviewer-quality"
+import { displayList } from "../../src/dispatcher/agents/terms"
 import { resolve, join } from "node:path"
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -294,6 +300,54 @@ describe("Task 7 — every M4/M5 defect class now requires editing code to repro
     // and it must stay green when check (O) is disabled (Step 2).
     expect(deriveCliFact("reviewer.security")).toContain("with an API key it runs")
     expect(deriveCliFact("reviewer.performance")).not.toContain("with an API key it runs")
+  })
+})
+
+// Code review of the shipped v1.36.0 batch found the hole this block closes.
+//
+// deriveCliFact reaches its data through two hand-written switch statements
+// (fallbackTerms, severityOf) keyed by agent id. That is the same hand-maintained
+// correspondence this whole batch exists to delete — moved out of prose and into
+// code, one level above where the headline criterion looks. Point an arm at the
+// wrong def and only ONE test noticed: "THE REAL 9 FILES are in sync". Its
+// failure message says `fix: sgc doctor --write-descriptions`, and running that
+// exact command regenerated the file from the wrong mapping and turned the suite
+// green — a schema-migration reviewer advertising Terraform and Helm, with doctor
+// printing `✓ 9 agent CLI-fact clauses match the code`. The gate did not merely
+// miss it; its own remedy erased the evidence. 5 of 10 arms were unpinned.
+//
+// The fix is to take the expectation from the def itself rather than from a
+// literal. A mis-pointed arm then fails a comparison whose two sides disagree by
+// construction, and no amount of regeneration can reconcile them — regeneration
+// is what writes the wrong side.
+describe("each clause is pinned to its own def's data, not to a literal", () => {
+  for (const def of [SECURITY, MIGRATION, PERFORMANCE, INFRA]) {
+    test(`${def.name} — clause advertises ITS OWN terms and severity`, () => {
+      const f = deriveCliFact(def.name)
+      expect(f).toContain(displayList(def.terms))
+      expect(f).toContain(`at ${def.severity} severity`)
+    })
+  }
+
+  test("reviewer.maintainability — clause carries ITS OWN threshold, markers and severity", () => {
+    const f = deriveCliFact("reviewer.maintainability")
+    expect(f).toContain(String(MAX_LINE))
+    expect(f).toContain(displayList(MAINT_MARKER_TERMS))
+    expect(f).toContain(`at ${MAINTAINABILITY_SEVERITY} severity`)
+  })
+
+  test("reviewer.tests — clause carries ITS OWN mechanism and severity", () => {
+    const f = deriveCliFact("reviewer.tests")
+    expect(f).toContain(TESTS_MECHANISM)
+    expect(f).toContain(`at ${TESTS_SEVERITY} severity`)
+  })
+
+  test("no two specialists advertise the same term list", () => {
+    // The mis-mapping that started this: fallbackTerms(migration) returning
+    // INFRA.terms. Two ids advertising one list is that bug's fingerprint, and it
+    // is visible without knowing which of the two is wrong.
+    const lists = [SECURITY, MIGRATION, PERFORMANCE, INFRA].map((d) => displayList(d.terms))
+    expect(new Set(lists).size).toBe(lists.length)
   })
 })
 

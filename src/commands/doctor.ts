@@ -912,7 +912,13 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   log("")
   log("=== agent description ↔ derived CLI fact ===")
   if (!hasSource) {
-    emit({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no plugins/sgc/agents/ — npm channel)" })
+    // States what it tested. `hasSource` is `existsSync(root/src/sgc.ts)`, so
+    // "no plugins/sgc/agents/" was a reason this branch never checked — true of
+    // the npm tarball by luck, false of any checkout carrying the registry but no
+    // src/. A check that misreports why it skipped is the defect check (O) exists
+    // to catch, in check (O)'s own skip line. The agents/-absent case is the
+    // files.length === 0 branch below, which did test what it claims.
+    emit({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no src/sgc.ts — npm channel, no derivation to check against)" })
   } else {
     // Same failure mode check (N) above already learned the hard way: a broken
     // symlink or unreadable dir under agents/ makes readAgentMdFiles throw

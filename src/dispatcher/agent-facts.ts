@@ -7,6 +7,7 @@
 //
 // See docs/superpowers/specs/2026-07-15-agent-description-derivation-design.md
 
+import type { Severity } from "./types"
 import { getSubagentManifest } from "./schema"
 import { displayList } from "./agents/terms"
 import { SECURITY, MIGRATION, PERFORMANCE, INFRA } from "./agents/reviewer-specialists"
@@ -26,6 +27,17 @@ export const DERIVED_AGENT_IDS: readonly string[] = [
 
 const NO_BODY = "`sgc review` does not run this file's body"
 
+// These two switches are the one hand-maintained correspondence this file could
+// not delete: something has to map an id to its def. Review of v1.36.0 found that
+// pointing an arm at the wrong def produced a wrong-but-green ship — only the
+// real-9-files golden test noticed, and its own `fix: sgc doctor
+// --write-descriptions` remedy regenerated the file from the bad mapping and went
+// green. Pinned since by tests/dispatcher/agent-facts.test.ts "each clause is
+// pinned to its own def's data" — which takes its expectation from the def rather
+// than a literal, so regeneration writes the side under test and cannot reconcile
+// the two. `Severity` rather than `string` closes the rest: a mis-typed arm is now
+// a compile error, not a shipped description.
+
 function fallbackTerms(id: string): string {
   switch (id) {
     case "reviewer.security": return displayList(SECURITY.terms)
@@ -36,7 +48,7 @@ function fallbackTerms(id: string): string {
   }
 }
 
-function severityOf(id: string): string {
+function severityOf(id: string): Severity {
   switch (id) {
     case "reviewer.security": return SECURITY.severity
     case "reviewer.migration": return MIGRATION.severity
@@ -74,8 +86,15 @@ export function deriveCliFact(agentId: string): string {
   }
 
   // Shape 3 — threshold + marker list.
+  //
+  // The closing enumeration is not decoration. This file's capability sentence
+  // promises naming, module boundaries and coupling; M4 caught the CLI clause
+  // inventing long-function and large-file analysis it never had. Naming what the
+  // CLI does NOT do is what stops a reader carrying the capability sentence's
+  // promises onto the CLI path — v1.36.0 dropped it to a bare "That is the whole
+  // of it", which asserts the same thing while telling the reader nothing.
   if (agentId === "reviewer.maintainability") {
-    return `${CLI_FACT_MARKER} ${NO_BODY} — there, reviewer.maintainability is a heuristic matcher over added lines: longer than ${MAX_LINE} characters, or carrying a suppression marker (${displayList(MAINT_MARKER_TERMS)}), at ${MAINTAINABILITY_SEVERITY} severity. That is the whole of it.`
+    return `${CLI_FACT_MARKER} ${NO_BODY} — there, reviewer.maintainability is a heuristic matcher over added lines: longer than ${MAX_LINE} characters, or carrying a suppression marker (${displayList(MAINT_MARKER_TERMS)}, matched case-sensitively), at ${severityOf(agentId)} severity. That is the whole of it: no function length, no file size, no naming, coupling or design analysis.`
   }
 
   // Shape 1 — term-list matcher, no LLM path.

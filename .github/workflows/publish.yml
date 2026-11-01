@@ -19,17 +19,20 @@ name: publish-npm
 # and the publish fails (401/403/404). Fix the npmjs.com values or the
 # permission; do not add a token back.
 #
-# Why no NODE_AUTH_TOKEN / NPM_TOKEN at any level (step, job, workflow): npm
-# 11 tries OIDC first and, if that fails, quietly falls back to a token in
+# Why no real NODE_AUTH_TOKEN / NPM_TOKEN at any level (step, job, workflow):
+# npm 11 tries OIDC first and, if that fails, quietly falls back to a token in
 # the environment. With a token present, a broken trust configuration still
 # publishes and the job stays green; without one, it fails here instead.
+# (setup-node's `registry-url` exports a placeholder NODE_AUTH_TOKEN,
+# `XXXXX-XXXXX-XXXXX-XXXXX`; the registry rejects it, so it masks nothing.)
 #
 # Why two jobs: any code running in a job with `id-token: write` can mint an
 # OIDC token, and once npmjs.com trusts this workflow that token can be
 # exchanged for a publish credential. So `build`, which runs third-party code
 # (npm ci install scripts, actions, the test suite), gets no id-token: it packs
 # the tarball and hands it over as an artifact. Only `publish` may mint a
-# token, and it runs nothing but setup-node and `npm publish <tarball>`.
+# token, and it runs nothing but GitHub's download-artifact and setup-node
+# actions and `npm publish <tarball>`.
 # Actions are pinned to commit SHAs for the same reason.
 #
 # Before tagging: bump package.json + plugins/sgc/.claude-plugin/plugin.json

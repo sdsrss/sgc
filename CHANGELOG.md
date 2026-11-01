@@ -17,9 +17,10 @@ A release-pipeline and dependency release. sgc's own behavior is unchanged.
   workflow that token can be exchanged for a publish credential. The workflow is
   now split. `build` runs install, typecheck, bundle parity, the
   tag == package.json == plugin.json lock, the tests and `npm pack`, and has no
-  `id-token`. `publish` downloads that tarball and runs `npm publish` and nothing
-  else, so dependency install scripts, actions and test code never run where a
-  token can be requested. Every action is pinned to a commit SHA.
+  `id-token`. `publish` runs only GitHub's own download-artifact and setup-node
+  actions and `npm publish` on that tarball, so dependency install scripts, the
+  test suite and the third-party setup-bun action never run where a token can be
+  requested. Every action in `publish.yml` is pinned to a commit SHA.
 - **Bundled dependency fixes.** undici 6.27.0 → 6.29.1 and js-yaml 4.3.0 → 4.3.2,
   for 2 high-severity `npm audit` findings; the ranges move to `^6.29.1` /
   `^4.3.2`. The bundle inlines both, so v1.38.4's bundle carried the vulnerable
@@ -30,7 +31,8 @@ A release-pipeline and dependency release. sgc's own behavior is unchanged.
   temp dir on every run.
 
 Full suite 1618 pass / 38 skip / 0 fail (unchanged); `tsc --noEmit` 0;
-`npm audit --omit=dev` 2 high → 0; bundle 1692976 → 1707646 bytes; `sgc doctor` 71 OK / 0 warn / 0 fail.
+`npm audit --omit=dev` 2 high → 0; bundle 1694486 → 1707646 bytes (+13160);
+`sgc doctor` 71 OK / 0 warn / 0 fail with CI's bun 1.3.5.
 
 ## v1.38.4 — 2026-07-16 — the proxy, but not to your own machine
 

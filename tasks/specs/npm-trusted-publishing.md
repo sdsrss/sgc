@@ -18,7 +18,7 @@
 
 ## 方案
 - 发布入口只有一个：publish.yml 的 `Publish to npm` step（直接 `npm publish`，不是 workflow_call 可复用 workflow，没有 pnpm/yarn/changesets/semantic-release/第三方 publish action）。所以 npmjs.com 上的 workflow filename 填 `publish.yml`。
-- 已经是 Node 24、`registry-url` 保留；`id-token: write` 保持 workflow 级（只有一个 job）。
+- 第一轮：已经是 Node 24、`registry-url` 保留；`id-token: write` 在 workflow 级（当时只有一个 job）。第二轮拆成两个 job，见「决策与进展」。
 - 原 workflow 没有 token 判空、provenance 回退重发或 "版本已在 npm 上就跳过" 的逻辑，所以只需删 step 级 `env: NODE_AUTH_TOKEN`。
 - 第二轮（2026-11-01，用户批准）拆成两个 job：`build`（checkout、npm ci、typecheck、bundle 一致性、版本锁、测试、`npm pack`、上传 artifact）不给 `id-token`；`publish`（`needs: build`，job 级 `id-token: write`）只下载 tarball、setup-node、`npm publish "./dist/$TARBALL"`。原因：同一 job 里任何代码都能请求 OIDC token，npmjs.com 信任本 workflow 之后，这个 token 能换成发布凭据。所有 action 钉到 commit SHA（checkout v5.1.0、setup-node v5.0.0、setup-bun v2.2.0、upload-artifact v7.0.2、download-artifact v8.0.2，后两个与 code-graph-mcp 的钉法相同）。路径必须带 `./`：本地 dry-run 显示 npm 会把 `dist/x.tgz` 当成 GitHub `user/repo` 简写去 `git ls-remote`。
 - 仓库里没有检查 workflow 内容的测试（`tests/dispatcher/doctor-bundle-toolchain.test.ts` 用的是内联字符串，不读真实文件），按要求不新建。
@@ -37,8 +37,11 @@
 ## 验证记录
 - 改前：`grep -v '^\s*#' .github/workflows/publish.yml | grep -nE 'NPM_TOKEN|NODE_AUTH_TOKEN'` → 命中 1 行（`NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}`），确认会失败
 - 改后：同一条命令 → 无输出（grep exit 1），通过
-- js-yaml 解析 publish.yml → 通过：10 个 step（与改前相同），workflow 级 `permissions: {contents: read, id-token: write}`，job 无 `environment:`，setup-node `node-version: "24"` + `registry-url` 保留，publish step 只剩 `run: npm publish --access public --provenance`，没有 `continue-on-error`，解析后的整个结构里没有 NPM_TOKEN / NODE_AUTH_TOKEN
+- 第一轮（单 job 版本，已被第二轮取代）：js-yaml 解析 publish.yml → 通过：10 个 step（与改前相同），workflow 级 `permissions: {contents: read, id-token: write}`，job 无 `environment:`，setup-node `node-version: "24"` + `registry-url` 保留，publish step 只剩 `run: npm publish --access public --provenance`，没有 `continue-on-error`，解析后的整个结构里没有 NPM_TOKEN / NODE_AUTH_TOKEN
 - `npm run typecheck` → 通过（exit 0）
 - `npm run test:all`（`SGC_FORCE_INLINE=1 bun test tests/`）→ 通过：1618 pass / 38 skip / 0 fail，147 个文件
 - 项目没有 lint 脚本 → lint 无法运行
-- AC4 → 未运行（等用户让发版）
+- 第二轮 job 拆分：临时结构检查（workflow 级无 id-token、只有一个 OIDC job 且只跑 download/setup-node/npm publish、action 全部钉 SHA、非注释行无 token）→ 改前失败 5 项，改后通过；actionlint 1.7.12 → 通过（exit 0）；本地 `npm publish ./dist/<tarball> --dry-run` → 读到 @sdsrs/sgc、5 个文件。
+- test.yml 在 59bdc4c、3118830 上 → 失败（bundle 一致性）：提交的 bundle 是本机 bun 1.4.2 构建（e2e 脚本里的 `npm run build:cli` 用了 PATH 上的 bun）。be09510 提交 bun 1.3.5 构建（blob c1f2084）后 → 通过（run 41331375589：1618 pass / 38 skip / 0 fail；LLM smoke 0 pass / 8 skip）。
+- 发版前审查（全新子代理，范围 7e309e4..3118830）：Critical 1 项（上面的 bundle，be09510 已修）；Medium：CHANGELOG 数字错（bundle 原大小应为 1694486，doctor 数字只在 bun 1.3.5 下成立）、`NPM_TOKEN` secret 仍在（按计划核对 `_npmUser` 后问用户）；Low：CHANGELOG / 注释夸大 publish job 的精简程度、setup-node 导出占位 `NODE_AUTH_TOKEN`、applied-tracker 第 57 行空格、本 spec 过时。前三类 Low 与 Medium 的数字已修，复审另起新子代理。
+- AC4 → 未运行（等用户确认 npmjs.com 配置后再打 tag）

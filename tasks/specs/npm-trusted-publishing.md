@@ -20,6 +20,7 @@
 - 发布入口只有一个：publish.yml 的 `Publish to npm` step（直接 `npm publish`，不是 workflow_call 可复用 workflow，没有 pnpm/yarn/changesets/semantic-release/第三方 publish action）。所以 npmjs.com 上的 workflow filename 填 `publish.yml`。
 - 已经是 Node 24、`registry-url` 保留；`id-token: write` 保持 workflow 级（只有一个 job）。
 - 原 workflow 没有 token 判空、provenance 回退重发或 "版本已在 npm 上就跳过" 的逻辑，所以只需删 step 级 `env: NODE_AUTH_TOKEN`。
+- 第二轮（2026-11-01，用户批准）拆成两个 job：`build`（checkout、npm ci、typecheck、bundle 一致性、版本锁、测试、`npm pack`、上传 artifact）不给 `id-token`；`publish`（`needs: build`，job 级 `id-token: write`）只下载 tarball、setup-node、`npm publish "./dist/$TARBALL"`。原因：同一 job 里任何代码都能请求 OIDC token，npmjs.com 信任本 workflow 之后，这个 token 能换成发布凭据。所有 action 钉到 commit SHA（checkout v5.1.0、setup-node v5.0.0、setup-bun v2.2.0、upload-artifact v7.0.2、download-artifact v8.0.2，后两个与 code-graph-mcp 的钉法相同）。路径必须带 `./`：本地 dry-run 显示 npm 会把 `dist/x.tgz` 当成 GitHub `user/repo` 简写去 `git ls-remote`。
 - 仓库里没有检查 workflow 内容的测试（`tests/dispatcher/doctor-bundle-toolchain.test.ts` 用的是内联字符串，不读真实文件），按要求不新建。
 
 ## 计划

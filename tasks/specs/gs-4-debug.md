@@ -1,5 +1,5 @@
 ---
-status: draft
+status: implemented
 revision: 1
 task_id: gs-4-debug
 feature_id: f11

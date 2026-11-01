@@ -1,5 +1,5 @@
 ---
-status: draft
+status: implemented
 revision: 1
 slug: gs-3-plan-fusion
 level: L3

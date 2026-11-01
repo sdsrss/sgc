@@ -18,7 +18,7 @@
 // version needed.
 
 import { describe, expect, test } from "bun:test"
-import { ciPinnedBunVersion, bundleStaleSeverity } from "../../src/commands/doctor"
+import { ciPinnedBunVersion, bundleMatchSeverity, bundleStaleSeverity } from "../../src/commands/doctor"
 
 const WORKFLOW = `
 name: test
@@ -71,5 +71,30 @@ describe("bundleStaleSeverity (P2-2)", () => {
 
   test("unknown local bun → cannot compare → fall back to fail", () => {
     expect(bundleStaleSeverity(null, "1.3.5").severity).toBe("fail")
+  })
+})
+
+// v2.0.0: the converse case. During v1.38.5 a bundle built by local bun 1.4.2
+// was committed; doctor rebuilt it with the same 1.4.2, saw a match and said
+// OK, while CI (bun 1.3.5) rejected it twice. A match only certifies CI's
+// parity gate when it was produced by CI's bun.
+describe("bundleMatchSeverity (v2.0.0)", () => {
+  test("hash match under a different bun than CI's pin → warn, naming both versions", () => {
+    const r = bundleMatchSeverity("1.4.2", "1.3.5")
+    expect(r.severity).toBe("warn")
+    expect(r.msg).toContain("1.4.2")
+    expect(r.msg).toContain("1.3.5")
+    expect(r.msg).not.toMatch(/✓/)
+  })
+
+  test("hash match under CI's bun → ok", () => {
+    const r = bundleMatchSeverity("1.3.5", "1.3.5")
+    expect(r.severity).toBe("ok")
+    expect(r.msg).toMatch(/matches source rebuild/)
+  })
+
+  test("unknown pin or unknown local bun → ok (a match is still evidence; nothing to compare)", () => {
+    expect(bundleMatchSeverity(null, "1.3.5").severity).toBe("ok")
+    expect(bundleMatchSeverity("1.4.2", null).severity).toBe("ok")
   })
 })

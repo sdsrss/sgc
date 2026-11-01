@@ -37212,6 +37212,7 @@ __export(exports_doctor, {
   ciPinnedBunVersion: () => ciPinnedBunVersion,
   bundleStaleSeverity: () => bundleStaleSeverity,
   bundleParityCheck: () => bundleParityCheck,
+  bundleMatchSeverity: () => bundleMatchSeverity,
   bundleExecBitOk: () => bundleExecBitOk,
   agentMetadataDrift: () => agentMetadataDrift
 });
@@ -37412,6 +37413,23 @@ function bundleStaleSeverity(localBun, ciBun) {
     msg: "  ✗ committed bundle STALE — run `npm run build:cli` and commit"
   };
 }
+function bundleMatchSeverity(localBun, ciBun) {
+  if (localBun && ciBun && localBun !== ciBun) {
+    return {
+      severity: "warn",
+      msg: `  ⚠ committed bundle matches a rebuild by your bun (${localBun}), but CI rebuilds with ${ciBun} — ` + `a match under another bun does not show CI's parity gate will pass. ` + `Put bun ${ciBun} first on PATH and re-run doctor.`
+    };
+  }
+  return { severity: "ok", msg: "  ✓ committed bundle matches source rebuild (content + exec bit)" };
+}
+async function bunVersions(root3) {
+  const localBun = (await spawnCapture(["bun", "--version"], { cwd: root3 })).stdout.trim() || null;
+  let ciBun = null;
+  try {
+    ciBun = ciPinnedBunVersion(readFileSync22(resolve20(root3, ".github/workflows/test.yml"), "utf8"));
+  } catch {}
+  return { localBun, ciBun };
+}
 async function bundleParityCheck(root3) {
   const srcEntry = resolve20(root3, "src", "sgc.ts");
   const committed = resolve20(root3, "plugins", "sgc", "bin", "sgc.mjs");
@@ -37430,12 +37448,8 @@ async function bundleParityCheck(root3) {
     const a2 = sha(strip2(readFileSync22(out)));
     const b2 = sha(strip2(readFileSync22(committed)));
     if (a2 !== b2) {
-      const localBun = (await spawnCapture(["bun", "--version"], { cwd: root3 })).stdout.trim() || null;
-      let ciBun = null;
-      try {
-        ciBun = ciPinnedBunVersion(readFileSync22(resolve20(root3, ".github/workflows/test.yml"), "utf8"));
-      } catch {}
-      return bundleStaleSeverity(localBun, ciBun);
+      const { localBun: localBun2, ciBun: ciBun2 } = await bunVersions(root3);
+      return bundleStaleSeverity(localBun2, ciBun2);
     }
     const ls = await spawnCapture(["git", "ls-files", "--stage", "plugins/sgc/bin/sgc.mjs"], { cwd: root3 });
     const execOk = ls.exitCode === 0 ? bundleExecBitOk(ls.stdout) : null;
@@ -37445,7 +37459,8 @@ async function bundleParityCheck(root3) {
         msg: "  ✗ committed bundle missing git exec bit (100644) — run `git add --chmod=+x plugins/sgc/bin/sgc.mjs` and commit"
       };
     }
-    return { severity: "ok", msg: "  ✓ committed bundle matches source rebuild (content + exec bit)" };
+    const { localBun, ciBun } = await bunVersions(root3);
+    return bundleMatchSeverity(localBun, ciBun);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

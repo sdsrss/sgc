@@ -447,6 +447,40 @@ export function bundleStaleSeverity(
   }
 }
 
+/**
+ * The converse of bundleStaleSeverity: the hashes MATCH. That certifies CI's
+ * parity gate only if this rebuild used CI's bun. In v1.38.5 a bundle built by
+ * a local bun 1.4.2 was committed; doctor rebuilt it with the same 1.4.2, got a
+ * match and said OK, and CI (bun 1.3.5) rejected it twice. Unknown versions →
+ * ok: a match is still evidence, and there is nothing to compare against.
+ */
+export function bundleMatchSeverity(
+  localBun: string | null,
+  ciBun: string | null,
+): { severity: "ok" | "warn"; msg: string } {
+  if (localBun && ciBun && localBun !== ciBun) {
+    return {
+      severity: "warn",
+      msg:
+        `  ⚠ committed bundle matches a rebuild by your bun (${localBun}), but CI rebuilds with ${ciBun} — ` +
+        `a match under another bun does not show CI's parity gate will pass. ` +
+        `Put bun ${ciBun} first on PATH and re-run doctor.`,
+    }
+  }
+  return { severity: "ok", msg: "  ✓ committed bundle matches source rebuild (content + exec bit)" }
+}
+
+async function bunVersions(root: string): Promise<{ localBun: string | null; ciBun: string | null }> {
+  const localBun = (await spawnCapture(["bun", "--version"], { cwd: root })).stdout.trim() || null
+  let ciBun: string | null = null
+  try {
+    ciBun = ciPinnedBunVersion(readFileSync(resolve(root, ".github/workflows/test.yml"), "utf8"))
+  } catch {
+    // No workflow on disk (e.g. npm-installed tree) → can't compare.
+  }
+  return { localBun, ciBun }
+}
+
 export async function bundleParityCheck(root: string): Promise<CheckRow> {
   const srcEntry = resolve(root, "src", "sgc.ts")
   const committed = resolve(root, "plugins", "sgc", "bin", "sgc.mjs")
@@ -471,13 +505,7 @@ export async function bundleParityCheck(root: string): Promise<CheckRow> {
     const b = sha(strip(readFileSync(committed)))
     if (a !== b) {
       // P2-2: a hash mismatch only proves staleness if we built with CI's bun.
-      const localBun = (await spawnCapture(["bun", "--version"], { cwd: root })).stdout.trim() || null
-      let ciBun: string | null = null
-      try {
-        ciBun = ciPinnedBunVersion(readFileSync(resolve(root, ".github/workflows/test.yml"), "utf8"))
-      } catch {
-        // No workflow on disk (e.g. npm-installed tree) → can't compare → fail.
-      }
+      const { localBun, ciBun } = await bunVersions(root)
       return bundleStaleSeverity(localBun, ciBun)
     }
     // Content matches; now guard the git-recorded exec bit (build:cli emits
@@ -491,7 +519,9 @@ export async function bundleParityCheck(root: string): Promise<CheckRow> {
         msg: "  ✗ committed bundle missing git exec bit (100644) — run `git add --chmod=+x plugins/sgc/bin/sgc.mjs` and commit",
       }
     }
-    return { severity: "ok", msg: "  ✓ committed bundle matches source rebuild (content + exec bit)" }
+    // v2.0.0: a match only certifies CI's parity gate under CI's bun.
+    const { localBun, ciBun } = await bunVersions(root)
+    return bundleMatchSeverity(localBun, ciBun)
   } finally {
     rmSync(tmp, { recursive: true, force: true })
   }

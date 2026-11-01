@@ -32,14 +32,17 @@ the exact version CI tests as the floor.
   26.8). Unproxied requests still use the built-in fetch, unchanged.
 - **undici 6 → 7** (`^7.30.1`; 6.x is supported only to 2027-04-30, 7.x to
   2028-04-30). undici 8 was measured and not taken: its bundle is 2,220,899
-  bytes against 1,944,054 with 7.
+  bytes against 1,944,037 with 7.
 - **CI:** the consumer job now runs on Node 22.19.0, 24 and 26, and adds
   `tests/e2e/proxy-canary.test.sh`, which runs the committed bundle's canary
   health check through a fake CONNECT proxy under Node (bun's fetch cannot
   reproduce this bug). `tests/e2e/npm-isolated-install.test.sh` packs the
   committed bundle instead of rebuilding it with whatever bun was on PATH.
   `sgc doctor` warns, instead of reporting ✓, when the bundle matches only a
-  rebuild by a bun other than CI's pinned one. The publish build job no longer
+  rebuild by a bun other than CI's pinned one. The build strips the build
+  checkout's absolute path, which bun baked in for undici 7's `__filename`;
+  it made the bundle differ by build machine and would have shipped the
+  builder's home directory. The publish build job no longer
   leaves its checkout token in `.git/config`.
 - **Real-LLM evals left push CI.** test.yml's LLM smoke never ran (no key
   configured, all 8 tests skipped) and was pinned to `anthropic/claude-sonnet-4`,
@@ -53,8 +56,8 @@ the exact version CI tests as the floor.
   changing the default; most failures were researcher.history's 30-word reason
   cap and reference match, not runtime errors.
 
-Full suite 1618 → 1631 pass / 38 skip / 0 fail (+13 new tests); `tsc --noEmit`
-0; `npm audit --omit=dev` 0; bundle 1,707,646 → 1,944,054 bytes (+13.8%,
+Full suite 1618 → 1632 pass / 38 skip / 0 fail (+14 new tests); `tsc --noEmit`
+0; `npm audit --omit=dev` 0; bundle 1,707,646 → 1,944,037 bytes (+13.8%,
 undici 7); `sgc doctor` 71 OK / 0 warn / 0 fail; both e2e scripts pass on Node
 22.19.0, 24.22.0 and 26.8.1.
 

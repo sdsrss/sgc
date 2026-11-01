@@ -37720,7 +37720,7 @@ function appendFetchStackTrace(err, filename) {
   err.stack = stack ? `${stack}
 ${captureLines}` : capture.stack;
 }
-var __filename = "/home/ai/dev/sgc/node_modules/undici/index.js", Client, Dispatcher, Pool, BalancedPool, RoundRobinPool, Agent, ProxyAgent, Socks5ProxyAgent, EnvHttpProxyAgent, RetryAgent, H2CClient, errors, util, InvalidArgumentError, api, buildConnector, MockClient, MockCallHistory, MockCallHistoryLog, MockAgent, MockPool, SnapshotAgent, mockErrors, RetryHandler, getGlobalDispatcher, setGlobalDispatcher, DecoratorHandler, RedirectHandler, $ProxyAgent, $interceptors, $cacheStores, SqliteCacheStore, $util, fetchImpl, currentFilename, $fetch = function fetch2(init2, options = undefined) {
+var __filename = "node_modules/undici/index.js", Client, Dispatcher, Pool, BalancedPool, RoundRobinPool, Agent, ProxyAgent, Socks5ProxyAgent, EnvHttpProxyAgent, RetryAgent, H2CClient, errors, util, InvalidArgumentError, api, buildConnector, MockClient, MockCallHistory, MockCallHistoryLog, MockAgent, MockPool, SnapshotAgent, mockErrors, RetryHandler, getGlobalDispatcher, setGlobalDispatcher, DecoratorHandler, RedirectHandler, $ProxyAgent, $interceptors, $cacheStores, SqliteCacheStore, $util, fetchImpl, currentFilename, $fetch = function fetch2(init2, options = undefined) {
   return fetchImpl(init2, options).catch((err) => {
     if (currentFilename) {
       appendFetchStackTrace(err, currentFilename);

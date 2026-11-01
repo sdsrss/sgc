@@ -11,13 +11,18 @@
 //      --outfile <outfile>
 //   2. normalize the shebang to `#!/usr/bin/env node` (prepend if absent,
 //      else replace line 1)
-//   3. chmod 0o755
+//   3. strip the build checkout's absolute path (see below)
+//   4. chmod 0o755
 //
 // Usage: node scripts/build-cli.mjs [--outfile <path>]
 //   --outfile defaults to plugins/sgc/bin/sgc.mjs
 
 import { spawnSync } from "node:child_process"
 import { chmodSync, readFileSync, writeFileSync } from "node:fs"
+import { dirname, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 
 function parseOutfile(argv) {
   const i = argv.indexOf("--outfile")
@@ -41,8 +46,17 @@ if (r.status !== 0) {
 const SHEBANG = "#!/usr/bin/env node\n"
 let s = readFileSync(outfile, "utf8")
 if (!s.startsWith("#!")) {
-  writeFileSync(outfile, SHEBANG + s)
+  s = SHEBANG + s
 } else {
-  writeFileSync(outfile, s.replace(/^#![^\n]*\n/, SHEBANG))
+  s = s.replace(/^#![^\n]*\n/, SHEBANG)
 }
+// bun bakes a CommonJS dependency's `__filename` into the bundle as an
+// absolute path (undici 7's index.js reads it to decorate fetch errors). That
+// made the bundle depend on where it was built (CI's parity gate, building
+// under /home/runner/work/sgc/sgc, rejected a bundle built elsewhere) and
+// would ship the builder's home directory. Relative is behavior-neutral there:
+// undici only checks whether a stack trace contains the path, and in a
+// single-file bundle it never does either way.
+s = s.split(ROOT.replace(/\\/g, "/") + "/").join("")
+writeFileSync(outfile, s)
 chmodSync(outfile, 0o755)

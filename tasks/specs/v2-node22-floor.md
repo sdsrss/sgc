@@ -63,7 +63,10 @@
 - 决策：旧 Node 只提示、不阻止运行（实测 18/20 上 bundle 仍能启动）。提示里同时给出插件渠道的退回路径（Claude Code 文档：marketplace add 接受 `#<ref>`），因为插件自带的 CLI 优先于全局 npm 安装，只给 npm 的退回命令对插件用户无效。
 - 遗留：doctor 的 README 分数行检查故意不解析"高效化"段，所以 README 里的 Node 版本说法没有任何检查；这次是手动同步的。
 
+- 范围扩展（不修就无法发版）：test.yml run 41341840174 在 192a3b9 上 bundle 一致性检查失败（`index e0ea140..c2c765e`）。原因：bun 把 undici 7 的 `__filename` 写成构建机器的绝对路径（本机 `/home/ai/dev/sgc/node_modules/undici/index.js`，CI `/home/runner/work/sgc/sgc/...`）；v1.38.5 的 bundle 里这种路径为 0 处。修法：`scripts/build-cli.mjs` 去掉 checkout 根路径前缀。undici 只用它判断堆栈里是否已包含该路径，单文件 bundle 里永远不会包含，所以对运行时没有影响。
+
 ## 验证记录
+- 路径修复：`build-cli-paths.test.ts` RED（Received: true）→ 1 pass；在主仓库和 scratchpad 克隆里分别构建 → 同为 blob 4f0257f；全量测试 1632 pass / 38 skip / 0 fail；doctor 71 OK；两个端到端测试在 22.19.0 / 24.22.0 / 26.8.1 上都通过。
 - 本轮最终状态（版本号已改为 2.0.0，bundle e0ea140，1,944,054 字节）：`npm run typecheck` → 通过；`npm run test:all` → 通过：1631 pass / 38 skip / 0 fail（1669 个测试，148 个文件；改动前为 1618 pass）；`/tmp` 中新增的 `sgc-*` 为 0；`sgc doctor`（bun 1.3.5）→ 通过：71 OK / 0 warn / 0 fail；`npm audit --omit=dev` → 0。
 - 端到端测试：`proxy-canary` 和 `npm-isolated-install` 在 Node 22.19.0 / 24.22.0 / 26.8.1 上都通过；v1.38.5 的 bundle 在 26.8.1 上 proxy-canary 失败（exit 1，CONNECT 次数为 0）。
 - Node 18.20.8 / 20.20.2：stdout 正常（2.0.0），stderr 恰好一行提示，其中含 `sdsrss/sgc#v1.38.5`。

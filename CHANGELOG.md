@@ -41,8 +41,8 @@ the exact version CI tests as the floor.
   `sgc doctor` warns, instead of reporting ✓, when the bundle matches only a
   rebuild by a bun other than CI's pinned one. The build strips the build
   checkout's absolute path, which bun baked in for undici 7's `__filename`;
-  it made the bundle differ by build machine and would have shipped the
-  builder's home directory. The publish build job no longer
+  it made the bundle differ by build machine, so CI's parity gate rejected
+  any bundle not built at CI's own checkout path. The publish build job no longer
   leaves its checkout token in `.git/config`.
 - **Real-LLM evals left push CI.** test.yml's LLM smoke never ran (no key
   configured, all 8 tests skipped) and was pinned to `anthropic/claude-sonnet-4`,
@@ -56,7 +56,7 @@ the exact version CI tests as the floor.
   changing the default; most failures were researcher.history's 30-word reason
   cap and reference match, not runtime errors.
 
-Full suite 1618 → 1632 pass / 38 skip / 0 fail (+14 new tests); `tsc --noEmit`
+Full suite 1618 → 1633 pass / 38 skip / 0 fail (+15 new tests); `tsc --noEmit`
 0; `npm audit --omit=dev` 0; bundle 1,707,646 → 1,944,072 bytes (+13.8%,
 undici 7); `sgc doctor` 71 OK / 0 warn / 0 fail; both e2e scripts pass on Node
 22.19.0, 24.22.0 and 26.8.1.

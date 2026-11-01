@@ -21,6 +21,7 @@ import { spawnSync } from "node:child_process"
 import { chmodSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { stripCheckoutRoot } from "./strip-checkout-root.mjs"
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 
@@ -52,11 +53,15 @@ if (!s.startsWith("#!")) {
 }
 // bun bakes a CommonJS dependency's `__filename` into the bundle as an
 // absolute path (undici 7's index.js reads it to decorate fetch errors). That
-// made the bundle depend on where it was built (CI's parity gate, building
-// under /home/runner/work/sgc/sgc, rejected a bundle built elsewhere) and
-// would ship the builder's home directory. Relative is behavior-neutral there:
-// undici only checks whether a stack trace contains the path, and in a
-// single-file bundle it never does either way.
-s = s.split(ROOT.replace(/\\/g, "/") + "/").join("")
+// made the bundle depend on where it was built: CI's parity gate, building
+// under /home/runner/work/sgc/sgc, rejected a bundle built anywhere else, so
+// the only bundle that could pass it carried CI's checkout path. undici uses
+// the value in one place: it skips appending its own stack frames to a fetch
+// error whose stack already contains the string. No stack frame of the
+// single-file bundle contains either form; the shorter relative string can
+// only change that for an error whose message itself contains
+// "node_modules/undici/index.js" (and sgc prints err.stack only under
+// SGC_DEBUG).
+s = stripCheckoutRoot(s, ROOT)
 writeFileSync(outfile, s)
 chmodSync(outfile, 0o755)

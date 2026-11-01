@@ -1,21 +1,41 @@
 #!/usr/bin/env node
 // @bun
 import { createRequire } from "node:module";
-var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
-var __esm = (fn, res, err) => () => {
-  if (fn)
-    try {
-      res = fn(fn = 0);
-    } catch (e) {
-      err = [e];
-    }
-  if (err)
-    throw err[0];
-  return res;
+var __create = Object.create;
+var __getProtoOf = Object.getPrototypeOf;
+var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __toESM = (mod, isNodeMode, target) => {
+  target = mod != null ? __create(__getProtoOf(mod)) : {};
+  const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
+  for (let key of __getOwnPropNames(mod))
+    if (!__hasOwnProp.call(to, key))
+      __defProp(to, key, {
+        get: () => mod[key],
+        enumerable: true
+      });
+  return to;
 };
+var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, {
+      get: all[name],
+      enumerable: true,
+      configurable: true,
+      set: (newValue) => all[name] = () => newValue
+    });
+};
+var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
 var __require = /* @__PURE__ */ createRequire(import.meta.url);
 
 // node_modules/consola/dist/chunks/prompt.mjs
+var exports_prompt = {};
+__export(exports_prompt, {
+  prompt: () => prompt,
+  kCancel: () => kCancel
+});
 import g, { stdin, stdout } from "node:process";
 import f from "node:readline";
 import { WriteStream } from "node:tty";
@@ -86,13 +106,13 @@ function requirePicocolors() {
   if (hasRequiredPicocolors)
     return picocolors.exports;
   hasRequiredPicocolors = 1;
-  let p = process || {}, argv = p.argv || [], env = p.env || {};
-  let isColorSupported = !(!!env.NO_COLOR || argv.includes("--no-color")) && (!!env.FORCE_COLOR || argv.includes("--color") || p.platform === "win32" || (p.stdout || {}).isTTY && env.TERM !== "dumb" || !!env.CI);
+  let p = process || {}, argv2 = p.argv || [], env2 = p.env || {};
+  let isColorSupported2 = !(!!env2.NO_COLOR || argv2.includes("--no-color")) && (!!env2.FORCE_COLOR || argv2.includes("--color") || p.platform === "win32" || (p.stdout || {}).isTTY && env2.TERM !== "dumb" || !!env2.CI);
   let formatter = (open, close, replace = open) => (input) => {
     let string = "" + input, index = string.indexOf(close, open.length);
-    return ~index ? open + replaceClose(string, close, replace, index) + close : open + string + close;
+    return ~index ? open + replaceClose2(string, close, replace, index) + close : open + string + close;
   };
-  let replaceClose = (string, close, replace, index) => {
+  let replaceClose2 = (string, close, replace, index) => {
     let result = "", cursor = 0;
     do {
       result += string.substring(cursor, index) + replace;
@@ -101,7 +121,7 @@ function requirePicocolors() {
     } while (~index);
     return result + string.substring(cursor);
   };
-  let createColors = (enabled = isColorSupported) => {
+  let createColors2 = (enabled = isColorSupported2) => {
     let f2 = enabled ? formatter : () => String;
     return {
       isColorSupported: enabled,
@@ -148,8 +168,8 @@ function requirePicocolors() {
       bgWhiteBright: f2("\x1B[107m", "\x1B[49m")
     };
   };
-  picocolors.exports = createColors();
-  picocolors.exports.createColors = createColors;
+  picocolors.exports = createColors2();
+  picocolors.exports.createColors = createColors2;
   return picocolors.exports;
 }
 function J({ onlyFirst: t = false } = {}) {
@@ -169,7 +189,7 @@ function A$1(t, u = {}) {
     return 0;
   t = t.replace(FD(), "  ");
   const F = u.ambiguousIsNarrow ? 1 : 2;
-  let e = 0;
+  let e2 = 0;
   for (const s of t) {
     const i = s.codePointAt(0);
     if (i <= 31 || i >= 127 && i <= 159 || i >= 768 && i <= 879)
@@ -177,56 +197,56 @@ function A$1(t, u = {}) {
     switch (DD.eastAsianWidth(s)) {
       case "F":
       case "W":
-        e += 2;
+        e2 += 2;
         break;
       case "A":
-        e += F;
+        e2 += F;
         break;
       default:
-        e += 1;
+        e2 += 1;
     }
   }
-  return e;
+  return e2;
 }
 function sD() {
   const t = new Map;
   for (const [u, F] of Object.entries(r)) {
-    for (const [e, s] of Object.entries(F))
-      r[e] = { open: `\x1B[${s[0]}m`, close: `\x1B[${s[1]}m` }, F[e] = r[e], t.set(s[0], s[1]);
+    for (const [e2, s] of Object.entries(F))
+      r[e2] = { open: `\x1B[${s[0]}m`, close: `\x1B[${s[1]}m` }, F[e2] = r[e2], t.set(s[0], s[1]);
     Object.defineProperty(r, u, { value: F, enumerable: false });
   }
-  return Object.defineProperty(r, "codes", { value: t, enumerable: false }), r.color.close = "\x1B[39m", r.bgColor.close = "\x1B[49m", r.color.ansi = L$1(), r.color.ansi256 = N(), r.color.ansi16m = I(), r.bgColor.ansi = L$1(m), r.bgColor.ansi256 = N(m), r.bgColor.ansi16m = I(m), Object.defineProperties(r, { rgbToAnsi256: { value: (u, F, e) => u === F && F === e ? u < 8 ? 16 : u > 248 ? 231 : Math.round((u - 8) / 247 * 24) + 232 : 16 + 36 * Math.round(u / 255 * 5) + 6 * Math.round(F / 255 * 5) + Math.round(e / 255 * 5), enumerable: false }, hexToRgb: { value: (u) => {
+  return Object.defineProperty(r, "codes", { value: t, enumerable: false }), r.color.close = "\x1B[39m", r.bgColor.close = "\x1B[49m", r.color.ansi = L$1(), r.color.ansi256 = N(), r.color.ansi16m = I(), r.bgColor.ansi = L$1(m), r.bgColor.ansi256 = N(m), r.bgColor.ansi16m = I(m), Object.defineProperties(r, { rgbToAnsi256: { value: (u, F, e2) => u === F && F === e2 ? u < 8 ? 16 : u > 248 ? 231 : Math.round((u - 8) / 247 * 24) + 232 : 16 + 36 * Math.round(u / 255 * 5) + 6 * Math.round(F / 255 * 5) + Math.round(e2 / 255 * 5), enumerable: false }, hexToRgb: { value: (u) => {
     const F = /[a-f\d]{6}|[a-f\d]{3}/i.exec(u.toString(16));
     if (!F)
       return [0, 0, 0];
-    let [e] = F;
-    e.length === 3 && (e = [...e].map((i) => i + i).join(""));
-    const s = Number.parseInt(e, 16);
+    let [e2] = F;
+    e2.length === 3 && (e2 = [...e2].map((i) => i + i).join(""));
+    const s = Number.parseInt(e2, 16);
     return [s >> 16 & 255, s >> 8 & 255, s & 255];
   }, enumerable: false }, hexToAnsi256: { value: (u) => r.rgbToAnsi256(...r.hexToRgb(u)), enumerable: false }, ansi256ToAnsi: { value: (u) => {
     if (u < 8)
       return 30 + u;
     if (u < 16)
       return 90 + (u - 8);
-    let F, e, s;
+    let F, e2, s;
     if (u >= 232)
-      F = ((u - 232) * 10 + 8) / 255, e = F, s = F;
+      F = ((u - 232) * 10 + 8) / 255, e2 = F, s = F;
     else {
       u -= 16;
       const C = u % 36;
-      F = Math.floor(u / 36) / 5, e = Math.floor(C / 6) / 5, s = C % 6 / 5;
+      F = Math.floor(u / 36) / 5, e2 = Math.floor(C / 6) / 5, s = C % 6 / 5;
     }
-    const i = Math.max(F, e, s) * 2;
+    const i = Math.max(F, e2, s) * 2;
     if (i === 0)
       return 30;
-    let D = 30 + (Math.round(s) << 2 | Math.round(e) << 1 | Math.round(F));
+    let D = 30 + (Math.round(s) << 2 | Math.round(e2) << 1 | Math.round(F));
     return i === 2 && (D += 60), D;
-  }, enumerable: false }, rgbToAnsi: { value: (u, F, e) => r.ansi256ToAnsi(r.rgbToAnsi256(u, F, e)), enumerable: false }, hexToAnsi: { value: (u) => r.ansi256ToAnsi(r.hexToAnsi256(u)), enumerable: false } }), r;
+  }, enumerable: false }, rgbToAnsi: { value: (u, F, e2) => r.ansi256ToAnsi(r.rgbToAnsi256(u, F, e2)), enumerable: false }, hexToAnsi: { value: (u) => r.ansi256ToAnsi(r.hexToAnsi256(u)), enumerable: false } }), r;
 }
 function G(t, u, F) {
   return String(t).normalize().replace(/\r\n/g, `
 `).split(`
-`).map((e) => oD(e, u, F)).join(`
+`).map((e2) => oD(e2, u, F)).join(`
 `);
 }
 function k$1(t, u) {
@@ -241,10 +261,10 @@ function lD(t, u) {
   if (t === u)
     return;
   const F = t.split(`
-`), e = u.split(`
+`), e2 = u.split(`
 `), s = [];
-  for (let i = 0;i < Math.max(F.length, e.length); i++)
-    F[i] !== e[i] && s.push(i);
+  for (let i = 0;i < Math.max(F.length, e2.length); i++)
+    F[i] !== e2[i] && s.push(i);
   return s;
 }
 function d$1(t, u) {
@@ -255,15 +275,15 @@ function d$1(t, u) {
 class x {
   constructor(u, F = true) {
     h(this, "input"), h(this, "output"), h(this, "_abortSignal"), h(this, "rl"), h(this, "opts"), h(this, "_render"), h(this, "_track", false), h(this, "_prevFrame", ""), h(this, "_subscribers", new Map), h(this, "_cursor", 0), h(this, "state", "initial"), h(this, "error", ""), h(this, "value");
-    const { input: e = stdin, output: s = stdout, render: i, signal: D, ...C } = u;
-    this.opts = C, this.onKeypress = this.onKeypress.bind(this), this.close = this.close.bind(this), this.render = this.render.bind(this), this._render = i.bind(this), this._track = F, this._abortSignal = D, this.input = e, this.output = s;
+    const { input: e2 = stdin, output: s = stdout, render: i, signal: D, ...C } = u;
+    this.opts = C, this.onKeypress = this.onKeypress.bind(this), this.close = this.close.bind(this), this.render = this.render.bind(this), this._render = i.bind(this), this._track = F, this._abortSignal = D, this.input = e2, this.output = s;
   }
   unsubscribe() {
     this._subscribers.clear();
   }
   setSubscriber(u, F) {
-    const e = this._subscribers.get(u) ?? [];
-    e.push(F), this._subscribers.set(u, e);
+    const e2 = this._subscribers.get(u) ?? [];
+    e2.push(F), this._subscribers.set(u, e2);
   }
   on(u, F) {
     this.setSubscriber(u, { cb: F });
@@ -272,9 +292,9 @@ class x {
     this.setSubscriber(u, { cb: F, once: true });
   }
   emit(u, ...F) {
-    const e = this._subscribers.get(u) ?? [], s = [];
-    for (const i of e)
-      i.cb(...F), i.once && s.push(() => e.splice(e.indexOf(i), 1));
+    const e2 = this._subscribers.get(u) ?? [], s = [];
+    for (const i of e2)
+      i.cb(...F), i.once && s.push(() => e2.splice(e2.indexOf(i), 1));
     for (const i of s)
       i();
   }
@@ -287,10 +307,10 @@ class x {
           this.state = "cancel", this.close();
         }, { once: true });
       }
-      const e = new WriteStream(0);
-      e._write = (s, i, D) => {
+      const e2 = new WriteStream(0);
+      e2._write = (s, i, D) => {
         this._track && (this.value = this.rl?.line.replace(/\t/g, ""), this._cursor = this.rl?.cursor ?? 0, this.emit("value", this.value)), D();
-      }, this.input.pipe(e), this.rl = f.createInterface({ input: this.input, output: e, tabSize: 2, prompt: "", escapeCodeTimeout: 50 }), f.emitKeypressEvents(this.input, this.rl), this.rl.prompt(), this.opts.initialValue !== undefined && this._track && this.rl.write(this.opts.initialValue), this.input.on("keypress", this.onKeypress), d$1(this.input, true), this.output.on("resize", this.render), this.render(), this.once("submit", () => {
+      }, this.input.pipe(e2), this.rl = f.createInterface({ input: this.input, output: e2, tabSize: 2, prompt: "", escapeCodeTimeout: 50 }), f.emitKeypressEvents(this.input, this.rl), this.rl.prompt(), this.opts.initialValue !== undefined && this._track && this.rl.write(this.opts.initialValue), this.input.on("keypress", this.onKeypress), d$1(this.input, true), this.output.on("resize", this.render), this.render(), this.once("submit", () => {
         this.output.write(srcExports.cursor.show), this.output.off("resize", this.render), d$1(this.input, false), u(this.value);
       }), this.once("cancel", () => {
         this.output.write(srcExports.cursor.show), this.output.off("resize", this.render), d$1(this.input, false), u(S);
@@ -300,8 +320,8 @@ class x {
   onKeypress(u, F) {
     if (this.state === "error" && (this.state = "active"), F?.name && (!this._track && c.aliases.has(F.name) && this.emit("cursor", c.aliases.get(F.name)), c.actions.has(F.name) && this.emit("cursor", F.name)), u && (u.toLowerCase() === "y" || u.toLowerCase() === "n") && this.emit("confirm", u.toLowerCase() === "y"), u === "\t" && this.opts.placeholder && (this.value || (this.rl?.write(this.opts.placeholder), this.emit("value", this.opts.placeholder))), u && this.emit("key", u.toLowerCase()), F?.name === "return") {
       if (this.opts.validate) {
-        const e = this.opts.validate(this.value);
-        e && (this.error = e instanceof Error ? e.message : e, this.state = "error", this.rl?.write(this.value));
+        const e2 = this.opts.validate(this.value);
+        e2 && (this.error = e2 instanceof Error ? e2.message : e2, this.state = "error", this.rl?.write(this.value));
       }
       this.state !== "error" && (this.state = "submit");
     }
@@ -324,18 +344,18 @@ class x {
       else {
         const F = lD(this._prevFrame, u);
         if (this.restoreCursor(), F && F?.length === 1) {
-          const e = F[0];
-          this.output.write(srcExports.cursor.move(0, e)), this.output.write(srcExports.erase.lines(1));
+          const e2 = F[0];
+          this.output.write(srcExports.cursor.move(0, e2)), this.output.write(srcExports.erase.lines(1));
           const s = u.split(`
 `);
-          this.output.write(s[e]), this._prevFrame = u, this.output.write(srcExports.cursor.move(0, s.length - e - 1));
+          this.output.write(s[e2]), this._prevFrame = u, this.output.write(srcExports.cursor.move(0, s.length - e2 - 1));
           return;
         }
         if (F && F?.length > 1) {
-          const e = F[0];
-          this.output.write(srcExports.cursor.move(0, e)), this.output.write(srcExports.erase.down());
+          const e2 = F[0];
+          this.output.write(srcExports.cursor.move(0, e2)), this.output.write(srcExports.erase.down());
           const s = u.split(`
-`).slice(e);
+`).slice(e2);
           this.output.write(s.join(`
 `)), this._prevFrame = u;
           return;
@@ -395,14 +415,14 @@ async function prompt(message, opts = {}) {
   if (opts.type === "select") {
     return await ve({
       message,
-      options: opts.options.map((o) => typeof o === "string" ? { value: o, label: o } : o),
+      options: opts.options.map((o2) => typeof o2 === "string" ? { value: o2, label: o2 } : o2),
       initialValue: opts.initial
     }).then(handleCancel);
   }
   if (opts.type === "multiselect") {
     return await fe({
       message,
-      options: opts.options.map((o) => typeof o === "string" ? { value: o, label: o } : o),
+      options: opts.options.map((o2) => typeof o2 === "string" ? { value: o2, label: o2 } : o2),
       required: opts.required,
       initialValues: opts.initial
     }).then(handleCancel);
@@ -411,16 +431,16 @@ async function prompt(message, opts = {}) {
 }
 var src, hasRequiredSrc, srcExports, picocolors, hasRequiredPicocolors, picocolorsExports, e, Q, P$1, X, DD, uD = function() {
   return /\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62(?:\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73|\uDB40\uDC73\uDB40\uDC63\uDB40\uDC74|\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67)\uDB40\uDC7F|(?:\uD83E\uDDD1\uD83C\uDFFF\u200D\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D)?\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFF\u200D\uD83E\uDD1D\u200D(?:\uD83D[\uDC68\uDC69]))(?:\uD83C[\uDFFB-\uDFFE])|(?:\uD83E\uDDD1\uD83C\uDFFE\u200D\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D)?\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFE\u200D\uD83E\uDD1D\u200D(?:\uD83D[\uDC68\uDC69]))(?:\uD83C[\uDFFB-\uDFFD\uDFFF])|(?:\uD83E\uDDD1\uD83C\uDFFD\u200D\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D)?\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFD\u200D\uD83E\uDD1D\u200D(?:\uD83D[\uDC68\uDC69]))(?:\uD83C[\uDFFB\uDFFC\uDFFE\uDFFF])|(?:\uD83E\uDDD1\uD83C\uDFFC\u200D\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D)?\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFC\u200D\uD83E\uDD1D\u200D(?:\uD83D[\uDC68\uDC69]))(?:\uD83C[\uDFFB\uDFFD-\uDFFF])|(?:\uD83E\uDDD1\uD83C\uDFFB\u200D\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D)?\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFB\u200D\uD83E\uDD1D\u200D(?:\uD83D[\uDC68\uDC69]))(?:\uD83C[\uDFFC-\uDFFF])|\uD83D\uDC68(?:\uD83C\uDFFB(?:\u200D(?:\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFF])|\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFF]))|\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFC-\uDFFF])|[\u2695\u2696\u2708]\uFE0F|\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD]))?|(?:\uD83C[\uDFFC-\uDFFF])\u200D\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFF])|\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFF]))|\u200D(?:\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D)?\uD83D\uDC68|(?:\uD83D[\uDC68\uDC69])\u200D(?:\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67]))|\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67])|\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFF\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFE])|\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFE\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFD\uDFFF])|\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFD\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFC\uDFFE\uDFFF])|\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFC\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFD-\uDFFF])|\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|(?:\uD83C\uDFFF\u200D[\u2695\u2696\u2708]|\uD83C\uDFFE\u200D[\u2695\u2696\u2708]|\uD83C\uDFFD\u200D[\u2695\u2696\u2708]|\uD83C\uDFFC\u200D[\u2695\u2696\u2708]|\u200D[\u2695\u2696\u2708])\uFE0F|\u200D(?:(?:\uD83D[\uDC68\uDC69])\u200D(?:\uD83D[\uDC66\uDC67])|\uD83D[\uDC66\uDC67])|\uD83C\uDFFF|\uD83C\uDFFE|\uD83C\uDFFD|\uD83C\uDFFC)?|(?:\uD83D\uDC69(?:\uD83C\uDFFB\u200D\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D(?:\uD83D[\uDC68\uDC69])|\uD83D[\uDC68\uDC69])|(?:\uD83C[\uDFFC-\uDFFF])\u200D\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D(?:\uD83D[\uDC68\uDC69])|\uD83D[\uDC68\uDC69]))|\uD83E\uDDD1(?:\uD83C[\uDFFB-\uDFFF])\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1)(?:\uD83C[\uDFFB-\uDFFF])|\uD83D\uDC69\u200D\uD83D\uDC69\u200D(?:\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67]))|\uD83D\uDC69(?:\u200D(?:\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D(?:\uD83D[\uDC68\uDC69])|\uD83D[\uDC68\uDC69])|\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFF\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFE\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFD\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFC\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFB\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD]))|\uD83E\uDDD1(?:\u200D(?:\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83C[\uDF3E\uDF73\uDF7C\uDF84\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFF\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF84\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFE\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF84\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFD\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF84\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFC\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF84\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFB\u200D(?:\uD83C[\uDF3E\uDF73\uDF7C\uDF84\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD]))|\uD83D\uDC69\u200D\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC69\u200D\uD83D\uDC69\u200D(?:\uD83D[\uDC66\uDC67])|\uD83D\uDC69\u200D\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67])|(?:\uD83D\uDC41\uFE0F\u200D\uD83D\uDDE8|\uD83E\uDDD1(?:\uD83C\uDFFF\u200D[\u2695\u2696\u2708]|\uD83C\uDFFE\u200D[\u2695\u2696\u2708]|\uD83C\uDFFD\u200D[\u2695\u2696\u2708]|\uD83C\uDFFC\u200D[\u2695\u2696\u2708]|\uD83C\uDFFB\u200D[\u2695\u2696\u2708]|\u200D[\u2695\u2696\u2708])|\uD83D\uDC69(?:\uD83C\uDFFF\u200D[\u2695\u2696\u2708]|\uD83C\uDFFE\u200D[\u2695\u2696\u2708]|\uD83C\uDFFD\u200D[\u2695\u2696\u2708]|\uD83C\uDFFC\u200D[\u2695\u2696\u2708]|\uD83C\uDFFB\u200D[\u2695\u2696\u2708]|\u200D[\u2695\u2696\u2708])|\uD83D\uDE36\u200D\uD83C\uDF2B|\uD83C\uDFF3\uFE0F\u200D\u26A7|\uD83D\uDC3B\u200D\u2744|(?:(?:\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC70\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD35\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD4\uDDD6-\uDDDD])(?:\uD83C[\uDFFB-\uDFFF])|\uD83D\uDC6F|\uD83E[\uDD3C\uDDDE\uDDDF])\u200D[\u2640\u2642]|(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)(?:\uFE0F|\uD83C[\uDFFB-\uDFFF])\u200D[\u2640\u2642]|\uD83C\uDFF4\u200D\u2620|(?:\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC70\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD35\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD4\uDDD6-\uDDDD])\u200D[\u2640\u2642]|[\xA9\xAE\u203C\u2049\u2122\u2139\u2194-\u2199\u21A9\u21AA\u2328\u23CF\u23ED-\u23EF\u23F1\u23F2\u23F8-\u23FA\u24C2\u25AA\u25AB\u25B6\u25C0\u25FB\u25FC\u2600-\u2604\u260E\u2611\u2618\u2620\u2622\u2623\u2626\u262A\u262E\u262F\u2638-\u263A\u2640\u2642\u265F\u2660\u2663\u2665\u2666\u2668\u267B\u267E\u2692\u2694-\u2697\u2699\u269B\u269C\u26A0\u26A7\u26B0\u26B1\u26C8\u26CF\u26D1\u26D3\u26E9\u26F0\u26F1\u26F4\u26F7\u26F8\u2702\u2708\u2709\u270F\u2712\u2714\u2716\u271D\u2721\u2733\u2734\u2744\u2747\u2763\u27A1\u2934\u2935\u2B05-\u2B07\u3030\u303D\u3297\u3299]|\uD83C[\uDD70\uDD71\uDD7E\uDD7F\uDE02\uDE37\uDF21\uDF24-\uDF2C\uDF36\uDF7D\uDF96\uDF97\uDF99-\uDF9B\uDF9E\uDF9F\uDFCD\uDFCE\uDFD4-\uDFDF\uDFF5\uDFF7]|\uD83D[\uDC3F\uDCFD\uDD49\uDD4A\uDD6F\uDD70\uDD73\uDD76-\uDD79\uDD87\uDD8A-\uDD8D\uDDA5\uDDA8\uDDB1\uDDB2\uDDBC\uDDC2-\uDDC4\uDDD1-\uDDD3\uDDDC-\uDDDE\uDDE1\uDDE3\uDDE8\uDDEF\uDDF3\uDDFA\uDECB\uDECD-\uDECF\uDEE0-\uDEE5\uDEE9\uDEF0\uDEF3])\uFE0F|\uD83C\uDFF3\uFE0F\u200D\uD83C\uDF08|\uD83D\uDC69\u200D\uD83D\uDC67|\uD83D\uDC69\u200D\uD83D\uDC66|\uD83D\uDE35\u200D\uD83D\uDCAB|\uD83D\uDE2E\u200D\uD83D\uDCA8|\uD83D\uDC15\u200D\uD83E\uDDBA|\uD83E\uDDD1(?:\uD83C\uDFFF|\uD83C\uDFFE|\uD83C\uDFFD|\uD83C\uDFFC|\uD83C\uDFFB)?|\uD83D\uDC69(?:\uD83C\uDFFF|\uD83C\uDFFE|\uD83C\uDFFD|\uD83C\uDFFC|\uD83C\uDFFB)?|\uD83C\uDDFD\uD83C\uDDF0|\uD83C\uDDF6\uD83C\uDDE6|\uD83C\uDDF4\uD83C\uDDF2|\uD83D\uDC08\u200D\u2B1B|\u2764\uFE0F\u200D(?:\uD83D\uDD25|\uD83E\uDE79)|\uD83D\uDC41\uFE0F|\uD83C\uDFF3\uFE0F|\uD83C\uDDFF(?:\uD83C[\uDDE6\uDDF2\uDDFC])|\uD83C\uDDFE(?:\uD83C[\uDDEA\uDDF9])|\uD83C\uDDFC(?:\uD83C[\uDDEB\uDDF8])|\uD83C\uDDFB(?:\uD83C[\uDDE6\uDDE8\uDDEA\uDDEC\uDDEE\uDDF3\uDDFA])|\uD83C\uDDFA(?:\uD83C[\uDDE6\uDDEC\uDDF2\uDDF3\uDDF8\uDDFE\uDDFF])|\uD83C\uDDF9(?:\uD83C[\uDDE6\uDDE8\uDDE9\uDDEB-\uDDED\uDDEF-\uDDF4\uDDF7\uDDF9\uDDFB\uDDFC\uDDFF])|\uD83C\uDDF8(?:\uD83C[\uDDE6-\uDDEA\uDDEC-\uDDF4\uDDF7-\uDDF9\uDDFB\uDDFD-\uDDFF])|\uD83C\uDDF7(?:\uD83C[\uDDEA\uDDF4\uDDF8\uDDFA\uDDFC])|\uD83C\uDDF5(?:\uD83C[\uDDE6\uDDEA-\uDDED\uDDF0-\uDDF3\uDDF7-\uDDF9\uDDFC\uDDFE])|\uD83C\uDDF3(?:\uD83C[\uDDE6\uDDE8\uDDEA-\uDDEC\uDDEE\uDDF1\uDDF4\uDDF5\uDDF7\uDDFA\uDDFF])|\uD83C\uDDF2(?:\uD83C[\uDDE6\uDDE8-\uDDED\uDDF0-\uDDFF])|\uD83C\uDDF1(?:\uD83C[\uDDE6-\uDDE8\uDDEE\uDDF0\uDDF7-\uDDFB\uDDFE])|\uD83C\uDDF0(?:\uD83C[\uDDEA\uDDEC-\uDDEE\uDDF2\uDDF3\uDDF5\uDDF7\uDDFC\uDDFE\uDDFF])|\uD83C\uDDEF(?:\uD83C[\uDDEA\uDDF2\uDDF4\uDDF5])|\uD83C\uDDEE(?:\uD83C[\uDDE8-\uDDEA\uDDF1-\uDDF4\uDDF6-\uDDF9])|\uD83C\uDDED(?:\uD83C[\uDDF0\uDDF2\uDDF3\uDDF7\uDDF9\uDDFA])|\uD83C\uDDEC(?:\uD83C[\uDDE6\uDDE7\uDDE9-\uDDEE\uDDF1-\uDDF3\uDDF5-\uDDFA\uDDFC\uDDFE])|\uD83C\uDDEB(?:\uD83C[\uDDEE-\uDDF0\uDDF2\uDDF4\uDDF7])|\uD83C\uDDEA(?:\uD83C[\uDDE6\uDDE8\uDDEA\uDDEC\uDDED\uDDF7-\uDDFA])|\uD83C\uDDE9(?:\uD83C[\uDDEA\uDDEC\uDDEF\uDDF0\uDDF2\uDDF4\uDDFF])|\uD83C\uDDE8(?:\uD83C[\uDDE6\uDDE8\uDDE9\uDDEB-\uDDEE\uDDF0-\uDDF5\uDDF7\uDDFA-\uDDFF])|\uD83C\uDDE7(?:\uD83C[\uDDE6\uDDE7\uDDE9-\uDDEF\uDDF1-\uDDF4\uDDF6-\uDDF9\uDDFB\uDDFC\uDDFE\uDDFF])|\uD83C\uDDE6(?:\uD83C[\uDDE8-\uDDEC\uDDEE\uDDF1\uDDF2\uDDF4\uDDF6-\uDDFA\uDDFC\uDDFD\uDDFF])|[#\*0-9]\uFE0F\u20E3|\u2764\uFE0F|(?:\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC70\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD35\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD4\uDDD6-\uDDDD])(?:\uD83C[\uDFFB-\uDFFF])|(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)(?:\uFE0F|\uD83C[\uDFFB-\uDFFF])|\uD83C\uDFF4|(?:[\u270A\u270B]|\uD83C[\uDF85\uDFC2\uDFC7]|\uD83D[\uDC42\uDC43\uDC46-\uDC50\uDC66\uDC67\uDC6B-\uDC6D\uDC72\uDC74-\uDC76\uDC78\uDC7C\uDC83\uDC85\uDC8F\uDC91\uDCAA\uDD7A\uDD95\uDD96\uDE4C\uDE4F\uDEC0\uDECC]|\uD83E[\uDD0C\uDD0F\uDD18-\uDD1C\uDD1E\uDD1F\uDD30-\uDD34\uDD36\uDD77\uDDB5\uDDB6\uDDBB\uDDD2\uDDD3\uDDD5])(?:\uD83C[\uDFFB-\uDFFF])|(?:[\u261D\u270C\u270D]|\uD83D[\uDD74\uDD90])(?:\uFE0F|\uD83C[\uDFFB-\uDFFF])|[\u270A\u270B]|\uD83C[\uDF85\uDFC2\uDFC7]|\uD83D[\uDC08\uDC15\uDC3B\uDC42\uDC43\uDC46-\uDC50\uDC66\uDC67\uDC6B-\uDC6D\uDC72\uDC74-\uDC76\uDC78\uDC7C\uDC83\uDC85\uDC8F\uDC91\uDCAA\uDD7A\uDD95\uDD96\uDE2E\uDE35\uDE36\uDE4C\uDE4F\uDEC0\uDECC]|\uD83E[\uDD0C\uDD0F\uDD18-\uDD1C\uDD1E\uDD1F\uDD30-\uDD34\uDD36\uDD77\uDDB5\uDDB6\uDDBB\uDDD2\uDDD3\uDDD5]|\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC70\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD35\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD4\uDDD6-\uDDDD]|\uD83D\uDC6F|\uD83E[\uDD3C\uDDDE\uDDDF]|[\u231A\u231B\u23E9-\u23EC\u23F0\u23F3\u25FD\u25FE\u2614\u2615\u2648-\u2653\u267F\u2693\u26A1\u26AA\u26AB\u26BD\u26BE\u26C4\u26C5\u26CE\u26D4\u26EA\u26F2\u26F3\u26F5\u26FA\u26FD\u2705\u2728\u274C\u274E\u2753-\u2755\u2757\u2795-\u2797\u27B0\u27BF\u2B1B\u2B1C\u2B50\u2B55]|\uD83C[\uDC04\uDCCF\uDD8E\uDD91-\uDD9A\uDE01\uDE1A\uDE2F\uDE32-\uDE36\uDE38-\uDE3A\uDE50\uDE51\uDF00-\uDF20\uDF2D-\uDF35\uDF37-\uDF7C\uDF7E-\uDF84\uDF86-\uDF93\uDFA0-\uDFC1\uDFC5\uDFC6\uDFC8\uDFC9\uDFCF-\uDFD3\uDFE0-\uDFF0\uDFF8-\uDFFF]|\uD83D[\uDC00-\uDC07\uDC09-\uDC14\uDC16-\uDC3A\uDC3C-\uDC3E\uDC40\uDC44\uDC45\uDC51-\uDC65\uDC6A\uDC79-\uDC7B\uDC7D-\uDC80\uDC84\uDC88-\uDC8E\uDC90\uDC92-\uDCA9\uDCAB-\uDCFC\uDCFF-\uDD3D\uDD4B-\uDD4E\uDD50-\uDD67\uDDA4\uDDFB-\uDE2D\uDE2F-\uDE34\uDE37-\uDE44\uDE48-\uDE4A\uDE80-\uDEA2\uDEA4-\uDEB3\uDEB7-\uDEBF\uDEC1-\uDEC5\uDED0-\uDED2\uDED5-\uDED7\uDEEB\uDEEC\uDEF4-\uDEFC\uDFE0-\uDFEB]|\uD83E[\uDD0D\uDD0E\uDD10-\uDD17\uDD1D\uDD20-\uDD25\uDD27-\uDD2F\uDD3A\uDD3F-\uDD45\uDD47-\uDD76\uDD78\uDD7A-\uDDB4\uDDB7\uDDBA\uDDBC-\uDDCB\uDDD0\uDDE0-\uDDFF\uDE70-\uDE74\uDE78-\uDE7A\uDE80-\uDE86\uDE90-\uDEA8\uDEB0-\uDEB6\uDEC0-\uDEC2\uDED0-\uDED6]|(?:[\u231A\u231B\u23E9-\u23EC\u23F0\u23F3\u25FD\u25FE\u2614\u2615\u2648-\u2653\u267F\u2693\u26A1\u26AA\u26AB\u26BD\u26BE\u26C4\u26C5\u26CE\u26D4\u26EA\u26F2\u26F3\u26F5\u26FA\u26FD\u2705\u270A\u270B\u2728\u274C\u274E\u2753-\u2755\u2757\u2795-\u2797\u27B0\u27BF\u2B1B\u2B1C\u2B50\u2B55]|\uD83C[\uDC04\uDCCF\uDD8E\uDD91-\uDD9A\uDDE6-\uDDFF\uDE01\uDE1A\uDE2F\uDE32-\uDE36\uDE38-\uDE3A\uDE50\uDE51\uDF00-\uDF20\uDF2D-\uDF35\uDF37-\uDF7C\uDF7E-\uDF93\uDFA0-\uDFCA\uDFCF-\uDFD3\uDFE0-\uDFF0\uDFF4\uDFF8-\uDFFF]|\uD83D[\uDC00-\uDC3E\uDC40\uDC42-\uDCFC\uDCFF-\uDD3D\uDD4B-\uDD4E\uDD50-\uDD67\uDD7A\uDD95\uDD96\uDDA4\uDDFB-\uDE4F\uDE80-\uDEC5\uDECC\uDED0-\uDED2\uDED5-\uDED7\uDEEB\uDEEC\uDEF4-\uDEFC\uDFE0-\uDFEB]|\uD83E[\uDD0C-\uDD3A\uDD3C-\uDD45\uDD47-\uDD78\uDD7A-\uDDCB\uDDCD-\uDDFF\uDE70-\uDE74\uDE78-\uDE7A\uDE80-\uDE86\uDE90-\uDEA8\uDEB0-\uDEB6\uDEC0-\uDEC2\uDED0-\uDED6])|(?:[#\*0-9\xA9\xAE\u203C\u2049\u2122\u2139\u2194-\u2199\u21A9\u21AA\u231A\u231B\u2328\u23CF\u23E9-\u23F3\u23F8-\u23FA\u24C2\u25AA\u25AB\u25B6\u25C0\u25FB-\u25FE\u2600-\u2604\u260E\u2611\u2614\u2615\u2618\u261D\u2620\u2622\u2623\u2626\u262A\u262E\u262F\u2638-\u263A\u2640\u2642\u2648-\u2653\u265F\u2660\u2663\u2665\u2666\u2668\u267B\u267E\u267F\u2692-\u2697\u2699\u269B\u269C\u26A0\u26A1\u26A7\u26AA\u26AB\u26B0\u26B1\u26BD\u26BE\u26C4\u26C5\u26C8\u26CE\u26CF\u26D1\u26D3\u26D4\u26E9\u26EA\u26F0-\u26F5\u26F7-\u26FA\u26FD\u2702\u2705\u2708-\u270D\u270F\u2712\u2714\u2716\u271D\u2721\u2728\u2733\u2734\u2744\u2747\u274C\u274E\u2753-\u2755\u2757\u2763\u2764\u2795-\u2797\u27A1\u27B0\u27BF\u2934\u2935\u2B05-\u2B07\u2B1B\u2B1C\u2B50\u2B55\u3030\u303D\u3297\u3299]|\uD83C[\uDC04\uDCCF\uDD70\uDD71\uDD7E\uDD7F\uDD8E\uDD91-\uDD9A\uDDE6-\uDDFF\uDE01\uDE02\uDE1A\uDE2F\uDE32-\uDE3A\uDE50\uDE51\uDF00-\uDF21\uDF24-\uDF93\uDF96\uDF97\uDF99-\uDF9B\uDF9E-\uDFF0\uDFF3-\uDFF5\uDFF7-\uDFFF]|\uD83D[\uDC00-\uDCFD\uDCFF-\uDD3D\uDD49-\uDD4E\uDD50-\uDD67\uDD6F\uDD70\uDD73-\uDD7A\uDD87\uDD8A-\uDD8D\uDD90\uDD95\uDD96\uDDA4\uDDA5\uDDA8\uDDB1\uDDB2\uDDBC\uDDC2-\uDDC4\uDDD1-\uDDD3\uDDDC-\uDDDE\uDDE1\uDDE3\uDDE8\uDDEF\uDDF3\uDDFA-\uDE4F\uDE80-\uDEC5\uDECB-\uDED2\uDED5-\uDED7\uDEE0-\uDEE5\uDEE9\uDEEB\uDEEC\uDEF0\uDEF3-\uDEFC\uDFE0-\uDFEB]|\uD83E[\uDD0C-\uDD3A\uDD3C-\uDD45\uDD47-\uDD78\uDD7A-\uDDCB\uDDCD-\uDDFF\uDE70-\uDE74\uDE78-\uDE7A\uDE80-\uDE86\uDE90-\uDEA8\uDEB0-\uDEB6\uDEC0-\uDEC2\uDED0-\uDED6])\uFE0F|(?:[\u261D\u26F9\u270A-\u270D]|\uD83C[\uDF85\uDFC2-\uDFC4\uDFC7\uDFCA-\uDFCC]|\uD83D[\uDC42\uDC43\uDC46-\uDC50\uDC66-\uDC78\uDC7C\uDC81-\uDC83\uDC85-\uDC87\uDC8F\uDC91\uDCAA\uDD74\uDD75\uDD7A\uDD90\uDD95\uDD96\uDE45-\uDE47\uDE4B-\uDE4F\uDEA3\uDEB4-\uDEB6\uDEC0\uDECC]|\uD83E[\uDD0C\uDD0F\uDD18-\uDD1F\uDD26\uDD30-\uDD39\uDD3C-\uDD3E\uDD77\uDDB5\uDDB6\uDDB8\uDDB9\uDDBB\uDDCD-\uDDCF\uDDD1-\uDDDD])/g;
-}, FD, m = 10, L$1 = (t = 0) => (u) => `\x1B[${u + t}m`, N = (t = 0) => (u) => `\x1B[${38 + t};5;${u}m`, I = (t = 0) => (u, F, e) => `\x1B[${38 + t};2;${u};${F};${e}m`, r, tD, eD, iD, v, CD = 39, w$1 = "\x07", W$1 = "[", rD = "]", R = "m", y, V$1 = (t) => `${v.values().next().value}${W$1}${t}${R}`, z = (t) => `${v.values().next().value}${y}${t}${w$1}`, ED = (t) => t.split(" ").map((u) => A$1(u)), _ = (t, u, F) => {
-  const e = [...u];
+}, FD, m = 10, L$1 = (t = 0) => (u) => `\x1B[${u + t}m`, N = (t = 0) => (u) => `\x1B[${38 + t};5;${u}m`, I = (t = 0) => (u, F, e2) => `\x1B[${38 + t};2;${u};${F};${e2}m`, r, tD, eD, iD, v, CD = 39, w$1 = "\x07", W$1 = "[", rD = "]", R = "m", y, V$1 = (t) => `${v.values().next().value}${W$1}${t}${R}`, z = (t) => `${v.values().next().value}${y}${t}${w$1}`, ED = (t) => t.split(" ").map((u) => A$1(u)), _ = (t, u, F) => {
+  const e2 = [...u];
   let s = false, i = false, D = A$1(T$1(t[t.length - 1]));
-  for (const [C, o] of e.entries()) {
+  for (const [C, o] of e2.entries()) {
     const E = A$1(o);
-    if (D + E <= F ? t[t.length - 1] += o : (t.push(o), D = 0), v.has(o) && (s = true, i = e.slice(C + 1).join("").startsWith(y)), s) {
+    if (D + E <= F ? t[t.length - 1] += o : (t.push(o), D = 0), v.has(o) && (s = true, i = e2.slice(C + 1).join("").startsWith(y)), s) {
       i ? o === w$1 && (s = false, i = false) : o === R && (s = false);
       continue;
     }
-    D += E, D === F && C < e.length - 1 && (t.push(""), D = 0);
+    D += E, D === F && C < e2.length - 1 && (t.push(""), D = 0);
   }
   !D && t[t.length - 1].length > 0 && t.length > 1 && (t[t.length - 2] += t.pop());
 }, nD = (t) => {
@@ -432,7 +452,7 @@ var src, hasRequiredSrc, srcExports, picocolors, hasRequiredPicocolors, picocolo
 }, oD = (t, u, F = {}) => {
   if (F.trim !== false && t.trim() === "")
     return "";
-  let e = "", s, i;
+  let e2 = "", s, i;
   const D = ED(t);
   let C = [""];
   for (const [E, a] of t.split(" ").entries()) {
@@ -460,7 +480,7 @@ var src, hasRequiredSrc, srcExports, picocolors, hasRequiredPicocolors, picocolo
   const o = [...C.join(`
 `)];
   for (const [E, a] of o.entries()) {
-    if (e += a, v.has(a)) {
+    if (e2 += a, v.has(a)) {
       const { groups: B } = new RegExp(`(?:\\${W$1}(?<code>\\d+)m|\\${y}(?<uri>.*)${w$1})`).exec(o.slice(E).join("")) || { groups: {} };
       if (B.code !== undefined) {
         const p = Number.parseFloat(B.code);
@@ -470,10 +490,10 @@ var src, hasRequiredSrc, srcExports, picocolors, hasRequiredPicocolors, picocolo
     }
     const n = iD.codes.get(Number(s));
     o[E + 1] === `
-` ? (i && (e += z("")), s && n && (e += V$1(n))) : a === `
-` && (s && n && (e += V$1(s)), i && (e += z(i)));
+` ? (i && (e2 += z("")), s && n && (e2 += V$1(n))) : a === `
+` && (s && n && (e2 += V$1(s)), i && (e2 += z(i)));
   }
-  return e;
+  return e2;
 }, aD, c, S, AD, pD = (t, u, F) => (u in t) ? AD(t, u, { enumerable: true, configurable: true, writable: true, value: F }) : t[u] = F, h = (t, u, F) => (pD(t, typeof u != "symbol" ? u + "" : u, F), F), fD, bD, mD = (t, u, F) => (u in t) ? bD(t, u, { enumerable: true, configurable: true, writable: true, value: F }) : t[u] = F, Y = (t, u, F) => (mD(t, typeof u != "symbol" ? u + "" : u, F), F), wD, SD, $D = (t, u, F) => (u in t) ? SD(t, u, { enumerable: true, configurable: true, writable: true, value: F }) : t[u] = F, q = (t, u, F) => ($D(t, typeof u != "symbol" ? u + "" : u, F), F), jD, PD, V, u = (t, n) => V ? t : n, le, L, W, C, o, d, k, P, A, T, F, w = (t) => {
   switch (t) {
     case "initial":
@@ -487,22 +507,22 @@ var src, hasRequiredSrc, srcExports, picocolors, hasRequiredPicocolors, picocolo
       return e.green(C);
   }
 }, B = (t) => {
-  const { cursor: n, options: s, style: r } = t, i = t.maxItems ?? Number.POSITIVE_INFINITY, a = Math.max(process.stdout.rows - 4, 0), c = Math.min(a, Math.max(i, 5));
+  const { cursor: n, options: s, style: r2 } = t, i = t.maxItems ?? Number.POSITIVE_INFINITY, a = Math.max(process.stdout.rows - 4, 0), c2 = Math.min(a, Math.max(i, 5));
   let l = 0;
-  n >= l + c - 3 ? l = Math.max(Math.min(n - c + 3, s.length - c), 0) : n < l + 2 && (l = Math.max(n - 2, 0));
-  const $ = c < s.length && l > 0, p = c < s.length && l + c < s.length;
-  return s.slice(l, l + c).map((M, v, x) => {
-    const j = v === 0 && $, E = v === x.length - 1 && p;
-    return j || E ? e.dim("...") : r(M, v + l === n);
+  n >= l + c2 - 3 ? l = Math.max(Math.min(n - c2 + 3, s.length - c2), 0) : n < l + 2 && (l = Math.max(n - 2, 0));
+  const $ = c2 < s.length && l > 0, p = c2 < s.length && l + c2 < s.length;
+  return s.slice(l, l + c2).map((M, v2, x2) => {
+    const j = v2 === 0 && $, E = v2 === x2.length - 1 && p;
+    return j || E ? e.dim("...") : r2(M, v2 + l === n);
   });
 }, he = (t) => new PD({ validate: t.validate, placeholder: t.placeholder, defaultValue: t.defaultValue, initialValue: t.initialValue, render() {
   const n = `${e.gray(o)}
 ${w(this.state)} ${t.message}
-`, s = t.placeholder ? e.inverse(t.placeholder[0]) + e.dim(t.placeholder.slice(1)) : e.inverse(e.hidden("_")), r = this.value ? this.valueWithCursor : s;
+`, s = t.placeholder ? e.inverse(t.placeholder[0]) + e.dim(t.placeholder.slice(1)) : e.inverse(e.hidden("_")), r2 = this.value ? this.valueWithCursor : s;
   switch (this.state) {
     case "error":
       return `${n.trim()}
-${e.yellow(o)} ${r}
+${e.yellow(o)} ${r2}
 ${e.yellow(d)} ${e.yellow(this.error)}
 `;
     case "submit":
@@ -511,32 +531,32 @@ ${e.yellow(d)} ${e.yellow(this.error)}
       return `${n}${e.gray(o)} ${e.strikethrough(e.dim(this.value ?? ""))}${this.value?.trim() ? `
 ${e.gray(o)}` : ""}`;
     default:
-      return `${n}${e.cyan(o)} ${r}
+      return `${n}${e.cyan(o)} ${r2}
 ${e.cyan(d)}
 `;
   }
 } }).prompt(), ye = (t) => {
   const n = t.active ?? "Yes", s = t.inactive ?? "No";
   return new fD({ active: n, inactive: s, initialValue: t.initialValue ?? true, render() {
-    const r = `${e.gray(o)}
+    const r2 = `${e.gray(o)}
 ${w(this.state)} ${t.message}
 `, i = this.value ? n : s;
     switch (this.state) {
       case "submit":
-        return `${r}${e.gray(o)} ${e.dim(i)}`;
+        return `${r2}${e.gray(o)} ${e.dim(i)}`;
       case "cancel":
-        return `${r}${e.gray(o)} ${e.strikethrough(e.dim(i))}
+        return `${r2}${e.gray(o)} ${e.strikethrough(e.dim(i))}
 ${e.gray(o)}`;
       default:
-        return `${r}${e.cyan(o)} ${this.value ? `${e.green(k)} ${n}` : `${e.dim(P)} ${e.dim(n)}`} ${e.dim("/")} ${this.value ? `${e.dim(P)} ${e.dim(s)}` : `${e.green(k)} ${s}`}
+        return `${r2}${e.cyan(o)} ${this.value ? `${e.green(k)} ${n}` : `${e.dim(P)} ${e.dim(n)}`} ${e.dim("/")} ${this.value ? `${e.dim(P)} ${e.dim(s)}` : `${e.green(k)} ${s}`}
 ${e.cyan(d)}
 `;
     }
   } }).prompt();
 }, ve = (t) => {
-  const n = (s, r) => {
+  const n = (s, r2) => {
     const i = s.label ?? String(s.value);
-    switch (r) {
+    switch (r2) {
       case "selected":
         return `${e.dim(i)}`;
       case "active":
@@ -558,16 +578,16 @@ ${w(this.state)} ${t.message}
         return `${s}${e.gray(o)} ${n(this.options[this.cursor], "cancelled")}
 ${e.gray(o)}`;
       default:
-        return `${s}${e.cyan(o)} ${B({ cursor: this.cursor, options: this.options, maxItems: t.maxItems, style: (r, i) => n(r, i ? "active" : "inactive") }).join(`
+        return `${s}${e.cyan(o)} ${B({ cursor: this.cursor, options: this.options, maxItems: t.maxItems, style: (r2, i) => n(r2, i ? "active" : "inactive") }).join(`
 ${e.cyan(o)}  `)}
 ${e.cyan(d)}
 `;
     }
   } }).prompt();
 }, fe = (t) => {
-  const n = (s, r) => {
+  const n = (s, r2) => {
     const i = s.label ?? String(s.value);
-    return r === "active" ? `${e.cyan(A)} ${i} ${s.hint ? e.dim(`(${s.hint})`) : ""}` : r === "selected" ? `${e.green(T)} ${e.dim(i)}` : r === "cancelled" ? `${e.strikethrough(e.dim(i))}` : r === "active-selected" ? `${e.green(T)} ${i} ${s.hint ? e.dim(`(${s.hint})`) : ""}` : r === "submitted" ? `${e.dim(i)}` : `${e.dim(F)} ${e.dim(i)}`;
+    return r2 === "active" ? `${e.cyan(A)} ${i} ${s.hint ? e.dim(`(${s.hint})`) : ""}` : r2 === "selected" ? `${e.green(T)} ${e.dim(i)}` : r2 === "cancelled" ? `${e.strikethrough(e.dim(i))}` : r2 === "active-selected" ? `${e.green(T)} ${i} ${s.hint ? e.dim(`(${s.hint})`) : ""}` : r2 === "submitted" ? `${e.dim(i)}` : `${e.dim(F)} ${e.dim(i)}`;
   };
   return new wD({ options: t.options, initialValues: t.initialValues, required: t.required ?? true, cursorAt: t.cursorAt, validate(s) {
     if (this.required && s.length === 0)
@@ -576,9 +596,9 @@ ${e.reset(e.dim(`Press ${e.gray(e.bgWhite(e.inverse(" space ")))} to select, ${e
   }, render() {
     const s = `${e.gray(o)}
 ${w(this.state)} ${t.message}
-`, r = (i, a) => {
-      const c = this.value.includes(i.value);
-      return a && c ? n(i, "active-selected") : c ? n(i, "selected") : n(i, a ? "active" : "inactive");
+`, r2 = (i, a) => {
+      const c2 = this.value.includes(i.value);
+      return a && c2 ? n(i, "active-selected") : c2 ? n(i, "selected") : n(i, a ? "active" : "inactive");
     };
     switch (this.state) {
       case "submit":
@@ -590,15 +610,15 @@ ${e.gray(o)}` : ""}`;
       }
       case "error": {
         const i = this.error.split(`
-`).map((a, c) => c === 0 ? `${e.yellow(d)} ${e.yellow(a)}` : `   ${a}`).join(`
+`).map((a, c2) => c2 === 0 ? `${e.yellow(d)} ${e.yellow(a)}` : `   ${a}`).join(`
 `);
-        return `${s + e.yellow(o)} ${B({ options: this.options, cursor: this.cursor, maxItems: t.maxItems, style: r }).join(`
+        return `${s + e.yellow(o)} ${B({ options: this.options, cursor: this.cursor, maxItems: t.maxItems, style: r2 }).join(`
 ${e.yellow(o)}  `)}
 ${i}
 `;
       }
       default:
-        return `${s}${e.cyan(o)} ${B({ options: this.options, cursor: this.cursor, maxItems: t.maxItems, style: r }).join(`
+        return `${s}${e.cyan(o)} ${B({ options: this.options, cursor: this.cursor, maxItems: t.maxItems, style: r2 }).join(`
 ${e.cyan(o)}  `)}
 ${e.cyan(d)}
 `;
@@ -614,23 +634,23 @@ var init_prompt = __esm(() => {
   P$1 = { exports: {} };
   (function(t) {
     var u = {};
-    t.exports = u, u.eastAsianWidth = function(e) {
-      var s = e.charCodeAt(0), i = e.length == 2 ? e.charCodeAt(1) : 0, D = s;
+    t.exports = u, u.eastAsianWidth = function(e2) {
+      var s = e2.charCodeAt(0), i = e2.length == 2 ? e2.charCodeAt(1) : 0, D = s;
       return 55296 <= s && s <= 56319 && 56320 <= i && i <= 57343 && (s &= 1023, i &= 1023, D = s << 10 | i, D += 65536), D == 12288 || 65281 <= D && D <= 65376 || 65504 <= D && D <= 65510 ? "F" : D == 8361 || 65377 <= D && D <= 65470 || 65474 <= D && D <= 65479 || 65482 <= D && D <= 65487 || 65490 <= D && D <= 65495 || 65498 <= D && D <= 65500 || 65512 <= D && D <= 65518 ? "H" : 4352 <= D && D <= 4447 || 4515 <= D && D <= 4519 || 4602 <= D && D <= 4607 || 9001 <= D && D <= 9002 || 11904 <= D && D <= 11929 || 11931 <= D && D <= 12019 || 12032 <= D && D <= 12245 || 12272 <= D && D <= 12283 || 12289 <= D && D <= 12350 || 12353 <= D && D <= 12438 || 12441 <= D && D <= 12543 || 12549 <= D && D <= 12589 || 12593 <= D && D <= 12686 || 12688 <= D && D <= 12730 || 12736 <= D && D <= 12771 || 12784 <= D && D <= 12830 || 12832 <= D && D <= 12871 || 12880 <= D && D <= 13054 || 13056 <= D && D <= 19903 || 19968 <= D && D <= 42124 || 42128 <= D && D <= 42182 || 43360 <= D && D <= 43388 || 44032 <= D && D <= 55203 || 55216 <= D && D <= 55238 || 55243 <= D && D <= 55291 || 63744 <= D && D <= 64255 || 65040 <= D && D <= 65049 || 65072 <= D && D <= 65106 || 65108 <= D && D <= 65126 || 65128 <= D && D <= 65131 || 110592 <= D && D <= 110593 || 127488 <= D && D <= 127490 || 127504 <= D && D <= 127546 || 127552 <= D && D <= 127560 || 127568 <= D && D <= 127569 || 131072 <= D && D <= 194367 || 177984 <= D && D <= 196605 || 196608 <= D && D <= 262141 ? "W" : 32 <= D && D <= 126 || 162 <= D && D <= 163 || 165 <= D && D <= 166 || D == 172 || D == 175 || 10214 <= D && D <= 10221 || 10629 <= D && D <= 10630 ? "Na" : D == 161 || D == 164 || 167 <= D && D <= 168 || D == 170 || 173 <= D && D <= 174 || 176 <= D && D <= 180 || 182 <= D && D <= 186 || 188 <= D && D <= 191 || D == 198 || D == 208 || 215 <= D && D <= 216 || 222 <= D && D <= 225 || D == 230 || 232 <= D && D <= 234 || 236 <= D && D <= 237 || D == 240 || 242 <= D && D <= 243 || 247 <= D && D <= 250 || D == 252 || D == 254 || D == 257 || D == 273 || D == 275 || D == 283 || 294 <= D && D <= 295 || D == 299 || 305 <= D && D <= 307 || D == 312 || 319 <= D && D <= 322 || D == 324 || 328 <= D && D <= 331 || D == 333 || 338 <= D && D <= 339 || 358 <= D && D <= 359 || D == 363 || D == 462 || D == 464 || D == 466 || D == 468 || D == 470 || D == 472 || D == 474 || D == 476 || D == 593 || D == 609 || D == 708 || D == 711 || 713 <= D && D <= 715 || D == 717 || D == 720 || 728 <= D && D <= 731 || D == 733 || D == 735 || 768 <= D && D <= 879 || 913 <= D && D <= 929 || 931 <= D && D <= 937 || 945 <= D && D <= 961 || 963 <= D && D <= 969 || D == 1025 || 1040 <= D && D <= 1103 || D == 1105 || D == 8208 || 8211 <= D && D <= 8214 || 8216 <= D && D <= 8217 || 8220 <= D && D <= 8221 || 8224 <= D && D <= 8226 || 8228 <= D && D <= 8231 || D == 8240 || 8242 <= D && D <= 8243 || D == 8245 || D == 8251 || D == 8254 || D == 8308 || D == 8319 || 8321 <= D && D <= 8324 || D == 8364 || D == 8451 || D == 8453 || D == 8457 || D == 8467 || D == 8470 || 8481 <= D && D <= 8482 || D == 8486 || D == 8491 || 8531 <= D && D <= 8532 || 8539 <= D && D <= 8542 || 8544 <= D && D <= 8555 || 8560 <= D && D <= 8569 || D == 8585 || 8592 <= D && D <= 8601 || 8632 <= D && D <= 8633 || D == 8658 || D == 8660 || D == 8679 || D == 8704 || 8706 <= D && D <= 8707 || 8711 <= D && D <= 8712 || D == 8715 || D == 8719 || D == 8721 || D == 8725 || D == 8730 || 8733 <= D && D <= 8736 || D == 8739 || D == 8741 || 8743 <= D && D <= 8748 || D == 8750 || 8756 <= D && D <= 8759 || 8764 <= D && D <= 8765 || D == 8776 || D == 8780 || D == 8786 || 8800 <= D && D <= 8801 || 8804 <= D && D <= 8807 || 8810 <= D && D <= 8811 || 8814 <= D && D <= 8815 || 8834 <= D && D <= 8835 || 8838 <= D && D <= 8839 || D == 8853 || D == 8857 || D == 8869 || D == 8895 || D == 8978 || 9312 <= D && D <= 9449 || 9451 <= D && D <= 9547 || 9552 <= D && D <= 9587 || 9600 <= D && D <= 9615 || 9618 <= D && D <= 9621 || 9632 <= D && D <= 9633 || 9635 <= D && D <= 9641 || 9650 <= D && D <= 9651 || 9654 <= D && D <= 9655 || 9660 <= D && D <= 9661 || 9664 <= D && D <= 9665 || 9670 <= D && D <= 9672 || D == 9675 || 9678 <= D && D <= 9681 || 9698 <= D && D <= 9701 || D == 9711 || 9733 <= D && D <= 9734 || D == 9737 || 9742 <= D && D <= 9743 || 9748 <= D && D <= 9749 || D == 9756 || D == 9758 || D == 9792 || D == 9794 || 9824 <= D && D <= 9825 || 9827 <= D && D <= 9829 || 9831 <= D && D <= 9834 || 9836 <= D && D <= 9837 || D == 9839 || 9886 <= D && D <= 9887 || 9918 <= D && D <= 9919 || 9924 <= D && D <= 9933 || 9935 <= D && D <= 9953 || D == 9955 || 9960 <= D && D <= 9983 || D == 10045 || D == 10071 || 10102 <= D && D <= 10111 || 11093 <= D && D <= 11097 || 12872 <= D && D <= 12879 || 57344 <= D && D <= 63743 || 65024 <= D && D <= 65039 || D == 65533 || 127232 <= D && D <= 127242 || 127248 <= D && D <= 127277 || 127280 <= D && D <= 127337 || 127344 <= D && D <= 127386 || 917760 <= D && D <= 917999 || 983040 <= D && D <= 1048573 || 1048576 <= D && D <= 1114109 ? "A" : "N";
-    }, u.characterLength = function(e) {
-      var s = this.eastAsianWidth(e);
+    }, u.characterLength = function(e2) {
+      var s = this.eastAsianWidth(e2);
       return s == "F" || s == "W" || s == "A" ? 2 : 1;
     };
-    function F(e) {
-      return e.match(/[\uD800-\uDBFF][\uDC00-\uDFFF]|[^\uD800-\uDFFF]/g) || [];
+    function F(e2) {
+      return e2.match(/[\uD800-\uDBFF][\uDC00-\uDFFF]|[^\uD800-\uDFFF]/g) || [];
     }
-    u.length = function(e) {
-      for (var s = F(e), i = 0, D = 0;D < s.length; D++)
+    u.length = function(e2) {
+      for (var s = F(e2), i = 0, D = 0;D < s.length; D++)
         i = i + this.characterLength(s[D]);
       return i;
-    }, u.slice = function(e, s, i) {
-      textLen = u.length(e), s = s || 0, i = i || 1, s < 0 && (s = textLen + s), i < 0 && (i = textLen + i);
-      for (var D = "", C = 0, o = F(e), E = 0;E < o.length; E++) {
+    }, u.slice = function(e2, s, i) {
+      textLen = u.length(e2), s = s || 0, i = i || 1, s < 0 && (s = textLen + s), i < 0 && (i = textLen + i);
+      for (var D = "", C = 0, o = F(e2), E = 0;E < o.length; E++) {
         var a = o[E], n = u.length(a);
         if (C >= s - (n == 2 ? 1 : 0))
           if (C + n <= i)
@@ -867,7 +887,7 @@ async function withFileLock(lockPath, fn, opts = {}) {
       break;
     } catch (err) {
       if (err instanceof LockHeldError && attempt < retries) {
-        await new Promise((r) => setTimeout(r, retryDelayMs));
+        await new Promise((r3) => setTimeout(r3, retryDelayMs));
         continue;
       }
       throw err;
@@ -900,8 +920,8 @@ function configuredMaxBytes() {
   const raw = process.env["SGC_EVENTS_MAX_BYTES"];
   if (!raw)
     return EVENTS_MAX_BYTES;
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : EVENTS_MAX_BYTES;
+  const n2 = Number.parseInt(raw, 10);
+  return Number.isFinite(n2) && n2 > 0 ? n2 : EVENTS_MAX_BYTES;
 }
 function defaultNdjsonSink(stateRoot, maxBytes) {
   const path = resolve(stateRoot, "progress/events.ndjson");
@@ -944,9 +964,9 @@ function defaultNdjsonSink(stateRoot, maxBytes) {
       release();
     }
   };
-  return (e) => {
+  return (e2) => {
     try {
-      const line = JSON.stringify(e) + `
+      const line = JSON.stringify(e2) + `
 `;
       rotateIfNeeded(line.length);
       appendFileSync(path, line, "utf8");
@@ -958,7 +978,7 @@ function defaultNdjsonSink(stateRoot, maxBytes) {
 }
 function createLogger(opts = {}) {
   const stateRoot = opts.stateRoot ?? process.env["SGC_STATE_ROOT"] ?? ".sgc";
-  const say = opts.say ?? ((m) => console.log(m));
+  const say = opts.say ?? ((m2) => console.log(m2));
   const sink = opts.eventSink ?? defaultNdjsonSink(stateRoot, opts.maxBytes ?? configuredMaxBytes());
   return {
     say,
@@ -999,38 +1019,38 @@ function tokenize(text) {
   for (const seg of SEGMENTER.segment(normalized)) {
     if (!seg.isWordLike)
       continue;
-    const w = seg.segment;
-    const isAsciiOnly = /^[\x00-\x7F]+$/.test(w);
+    const w2 = seg.segment;
+    const isAsciiOnly = /^[\x00-\x7F]+$/.test(w2);
     const minLen = isAsciiOnly ? 3 : 2;
-    if (w.length < minLen)
+    if (w2.length < minLen)
       continue;
-    if (STOPWORDS.has(w))
+    if (STOPWORDS.has(w2))
       continue;
-    tokens.add(w);
+    tokens.add(w2);
   }
   return tokens;
 }
-function jaccard(a, b) {
-  if (a.size === 0 && b.size === 0)
+function jaccard(a2, b2) {
+  if (a2.size === 0 && b2.size === 0)
     return 1;
   let intersect = 0;
-  for (const t of a)
-    if (b.has(t))
+  for (const t2 of a2)
+    if (b2.has(t2))
       intersect++;
-  const union = a.size + b.size - intersect;
+  const union = a2.size + b2.size - intersect;
   if (union === 0)
     return 0;
   return intersect / union;
 }
-function featureOverlap(a, b) {
-  if (a.size === 0 && b.size === 0)
+function featureOverlap(a2, b2) {
+  if (a2.size === 0 && b2.size === 0)
     return 0;
-  return jaccard(a, b);
+  return jaccard(a2, b2);
 }
 function similarity(candidate, existing) {
   if (candidate.signature && candidate.signature === existing.signature)
     return 1;
-  const stripSentinel = (t) => t.filter((x) => x.toLowerCase() !== "untagged");
+  const stripSentinel = (t2) => t2.filter((x2) => x2.toLowerCase() !== "untagged");
   const candTags = stripSentinel(Array.isArray(candidate.tags) ? candidate.tags : []);
   const exTags = stripSentinel(Array.isArray(existing.tags) ? existing.tags : []);
   const candTagSet = new Set(candTags);
@@ -1051,19 +1071,19 @@ function similarity(candidate, existing) {
   }
   if (components.length === 0)
     return 0;
-  const totalWeight = components.reduce((sum, c) => sum + c.weight, 0);
-  return components.reduce((sum, c) => sum + c.value * c.weight, 0) / totalWeight;
+  const totalWeight = components.reduce((sum, c3) => sum + c3.weight, 0);
+  return components.reduce((sum, c3) => sum + c3.value * c3.weight, 0) / totalWeight;
 }
 function findBestMatch(candidate, existing) {
   let best = null;
-  for (const s of existing) {
+  for (const s2 of existing) {
     const sim = similarity(candidate, {
-      signature: s.entry.signature,
-      tags: s.entry.tags,
-      problem: s.entry.problem
+      signature: s2.entry.signature,
+      tags: s2.entry.tags,
+      problem: s2.entry.problem
     });
     if (!best || sim > best.similarity) {
-      best = { match: s, similarity: sim };
+      best = { match: s2, similarity: sim };
     }
   }
   return best;
@@ -1110,8 +1130,8 @@ var init_dedup = __esm(() => {
 });
 
 // node_modules/js-yaml/dist/js-yaml.mjs
-function getDefaultExportFromCjs2(x) {
-  return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
+function getDefaultExportFromCjs2(x2) {
+  return x2 && x2.__esModule && Object.prototype.hasOwnProperty.call(x2, "default") ? x2["default"] : x2;
 }
 function requireCommon() {
   if (hasRequiredCommon)
@@ -1123,7 +1143,7 @@ function requireCommon() {
   function isObject(subject) {
     return typeof subject === "object" && subject !== null;
   }
-  function toArray(sequence) {
+  function toArray2(sequence) {
     if (Array.isArray(sequence))
       return sequence;
     else if (isNothing(sequence))
@@ -1152,7 +1172,7 @@ function requireCommon() {
   }
   common.isNothing = isNothing;
   common.isObject = isObject;
-  common.toArray = toArray;
+  common.toArray = toArray2;
   common.repeat = repeat;
   common.isNegativeZero = isNegativeZero;
   common.extend = extend;
@@ -1252,11 +1272,11 @@ function requireSnippet() {
     let result = "";
     const lineNoLength = Math.min(mark.line + options.linesAfter, lineEnds.length).toString().length;
     const maxLineLength = options.maxLength - (options.indent + lineNoLength + 3);
-    for (let i = 1;i <= options.linesBefore; i++) {
-      if (foundLineNo - i < 0)
+    for (let i2 = 1;i2 <= options.linesBefore; i2++) {
+      if (foundLineNo - i2 < 0)
         break;
-      const line2 = getLine(mark.buffer, lineStarts[foundLineNo - i], lineEnds[foundLineNo - i], mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo - i]), maxLineLength);
-      result = common2.repeat(" ", options.indent) + padStart((mark.line - i + 1).toString(), lineNoLength) + " | " + line2.str + `
+      const line2 = getLine(mark.buffer, lineStarts[foundLineNo - i2], lineEnds[foundLineNo - i2], mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo - i2]), maxLineLength);
+      result = common2.repeat(" ", options.indent) + padStart((mark.line - i2 + 1).toString(), lineNoLength) + " | " + line2.str + `
 ` + result;
     }
     const line = getLine(mark.buffer, lineStarts[foundLineNo], lineEnds[foundLineNo], mark.position, maxLineLength);
@@ -1264,11 +1284,11 @@ function requireSnippet() {
 `;
     result += common2.repeat("-", options.indent + lineNoLength + 3 + line.pos) + `^
 `;
-    for (let i = 1;i <= options.linesAfter; i++) {
-      if (foundLineNo + i >= lineEnds.length)
+    for (let i2 = 1;i2 <= options.linesAfter; i2++) {
+      if (foundLineNo + i2 >= lineEnds.length)
         break;
-      const line2 = getLine(mark.buffer, lineStarts[foundLineNo + i], lineEnds[foundLineNo + i], mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo + i]), maxLineLength);
-      result += common2.repeat(" ", options.indent) + padStart((mark.line + i + 1).toString(), lineNoLength) + " | " + line2.str + `
+      const line2 = getLine(mark.buffer, lineStarts[foundLineNo + i2], lineEnds[foundLineNo + i2], mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo + i2]), maxLineLength);
+      result += common2.repeat(" ", options.indent) + padStart((mark.line + i2 + 1).toString(), lineNoLength) + " | " + line2.str + `
 `;
     }
     return result.replace(/\n$/, "");
@@ -1568,14 +1588,14 @@ function requireInt() {
   hasRequiredInt = 1;
   const common2 = requireCommon();
   const Type2 = requireType();
-  function isHexCode(c) {
-    return c >= 48 && c <= 57 || c >= 65 && c <= 70 || c >= 97 && c <= 102;
+  function isHexCode(c3) {
+    return c3 >= 48 && c3 <= 57 || c3 >= 65 && c3 <= 70 || c3 >= 97 && c3 <= 102;
   }
-  function isOctCode(c) {
-    return c >= 48 && c <= 55;
+  function isOctCode(c3) {
+    return c3 >= 48 && c3 <= 55;
   }
-  function isDecCode(c) {
-    return c >= 48 && c <= 57;
+  function isDecCode(c3) {
+    return c3 >= 48 && c3 <= 57;
   }
   function resolveYamlInteger(data) {
     if (data === null)
@@ -2118,48 +2138,48 @@ function requireLoader() {
   function _class(obj) {
     return Object.prototype.toString.call(obj);
   }
-  function isEol(c) {
-    return c === 10 || c === 13;
+  function isEol(c3) {
+    return c3 === 10 || c3 === 13;
   }
-  function isWhiteSpace(c) {
-    return c === 9 || c === 32;
+  function isWhiteSpace(c3) {
+    return c3 === 9 || c3 === 32;
   }
-  function isWsOrEol(c) {
-    return c === 9 || c === 32 || c === 10 || c === 13;
+  function isWsOrEol(c3) {
+    return c3 === 9 || c3 === 32 || c3 === 10 || c3 === 13;
   }
-  function isFlowIndicator(c) {
-    return c === 44 || c === 91 || c === 93 || c === 123 || c === 125;
+  function isFlowIndicator(c3) {
+    return c3 === 44 || c3 === 91 || c3 === 93 || c3 === 123 || c3 === 125;
   }
-  function fromHexCode(c) {
-    if (c >= 48 && c <= 57) {
-      return c - 48;
+  function fromHexCode(c3) {
+    if (c3 >= 48 && c3 <= 57) {
+      return c3 - 48;
     }
-    const lc = c | 32;
+    const lc = c3 | 32;
     if (lc >= 97 && lc <= 102) {
       return lc - 97 + 10;
     }
     return -1;
   }
-  function escapedHexLen(c) {
-    if (c === 120) {
+  function escapedHexLen(c3) {
+    if (c3 === 120) {
       return 2;
     }
-    if (c === 117) {
+    if (c3 === 117) {
       return 4;
     }
-    if (c === 85) {
+    if (c3 === 85) {
       return 8;
     }
     return 0;
   }
-  function fromDecimalCode(c) {
-    if (c >= 48 && c <= 57) {
-      return c - 48;
+  function fromDecimalCode(c3) {
+    if (c3 >= 48 && c3 <= 57) {
+      return c3 - 48;
     }
     return -1;
   }
-  function simpleEscapeSequence(c) {
-    switch (c) {
+  function simpleEscapeSequence(c3) {
+    switch (c3) {
       case 48:
         return "\x00";
       case 97:
@@ -2201,11 +2221,11 @@ function requireLoader() {
         return "";
     }
   }
-  function charFromCodepoint(c) {
-    if (c <= 65535) {
-      return String.fromCharCode(c);
+  function charFromCodepoint(c3) {
+    if (c3 <= 65535) {
+      return String.fromCharCode(c3);
     }
-    return String.fromCharCode((c - 65536 >> 10) + 55296, (c - 65536 & 1023) + 56320);
+    return String.fromCharCode((c3 - 65536 >> 10) + 55296, (c3 - 65536 & 1023) + 56320);
   }
   function setProperty(object, key, value) {
     if (key === "__proto__") {
@@ -2221,9 +2241,9 @@ function requireLoader() {
   }
   const simpleEscapeCheck = new Array(256);
   const simpleEscapeMap = new Array(256);
-  for (let i = 0;i < 256; i++) {
-    simpleEscapeCheck[i] = simpleEscapeSequence(i) ? 1 : 0;
-    simpleEscapeMap[i] = simpleEscapeSequence(i);
+  for (let i2 = 0;i2 < 256; i2++) {
+    simpleEscapeCheck[i2] = simpleEscapeSequence(i2) ? 1 : 0;
+    simpleEscapeMap[i2] = simpleEscapeSequence(i2);
   }
   function State(input, options) {
     this.input = input;
@@ -3647,25 +3667,25 @@ function requireDumper() {
     }
     return false;
   }
-  function isWhitespace(c) {
-    return c === CHAR_SPACE || c === CHAR_TAB;
+  function isWhitespace(c3) {
+    return c3 === CHAR_SPACE || c3 === CHAR_TAB;
   }
-  function isPrintable(c) {
-    return c >= 32 && c <= 126 || c >= 161 && c <= 55295 && c !== 8232 && c !== 8233 || c >= 57344 && c <= 65533 && c !== CHAR_BOM || c >= 65536 && c <= 1114111;
+  function isPrintable(c3) {
+    return c3 >= 32 && c3 <= 126 || c3 >= 161 && c3 <= 55295 && c3 !== 8232 && c3 !== 8233 || c3 >= 57344 && c3 <= 65533 && c3 !== CHAR_BOM || c3 >= 65536 && c3 <= 1114111;
   }
-  function isNsCharOrWhitespace(c) {
-    return isPrintable(c) && c !== CHAR_BOM && c !== CHAR_CARRIAGE_RETURN && c !== CHAR_LINE_FEED;
+  function isNsCharOrWhitespace(c3) {
+    return isPrintable(c3) && c3 !== CHAR_BOM && c3 !== CHAR_CARRIAGE_RETURN && c3 !== CHAR_LINE_FEED;
   }
-  function isPlainSafe(c, prev, inblock) {
-    const cIsNsCharOrWhitespace = isNsCharOrWhitespace(c);
-    const cIsNsChar = cIsNsCharOrWhitespace && !isWhitespace(c);
-    return (inblock ? cIsNsCharOrWhitespace : cIsNsCharOrWhitespace && c !== CHAR_COMMA && c !== CHAR_LEFT_SQUARE_BRACKET && c !== CHAR_RIGHT_SQUARE_BRACKET && c !== CHAR_LEFT_CURLY_BRACKET && c !== CHAR_RIGHT_CURLY_BRACKET) && c !== CHAR_SHARP && !(prev === CHAR_COLON && !cIsNsChar) || isNsCharOrWhitespace(prev) && !isWhitespace(prev) && c === CHAR_SHARP || prev === CHAR_COLON && cIsNsChar;
+  function isPlainSafe(c3, prev, inblock) {
+    const cIsNsCharOrWhitespace = isNsCharOrWhitespace(c3);
+    const cIsNsChar = cIsNsCharOrWhitespace && !isWhitespace(c3);
+    return (inblock ? cIsNsCharOrWhitespace : cIsNsCharOrWhitespace && c3 !== CHAR_COMMA && c3 !== CHAR_LEFT_SQUARE_BRACKET && c3 !== CHAR_RIGHT_SQUARE_BRACKET && c3 !== CHAR_LEFT_CURLY_BRACKET && c3 !== CHAR_RIGHT_CURLY_BRACKET) && c3 !== CHAR_SHARP && !(prev === CHAR_COLON && !cIsNsChar) || isNsCharOrWhitespace(prev) && !isWhitespace(prev) && c3 === CHAR_SHARP || prev === CHAR_COLON && cIsNsChar;
   }
-  function isPlainSafeFirst(c) {
-    return isPrintable(c) && c !== CHAR_BOM && !isWhitespace(c) && c !== CHAR_MINUS && c !== CHAR_QUESTION && c !== CHAR_COLON && c !== CHAR_COMMA && c !== CHAR_LEFT_SQUARE_BRACKET && c !== CHAR_RIGHT_SQUARE_BRACKET && c !== CHAR_LEFT_CURLY_BRACKET && c !== CHAR_RIGHT_CURLY_BRACKET && c !== CHAR_SHARP && c !== CHAR_AMPERSAND && c !== CHAR_ASTERISK && c !== CHAR_EXCLAMATION && c !== CHAR_VERTICAL_LINE && c !== CHAR_EQUALS && c !== CHAR_GREATER_THAN && c !== CHAR_SINGLE_QUOTE && c !== CHAR_DOUBLE_QUOTE && c !== CHAR_PERCENT && c !== CHAR_COMMERCIAL_AT && c !== CHAR_GRAVE_ACCENT;
+  function isPlainSafeFirst(c3) {
+    return isPrintable(c3) && c3 !== CHAR_BOM && !isWhitespace(c3) && c3 !== CHAR_MINUS && c3 !== CHAR_QUESTION && c3 !== CHAR_COLON && c3 !== CHAR_COMMA && c3 !== CHAR_LEFT_SQUARE_BRACKET && c3 !== CHAR_RIGHT_SQUARE_BRACKET && c3 !== CHAR_LEFT_CURLY_BRACKET && c3 !== CHAR_RIGHT_CURLY_BRACKET && c3 !== CHAR_SHARP && c3 !== CHAR_AMPERSAND && c3 !== CHAR_ASTERISK && c3 !== CHAR_EXCLAMATION && c3 !== CHAR_VERTICAL_LINE && c3 !== CHAR_EQUALS && c3 !== CHAR_GREATER_THAN && c3 !== CHAR_SINGLE_QUOTE && c3 !== CHAR_DOUBLE_QUOTE && c3 !== CHAR_PERCENT && c3 !== CHAR_COMMERCIAL_AT && c3 !== CHAR_GRAVE_ACCENT;
   }
-  function isPlainSafeLast(c) {
-    return !isWhitespace(c) && c !== CHAR_COLON;
+  function isPlainSafeLast(c3) {
+    return !isWhitespace(c3) && c3 !== CHAR_COLON;
   }
   function codePointAt(string, pos) {
     const first = string.charCodeAt(pos);
@@ -3688,7 +3708,7 @@ function requireDumper() {
   const STYLE_FOLDED = 4;
   const STYLE_DOUBLE = 5;
   function chooseScalarStyle(string, singleLineOnly, indentPerLevel, lineWidth, testAmbiguousType, quotingType, forceQuotes, inblock) {
-    let i;
+    let i2;
     let char = 0;
     let prevChar = null;
     let hasLineBreak = false;
@@ -3697,8 +3717,8 @@ function requireDumper() {
     let previousLineBreak = -1;
     let plain = isPlainSafeFirst(codePointAt(string, 0)) && isPlainSafeLast(codePointAt(string, string.length - 1));
     if (singleLineOnly || forceQuotes) {
-      for (i = 0;i < string.length; char >= 65536 ? i += 2 : i++) {
-        char = codePointAt(string, i);
+      for (i2 = 0;i2 < string.length; char >= 65536 ? i2 += 2 : i2++) {
+        char = codePointAt(string, i2);
         if (!isPrintable(char)) {
           return STYLE_DOUBLE;
         }
@@ -3706,13 +3726,13 @@ function requireDumper() {
         prevChar = char;
       }
     } else {
-      for (i = 0;i < string.length; char >= 65536 ? i += 2 : i++) {
-        char = codePointAt(string, i);
+      for (i2 = 0;i2 < string.length; char >= 65536 ? i2 += 2 : i2++) {
+        char = codePointAt(string, i2);
         if (char === CHAR_LINE_FEED) {
           hasLineBreak = true;
           if (shouldTrackWidth) {
-            hasFoldableLine = hasFoldableLine || i - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ";
-            previousLineBreak = i;
+            hasFoldableLine = hasFoldableLine || i2 - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ";
+            previousLineBreak = i2;
           }
         } else if (!isPrintable(char)) {
           return STYLE_DOUBLE;
@@ -3720,7 +3740,7 @@ function requireDumper() {
         plain = plain && isPlainSafe(char, prevChar, inblock);
         prevChar = char;
       }
-      hasFoldableLine = hasFoldableLine || shouldTrackWidth && (i - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ");
+      hasFoldableLine = hasFoldableLine || shouldTrackWidth && (i2 - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ");
     }
     if (!hasLineBreak && !hasFoldableLine) {
       if (plain && !forceQuotes && !testAmbiguousType(string)) {
@@ -3839,13 +3859,13 @@ function requireDumper() {
   function escapeString(string) {
     let result = "";
     let char = 0;
-    for (let i = 0;i < string.length; char >= 65536 ? i += 2 : i++) {
-      char = codePointAt(string, i);
+    for (let i2 = 0;i2 < string.length; char >= 65536 ? i2 += 2 : i2++) {
+      char = codePointAt(string, i2);
       const escapeSeq = ESCAPE_SEQUENCES[char];
       if (!escapeSeq && isPrintable(char)) {
-        result += string[i];
+        result += string[i2];
         if (char >= 65536)
-          result += string[i + 1];
+          result += string[i2 + 1];
       } else {
         result += escapeSeq || encodeHex(char);
       }
@@ -4103,13 +4123,13 @@ function requireDumper() {
       } else {
         objects.push(object);
         if (Array.isArray(object)) {
-          for (let i = 0, length = object.length;i < length; i += 1) {
-            inspectNode(object[i], objects, duplicatesIndexes);
+          for (let i2 = 0, length = object.length;i2 < length; i2 += 1) {
+            inspectNode(object[i2], objects, duplicatesIndexes);
           }
         } else {
           const objectKeyList = Object.keys(object);
-          for (let i = 0, length = objectKeyList.length;i < length; i += 1) {
-            inspectNode(object[objectKeyList[i]], objects, duplicatesIndexes);
+          for (let i2 = 0, length = objectKeyList.length;i2 < length; i2 += 1) {
+            inspectNode(object[objectKeyList[i2]], objects, duplicatesIndexes);
           }
         }
       }
@@ -4223,7 +4243,7 @@ function ensureDefaultStateGitignored(custom) {
   try {
     content = readFileSync2(giPath, "utf8");
   } catch {}
-  const alreadyIgnored = content.split(/\r?\n/).map((l) => l.trim()).some((l) => l === ".sgc" || l === ".sgc/" || l === "/.sgc" || l === "/.sgc/");
+  const alreadyIgnored = content.split(/\r?\n/).map((l2) => l2.trim()).some((l2) => l2 === ".sgc" || l2 === ".sgc/" || l2 === "/.sgc" || l2 === "/.sgc/");
   if (alreadyIgnored)
     return;
   const lead = content.length === 0 ? "" : content.endsWith(`
@@ -4239,12 +4259,12 @@ function ensureDefaultStateGitignored(custom) {
   } catch {}
 }
 function ensureSgcStructure(stateRoot) {
-  const r = root(stateRoot);
+  const r3 = root(stateRoot);
   for (const layer of LAYERS) {
-    mkdirSync2(resolve2(r, layer), { recursive: true });
+    mkdirSync2(resolve2(r3, layer), { recursive: true });
   }
   ensureDefaultStateGitignored(stateRoot);
-  return r;
+  return r3;
 }
 function parseFrontmatter(text, source) {
   const match = FRONTMATTER_RE.exec(text);
@@ -4258,10 +4278,10 @@ function parseFrontmatter(text, source) {
   return { data, body };
 }
 function serializeFrontmatter(data, body = "") {
-  const yaml = dump(data, { lineWidth: -1, sortKeys: false }).trimEnd();
+  const yaml2 = dump(data, { lineWidth: -1, sortKeys: false }).trimEnd();
   const trimmedBody = body.replace(/^\n+/, "");
   return `---
-${yaml}
+${yaml2}
 ---
 
 ${trimmedBody}`;
@@ -4280,12 +4300,12 @@ function writeAtomic(path, content) {
   }
 }
 function wordCount(text) {
-  let n = 0;
+  let n2 = 0;
   for (const seg of WORD_SEGMENTER.segment(text)) {
     if (seg.isWordLike)
-      n++;
+      n2++;
   }
-  return n;
+  return n2;
 }
 var StateError, DEFAULT_STATE_DIR = ".sgc", root, LAYERS, FRONTMATTER_RE, atomicWriteSeq = 0, WORD_SEGMENTER;
 var init_atomic = __esm(() => {
@@ -4318,10 +4338,10 @@ var init_types = __esm(() => {
 import { existsSync as existsSync2, readFileSync as readFileSync3 } from "node:fs";
 import { resolve as resolve3 } from "node:path";
 function validateIntent(intent) {
-  for (const f of REQUIRED_INTENT_FIELDS) {
-    const v = intent[f];
-    if (v === undefined || v === null) {
-      throw new StateError("SchemaViolation", `intent missing required field: ${f}`);
+  for (const f3 of REQUIRED_INTENT_FIELDS) {
+    const v2 = intent[f3];
+    if (v2 === undefined || v2 === null) {
+      throw new StateError("SchemaViolation", `intent missing required field: ${f3}`);
     }
   }
   if (!Array.isArray(intent.affected_readers) || intent.affected_readers.length < 1) {
@@ -4363,10 +4383,10 @@ function readIntent(taskId, stateRoot) {
   return { ...data, body };
 }
 function validateShip(ship) {
-  for (const f of REQUIRED_SHIP_FIELDS) {
-    const v = ship[f];
-    if (v === undefined || v === null) {
-      throw new StateError("SchemaViolation", `ship missing required field: ${f}`);
+  for (const f3 of REQUIRED_SHIP_FIELDS) {
+    const v2 = ship[f3];
+    if (v2 === undefined || v2 === null) {
+      throw new StateError("SchemaViolation", `ship missing required field: ${f3}`);
     }
   }
   if (ship.outcome === "reverted" && !ship.rollback_ref) {
@@ -4384,6 +4404,14 @@ function writeShip(ship, body = "", stateRoot) {
   validateShip(ship);
   writeAtomic(path, serializeFrontmatter(ship, body));
   return path;
+}
+function readShip(taskId, stateRoot) {
+  const path = shipPath(taskId, stateRoot);
+  if (!existsSync2(path)) {
+    throw new StateError("NotFound", `ship.md not found for ${taskId}`);
+  }
+  const { data, body } = parseFrontmatter(readFileSync3(path, "utf8"), path);
+  return { ship: data, body };
 }
 var REQUIRED_INTENT_FIELDS, REQUIRED_SHIP_FIELDS;
 var init_decisions = __esm(() => {
@@ -4415,10 +4443,10 @@ function progressPath(file, stateRoot) {
   return resolve4(resolveStateRoot(stateRoot), "progress", `${file}.md`);
 }
 function validateCurrentTask(task) {
-  for (const f of REQUIRED_CURRENT_TASK_FIELDS) {
-    const v = task[f];
-    if (v === undefined || v === null) {
-      throw new StateError("SchemaViolation", `current-task missing required field: ${f}`);
+  for (const f3 of REQUIRED_CURRENT_TASK_FIELDS) {
+    const v2 = task[f3];
+    if (v2 === undefined || v2 === null) {
+      throw new StateError("SchemaViolation", `current-task missing required field: ${f3}`);
     }
   }
 }
@@ -4439,14 +4467,14 @@ function validateFeatureList(list) {
   if (!Array.isArray(list?.features)) {
     throw new StateError("SchemaViolation", "feature-list missing required field: features (array)");
   }
-  for (let i = 0;i < list.features.length; i++) {
-    const ft = list.features[i];
+  for (let i2 = 0;i2 < list.features.length; i2++) {
+    const ft = list.features[i2];
     if (ft === null || typeof ft !== "object") {
-      throw new StateError("SchemaViolation", `feature-list.features[${i}] is not an object`);
+      throw new StateError("SchemaViolation", `feature-list.features[${i2}] is not an object`);
     }
-    for (const f of REQUIRED_FEATURE_FIELDS) {
-      if (ft[f] === undefined || ft[f] === null) {
-        throw new StateError("SchemaViolation", `feature-list.features[${i}] missing required field: ${f}`);
+    for (const f3 of REQUIRED_FEATURE_FIELDS) {
+      if (ft[f3] === undefined || ft[f3] === null) {
+        throw new StateError("SchemaViolation", `feature-list.features[${i2}] missing required field: ${f3}`);
       }
     }
   }
@@ -4472,10 +4500,10 @@ function readFeatureList(stateRoot) {
   return { list: data, body };
 }
 function validateHandoff(handoff) {
-  for (const f of REQUIRED_HANDOFF_FIELDS) {
-    const v = handoff[f];
-    if (v === undefined || v === null) {
-      throw new StateError("SchemaViolation", `handoff missing required field: ${f}`);
+  for (const f3 of REQUIRED_HANDOFF_FIELDS) {
+    const v2 = handoff[f3];
+    if (v2 === undefined || v2 === null) {
+      throw new StateError("SchemaViolation", `handoff missing required field: ${f3}`);
     }
   }
   if (!Array.isArray(handoff?.open_questions)) {
@@ -4524,11 +4552,11 @@ function writeRedGreenCapture(fm, stateRoot) {
   mkdirSync4(dir, { recursive: true });
   const baseSlug = redGreenSlug(fm.title, fm.task_id);
   let slug = baseSlug;
-  let n = 1;
+  let n2 = 1;
   while (existsSync4(resolve5(dir, `${slug}.md`))) {
-    n += 1;
-    slug = `${baseSlug}-${n}`;
-    if (n > 50)
+    n2 += 1;
+    slug = `${baseSlug}-${n2}`;
+    if (n2 > 50)
       throw new Error(`red-green slug collision overflow for ${fm.task_id}`);
   }
   const data = {
@@ -4555,16 +4583,16 @@ Fill \`prevention_seed:\` with the ` + `reusable safeguard, then run \`sgc compo
   return slug;
 }
 function validateReview(report) {
-  for (const f of REQUIRED_REVIEW_FIELDS) {
-    const v = report[f];
-    if (v === undefined || v === null) {
-      throw new StateError("SchemaViolation", `review missing required field: ${f}`);
+  for (const f3 of REQUIRED_REVIEW_FIELDS) {
+    const v2 = report[f3];
+    if (v2 === undefined || v2 === null) {
+      throw new StateError("SchemaViolation", `review missing required field: ${f3}`);
     }
   }
   if (report.override) {
-    const r = report.override.reason ?? "";
-    if (r.length < 40) {
-      throw new StateError("SchemaViolation", `review override.reason must be ≥40 chars (Invariant §5); got ${r.length}`);
+    const r3 = report.override.reason ?? "";
+    if (r3.length < 40) {
+      throw new StateError("SchemaViolation", `review override.reason must be ≥40 chars (Invariant §5); got ${r3.length}`);
     }
     if ((report.override.by ?? "").trim().length === 0) {
       throw new StateError("SchemaViolation", "review override.by (the signer) must be a non-empty name (Invariant §5)");
@@ -4588,11 +4616,28 @@ function appendReview(report, body = "", stateRoot, suffix) {
   writeAtomic(path, serializeFrontmatter(report, body));
   return path;
 }
-function validateJanitorDecision(d) {
-  for (const f of REQUIRED_JANITOR_FIELDS) {
-    const v = d[f];
-    if (v === undefined || v === null || typeof v === "string" && v.length === 0) {
-      throw new StateError("SchemaViolation", `janitor decision missing: ${f}`);
+function readReview(taskId, stage, reviewerId, stateRoot) {
+  const path = reviewPath(taskId, stage, reviewerId, stateRoot);
+  if (!existsSync4(path))
+    return null;
+  const { data, body } = parseFrontmatter(readFileSync5(path, "utf8"));
+  return { report: data, body };
+}
+function hasQaEvidence(taskId, stateRoot) {
+  const qaDir = resolve5(resolveStateRoot(stateRoot), "reviews", taskId, "qa");
+  if (!existsSync4(qaDir))
+    return false;
+  try {
+    return readdirSync(qaDir).some((f3) => f3.endsWith(".md"));
+  } catch {
+    return false;
+  }
+}
+function validateJanitorDecision(d2) {
+  for (const f3 of REQUIRED_JANITOR_FIELDS) {
+    const v2 = d2[f3];
+    if (v2 === undefined || v2 === null || typeof v2 === "string" && v2.length === 0) {
+      throw new StateError("SchemaViolation", `janitor decision missing: ${f3}`);
     }
   }
 }
@@ -4608,20 +4653,27 @@ function writeJanitorDecision(decision, body = "", stateRoot) {
   writeAtomic(path, serializeFrontmatter(decision, body));
   return path;
 }
+function readJanitorDecision(taskId, stateRoot) {
+  const path = janitorDecisionPath(taskId, stateRoot);
+  if (!existsSync4(path))
+    return null;
+  const { data } = parseFrontmatter(readFileSync5(path, "utf8"));
+  return data;
+}
 function listReviewsForStage(taskId, stage, stateRoot) {
   const dir = resolve5(resolveStateRoot(stateRoot), "reviews", taskId, stage);
   if (!existsSync4(dir))
     return [];
   let files;
   try {
-    files = readdirSync(dir).filter((f) => f.endsWith(".md"));
+    files = readdirSync(dir).filter((f3) => f3.endsWith(".md"));
   } catch {
     return [];
   }
   const reports = [];
-  for (const f of files) {
+  for (const f3 of files) {
     try {
-      const text = readFileSync5(resolve5(dir, f), "utf8");
+      const text = readFileSync5(resolve5(dir, f3), "utf8");
       const { data } = parseFrontmatter(text);
       reports.push(data);
     } catch {}
@@ -4676,8 +4728,8 @@ function listAllSpawns(stateRoot) {
   const promptsDir = resolve6(stateRoot, "progress/agent-prompts");
   if (!existsSync5(promptsDir))
     return [];
-  return readdirSync2(promptsDir).filter((f) => f.endsWith(".md")).sort().map((f) => {
-    const spawnId = f.slice(0, -3);
+  return readdirSync2(promptsDir).filter((f3) => f3.endsWith(".md")).sort().map((f3) => {
+    const spawnId = f3.slice(0, -3);
     const { agentName } = parseSpawnId(spawnId);
     const pp = promptPath(spawnId, stateRoot);
     const rp = resultPath(spawnId, stateRoot);
@@ -4691,7 +4743,7 @@ function listAllSpawns(stateRoot) {
   });
 }
 function listPendingSpawns(stateRoot) {
-  return listAllSpawns(stateRoot).filter((s) => !s.hasResult);
+  return listAllSpawns(stateRoot).filter((s2) => !s2.hasResult);
 }
 var init_spawn_protocol = () => {};
 
@@ -4703,8 +4755,8 @@ function isFingerprintable(line) {
   const trimmed = line.trim();
   if (trimmed.length < MIN_LINE_LEN)
     return false;
-  const c = trimmed[0];
-  if (c === "#" || c === "-" || c === "*" || c === ">" || c === "|" || c === "`")
+  const c3 = trimmed[0];
+  if (c3 === "#" || c3 === "-" || c3 === "*" || c3 === ">" || c3 === "|" || c3 === "`")
     return false;
   if (trimmed === "---" || trimmed === "...")
     return false;
@@ -4737,9 +4789,9 @@ function safeReadFile(path) {
 }
 function loadSolutionsFingerprints(stateRoot) {
   const dir = resolve7(stateRoot, "solutions");
-  const set = new Set;
+  const set2 = new Set;
   if (!existsSync6(dir))
-    return set;
+    return set2;
   for (const cat of safeReaddir(dir)) {
     const catPath = join2(dir, cat);
     if (!isDir(catPath))
@@ -4754,20 +4806,20 @@ function loadSolutionsFingerprints(stateRoot) {
 `)) {
         if (!isFingerprintable(line))
           continue;
-        set.add(hashLine(line));
+        set2.add(hashLine(line));
       }
     }
   }
-  return set;
+  return set2;
 }
 function getFingerprintsCached(stateRoot) {
   const key = resolve7(stateRoot);
-  let v = fpCache.get(key);
-  if (!v) {
-    v = loadSolutionsFingerprints(key);
-    fpCache.set(key, v);
+  let v2 = fpCache.get(key);
+  if (!v2) {
+    v2 = loadSolutionsFingerprints(key);
+    fpCache.set(key, v2);
   }
-  return v;
+  return v2;
 }
 function clearFingerprintCache() {
   fpCache.clear();
@@ -4782,15 +4834,15 @@ function scanOutputForLeak(agentName, output, fingerprints) {
   const samples = [];
   let count = 0;
   const seen = new Set;
-  function walk(v) {
-    if (typeof v === "string") {
-      for (const line of v.split(`
+  function walk(v2) {
+    if (typeof v2 === "string") {
+      for (const line of v2.split(`
 `)) {
         if (!isFingerprintable(line))
           continue;
-        const h = hashLine(line);
-        if (fingerprints.has(h) && !seen.has(h)) {
-          seen.add(h);
+        const h2 = hashLine(line);
+        if (fingerprints.has(h2) && !seen.has(h2)) {
+          seen.add(h2);
           count++;
           if (samples.length < 3) {
             const trimmed = line.trim();
@@ -4798,11 +4850,11 @@ function scanOutputForLeak(agentName, output, fingerprints) {
           }
         }
       }
-    } else if (Array.isArray(v)) {
-      for (const item of v)
+    } else if (Array.isArray(v2)) {
+      for (const item of v2)
         walk(item);
-    } else if (v && typeof v === "object") {
-      for (const val of Object.values(v))
+    } else if (v2 && typeof v2 === "object") {
+      for (const val of Object.values(v2))
         walk(val);
     }
   }
@@ -4818,10 +4870,10 @@ var init_fingerprint = __esm(() => {
 import { existsSync as existsSync7, mkdirSync as mkdirSync5, readFileSync as readFileSync7, readdirSync as readdirSync4 } from "node:fs";
 import { dirname as dirname3, resolve as resolve8 } from "node:path";
 function validateSolution(entry) {
-  for (const f of REQUIRED_SOLUTION_FIELDS) {
-    const v = entry[f];
-    if (v === undefined || v === null) {
-      throw new StateError("SchemaViolation", `solution missing required field: ${f}`);
+  for (const f3 of REQUIRED_SOLUTION_FIELDS) {
+    const v2 = entry[f3];
+    if (v2 === undefined || v2 === null) {
+      throw new StateError("SchemaViolation", `solution missing required field: ${f3}`);
     }
   }
   if (!SOLUTION_CATEGORIES.has(entry.category)) {
@@ -4907,6 +4959,13 @@ async function writeSolutionLocked(entry, slug, dedupStamp, body = "", stateRoot
   const lockPath = solutionLockPath(entry.category, slug, stateRoot);
   return withFileLock(lockPath, () => writeSolution(entry, slug, dedupStamp, body, stateRoot), lockOpts);
 }
+function readSolution(category, slug, stateRoot) {
+  const path = solutionPath(category, slug, stateRoot);
+  if (!existsSync7(path))
+    return null;
+  const { data, body } = parseFrontmatter(readFileSync7(path, "utf8"));
+  return { entry: data, body };
+}
 function listSolutions(stateRoot) {
   const dir = resolve8(resolveStateRoot(stateRoot), "solutions");
   if (!existsSync7(dir))
@@ -4914,7 +4973,7 @@ function listSolutions(stateRoot) {
   const out = [];
   let categories;
   try {
-    categories = readdirSync4(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
+    categories = readdirSync4(dir, { withFileTypes: true }).filter((e2) => e2.isDirectory()).map((e2) => e2.name);
   } catch {
     return [];
   }
@@ -4924,17 +4983,17 @@ function listSolutions(stateRoot) {
     const catDir = resolve8(dir, cat);
     let files;
     try {
-      files = readdirSync4(catDir).filter((f) => f.endsWith(".md"));
+      files = readdirSync4(catDir).filter((f3) => f3.endsWith(".md"));
     } catch {
       continue;
     }
-    for (const f of files) {
-      const fpath = resolve8(catDir, f);
+    for (const f3 of files) {
+      const fpath = resolve8(catDir, f3);
       try {
         const { data, body } = parseFrontmatter(readFileSync7(fpath, "utf8"));
         out.push({
           category: cat,
-          slug: f.replace(/\.md$/, ""),
+          slug: f3.replace(/\.md$/, ""),
           path: fpath,
           entry: data,
           body
@@ -4943,6 +5002,9 @@ function listSolutions(stateRoot) {
     }
   }
   return out;
+}
+function deleteSolution(_category, _slug, _stateRoot) {
+  throw new StateError("SolutionDeleteForbidden", "solutions/ is delete-forbidden per sgc-state.schema.yaml (delete_policy: forbidden)");
 }
 var SOLUTION_CATEGORIES, REQUIRED_SOLUTION_FIELDS;
 var init_solutions = __esm(() => {
@@ -5007,7 +5069,7 @@ function validateValueAgainstDecl(value, decl, fieldName) {
     return null;
   const enumMatch = /^enum\[(.*)\]$/.exec(decl);
   if (enumMatch) {
-    const values = enumMatch[1].split(",").map((v) => v.trim()).filter((v) => v.length > 0);
+    const values = enumMatch[1].split(",").map((v2) => v2.trim()).filter((v2) => v2.length > 0);
     if (values.length === 0) {
       return `field ${fieldName}: malformed declaration ${JSON.stringify(decl)} (enum declares no values)`;
     }
@@ -5025,8 +5087,8 @@ function validateValueAgainstDecl(value, decl, fieldName) {
     const isSimpleForm = innerDecl === "string" || innerDecl === "markdown" || innerDecl === "integer" || innerDecl === "number" || /^enum\[.+\]$/.test(innerDecl);
     if (!isSimpleForm)
       return null;
-    for (let i = 0;i < value.length; i++) {
-      const err = validateValueAgainstDecl(value[i], innerDecl, `${fieldName}[${i}]`);
+    for (let i2 = 0;i2 < value.length; i2++) {
+      const err = validateValueAgainstDecl(value[i2], innerDecl, `${fieldName}[${i2}]`);
       if (err)
         return err;
     }
@@ -5063,11 +5125,11 @@ function validateOutputShape(manifest, result) {
   const expected = manifest.outputs;
   const required = Object.keys(expected);
   const present = Object.keys(result);
-  const missing = required.filter((k) => !present.includes(k));
+  const missing = required.filter((k2) => !present.includes(k2));
   if (missing.length > 0) {
     throw new OutputShapeMismatch(manifest.name, missing);
   }
-  const unknown = present.filter((k) => !required.includes(k));
+  const unknown = present.filter((k2) => !required.includes(k2));
   if (unknown.length > 0) {
     throw new OutputShapeMismatch(manifest.name, unknown, `agent ${manifest.name} returned undeclared output fields: ${unknown.join(", ")} (Invariant §9)`);
   }
@@ -5121,24 +5183,24 @@ function composeArrayObjectValidator(shape) {
     const seen = shape.dedupBy ? new Set : null;
     let dedupedCount = 0;
     const entries = [];
-    for (let i = 0;i < arr.length; i++) {
+    for (let i2 = 0;i2 < arr.length; i2++) {
       if (shape.maxLength !== undefined && entries.length >= shape.maxLength)
         break;
-      const e = arr[i];
-      if (typeof e !== "object" || e === null) {
-        throw new OutputShapeMismatch(shape.agentName, [`${shape.topField}[${i}]`], `${shape.topField}[${i}] not an object`);
+      const e2 = arr[i2];
+      if (typeof e2 !== "object" || e2 === null) {
+        throw new OutputShapeMismatch(shape.agentName, [`${shape.topField}[${i2}]`], `${shape.topField}[${i2}] not an object`);
       }
-      const entry = e;
+      const entry = e2;
       for (const [fieldName, spec] of fieldEntries) {
         const err = checkField(entry[fieldName], spec);
         if (err !== null) {
-          throw new OutputShapeMismatch(shape.agentName, [`${shape.topField}[${i}].${fieldName}`], `${shape.topField}[${i}].${fieldName} ${err}`);
+          throw new OutputShapeMismatch(shape.agentName, [`${shape.topField}[${i2}].${fieldName}`], `${shape.topField}[${i2}].${fieldName} ${err}`);
         }
       }
       if (shape.validateEntry) {
-        const err = shape.validateEntry(entry, i);
+        const err = shape.validateEntry(entry, i2);
         if (err !== null) {
-          throw new OutputShapeMismatch(shape.agentName, [`${shape.topField}[${i}]`], `${shape.topField}[${i}].${err}`);
+          throw new OutputShapeMismatch(shape.agentName, [`${shape.topField}[${i2}]`], `${shape.topField}[${i2}].${err}`);
         }
       }
       if (seen !== null) {
@@ -5151,7 +5213,7 @@ function composeArrayObjectValidator(shape) {
       }
       entries.push(entry);
     }
-    const llmWarnings = Array.isArray(obj["warnings"]) ? obj["warnings"].filter((w) => typeof w === "string") : [];
+    const llmWarnings = Array.isArray(obj["warnings"]) ? obj["warnings"].filter((w2) => typeof w2 === "string") : [];
     const warnings = [...llmWarnings];
     if (dedupedCount > 0) {
       const noun = dedupedCount === 1 ? dedupNoun : dedupPlural;
@@ -5197,7 +5259,7 @@ async function walkSolutionsCorpus(stateRoot, keywords) {
   let categories;
   try {
     const entries = await readdir(dir, { withFileTypes: true });
-    categories = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+    categories = entries.filter((e2) => e2.isDirectory()).map((e2) => e2.name);
   } catch {
     return [];
   }
@@ -5207,7 +5269,7 @@ async function walkSolutionsCorpus(stateRoot, keywords) {
     let files;
     try {
       const entries = await readdir(catPath, { withFileTypes: true });
-      files = entries.filter((e) => e.isFile() && e.name.endsWith(".md")).map((e) => e.name);
+      files = entries.filter((e2) => e2.isFile() && e2.name.endsWith(".md")).map((e2) => e2.name);
     } catch {
       continue;
     }
@@ -5226,7 +5288,7 @@ async function walkSolutionsCorpus(stateRoot, keywords) {
       }
       const text = raw.normalize("NFC");
       const corpusTokens = tokenize(text);
-      const hits = keywords.filter((k) => keywordHitsCorpus(k, corpusTokens)).length;
+      const hits = keywords.filter((k2) => keywordHitsCorpus(k2, corpusTokens)).length;
       if (hits === 0)
         continue;
       const afterFence = text.replace(/^---[\s\S]*?---\r?\n?/, "").trimStart();
@@ -5242,22 +5304,22 @@ async function walkSolutionsCorpus(stateRoot, keywords) {
   return out;
 }
 async function preFilterSolutions(intentDraft, stateRoot) {
-  const root = resolveStateRoot(stateRoot);
+  const root2 = resolveStateRoot(stateRoot);
   const keywords = extractKeywords(intentDraft);
-  const scans = await walkSolutionsCorpus(root, keywords);
-  const candidates = scans.map((s) => {
-    const intentMatch = /^intent:\s*(.+)$/m.exec(s.text);
+  const scans = await walkSolutionsCorpus(root2, keywords);
+  const candidates = scans.map((s2) => {
+    const intentMatch = /^intent:\s*(.+)$/m.exec(s2.text);
     const intentLine = intentMatch ? `${intentMatch[1].trim()}
 ` : "";
-    const excerpt = (intentLine + s.afterFence).replace(/\s+/g, " ").trim().slice(0, 500);
+    const excerpt = (intentLine + s2.afterFence).replace(/\s+/g, " ").trim().slice(0, 500);
     return {
-      solution_ref: `${s.category}/${s.slug}`,
-      category: s.category,
+      solution_ref: `${s2.category}/${s2.slug}`,
+      category: s2.category,
       excerpt,
-      keyword_hits: s.hits
+      keyword_hits: s2.hits
     };
   });
-  candidates.sort((a, b) => b.keyword_hits - a.keyword_hits);
+  candidates.sort((a2, b2) => b2.keyword_hits - a2.keyword_hits);
   return candidates.slice(0, 20);
 }
 function extractKeywords(text) {
@@ -5284,14 +5346,14 @@ function scoreRelevance(hitCount, keywordCount) {
 }
 async function mineSolutions(stateRoot, keywords) {
   const scans = await walkSolutionsCorpus(stateRoot, keywords);
-  const results = scans.map((s) => ({
+  const results = scans.map((s2) => ({
     source: "solutions",
-    relevance_score: scoreRelevance(s.hits, keywords.length),
-    excerpt: s.afterFence.slice(0, 160).replace(/\s+/g, " ").trim(),
-    solution_ref: `${s.category}/${s.slug}`
+    relevance_score: scoreRelevance(s2.hits, keywords.length),
+    excerpt: s2.afterFence.slice(0, 160).replace(/\s+/g, " ").trim(),
+    solution_ref: `${s2.category}/${s2.slug}`
   }));
-  results.sort((a, b) => b.relevance_score - a.relevance_score);
-  return results.filter((r) => r.relevance_score >= 0.3).slice(0, 5);
+  results.sort((a2, b2) => b2.relevance_score - a2.relevance_score);
+  return results.filter((r3) => r3.relevance_score >= 0.3).slice(0, 5);
 }
 async function researcherHistoryHeuristic(input, opts = {}) {
   const stateRoot = resolveStateRoot(opts.stateRoot);
@@ -5307,9 +5369,9 @@ async function researcherHistoryHeuristic(input, opts = {}) {
   return { prior_art, warnings };
 }
 function coerceLlmOutput(raw, candidates) {
-  const refSet = new Set(candidates.map((c) => c.solution_ref));
-  const candByRef = new Map(candidates.map((c) => [c.solution_ref, c]));
-  const validate = composeArrayObjectValidator({
+  const refSet = new Set(candidates.map((c3) => c3.solution_ref));
+  const candByRef = new Map(candidates.map((c3) => [c3.solution_ref, c3]));
+  const validate2 = composeArrayObjectValidator({
     agentName: "researcher.history",
     topField: "prior_art",
     fields: {
@@ -5326,7 +5388,7 @@ function coerceLlmOutput(raw, candidates) {
     dedupBy: "solution_ref",
     maxLength: 5
   });
-  const { entries, warnings } = validate(raw);
+  const { entries, warnings } = validate2(raw);
   const prior_art = entries.map((entry) => {
     const ref = entry["solution_ref"];
     const score = entry["relevance_score"];
@@ -5374,6 +5436,18 @@ var init_researcher_history = __esm(() => {
 });
 
 // src/dispatcher/debug.ts
+var exports_debug = {};
+__export(exports_debug, {
+  writeInvestigation: () => writeInvestigation,
+  runDebugStatus: () => runDebugStatus,
+  runDebugStart: () => runDebugStart,
+  runDebugList: () => runDebugList,
+  runDebugClose: () => runDebugClose,
+  renderInvestigationBody: () => renderInvestigationBody,
+  findSoleInProgressInvestigation: () => findSoleInProgressInvestigation,
+  deriveInvestigationId: () => deriveInvestigationId,
+  defaultHeuristic: () => defaultHeuristic
+});
 import { existsSync as existsSync9 } from "node:fs";
 import { readFile as readFile2, readdir as readdir2, writeFile, rename, mkdir } from "node:fs/promises";
 import { join as join3 } from "node:path";
@@ -5396,7 +5470,7 @@ async function readEventsTail(stateRoot, lineLimit) {
   try {
     const content = await readFile2(path, "utf8");
     const all = content.split(`
-`).filter((l) => l.length > 0);
+`).filter((l2) => l2.length > 0);
     return { lines: all.slice(-lineLimit) };
   } catch (err) {
     const code = err.code;
@@ -5416,30 +5490,30 @@ async function gatherInvestigateFactsImpl(opts) {
     errors
   };
   try {
-    const r = spawnSync("git", ["rev-parse", "HEAD"], {
+    const r3 = spawnSync("git", ["rev-parse", "HEAD"], {
       cwd: opts.repoRoot,
       encoding: "utf8"
     });
-    if (r.error)
-      errors.push(`git_head: ${r.error.message.slice(0, 80)}`);
-    else if (r.status === 0)
-      facts.git_head = r.stdout.trim();
+    if (r3.error)
+      errors.push(`git_head: ${r3.error.message.slice(0, 80)}`);
+    else if (r3.status === 0)
+      facts.git_head = r3.stdout.trim();
     else
-      errors.push(`git_head: ${(r.stderr || "non-zero exit").trim().slice(0, 80)}`);
+      errors.push(`git_head: ${(r3.stderr || "non-zero exit").trim().slice(0, 80)}`);
   } catch (err) {
     errors.push(`git_head: ${err.message.slice(0, 80)}`);
   }
   try {
-    const r = spawnSync("git", ["status", "--porcelain=v1"], {
+    const r3 = spawnSync("git", ["status", "--porcelain=v1"], {
       cwd: opts.repoRoot,
       encoding: "utf8"
     });
-    if (r.error)
-      errors.push(`git_status: ${r.error.message.slice(0, 80)}`);
-    else if (r.status === 0) {
-      facts.git_status_paths = r.stdout.split(/\r?\n/).filter((l) => l.length > 0).slice(0, 20);
+    if (r3.error)
+      errors.push(`git_status: ${r3.error.message.slice(0, 80)}`);
+    else if (r3.status === 0) {
+      facts.git_status_paths = r3.stdout.split(/\r?\n/).filter((l2) => l2.length > 0).slice(0, 20);
     } else {
-      errors.push(`git_status: ${(r.stderr || "non-zero exit").trim().slice(0, 80)}`);
+      errors.push(`git_status: ${(r3.stderr || "non-zero exit").trim().slice(0, 80)}`);
     }
   } catch (err) {
     errors.push(`git_status: ${err.message.slice(0, 80)}`);
@@ -5449,11 +5523,11 @@ async function gatherInvestigateFactsImpl(opts) {
     errors.push(tail.error);
   for (const line of tail.lines) {
     try {
-      const e = JSON.parse(line);
+      const e2 = JSON.parse(line);
       facts.recent_events.push({
-        ts: String(e.ts ?? ""),
-        event_type: String(e.event_type ?? ""),
-        agent: String(e.agent ?? "")
+        ts: String(e2.ts ?? ""),
+        event_type: String(e2.event_type ?? ""),
+        agent: String(e2.agent ?? "")
       });
     } catch {}
   }
@@ -5486,7 +5560,7 @@ async function analyzeCorpusImpl(opts) {
       overlap_score: scan.hits
     });
   }
-  hits.sort((a, b) => b.overlap_score - a.overlap_score);
+  hits.sort((a2, b2) => b2.overlap_score - a2.overlap_score);
   return hits.slice(0, 5);
 }
 async function detectThreeStrikeImpl(opts) {
@@ -5495,14 +5569,14 @@ async function detectThreeStrikeImpl(opts) {
     return [];
   const counts = new Map;
   for (const line of tail.lines) {
-    let e;
+    let e2;
     try {
-      e = JSON.parse(line);
+      e2 = JSON.parse(line);
     } catch {
       continue;
     }
-    const cls = e.payload?.error_class;
-    const msg = e.payload?.error_message;
+    const cls = e2.payload?.error_class;
+    const msg = e2.payload?.error_message;
     if (!cls || !msg)
       continue;
     const sig = `${cls}: ${msg.slice(0, 80)}`;
@@ -5510,14 +5584,14 @@ async function detectThreeStrikeImpl(opts) {
     if (cur)
       cur.count++;
     else
-      counts.set(sig, { count: 1, first_ts: String(e.ts ?? "") });
+      counts.set(sig, { count: 1, first_ts: String(e2.ts ?? "") });
   }
   const strikes = [];
   for (const [signature, { count, first_ts }] of counts) {
     if (count >= 3)
       strikes.push({ signature, count, example_ts: first_ts });
   }
-  strikes.sort((a, b) => b.count - a.count);
+  strikes.sort((a2, b2) => b2.count - a2.count);
   return strikes;
 }
 async function scanDir(stateRoot, dir, needle) {
@@ -5587,8 +5661,8 @@ function renderInvestigationBody(parts) {
   }
   if (parts.investigate.recent_events.length > 0) {
     lines.push("- recent_events (tail 50):");
-    for (const e of parts.investigate.recent_events.slice(-10)) {
-      lines.push(`  - ${e.ts} ${e.event_type} ${e.agent}`);
+    for (const e2 of parts.investigate.recent_events.slice(-10)) {
+      lines.push(`  - ${e2.ts} ${e2.event_type} ${e2.agent}`);
     }
   } else {
     lines.push("- recent_events: (none)");
@@ -5603,8 +5677,8 @@ function renderInvestigationBody(parts) {
   if (parts.analyze.prior_preventions.length === 0) {
     lines.push("- (none)");
   } else {
-    for (const h of parts.analyze.prior_preventions) {
-      lines.push(`- ${h.solution_ref} (score ${h.overlap_score.toFixed(2)}): ${h.prevention_excerpt}`);
+    for (const h2 of parts.analyze.prior_preventions) {
+      lines.push(`- ${h2.solution_ref} (score ${h2.overlap_score.toFixed(2)}): ${h2.prevention_excerpt}`);
     }
   }
   lines.push("");
@@ -5612,8 +5686,8 @@ function renderInvestigationBody(parts) {
   if (parts.analyze.historical_signatures.length === 0) {
     lines.push("- (none)");
   } else {
-    for (const h of parts.analyze.historical_signatures) {
-      lines.push(`- ${h.kind}/${h.slug}: ${h.excerpt}`);
+    for (const h2 of parts.analyze.historical_signatures) {
+      lines.push(`- ${h2.kind}/${h2.slug}: ${h2.excerpt}`);
     }
   }
   lines.push("");
@@ -5621,8 +5695,8 @@ function renderInvestigationBody(parts) {
   if (parts.analyze.three_strike.length === 0) {
     lines.push("- (none)");
   } else {
-    for (const t of parts.analyze.three_strike) {
-      lines.push(`- ⚠ three-strike: ${t.signature} (${t.count} occurrences; consider rollback per §6)`);
+    for (const t2 of parts.analyze.three_strike) {
+      lines.push(`- ⚠ three-strike: ${t2.signature} (${t2.count} occurrences; consider rollback per §6)`);
     }
   }
   for (const err of parts.analyze.errors) {
@@ -5631,8 +5705,8 @@ function renderInvestigationBody(parts) {
   lines.push("");
   lines.push("## 3 — Hypothesize");
   lines.push("");
-  for (let i = 0;i < parts.hypothesize.length; i++) {
-    lines.push(`${i + 1}. ${parts.hypothesize[i]}`);
+  for (let i2 = 0;i2 < parts.hypothesize.length; i2++) {
+    lines.push(`${i2 + 1}. ${parts.hypothesize[i2]}`);
   }
   lines.push("");
   lines.push("## 4 — Implement");
@@ -5674,8 +5748,8 @@ async function resolveCollisionId(stateRoot, baseId) {
   const dir = join3(stateRoot, "investigations");
   if (!existsSync9(join3(dir, `${baseId}.md`)))
     return baseId;
-  for (let n = 2;n < 100; n++) {
-    const candidate = `${baseId}-${n}`;
+  for (let n2 = 2;n2 < 100; n2++) {
+    const candidate = `${baseId}-${n2}`;
     if (!existsSync9(join3(dir, `${candidate}.md`)))
       return candidate;
   }
@@ -5692,11 +5766,11 @@ async function readInvestigationContent(stateRoot, id) {
 }
 async function runDebugClose(opts) {
   const stateRoot = resolveStateRoot(opts.stateRoot);
-  const stderrWrite = opts.stderrWrite ?? ((c) => {
-    process.stderr.write(c);
+  const stderrWrite = opts.stderrWrite ?? ((c3) => {
+    process.stderr.write(c3);
   });
-  const stdoutWrite = opts.stdoutWrite ?? ((c) => {
-    process.stdout.write(c);
+  const stdoutWrite = opts.stdoutWrite ?? ((c3) => {
+    process.stdout.write(c3);
   });
   const now = (opts.now ?? (() => new Date))();
   const logger = opts.logger ?? createLogger({ stateRoot });
@@ -5788,11 +5862,11 @@ async function runDebugClose(opts) {
 }
 async function runDebugStatus(opts) {
   const stateRoot = resolveStateRoot(opts.stateRoot);
-  const stdoutWrite = opts.stdoutWrite ?? ((c) => {
-    process.stdout.write(c);
+  const stdoutWrite = opts.stdoutWrite ?? ((c3) => {
+    process.stdout.write(c3);
   });
-  const stderrWrite = opts.stderrWrite ?? ((c) => {
-    process.stderr.write(c);
+  const stderrWrite = opts.stderrWrite ?? ((c3) => {
+    process.stderr.write(c3);
   });
   const result = await readInvestigationContent(stateRoot, opts.id);
   if (!result) {
@@ -5805,8 +5879,8 @@ async function runDebugStatus(opts) {
 }
 async function runDebugList(opts) {
   const stateRoot = resolveStateRoot(opts.stateRoot);
-  const stdoutWrite = opts.stdoutWrite ?? ((c) => {
-    process.stdout.write(c);
+  const stdoutWrite = opts.stdoutWrite ?? ((c3) => {
+    process.stdout.write(c3);
   });
   const dir = join3(stateRoot, "investigations");
   let entries;
@@ -5839,20 +5913,20 @@ async function runDebugList(opts) {
 `);
     return { exitCode: 0 };
   }
-  records.sort((a, b) => b.started_at.localeCompare(a.started_at));
-  const idWidth = Math.max(2, ...records.map((r) => r.id.length)) + 2;
-  const statusWidth = Math.max(6, ...records.map((r) => r.status.length)) + 2;
+  records.sort((a2, b2) => b2.started_at.localeCompare(a2.started_at));
+  const idWidth = Math.max(2, ...records.map((r3) => r3.id.length)) + 2;
+  const statusWidth = Math.max(6, ...records.map((r3) => r3.status.length)) + 2;
   stdoutWrite(`${"ID".padEnd(idWidth)}${"STATUS".padEnd(statusWidth)}SYMPTOM
 `);
-  for (const r of records) {
-    stdoutWrite(`${r.id.padEnd(idWidth)}${r.status.padEnd(statusWidth)}${r.symptom}
+  for (const r3 of records) {
+    stdoutWrite(`${r3.id.padEnd(idWidth)}${r3.status.padEnd(statusWidth)}${r3.symptom}
 `);
   }
   return { exitCode: 0 };
 }
 async function findSoleInProgressInvestigation(stateRoot) {
-  const root = resolveStateRoot(stateRoot);
-  const dir = join3(root, "investigations");
+  const root2 = resolveStateRoot(stateRoot);
+  const dir = join3(root2, "investigations");
   let entries;
   try {
     entries = await readdir2(dir);
@@ -5880,11 +5954,11 @@ async function runDebugStart(opts) {
   const heuristic = opts.heuristic ?? defaultHeuristic();
   const now = (opts.now ?? (() => new Date))();
   const logger = opts.logger ?? createLogger({ stateRoot });
-  const stdoutWrite = opts.stdoutWrite ?? ((c) => {
-    process.stdout.write(c);
+  const stdoutWrite = opts.stdoutWrite ?? ((c3) => {
+    process.stdout.write(c3);
   });
-  const stderrWrite = opts.stderrWrite ?? ((c) => {
-    process.stderr.write(c);
+  const stderrWrite = opts.stderrWrite ?? ((c3) => {
+    process.stderr.write(c3);
   });
   const baseId = deriveInvestigationId(opts.symptom, now);
   let id;
@@ -5990,14 +6064,14 @@ async function runDebugStart(opts) {
     payload: { investigation_id: id, phase: "analyze" }
   });
   const hypothesize = [];
-  for (const h of priorPreventions) {
-    hypothesize.push(`${h.solution_ref} — ${h.prevention_excerpt}`);
+  for (const h2 of priorPreventions) {
+    hypothesize.push(`${h2.solution_ref} — ${h2.prevention_excerpt}`);
   }
-  for (const h of historicalSignatures) {
-    hypothesize.push(`${h.kind}/${h.slug} — ${h.excerpt}`);
+  for (const h2 of historicalSignatures) {
+    hypothesize.push(`${h2.kind}/${h2.slug} — ${h2.excerpt}`);
   }
-  for (const t of threeStrike) {
-    hypothesize.push(`three-strike: ${t.signature} (${t.count} occurrences)`);
+  for (const t2 of threeStrike) {
+    hypothesize.push(`three-strike: ${t2.signature} (${t2.count} occurrences)`);
   }
   if (hypothesize.length === 0) {
     hypothesize.push("No prior matches. Operator-formulated hypothesis required.");
@@ -6030,8 +6104,8 @@ async function runDebugStart(opts) {
   stdoutWrite(`## 3 — Hypothesize
 
 `);
-  for (let i = 0;i < hypothesize.length; i++) {
-    stdoutWrite(`${i + 1}. ${hypothesize[i]}
+  for (let i2 = 0;i2 < hypothesize.length; i2++) {
+    stdoutWrite(`${i2 + 1}. ${hypothesize[i2]}
 `);
   }
   stderrWrite(`started: ${path}
@@ -6049,21 +6123,21 @@ var init_debug = __esm(() => {
 // src/dispatcher/preprocessor.ts
 function quoteArrayPatterns(input) {
   const out = [];
-  let i = 0;
-  while (i < input.length) {
-    const start = input.indexOf("array[", i);
+  let i2 = 0;
+  while (i2 < input.length) {
+    const start = input.indexOf("array[", i2);
     if (start === -1 || !isWordBoundary(input, start)) {
-      out.push(input.slice(i));
+      out.push(input.slice(i2));
       break;
     }
-    out.push(input.slice(i, start));
+    out.push(input.slice(i2, start));
     let depth = 0;
     let j = start + "array".length;
     while (j < input.length) {
-      const c = input[j];
-      if (c === "[")
+      const c3 = input[j];
+      if (c3 === "[")
         depth++;
-      else if (c === "]") {
+      else if (c3 === "]") {
         depth--;
         if (depth === 0)
           break;
@@ -6075,30 +6149,30 @@ function quoteArrayPatterns(input) {
       break;
     }
     out.push(`"${input.slice(start, j + 1)}"`);
-    i = j + 1;
+    i2 = j + 1;
   }
   return out.join("");
 }
-function isWordBoundary(s, idx) {
+function isWordBoundary(s2, idx) {
   if (idx === 0)
     return true;
-  const prev = s[idx - 1];
+  const prev = s2[idx - 1];
   return !/[A-Za-z0-9_"]/.test(prev);
 }
 function quoteOptionalTokens(input) {
   let prev = "";
-  let s = input;
-  while (prev !== s) {
-    prev = s;
-    s = s.replace(/(\[[^\[\]\{\}\n]*?)\b(\w+)\?(?=[\s,\]])/g, '$1"$2?"');
+  let s2 = input;
+  while (prev !== s2) {
+    prev = s2;
+    s2 = s2.replace(/(\[[^\[\]\{\}\n]*?)\b(\w+)\?(?=[\s,\]])/g, '$1"$2?"');
   }
-  return s;
+  return s2;
 }
 function blockScalarOpenIndent(line) {
-  const m = /^(\s*)\S[^:]*:\s*[|>][-+]?\s*(#.*)?$/.exec(line);
-  if (!m)
+  const m2 = /^(\s*)\S[^:]*:\s*[|>][-+]?\s*(#.*)?$/.exec(line);
+  if (!m2)
     return null;
-  return m[1].length;
+  return m2[1].length;
 }
 function preprocess(yamlText) {
   const lines = yamlText.split(`
@@ -8421,11 +8495,11 @@ function readDisk(path, label, envVar) {
   try {
     return readFileSync8(path, "utf8");
   } catch (err) {
-    const e = err;
-    if (e.code === "ENOENT") {
+    const e2 = err;
+    if (e2.code === "ENOENT") {
       throw new Error(`sgc data not found: ${label} at ${path} — set ${envVar} if it lives elsewhere.`);
     }
-    throw new Error(`sgc data unreadable: ${label} at ${path}: ${e.message}`);
+    throw new Error(`sgc data unreadable: ${label} at ${path}: ${e2.message}`);
   }
 }
 var EMBEDDED_CONTRACTS, EMBEDDED_PROMPTS, moduleDir, diskContractsDir, diskRepoRoot;
@@ -8478,8 +8552,8 @@ function getCapabilities() {
   if (_capabilities === null) {
     const text = readContract("sgc-capabilities.yaml");
     const raw = loadSpec(text);
-    for (const [k, m] of Object.entries(raw.subagents ?? {})) {
-      m.name = k;
+    for (const [k2, m2] of Object.entries(raw.subagents ?? {})) {
+      m2.name = k2;
     }
     _capabilities = raw;
   }
@@ -8567,26 +8641,26 @@ class CappedStreamBuffer {
   constructor(cap = MAX_CAPTURE_BYTES) {
     this.cap = cap;
   }
-  push(c) {
+  push(c3) {
     if (this.overflowed)
       return false;
-    if (this.bytes + c.length > this.cap) {
+    if (this.bytes + c3.length > this.cap) {
       this.overflowed = true;
       return false;
     }
-    this.bytes += c.length;
-    this.chunks.push(c);
+    this.bytes += c3.length;
+    this.chunks.push(c3);
     return true;
   }
   toString() {
     return Buffer.concat(this.chunks).toString("utf8");
   }
 }
-function spawnCapture(argv, opts = {}) {
-  if (!argv[0])
+function spawnCapture(argv2, opts = {}) {
+  if (!argv2[0])
     return Promise.resolve({ stdout: "", stderr: "empty argv", exitCode: -1 });
   return new Promise((resolveP) => {
-    const child = spawn(argv[0], argv.slice(1), {
+    const child = spawn(argv2[0], argv2.slice(1), {
       cwd: opts.cwd,
       env: opts.env,
       stdio: ["ignore", "pipe", "pipe"]
@@ -8594,17 +8668,17 @@ function spawnCapture(argv, opts = {}) {
     const out = new CappedStreamBuffer(opts.maxBuffer);
     const err = new CappedStreamBuffer(opts.maxBuffer);
     let errored = false;
-    child.stdout?.on("data", (c) => {
-      if (!out.push(c))
+    child.stdout?.on("data", (c3) => {
+      if (!out.push(c3))
         child.kill();
     });
-    child.stderr?.on("data", (c) => {
-      if (!err.push(c))
+    child.stderr?.on("data", (c3) => {
+      if (!err.push(c3))
         child.kill();
     });
-    child.on("error", (e) => {
+    child.on("error", (e2) => {
       errored = true;
-      resolveP({ stdout: out.toString(), stderr: err.toString() + String(e), exitCode: -1 });
+      resolveP({ stdout: out.toString(), stderr: err.toString() + String(e2), exitCode: -1 });
     });
     child.on("close", (code) => {
       if (errored)
@@ -8618,26 +8692,26 @@ function spawnCapture(argv, opts = {}) {
     });
   });
 }
-function spawnCaptureSync(argv, opts = {}) {
-  if (!argv[0])
+function spawnCaptureSync(argv2, opts = {}) {
+  if (!argv2[0])
     return { stdout: "", stderr: "empty argv", exitCode: -1 };
-  const r = spawnSync2(argv[0], argv.slice(1), {
+  const r3 = spawnSync2(argv2[0], argv2.slice(1), {
     cwd: opts.cwd,
     env: opts.env,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     maxBuffer: opts.maxBuffer ?? MAX_CAPTURE_BYTES
   });
-  if (r.error)
-    return { stdout: r.stdout ?? "", stderr: String(r.error), exitCode: -1 };
-  return { stdout: r.stdout ?? "", stderr: r.stderr ?? "", exitCode: r.status ?? -1 };
+  if (r3.error)
+    return { stdout: r3.stdout ?? "", stderr: String(r3.error), exitCode: -1 };
+  return { stdout: r3.stdout ?? "", stderr: r3.stderr ?? "", exitCode: r3.status ?? -1 };
 }
 function whichSync(bin) {
   const cmd = process.platform === "win32" ? "where" : "which";
-  const r = spawnSync2(cmd, [bin], { encoding: "utf8" });
-  if (r.status !== 0)
+  const r3 = spawnSync2(cmd, [bin], { encoding: "utf8" });
+  if (r3.status !== 0)
     return null;
-  const line = (r.stdout || "").split(`
+  const line = (r3.stdout || "").split(`
 `)[0]?.trim();
   return line && line.length > 0 ? line : null;
 }
@@ -8658,10 +8732,10 @@ function extractYamlBody(resultText) {
     return fm[1].trim();
   return resultText.trim();
 }
-async function runClaudeCliAgent(promptPath, manifest, runner = defaultRunner, ctx) {
-  const promptText = readFileSync9(promptPath, "utf8");
+async function runClaudeCliAgent(promptPath2, manifest, runner = defaultRunner, ctx) {
+  const promptText = readFileSync9(promptPath2, "utf8");
   const timeoutMs = (manifest.timeout_s ?? 60) * 1000;
-  const argv = ["claude", "-p", "--output-format", "json"];
+  const argv2 = ["claude", "-p", "--output-format", "json"];
   const model = "claude-cli";
   if (ctx) {
     const reqPayload = {
@@ -8709,7 +8783,7 @@ async function runClaudeCliAgent(promptPath, manifest, runner = defaultRunner, c
     errorClass ??= "interrupted";
     emitResponse();
   });
-  const { stdout, stderr, exitCode, timedOut } = await runner(argv, timeoutMs, (kill) => ctx?.registerAbort?.(kill), promptText);
+  const { stdout: stdout2, stderr, exitCode, timedOut } = await runner(argv2, timeoutMs, (kill) => ctx?.registerAbort?.(kill), promptText);
   if (timedOut) {
     outcome = "timeout";
     errorClass = "ClaudeCliTimeout";
@@ -8723,11 +8797,11 @@ async function runClaudeCliAgent(promptPath, manifest, runner = defaultRunner, c
   }
   let parsed;
   try {
-    parsed = JSON.parse(stdout);
-  } catch (e) {
+    parsed = JSON.parse(stdout2);
+  } catch (e2) {
     errorClass = "NonJSONOutput";
     emitResponse();
-    throw new ClaudeCliError(`claude CLI returned non-JSON for ${manifest.name}: ${stdout.slice(0, 200)}`);
+    throw new ClaudeCliError(`claude CLI returned non-JSON for ${manifest.name}: ${stdout2.slice(0, 200)}`);
   }
   if (parsed.is_error) {
     errorClass = "IsError";
@@ -8740,24 +8814,24 @@ async function runClaudeCliAgent(promptPath, manifest, runner = defaultRunner, c
     emitResponse();
     throw new ClaudeCliError(`claude CLI response missing .result string for ${manifest.name}`);
   }
-  const u = parsed.usage;
-  usageInput = u?.input_tokens;
-  usageOutput = u?.output_tokens;
+  const u3 = parsed.usage;
+  usageInput = u3?.input_tokens;
+  usageOutput = u3?.output_tokens;
   outcome = "success";
   emitResponse();
   const yamlBody = extractYamlBody(resultText);
   let data;
   try {
     data = load(yamlBody);
-  } catch (e) {
-    throw new ClaudeCliError(`claude CLI YAML parse failed for ${manifest.name}: ${String(e).slice(0, 200)}`);
+  } catch (e2) {
+    throw new ClaudeCliError(`claude CLI YAML parse failed for ${manifest.name}: ${String(e2).slice(0, 200)}`);
   }
   if (typeof data !== "object" || data === null) {
     throw new ClaudeCliError(`claude CLI output not a YAML object for ${manifest.name}: got ${typeof data}`);
   }
   return data;
 }
-var ClaudeCliError, defaultRunner = async (argv, timeoutMs, onSpawn, stdin) => {
+var ClaudeCliError, defaultRunner = async (argv2, timeoutMs, onSpawn, stdin2) => {
   return new Promise((resolveP) => {
     const controller = new AbortController;
     let timedOut = false;
@@ -8765,13 +8839,13 @@ var ClaudeCliError, defaultRunner = async (argv, timeoutMs, onSpawn, stdin) => {
       timedOut = true;
     });
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const child = spawn2(argv[0], argv.slice(1), {
-      stdio: [stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
+    const child = spawn2(argv2[0], argv2.slice(1), {
+      stdio: [stdin2 === undefined ? "ignore" : "pipe", "pipe", "pipe"],
       signal: controller.signal
     });
-    if (stdin !== undefined) {
+    if (stdin2 !== undefined) {
       child.stdin?.on("error", () => {});
-      child.stdin?.end(stdin);
+      child.stdin?.end(stdin2);
     }
     const killEscalate = () => {
       try {
@@ -8800,27 +8874,27 @@ var ClaudeCliError, defaultRunner = async (argv, timeoutMs, onSpawn, stdin) => {
     });
     onSpawn?.(killEscalate);
     let resolved = false;
-    const finish = (r) => {
+    const finish = (r3) => {
       if (resolved)
         return;
       resolved = true;
       clearTimeout(timer);
-      resolveP(r);
+      resolveP(r3);
     };
     const out = new CappedStreamBuffer;
     const err = new CappedStreamBuffer;
-    child.stdout?.on("data", (c) => {
-      if (!out.push(c))
+    child.stdout?.on("data", (c3) => {
+      if (!out.push(c3))
         killEscalate();
     });
-    child.stderr?.on("data", (c) => {
-      if (!err.push(c))
+    child.stderr?.on("data", (c3) => {
+      if (!err.push(c3))
         killEscalate();
     });
-    child.on("error", (e) => {
+    child.on("error", (e2) => {
       finish({
         stdout: timedOut ? "" : out.toString(),
-        stderr: timedOut ? String(e) : err.toString() + String(e),
+        stderr: timedOut ? String(e2) : err.toString() + String(e2),
         exitCode: -1,
         timedOut
       });
@@ -8852,21 +8926,21 @@ var init_claude_cli_agent = __esm(() => {
 });
 
 // node_modules/@anthropic-ai/sdk/internal/tslib.mjs
-function __classPrivateFieldSet(receiver, state, value, kind, f) {
+function __classPrivateFieldSet(receiver, state, value, kind, f3) {
   if (kind === "m")
     throw new TypeError("Private method is not writable");
-  if (kind === "a" && !f)
+  if (kind === "a" && !f3)
     throw new TypeError("Private accessor was defined without a setter");
-  if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver))
+  if (typeof state === "function" ? receiver !== state || !f3 : !state.has(receiver))
     throw new TypeError("Cannot write private member to an object whose class did not declare it");
-  return kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value), value;
+  return kind === "a" ? f3.call(receiver, value) : f3 ? f3.value = value : state.set(receiver, value), value;
 }
-function __classPrivateFieldGet(receiver, state, kind, f) {
-  if (kind === "a" && !f)
+function __classPrivateFieldGet(receiver, state, kind, f3) {
+  if (kind === "a" && !f3)
     throw new TypeError("Private accessor was defined without a getter");
-  if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver))
+  if (typeof state === "function" ? receiver !== state || !f3 : !state.has(receiver))
     throw new TypeError("Cannot read private member from an object whose class did not declare it");
-  return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
+  return kind === "m" ? f3 : kind === "a" ? f3.call(receiver) : f3 ? f3.value : state.get(receiver);
 }
 var init_tslib = () => {};
 
@@ -8879,7 +8953,7 @@ var uuid4 = function() {
   }
   const u8 = new Uint8Array(1);
   const randomByte = crypto2 ? () => crypto2.getRandomValues(u8)[0] : () => Math.random() * 255 & 255;
-  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (+c ^ randomByte() & 15 >> +c / 4).toString(16));
+  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c3) => (+c3 ^ randomByte() & 15 >> +c3 / 4).toString(16));
 };
 
 // node_modules/@anthropic-ai/sdk/internal/errors.mjs
@@ -8915,13 +8989,13 @@ var init_error = __esm(() => {
   AnthropicError = class AnthropicError extends Error {
   };
   APIError = class APIError extends AnthropicError {
-    constructor(status, error, message, headers, type) {
+    constructor(status, error, message, headers, type2) {
       super(`${APIError.makeMessage(status, error, message)}`);
       this.status = status;
       this.headers = headers;
       this.requestID = headers?.get("request-id");
       this.error = error;
-      this.type = type ?? null;
+      this.type = type2 ?? null;
     }
     static makeMessage(status, error, message) {
       const msg = error?.message ? typeof error.message === "string" ? error.message : JSON.stringify(error.message) : error ? JSON.stringify(error) : message;
@@ -8941,32 +9015,32 @@ var init_error = __esm(() => {
         return new APIConnectionError({ message, cause: castToError(errorResponse) });
       }
       const error = errorResponse;
-      const type = error?.["error"]?.["type"];
+      const type2 = error?.["error"]?.["type"];
       if (status === 400) {
-        return new BadRequestError(status, error, message, headers, type);
+        return new BadRequestError(status, error, message, headers, type2);
       }
       if (status === 401) {
-        return new AuthenticationError(status, error, message, headers, type);
+        return new AuthenticationError(status, error, message, headers, type2);
       }
       if (status === 403) {
-        return new PermissionDeniedError(status, error, message, headers, type);
+        return new PermissionDeniedError(status, error, message, headers, type2);
       }
       if (status === 404) {
-        return new NotFoundError(status, error, message, headers, type);
+        return new NotFoundError(status, error, message, headers, type2);
       }
       if (status === 409) {
-        return new ConflictError(status, error, message, headers, type);
+        return new ConflictError(status, error, message, headers, type2);
       }
       if (status === 422) {
-        return new UnprocessableEntityError(status, error, message, headers, type);
+        return new UnprocessableEntityError(status, error, message, headers, type2);
       }
       if (status === 429) {
-        return new RateLimitError(status, error, message, headers, type);
+        return new RateLimitError(status, error, message, headers, type2);
       }
       if (status >= 500) {
-        return new InternalServerError(status, error, message, headers, type);
+        return new InternalServerError(status, error, message, headers, type2);
       }
-      return new APIError(status, error, message, headers, type);
+      return new APIError(status, error, message, headers, type2);
     }
   };
   APIUserAbortError = class APIUserAbortError extends APIError {
@@ -9005,11 +9079,11 @@ var init_error = __esm(() => {
 });
 
 // node_modules/@anthropic-ai/sdk/internal/utils/values.mjs
-function maybeObj(x) {
-  if (typeof x !== "object") {
+function maybeObj(x2) {
+  if (typeof x2 !== "object") {
     return {};
   }
-  return x ?? {};
+  return x2 ?? {};
 }
 function isEmptyObj(obj) {
   if (!obj)
@@ -9023,14 +9097,14 @@ function hasOwn(obj, key) {
 }
 var startsWithSchemeRegexp, isAbsoluteURL = (url) => {
   return startsWithSchemeRegexp.test(url);
-}, isArray = (val) => (isArray = Array.isArray, isArray(val)), isReadonlyArray, validatePositiveInteger = (name, n) => {
-  if (typeof n !== "number" || !Number.isInteger(n)) {
+}, isArray = (val) => (isArray = Array.isArray, isArray(val)), isReadonlyArray, validatePositiveInteger = (name, n2) => {
+  if (typeof n2 !== "number" || !Number.isInteger(n2)) {
     throw new AnthropicError(`${name} must be an integer`);
   }
-  if (n < 0) {
+  if (n2 < 0) {
     throw new AnthropicError(`${name} must be a positive integer`);
   }
-  return n;
+  return n2;
 }, safeJSON = (text) => {
   try {
     return JSON.parse(text);
@@ -9045,7 +9119,7 @@ var init_values = __esm(() => {
 });
 
 // node_modules/@anthropic-ai/sdk/internal/utils/sleep.mjs
-var sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+var sleep = (ms) => new Promise((resolve11) => setTimeout(resolve11, ms));
 
 // node_modules/@anthropic-ai/sdk/version.mjs
 var VERSION = "0.91.1";
@@ -9151,24 +9225,24 @@ var isRunningInBrowser = () => {
   if (arch)
     return `other:${arch}`;
   return "unknown";
-}, normalizePlatform = (platform) => {
-  platform = platform.toLowerCase();
-  if (platform.includes("ios"))
+}, normalizePlatform = (platform2) => {
+  platform2 = platform2.toLowerCase();
+  if (platform2.includes("ios"))
     return "iOS";
-  if (platform === "android")
+  if (platform2 === "android")
     return "Android";
-  if (platform === "darwin")
+  if (platform2 === "darwin")
     return "MacOS";
-  if (platform === "win32")
+  if (platform2 === "win32")
     return "Windows";
-  if (platform === "freebsd")
+  if (platform2 === "freebsd")
     return "FreeBSD";
-  if (platform === "openbsd")
+  if (platform2 === "openbsd")
     return "OpenBSD";
-  if (platform === "linux")
+  if (platform2 === "linux")
     return "Linux";
-  if (platform)
-    return `Other:${platform}`;
+  if (platform2)
+    return `Other:${platform2}`;
   return "Unknown";
 }, _platformHeaders, getPlatformHeaders = () => {
   return _platformHeaders ?? (_platformHeaders = getPlatformProperties());
@@ -9217,9 +9291,9 @@ function ReadableStreamToAsyncIterable(stream) {
         if (result?.done)
           reader.releaseLock();
         return result;
-      } catch (e) {
+      } catch (e2) {
         reader.releaseLock();
-        throw e;
+        throw e2;
       }
     },
     async return() {
@@ -9258,7 +9332,7 @@ var FallbackEncoder = ({ headers, body }) => {
 
 // node_modules/@anthropic-ai/sdk/internal/utils/query.mjs
 function stringifyQuery(query) {
-  return Object.entries(query).filter(([_, value]) => typeof value !== "undefined").map(([key, value]) => {
+  return Object.entries(query).filter(([_3, value]) => typeof value !== "undefined").map(([key, value]) => {
     if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
       return `${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
     }
@@ -9286,9 +9360,9 @@ function concatBytes(buffers) {
   }
   return output;
 }
-function encodeUTF8(str) {
+function encodeUTF8(str2) {
   let encoder;
-  return (encodeUTF8_ ?? (encoder = new globalThis.TextEncoder, encodeUTF8_ = encoder.encode.bind(encoder)))(str);
+  return (encodeUTF8_ ?? (encoder = new globalThis.TextEncoder, encodeUTF8_ = encoder.encode.bind(encoder)))(str2);
 }
 function decodeUTF8(bytes) {
   let decoder;
@@ -9342,12 +9416,12 @@ class LineDecoder {
 function findNewlineIndex(buffer, startIndex) {
   const newline = 10;
   const carriage = 13;
-  for (let i = startIndex ?? 0;i < buffer.length; i++) {
-    if (buffer[i] === newline) {
-      return { preceding: i, index: i + 1, carriage: false };
+  for (let i2 = startIndex ?? 0;i2 < buffer.length; i2++) {
+    if (buffer[i2] === newline) {
+      return { preceding: i2, index: i2 + 1, carriage: false };
     }
-    if (buffer[i] === carriage) {
-      return { preceding: i, index: i + 1, carriage: true };
+    if (buffer[i2] === carriage) {
+      return { preceding: i2, index: i2 + 1, carriage: true };
     }
   }
   return null;
@@ -9355,15 +9429,15 @@ function findNewlineIndex(buffer, startIndex) {
 function findDoubleNewlineIndex(buffer) {
   const newline = 10;
   const carriage = 13;
-  for (let i = 0;i < buffer.length - 1; i++) {
-    if (buffer[i] === newline && buffer[i + 1] === newline) {
-      return i + 2;
+  for (let i2 = 0;i2 < buffer.length - 1; i2++) {
+    if (buffer[i2] === newline && buffer[i2 + 1] === newline) {
+      return i2 + 2;
     }
-    if (buffer[i] === carriage && buffer[i + 1] === carriage) {
-      return i + 2;
+    if (buffer[i2] === carriage && buffer[i2 + 1] === carriage) {
+      return i2 + 2;
     }
-    if (buffer[i] === carriage && buffer[i + 1] === newline && i + 3 < buffer.length && buffer[i + 2] === carriage && buffer[i + 3] === newline) {
-      return i + 4;
+    if (buffer[i2] === carriage && buffer[i2 + 1] === newline && i2 + 3 < buffer.length && buffer[i2 + 2] === carriage && buffer[i2 + 3] === newline) {
+      return i2 + 4;
     }
   }
   return -1;
@@ -9526,7 +9600,7 @@ class SSEDecoder {
     if (line.startsWith(":")) {
       return null;
     }
-    let [fieldname, _, value] = partition(line, ":");
+    let [fieldname, _3, value] = partition(line, ":");
     if (value.startsWith(" ")) {
       value = value.substring(1);
     }
@@ -9538,12 +9612,12 @@ class SSEDecoder {
     return null;
   }
 }
-function partition(str, delimiter) {
-  const index = str.indexOf(delimiter);
+function partition(str2, delimiter) {
+  const index = str2.indexOf(delimiter);
   if (index !== -1) {
-    return [str.substring(0, index), delimiter, str.substring(index + delimiter.length)];
+    return [str2.substring(0, index), delimiter, str2.substring(index + delimiter.length)];
   }
-  return [str, "", ""];
+  return [str2, "", ""];
 }
 var _Stream_client, Stream;
 var init_streaming = __esm(() => {
@@ -9574,19 +9648,19 @@ var init_streaming = __esm(() => {
             if (sse.event === "completion") {
               try {
                 yield JSON.parse(sse.data);
-              } catch (e) {
+              } catch (e2) {
                 logger.error(`Could not parse message into JSON:`, sse.data);
                 logger.error(`From chunk:`, sse.raw);
-                throw e;
+                throw e2;
               }
             }
             if (sse.event === "message_start" || sse.event === "message_delta" || sse.event === "message_stop" || sse.event === "content_block_start" || sse.event === "content_block_delta" || sse.event === "content_block_stop" || sse.event === "message" || sse.event === "user.message" || sse.event === "user.interrupt" || sse.event === "user.tool_confirmation" || sse.event === "user.custom_tool_result" || sse.event === "agent.message" || sse.event === "agent.thinking" || sse.event === "agent.tool_use" || sse.event === "agent.tool_result" || sse.event === "agent.mcp_tool_use" || sse.event === "agent.mcp_tool_result" || sse.event === "agent.custom_tool_use" || sse.event === "agent.thread_context_compacted" || sse.event === "session.status_running" || sse.event === "session.status_idle" || sse.event === "session.status_rescheduled" || sse.event === "session.status_terminated" || sse.event === "session.error" || sse.event === "session.deleted" || sse.event === "span.model_request_start" || sse.event === "span.model_request_end") {
               try {
                 yield JSON.parse(sse.data);
-              } catch (e) {
+              } catch (e2) {
                 logger.error(`Could not parse message into JSON:`, sse.data);
                 logger.error(`From chunk:`, sse.raw);
-                throw e;
+                throw e2;
               }
             }
             if (sse.event === "ping") {
@@ -9594,15 +9668,15 @@ var init_streaming = __esm(() => {
             }
             if (sse.event === "error") {
               const body = safeJSON(sse.data) ?? sse.data;
-              const type = body?.error?.type;
-              throw new APIError(undefined, body, undefined, response.headers, type);
+              const type2 = body?.error?.type;
+              throw new APIError(undefined, body, undefined, response.headers, type2);
             }
           }
           done = true;
-        } catch (e) {
-          if (isAbortError(e))
+        } catch (e2) {
+          if (isAbortError(e2))
             return;
-          throw e;
+          throw e2;
         } finally {
           if (!done)
             controller.abort();
@@ -9638,10 +9712,10 @@ var init_streaming = __esm(() => {
               yield JSON.parse(line);
           }
           done = true;
-        } catch (e) {
-          if (isAbortError(e))
+        } catch (e2) {
+          if (isAbortError(e2))
             return;
-          throw e;
+          throw e2;
         } finally {
           if (!done)
             controller.abort();
@@ -9656,15 +9730,15 @@ var init_streaming = __esm(() => {
       const left = [];
       const right = [];
       const iterator = this.iterator();
-      const teeIterator = (queue) => {
+      const teeIterator = (queue2) => {
         return {
           next: () => {
-            if (queue.length === 0) {
+            if (queue2.length === 0) {
               const result = iterator.next();
               left.push(result);
               right.push(result);
             }
-            return queue.shift();
+            return queue2.shift();
           }
         };
       };
@@ -9725,8 +9799,8 @@ async function defaultParseResponse(client, props) {
       if (contentLength === "0") {
         return;
       }
-      const json = await response.json();
-      return addRequestID(json, response);
+      const json2 = await response.json();
+      return addRequestID(json2, response);
     }
     const text = await response.text();
     return text;
@@ -9761,8 +9835,8 @@ var init_api_promise = __esm(() => {
   init_parse();
   APIPromise = class APIPromise extends Promise {
     constructor(client, responsePromise, parseResponse = defaultParseResponse) {
-      super((resolve) => {
-        resolve(null);
+      super((resolve11) => {
+        resolve11(null);
       });
       this.responsePromise = responsePromise;
       this.parseResponse = parseResponse;
@@ -9845,7 +9919,7 @@ var init_pagination = __esm(() => {
   };
   PagePromise = class PagePromise extends APIPromise {
     constructor(client, request, Page) {
-      super(client, request, async (client, props) => new Page(client, props.response, await defaultParseResponse(client, props), props.options));
+      super(client, request, async (client2, props) => new Page(client2, props.response, await defaultParseResponse(client2, props), props.options));
     }
     async* [Symbol.asyncIterator]() {
       const page = await this;
@@ -10020,9 +10094,9 @@ async function toFile(value, name, options) {
   }
   const parts = await getBytes(value);
   if (!options?.type) {
-    const type = parts.find((part) => typeof part === "object" && ("type" in part) && part.type);
-    if (typeof type === "string") {
-      options = { ...options, type };
+    const type2 = parts.find((part) => typeof part === "object" && ("type" in part) && part.type);
+    if (typeof type2 === "string") {
+      options = { ...options, type: type2 };
     }
   }
   return makeFile(parts, name, options);
@@ -10137,8 +10211,8 @@ var init_headers = __esm(() => {
 });
 
 // node_modules/@anthropic-ai/sdk/internal/utils/path.mjs
-function encodeURIPath(str) {
-  return str.replace(/[^A-Za-z0-9\-._~!$&'()*+,;=:@]+/g, encodeURIComponent);
+function encodeURIPath(str2) {
+  return str2.replace(/[^A-Za-z0-9\-._~!$&'()*+,;=:@]+/g, encodeURIComponent);
 }
 var EMPTY, createPathTagFunction = (pathEncoder = encodeURIPath) => function path(statics, ...params) {
   if (statics.length === 1)
@@ -10171,7 +10245,7 @@ var EMPTY, createPathTagFunction = (pathEncoder = encodeURIPath) => function pat
       error: `Value "${match[0]}" can't be safely passed as a path parameter`
     });
   }
-  invalidSegments.sort((a, b) => a.start - b.start);
+  invalidSegments.sort((a2, b2) => a2.start - b2.start);
   if (invalidSegments.length > 0) {
     let lastEnd = 0;
     const underline = invalidSegments.reduce((acc, segment) => {
@@ -10181,7 +10255,7 @@ var EMPTY, createPathTagFunction = (pathEncoder = encodeURIPath) => function pat
       return acc + spaces + arrows;
     }, "");
     throw new AnthropicError(`Path parameters result in path with invalid segments:
-${invalidSegments.map((e) => e.error).join(`
+${invalidSegments.map((e2) => e2.error).join(`
 `)}
 ${path}
 ${underline}`);
@@ -10849,8 +10923,8 @@ function parseBetaOutputFormat(params, content) {
       return outputFormat.parse(content);
     }
     return JSON.parse(content);
-  } catch (error) {
-    throw new AnthropicError(`Failed to parse structured output: ${error}`);
+  } catch (error2) {
+    throw new AnthropicError(`Failed to parse structured output: ${error2}`);
   }
 }
 var init_beta_parser = __esm(() => {
@@ -11083,7 +11157,7 @@ var init_streaming2 = __esm(() => {
 function tracksToolInput(content) {
   return content.type === "tool_use" || content.type === "server_tool_use" || content.type === "mcp_tool_use";
 }
-function checkNever(x) {}
+function checkNever(x2) {}
 var _BetaMessageStream_instances, _BetaMessageStream_currentMessageSnapshot, _BetaMessageStream_params, _BetaMessageStream_connectedPromise, _BetaMessageStream_resolveConnectedPromise, _BetaMessageStream_rejectConnectedPromise, _BetaMessageStream_endPromise, _BetaMessageStream_resolveEndPromise, _BetaMessageStream_rejectEndPromise, _BetaMessageStream_listeners, _BetaMessageStream_ended, _BetaMessageStream_errored, _BetaMessageStream_aborted, _BetaMessageStream_catchingPromiseCreated, _BetaMessageStream_response, _BetaMessageStream_request_id, _BetaMessageStream_logger, _BetaMessageStream_getFinalMessage, _BetaMessageStream_getFinalText, _BetaMessageStream_handleError, _BetaMessageStream_beginRequest, _BetaMessageStream_addStreamEvent, _BetaMessageStream_endRequest, _BetaMessageStream_accumulateMessage, JSON_BUF_PROPERTY = "__json_buf", BetaMessageStream;
 var init_BetaMessageStream = __esm(() => {
   init_tslib();
@@ -11113,31 +11187,31 @@ var init_BetaMessageStream = __esm(() => {
       _BetaMessageStream_response.set(this, undefined);
       _BetaMessageStream_request_id.set(this, undefined);
       _BetaMessageStream_logger.set(this, undefined);
-      _BetaMessageStream_handleError.set(this, (error) => {
+      _BetaMessageStream_handleError.set(this, (error2) => {
         __classPrivateFieldSet(this, _BetaMessageStream_errored, true, "f");
-        if (isAbortError(error)) {
-          error = new APIUserAbortError;
+        if (isAbortError(error2)) {
+          error2 = new APIUserAbortError;
         }
-        if (error instanceof APIUserAbortError) {
+        if (error2 instanceof APIUserAbortError) {
           __classPrivateFieldSet(this, _BetaMessageStream_aborted, true, "f");
-          return this._emit("abort", error);
+          return this._emit("abort", error2);
         }
-        if (error instanceof AnthropicError) {
-          return this._emit("error", error);
+        if (error2 instanceof AnthropicError) {
+          return this._emit("error", error2);
         }
-        if (error instanceof Error) {
-          const anthropicError = new AnthropicError(error.message);
-          anthropicError.cause = error;
+        if (error2 instanceof Error) {
+          const anthropicError = new AnthropicError(error2.message);
+          anthropicError.cause = error2;
           return this._emit("error", anthropicError);
         }
-        return this._emit("error", new AnthropicError(String(error)));
+        return this._emit("error", new AnthropicError(String(error2)));
       });
-      __classPrivateFieldSet(this, _BetaMessageStream_connectedPromise, new Promise((resolve, reject) => {
-        __classPrivateFieldSet(this, _BetaMessageStream_resolveConnectedPromise, resolve, "f");
+      __classPrivateFieldSet(this, _BetaMessageStream_connectedPromise, new Promise((resolve11, reject) => {
+        __classPrivateFieldSet(this, _BetaMessageStream_resolveConnectedPromise, resolve11, "f");
         __classPrivateFieldSet(this, _BetaMessageStream_rejectConnectedPromise, reject, "f");
       }), "f");
-      __classPrivateFieldSet(this, _BetaMessageStream_endPromise, new Promise((resolve, reject) => {
-        __classPrivateFieldSet(this, _BetaMessageStream_resolveEndPromise, resolve, "f");
+      __classPrivateFieldSet(this, _BetaMessageStream_endPromise, new Promise((resolve11, reject) => {
+        __classPrivateFieldSet(this, _BetaMessageStream_resolveEndPromise, resolve11, "f");
         __classPrivateFieldSet(this, _BetaMessageStream_rejectEndPromise, reject, "f");
       }), "f");
       __classPrivateFieldGet(this, _BetaMessageStream_connectedPromise, "f").catch(() => {});
@@ -11247,7 +11321,7 @@ var init_BetaMessageStream = __esm(() => {
       const listeners = __classPrivateFieldGet(this, _BetaMessageStream_listeners, "f")[event];
       if (!listeners)
         return this;
-      const index = listeners.findIndex((l) => l.listener === listener);
+      const index = listeners.findIndex((l2) => l2.listener === listener);
       if (index >= 0)
         listeners.splice(index, 1);
       return this;
@@ -11258,11 +11332,11 @@ var init_BetaMessageStream = __esm(() => {
       return this;
     }
     emitted(event) {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve11, reject) => {
         __classPrivateFieldSet(this, _BetaMessageStream_catchingPromiseCreated, true, "f");
         if (event !== "error")
           this.once("error", reject);
-        this.once(event, resolve);
+        this.once(event, resolve11);
       });
     }
     async done() {
@@ -11289,26 +11363,26 @@ var init_BetaMessageStream = __esm(() => {
       }
       const listeners = __classPrivateFieldGet(this, _BetaMessageStream_listeners, "f")[event];
       if (listeners) {
-        __classPrivateFieldGet(this, _BetaMessageStream_listeners, "f")[event] = listeners.filter((l) => !l.once);
+        __classPrivateFieldGet(this, _BetaMessageStream_listeners, "f")[event] = listeners.filter((l2) => !l2.once);
         listeners.forEach(({ listener }) => listener(...args));
       }
       if (event === "abort") {
-        const error = args[0];
+        const error2 = args[0];
         if (!__classPrivateFieldGet(this, _BetaMessageStream_catchingPromiseCreated, "f") && !listeners?.length) {
-          Promise.reject(error);
+          Promise.reject(error2);
         }
-        __classPrivateFieldGet(this, _BetaMessageStream_rejectConnectedPromise, "f").call(this, error);
-        __classPrivateFieldGet(this, _BetaMessageStream_rejectEndPromise, "f").call(this, error);
+        __classPrivateFieldGet(this, _BetaMessageStream_rejectConnectedPromise, "f").call(this, error2);
+        __classPrivateFieldGet(this, _BetaMessageStream_rejectEndPromise, "f").call(this, error2);
         this._emit("end");
         return;
       }
       if (event === "error") {
-        const error = args[0];
+        const error2 = args[0];
         if (!__classPrivateFieldGet(this, _BetaMessageStream_catchingPromiseCreated, "f") && !listeners?.length) {
-          Promise.reject(error);
+          Promise.reject(error2);
         }
-        __classPrivateFieldGet(this, _BetaMessageStream_rejectConnectedPromise, "f").call(this, error);
-        __classPrivateFieldGet(this, _BetaMessageStream_rejectEndPromise, "f").call(this, error);
+        __classPrivateFieldGet(this, _BetaMessageStream_rejectConnectedPromise, "f").call(this, error2);
+        __classPrivateFieldGet(this, _BetaMessageStream_rejectEndPromise, "f").call(this, error2);
         this._emit("end");
       }
     }
@@ -11344,12 +11418,12 @@ var init_BetaMessageStream = __esm(() => {
         }
       }
     }
-    [(_BetaMessageStream_currentMessageSnapshot = new WeakMap, _BetaMessageStream_params = new WeakMap, _BetaMessageStream_connectedPromise = new WeakMap, _BetaMessageStream_resolveConnectedPromise = new WeakMap, _BetaMessageStream_rejectConnectedPromise = new WeakMap, _BetaMessageStream_endPromise = new WeakMap, _BetaMessageStream_resolveEndPromise = new WeakMap, _BetaMessageStream_rejectEndPromise = new WeakMap, _BetaMessageStream_listeners = new WeakMap, _BetaMessageStream_ended = new WeakMap, _BetaMessageStream_errored = new WeakMap, _BetaMessageStream_aborted = new WeakMap, _BetaMessageStream_catchingPromiseCreated = new WeakMap, _BetaMessageStream_response = new WeakMap, _BetaMessageStream_request_id = new WeakMap, _BetaMessageStream_logger = new WeakMap, _BetaMessageStream_handleError = new WeakMap, _BetaMessageStream_instances = new WeakSet, _BetaMessageStream_getFinalMessage = function _BetaMessageStream_getFinalMessage2() {
+    [(_BetaMessageStream_currentMessageSnapshot = new WeakMap, _BetaMessageStream_params = new WeakMap, _BetaMessageStream_connectedPromise = new WeakMap, _BetaMessageStream_resolveConnectedPromise = new WeakMap, _BetaMessageStream_rejectConnectedPromise = new WeakMap, _BetaMessageStream_endPromise = new WeakMap, _BetaMessageStream_resolveEndPromise = new WeakMap, _BetaMessageStream_rejectEndPromise = new WeakMap, _BetaMessageStream_listeners = new WeakMap, _BetaMessageStream_ended = new WeakMap, _BetaMessageStream_errored = new WeakMap, _BetaMessageStream_aborted = new WeakMap, _BetaMessageStream_catchingPromiseCreated = new WeakMap, _BetaMessageStream_response = new WeakMap, _BetaMessageStream_request_id = new WeakMap, _BetaMessageStream_logger = new WeakMap, _BetaMessageStream_handleError = new WeakMap, _BetaMessageStream_instances = new WeakSet, _BetaMessageStream_getFinalMessage = function _BetaMessageStream_getFinalMessage() {
       if (this.receivedMessages.length === 0) {
         throw new AnthropicError("stream ended without producing a Message with role=assistant");
       }
       return this.receivedMessages.at(-1);
-    }, _BetaMessageStream_getFinalText = function _BetaMessageStream_getFinalText2() {
+    }, _BetaMessageStream_getFinalText = function _BetaMessageStream_getFinalText() {
       if (this.receivedMessages.length === 0) {
         throw new AnthropicError("stream ended without producing a Message with role=assistant");
       }
@@ -11358,11 +11432,11 @@ var init_BetaMessageStream = __esm(() => {
         throw new AnthropicError("stream ended without producing a content block with type=text");
       }
       return textBlocks.join(" ");
-    }, _BetaMessageStream_beginRequest = function _BetaMessageStream_beginRequest2() {
+    }, _BetaMessageStream_beginRequest = function _BetaMessageStream_beginRequest() {
       if (this.ended)
         return;
       __classPrivateFieldSet(this, _BetaMessageStream_currentMessageSnapshot, undefined, "f");
-    }, _BetaMessageStream_addStreamEvent = function _BetaMessageStream_addStreamEvent2(event) {
+    }, _BetaMessageStream_addStreamEvent = function _BetaMessageStream_addStreamEvent(event) {
       if (this.ended)
         return;
       const messageSnapshot = __classPrivateFieldGet(this, _BetaMessageStream_instances, "m", _BetaMessageStream_accumulateMessage).call(this, event);
@@ -11429,7 +11503,7 @@ var init_BetaMessageStream = __esm(() => {
         case "message_delta":
           break;
       }
-    }, _BetaMessageStream_endRequest = function _BetaMessageStream_endRequest2() {
+    }, _BetaMessageStream_endRequest = function _BetaMessageStream_endRequest() {
       if (this.ended) {
         throw new AnthropicError(`stream has ended, this shouldn't happen`);
       }
@@ -11439,7 +11513,7 @@ var init_BetaMessageStream = __esm(() => {
       }
       __classPrivateFieldSet(this, _BetaMessageStream_currentMessageSnapshot, undefined, "f");
       return maybeParseBetaMessage(snapshot, __classPrivateFieldGet(this, _BetaMessageStream_params, "f"), { logger: __classPrivateFieldGet(this, _BetaMessageStream_logger, "f") });
-    }, _BetaMessageStream_accumulateMessage = function _BetaMessageStream_accumulateMessage2(event) {
+    }, _BetaMessageStream_accumulateMessage = function _BetaMessageStream_accumulateMessage(event) {
       let snapshot = __classPrivateFieldGet(this, _BetaMessageStream_currentMessageSnapshot, "f");
       if (event.type === "message_start") {
         if (snapshot) {
@@ -11513,8 +11587,8 @@ var init_BetaMessageStream = __esm(() => {
                   try {
                     newContent.input = partialParse(jsonBuf);
                   } catch (err) {
-                    const error = new AnthropicError(`Unable to parse tool parameter JSON from model. Please retry your request or adjust your prompt. Error: ${err}. JSON: ${jsonBuf}`);
-                    __classPrivateFieldGet(this, _BetaMessageStream_handleError, "f").call(this, error);
+                    const error2 = new AnthropicError(`Unable to parse tool parameter JSON from model. Please retry your request or adjust your prompt. Error: ${err}. JSON: ${jsonBuf}`);
+                    __classPrivateFieldGet(this, _BetaMessageStream_handleError, "f").call(this, error2);
                   }
                 }
                 snapshot.content[event.index] = newContent;
@@ -11595,7 +11669,7 @@ var init_BetaMessageStream = __esm(() => {
             if (done) {
               return { value: undefined, done: true };
             }
-            return new Promise((resolve, reject) => readQueue.push({ resolve, reject })).then((chunk) => chunk ? { value: chunk, done: false } : { value: undefined, done: true });
+            return new Promise((resolve11, reject) => readQueue.push({ resolve: resolve11, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: undefined, done: true });
           }
           const chunk = pushQueue.shift();
           return { value: chunk, done: false };
@@ -11657,13 +11731,13 @@ Wrap your summary in <summary></summary> tags.`;
 
 // node_modules/@anthropic-ai/sdk/lib/tools/BetaToolRunner.mjs
 function promiseWithResolvers() {
-  let resolve;
+  let resolve11;
   let reject;
   const promise = new Promise((res, rej) => {
-    resolve = res;
+    resolve11 = res;
     reject = rej;
   });
-  return { promise, resolve, reject };
+  return { promise, resolve: resolve11, reject };
 }
 async function generateToolResponse(params, lastMessage = params.messages.at(-1), requestOptions) {
   if (!lastMessage || lastMessage.role !== "assistant" || !lastMessage.content || typeof lastMessage.content === "string") {
@@ -11674,7 +11748,7 @@ async function generateToolResponse(params, lastMessage = params.messages.at(-1)
     return null;
   }
   const toolResults = await Promise.all(toolUseBlocks.map(async (toolUse) => {
-    const tool = params.tools.find((t) => ("name" in t ? t.name : t.mcp_server_name) === toolUse.name);
+    const tool = params.tools.find((t2) => ("name" in t2 ? t2.name : t2.mcp_server_name) === toolUse.name);
     if (!tool || !("run" in tool)) {
       return {
         type: "tool_result",
@@ -11697,11 +11771,11 @@ async function generateToolResponse(params, lastMessage = params.messages.at(-1)
         tool_use_id: toolUse.id,
         content: result
       };
-    } catch (error) {
+    } catch (error2) {
       return {
         type: "tool_result",
         tool_use_id: toolUse.id,
-        content: error instanceof ToolError ? error.content : `Error: ${error instanceof Error ? error.message : String(error)}`,
+        content: error2 instanceof ToolError ? error2.content : `Error: ${error2 instanceof Error ? error2.message : String(error2)}`,
         is_error: true
       };
     }
@@ -11747,7 +11821,7 @@ var init_BetaToolRunner = __esm(() => {
         console.warn("Anthropic: The `compactionControl` parameter is deprecated and will be removed in a future version. " + 'Use server-side compaction instead by passing `edits: [{ type: "compact_20260112" }]` in the params passed to `toolRunner()`. ' + "See https://platform.claude.com/docs/en/build-with-claude/compaction");
       }
     }
-    async* [(_BetaToolRunner_consumed = new WeakMap, _BetaToolRunner_mutated = new WeakMap, _BetaToolRunner_state = new WeakMap, _BetaToolRunner_options = new WeakMap, _BetaToolRunner_message = new WeakMap, _BetaToolRunner_toolResponse = new WeakMap, _BetaToolRunner_completion = new WeakMap, _BetaToolRunner_iterationCount = new WeakMap, _BetaToolRunner_instances = new WeakSet, _BetaToolRunner_checkAndCompact = async function _BetaToolRunner_checkAndCompact2() {
+    async* [(_BetaToolRunner_consumed = new WeakMap, _BetaToolRunner_mutated = new WeakMap, _BetaToolRunner_state = new WeakMap, _BetaToolRunner_options = new WeakMap, _BetaToolRunner_message = new WeakMap, _BetaToolRunner_toolResponse = new WeakMap, _BetaToolRunner_completion = new WeakMap, _BetaToolRunner_iterationCount = new WeakMap, _BetaToolRunner_instances = new WeakSet, _BetaToolRunner_checkAndCompact = async function _BetaToolRunner_checkAndCompact() {
       const compactionControl = __classPrivateFieldGet(this, _BetaToolRunner_state, "f").params.compactionControl;
       if (!compactionControl || !compactionControl.enabled) {
         return false;
@@ -11861,12 +11935,12 @@ var init_BetaToolRunner = __esm(() => {
           throw new AnthropicError("ToolRunner concluded without a message from the server");
         }
         __classPrivateFieldGet(this, _BetaToolRunner_completion, "f").resolve(await __classPrivateFieldGet(this, _BetaToolRunner_message, "f"));
-      } catch (error) {
+      } catch (error2) {
         __classPrivateFieldSet(this, _BetaToolRunner_consumed, false, "f");
         __classPrivateFieldGet(this, _BetaToolRunner_completion, "f").promise.catch(() => {});
-        __classPrivateFieldGet(this, _BetaToolRunner_completion, "f").reject(error);
+        __classPrivateFieldGet(this, _BetaToolRunner_completion, "f").reject(error2);
         __classPrivateFieldSet(this, _BetaToolRunner_completion, promiseWithResolvers(), "f");
-        throw error;
+        throw error2;
       }
     }
     setMessagesParams(paramsOrMutator) {
@@ -11897,7 +11971,7 @@ var init_BetaToolRunner = __esm(() => {
     }
     async runUntilDone() {
       if (!__classPrivateFieldGet(this, _BetaToolRunner_consumed, "f")) {
-        for await (const _ of this) {}
+        for await (const _3 of this) {}
       }
       return this.done();
     }
@@ -11914,7 +11988,7 @@ var init_BetaToolRunner = __esm(() => {
       return this.runUntilDone().then(onfulfilled, onrejected);
     }
   };
-  _BetaToolRunner_generateToolResponse = async function _BetaToolRunner_generateToolResponse(lastMessage, signal = __classPrivateFieldGet(this, _BetaToolRunner_options, "f").signal) {
+  _BetaToolRunner_generateToolResponse = async function _BetaToolRunner_generateToolResponse2(lastMessage, signal = __classPrivateFieldGet(this, _BetaToolRunner_options, "f").signal) {
     if (__classPrivateFieldGet(this, _BetaToolRunner_toolResponse, "f") !== undefined) {
       return __classPrivateFieldGet(this, _BetaToolRunner_toolResponse, "f");
     }
@@ -12041,7 +12115,7 @@ var init_batches = __esm(() => {
         ]),
         stream: true,
         __binaryResponse: true
-      })._thenUnwrap((_, props) => JSONLDecoder.fromResponse(props.response, props.controller));
+      })._thenUnwrap((_3, props) => JSONLDecoder.fromResponse(props.response, props.controller));
     }
   };
 });
@@ -12741,8 +12815,8 @@ function parseOutputFormat(params, content) {
       return outputFormat.parse(content);
     }
     return JSON.parse(content);
-  } catch (error) {
-    throw new AnthropicError(`Failed to parse structured output: ${error}`);
+  } catch (error2) {
+    throw new AnthropicError(`Failed to parse structured output: ${error2}`);
   }
 }
 var init_parser2 = __esm(() => {
@@ -12753,7 +12827,7 @@ var init_parser2 = __esm(() => {
 function tracksToolInput2(content) {
   return content.type === "tool_use" || content.type === "server_tool_use";
 }
-function checkNever2(x) {}
+function checkNever2(x2) {}
 var _MessageStream_instances, _MessageStream_currentMessageSnapshot, _MessageStream_params, _MessageStream_connectedPromise, _MessageStream_resolveConnectedPromise, _MessageStream_rejectConnectedPromise, _MessageStream_endPromise, _MessageStream_resolveEndPromise, _MessageStream_rejectEndPromise, _MessageStream_listeners, _MessageStream_ended, _MessageStream_errored, _MessageStream_aborted, _MessageStream_catchingPromiseCreated, _MessageStream_response, _MessageStream_request_id, _MessageStream_logger, _MessageStream_getFinalMessage, _MessageStream_getFinalText, _MessageStream_handleError, _MessageStream_beginRequest, _MessageStream_addStreamEvent, _MessageStream_endRequest, _MessageStream_accumulateMessage, JSON_BUF_PROPERTY2 = "__json_buf", MessageStream;
 var init_MessageStream = __esm(() => {
   init_tslib();
@@ -12783,31 +12857,31 @@ var init_MessageStream = __esm(() => {
       _MessageStream_response.set(this, undefined);
       _MessageStream_request_id.set(this, undefined);
       _MessageStream_logger.set(this, undefined);
-      _MessageStream_handleError.set(this, (error) => {
+      _MessageStream_handleError.set(this, (error2) => {
         __classPrivateFieldSet(this, _MessageStream_errored, true, "f");
-        if (isAbortError(error)) {
-          error = new APIUserAbortError;
+        if (isAbortError(error2)) {
+          error2 = new APIUserAbortError;
         }
-        if (error instanceof APIUserAbortError) {
+        if (error2 instanceof APIUserAbortError) {
           __classPrivateFieldSet(this, _MessageStream_aborted, true, "f");
-          return this._emit("abort", error);
+          return this._emit("abort", error2);
         }
-        if (error instanceof AnthropicError) {
-          return this._emit("error", error);
+        if (error2 instanceof AnthropicError) {
+          return this._emit("error", error2);
         }
-        if (error instanceof Error) {
-          const anthropicError = new AnthropicError(error.message);
-          anthropicError.cause = error;
+        if (error2 instanceof Error) {
+          const anthropicError = new AnthropicError(error2.message);
+          anthropicError.cause = error2;
           return this._emit("error", anthropicError);
         }
-        return this._emit("error", new AnthropicError(String(error)));
+        return this._emit("error", new AnthropicError(String(error2)));
       });
-      __classPrivateFieldSet(this, _MessageStream_connectedPromise, new Promise((resolve, reject) => {
-        __classPrivateFieldSet(this, _MessageStream_resolveConnectedPromise, resolve, "f");
+      __classPrivateFieldSet(this, _MessageStream_connectedPromise, new Promise((resolve11, reject) => {
+        __classPrivateFieldSet(this, _MessageStream_resolveConnectedPromise, resolve11, "f");
         __classPrivateFieldSet(this, _MessageStream_rejectConnectedPromise, reject, "f");
       }), "f");
-      __classPrivateFieldSet(this, _MessageStream_endPromise, new Promise((resolve, reject) => {
-        __classPrivateFieldSet(this, _MessageStream_resolveEndPromise, resolve, "f");
+      __classPrivateFieldSet(this, _MessageStream_endPromise, new Promise((resolve11, reject) => {
+        __classPrivateFieldSet(this, _MessageStream_resolveEndPromise, resolve11, "f");
         __classPrivateFieldSet(this, _MessageStream_rejectEndPromise, reject, "f");
       }), "f");
       __classPrivateFieldGet(this, _MessageStream_connectedPromise, "f").catch(() => {});
@@ -12917,7 +12991,7 @@ var init_MessageStream = __esm(() => {
       const listeners = __classPrivateFieldGet(this, _MessageStream_listeners, "f")[event];
       if (!listeners)
         return this;
-      const index = listeners.findIndex((l) => l.listener === listener);
+      const index = listeners.findIndex((l2) => l2.listener === listener);
       if (index >= 0)
         listeners.splice(index, 1);
       return this;
@@ -12928,11 +13002,11 @@ var init_MessageStream = __esm(() => {
       return this;
     }
     emitted(event) {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve11, reject) => {
         __classPrivateFieldSet(this, _MessageStream_catchingPromiseCreated, true, "f");
         if (event !== "error")
           this.once("error", reject);
-        this.once(event, resolve);
+        this.once(event, resolve11);
       });
     }
     async done() {
@@ -12959,26 +13033,26 @@ var init_MessageStream = __esm(() => {
       }
       const listeners = __classPrivateFieldGet(this, _MessageStream_listeners, "f")[event];
       if (listeners) {
-        __classPrivateFieldGet(this, _MessageStream_listeners, "f")[event] = listeners.filter((l) => !l.once);
+        __classPrivateFieldGet(this, _MessageStream_listeners, "f")[event] = listeners.filter((l2) => !l2.once);
         listeners.forEach(({ listener }) => listener(...args));
       }
       if (event === "abort") {
-        const error = args[0];
+        const error2 = args[0];
         if (!__classPrivateFieldGet(this, _MessageStream_catchingPromiseCreated, "f") && !listeners?.length) {
-          Promise.reject(error);
+          Promise.reject(error2);
         }
-        __classPrivateFieldGet(this, _MessageStream_rejectConnectedPromise, "f").call(this, error);
-        __classPrivateFieldGet(this, _MessageStream_rejectEndPromise, "f").call(this, error);
+        __classPrivateFieldGet(this, _MessageStream_rejectConnectedPromise, "f").call(this, error2);
+        __classPrivateFieldGet(this, _MessageStream_rejectEndPromise, "f").call(this, error2);
         this._emit("end");
         return;
       }
       if (event === "error") {
-        const error = args[0];
+        const error2 = args[0];
         if (!__classPrivateFieldGet(this, _MessageStream_catchingPromiseCreated, "f") && !listeners?.length) {
-          Promise.reject(error);
+          Promise.reject(error2);
         }
-        __classPrivateFieldGet(this, _MessageStream_rejectConnectedPromise, "f").call(this, error);
-        __classPrivateFieldGet(this, _MessageStream_rejectEndPromise, "f").call(this, error);
+        __classPrivateFieldGet(this, _MessageStream_rejectConnectedPromise, "f").call(this, error2);
+        __classPrivateFieldGet(this, _MessageStream_rejectEndPromise, "f").call(this, error2);
         this._emit("end");
       }
     }
@@ -13014,12 +13088,12 @@ var init_MessageStream = __esm(() => {
         }
       }
     }
-    [(_MessageStream_currentMessageSnapshot = new WeakMap, _MessageStream_params = new WeakMap, _MessageStream_connectedPromise = new WeakMap, _MessageStream_resolveConnectedPromise = new WeakMap, _MessageStream_rejectConnectedPromise = new WeakMap, _MessageStream_endPromise = new WeakMap, _MessageStream_resolveEndPromise = new WeakMap, _MessageStream_rejectEndPromise = new WeakMap, _MessageStream_listeners = new WeakMap, _MessageStream_ended = new WeakMap, _MessageStream_errored = new WeakMap, _MessageStream_aborted = new WeakMap, _MessageStream_catchingPromiseCreated = new WeakMap, _MessageStream_response = new WeakMap, _MessageStream_request_id = new WeakMap, _MessageStream_logger = new WeakMap, _MessageStream_handleError = new WeakMap, _MessageStream_instances = new WeakSet, _MessageStream_getFinalMessage = function _MessageStream_getFinalMessage2() {
+    [(_MessageStream_currentMessageSnapshot = new WeakMap, _MessageStream_params = new WeakMap, _MessageStream_connectedPromise = new WeakMap, _MessageStream_resolveConnectedPromise = new WeakMap, _MessageStream_rejectConnectedPromise = new WeakMap, _MessageStream_endPromise = new WeakMap, _MessageStream_resolveEndPromise = new WeakMap, _MessageStream_rejectEndPromise = new WeakMap, _MessageStream_listeners = new WeakMap, _MessageStream_ended = new WeakMap, _MessageStream_errored = new WeakMap, _MessageStream_aborted = new WeakMap, _MessageStream_catchingPromiseCreated = new WeakMap, _MessageStream_response = new WeakMap, _MessageStream_request_id = new WeakMap, _MessageStream_logger = new WeakMap, _MessageStream_handleError = new WeakMap, _MessageStream_instances = new WeakSet, _MessageStream_getFinalMessage = function _MessageStream_getFinalMessage() {
       if (this.receivedMessages.length === 0) {
         throw new AnthropicError("stream ended without producing a Message with role=assistant");
       }
       return this.receivedMessages.at(-1);
-    }, _MessageStream_getFinalText = function _MessageStream_getFinalText2() {
+    }, _MessageStream_getFinalText = function _MessageStream_getFinalText() {
       if (this.receivedMessages.length === 0) {
         throw new AnthropicError("stream ended without producing a Message with role=assistant");
       }
@@ -13028,11 +13102,11 @@ var init_MessageStream = __esm(() => {
         throw new AnthropicError("stream ended without producing a content block with type=text");
       }
       return textBlocks.join(" ");
-    }, _MessageStream_beginRequest = function _MessageStream_beginRequest2() {
+    }, _MessageStream_beginRequest = function _MessageStream_beginRequest() {
       if (this.ended)
         return;
       __classPrivateFieldSet(this, _MessageStream_currentMessageSnapshot, undefined, "f");
-    }, _MessageStream_addStreamEvent = function _MessageStream_addStreamEvent2(event) {
+    }, _MessageStream_addStreamEvent = function _MessageStream_addStreamEvent(event) {
       if (this.ended)
         return;
       const messageSnapshot = __classPrivateFieldGet(this, _MessageStream_instances, "m", _MessageStream_accumulateMessage).call(this, event);
@@ -13093,7 +13167,7 @@ var init_MessageStream = __esm(() => {
         case "message_delta":
           break;
       }
-    }, _MessageStream_endRequest = function _MessageStream_endRequest2() {
+    }, _MessageStream_endRequest = function _MessageStream_endRequest() {
       if (this.ended) {
         throw new AnthropicError(`stream has ended, this shouldn't happen`);
       }
@@ -13103,7 +13177,7 @@ var init_MessageStream = __esm(() => {
       }
       __classPrivateFieldSet(this, _MessageStream_currentMessageSnapshot, undefined, "f");
       return maybeParseMessage(snapshot, __classPrivateFieldGet(this, _MessageStream_params, "f"), { logger: __classPrivateFieldGet(this, _MessageStream_logger, "f") });
-    }, _MessageStream_accumulateMessage = function _MessageStream_accumulateMessage2(event) {
+    }, _MessageStream_accumulateMessage = function _MessageStream_accumulateMessage(event) {
       let snapshot = __classPrivateFieldGet(this, _MessageStream_currentMessageSnapshot, "f");
       if (event.type === "message_start") {
         if (snapshot) {
@@ -13240,7 +13314,7 @@ var init_MessageStream = __esm(() => {
             if (done) {
               return { value: undefined, done: true };
             }
-            return new Promise((resolve, reject) => readQueue.push({ resolve, reject })).then((chunk) => chunk ? { value: chunk, done: false } : { value: undefined, done: true });
+            return new Promise((resolve11, reject) => readQueue.push({ resolve: resolve11, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: undefined, done: true });
           }
           const chunk = pushQueue.shift();
           return { value: chunk, done: false };
@@ -13292,7 +13366,7 @@ var init_batches2 = __esm(() => {
         headers: buildHeaders([{ Accept: "application/binary" }, options?.headers]),
         stream: true,
         __binaryResponse: true
-      })._thenUnwrap((_, props) => JSONLDecoder.fromResponse(props.response, props.controller));
+      })._thenUnwrap((_3, props) => JSONLDecoder.fromResponse(props.response, props.controller));
     }
   };
 });
@@ -13408,12 +13482,12 @@ var init_resources2 = __esm(() => {
 });
 
 // node_modules/@anthropic-ai/sdk/internal/utils/env.mjs
-var readEnv = (env) => {
+var readEnv = (env2) => {
   if (typeof globalThis.process !== "undefined") {
-    return globalThis.process.env?.[env]?.trim() || undefined;
+    return globalThis.process.env?.[env2]?.trim() || undefined;
   }
   if (typeof globalThis.Deno !== "undefined") {
-    return globalThis.Deno.env?.get?.(env)?.trim() || undefined;
+    return globalThis.Deno.env?.get?.(env2)?.trim() || undefined;
   }
   return;
 };
@@ -13514,12 +13588,12 @@ new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
   defaultIdempotencyKey() {
     return `stainless-node-retry-${uuid4()}`;
   }
-  makeStatusError(status, error, message, headers) {
-    return APIError.generate(status, error, message, headers);
+  makeStatusError(status, error2, message, headers) {
+    return APIError.generate(status, error2, message, headers);
   }
-  buildURL(path, query, defaultBaseURL) {
+  buildURL(path2, query, defaultBaseURL) {
     const baseURL = !__classPrivateFieldGet(this, _BaseAnthropic_instances, "m", _BaseAnthropic_baseURLOverridden).call(this) && defaultBaseURL || this.baseURL;
-    const url = isAbsoluteURL(path) ? new URL(path) : new URL(baseURL + (baseURL.endsWith("/") && path.startsWith("/") ? path.slice(1) : path));
+    const url = isAbsoluteURL(path2) ? new URL(path2) : new URL(baseURL + (baseURL.endsWith("/") && path2.startsWith("/") ? path2.slice(1) : path2));
     const defaultQuery = this.defaultQuery();
     const pathQuery = Object.fromEntries(url.searchParams);
     if (!isEmptyObj(defaultQuery) || !isEmptyObj(pathQuery)) {
@@ -13540,24 +13614,24 @@ new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
   }
   async prepareOptions(options) {}
   async prepareRequest(request, { url, options }) {}
-  get(path, opts) {
-    return this.methodRequest("get", path, opts);
+  get(path2, opts) {
+    return this.methodRequest("get", path2, opts);
   }
-  post(path, opts) {
-    return this.methodRequest("post", path, opts);
+  post(path2, opts) {
+    return this.methodRequest("post", path2, opts);
   }
-  patch(path, opts) {
-    return this.methodRequest("patch", path, opts);
+  patch(path2, opts) {
+    return this.methodRequest("patch", path2, opts);
   }
-  put(path, opts) {
-    return this.methodRequest("put", path, opts);
+  put(path2, opts) {
+    return this.methodRequest("put", path2, opts);
   }
-  delete(path, opts) {
-    return this.methodRequest("delete", path, opts);
+  delete(path2, opts) {
+    return this.methodRequest("delete", path2, opts);
   }
-  methodRequest(method, path, opts) {
-    return this.request(Promise.resolve(opts).then((opts) => {
-      return { method, path, ...opts };
+  methodRequest(method, path2, opts) {
+    return this.request(Promise.resolve(opts).then((opts2) => {
+      return { method, path: path2, ...opts2 };
     }));
   }
   request(options, remainingRetries = null) {
@@ -13623,10 +13697,10 @@ new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
     if (!response.ok) {
       const shouldRetry = await this.shouldRetry(response);
       if (retriesRemaining && shouldRetry) {
-        const retryMessage = `retrying, ${retriesRemaining} attempts remaining`;
+        const retryMessage2 = `retrying, ${retriesRemaining} attempts remaining`;
         await CancelReadableStream(response.body);
-        loggerFor(this).info(`${responseInfo} - ${retryMessage}`);
-        loggerFor(this).debug(`[${requestLogID}] response error (${retryMessage})`, formatRequestDetails({
+        loggerFor(this).info(`${responseInfo} - ${retryMessage2}`);
+        loggerFor(this).debug(`[${requestLogID}] response error (${retryMessage2})`, formatRequestDetails({
           retryOfRequestLogID,
           url: response.url,
           status: response.status,
@@ -13637,7 +13711,7 @@ new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
       }
       const retryMessage = shouldRetry ? `error; no more retries left` : `error; not retryable`;
       loggerFor(this).info(`${responseInfo} - ${retryMessage}`);
-      const errText = await response.text().catch((err) => castToError(err).message);
+      const errText = await response.text().catch((err2) => castToError(err2).message);
       const errJSON = safeJSON(errText);
       const errMessage = errJSON ? undefined : errText;
       loggerFor(this).debug(`[${requestLogID}] response error (${retryMessage})`, formatRequestDetails({
@@ -13661,15 +13735,15 @@ new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
     }));
     return { response, options, controller, requestLogID, retryOfRequestLogID, startTime };
   }
-  getAPIList(path, Page, opts) {
-    return this.requestAPIList(Page, opts && "then" in opts ? opts.then((opts) => ({ method: "get", path, ...opts })) : { method: "get", path, ...opts });
+  getAPIList(path2, Page2, opts) {
+    return this.requestAPIList(Page2, opts && "then" in opts ? opts.then((opts2) => ({ method: "get", path: path2, ...opts2 })) : { method: "get", path: path2, ...opts });
   }
-  requestAPIList(Page, options) {
+  requestAPIList(Page2, options) {
     const request = this.makeRequest(options, null, undefined);
-    return new PagePromise(this, request, Page);
+    return new PagePromise(this, request, Page2);
   }
-  async fetchWithTimeout(url, init, ms, controller) {
-    const { signal, method, ...options } = init || {};
+  async fetchWithTimeout(url, init2, ms, controller) {
+    const { signal, method, ...options } = init2 || {};
     const abort = this._makeAbort(controller);
     if (signal)
       signal.addEventListener("abort", abort, { once: true });
@@ -13750,8 +13824,8 @@ new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
   }
   async buildRequest(inputOptions, { retryCount = 0 } = {}) {
     const options = { ...inputOptions };
-    const { method, path, query, defaultBaseURL } = options;
-    const url = this.buildURL(path, query, defaultBaseURL);
+    const { method, path: path2, query, defaultBaseURL } = options;
+    const url = this.buildURL(path2, query, defaultBaseURL);
     if ("timeout" in options)
       validatePositiveInteger("timeout", options.timeout);
     options.timeout = options.timeout ?? this.timeout;
@@ -13835,7 +13909,7 @@ var init_client = __esm(() => {
   init_headers();
   init_log();
   init_values();
-  _a = BaseAnthropic, _BaseAnthropic_encoder = new WeakMap, _BaseAnthropic_instances = new WeakSet, _BaseAnthropic_baseURLOverridden = function _BaseAnthropic_baseURLOverridden() {
+  _a = BaseAnthropic, _BaseAnthropic_encoder = new WeakMap, _BaseAnthropic_instances = new WeakSet, _BaseAnthropic_baseURLOverridden = function _BaseAnthropic_baseURLOverridden2() {
     return this.baseURL !== "https://api.anthropic.com";
   };
   BaseAnthropic.Anthropic = _a;
@@ -13894,8 +13968,8 @@ function splitPrompt(text) {
     userPart: text.slice(match.index).trim()
   };
 }
-async function runAnthropicSdkAgent(promptPath, manifest, clientFactory, ctx) {
-  const promptText = readFileSync10(promptPath, "utf8");
+async function runAnthropicSdkAgent(promptPath2, manifest, clientFactory, ctx) {
+  const promptText = readFileSync10(promptPath2, "utf8");
   const { systemPart, userPart } = splitPrompt(promptText);
   const client = clientFactory ? clientFactory() : new Anthropic;
   const maxTokens = Math.min(manifest.token_budget ?? 4096, MAX_TOKENS_CAP);
@@ -13983,32 +14057,32 @@ async function runAnthropicSdkAgent(promptPath, manifest, clientFactory, ctx) {
     }
     response = await client.messages.create(createArgs, { timeout: timeoutMs, signal: controller.signal });
     outcome = "success";
-    const u = response.usage;
-    usageInput = u?.input_tokens;
-    usageOutput = u?.output_tokens;
-    usageCacheRead = u?.cache_read_input_tokens;
-    usageCacheCreation = u?.cache_creation_input_tokens;
-  } catch (e) {
-    if (e instanceof Anthropic.APIError) {
-      errorClass = `APIError-${e.status ?? "?"}`;
+    const u3 = response.usage;
+    usageInput = u3?.input_tokens;
+    usageOutput = u3?.output_tokens;
+    usageCacheRead = u3?.cache_read_input_tokens;
+    usageCacheCreation = u3?.cache_creation_input_tokens;
+  } catch (e2) {
+    if (e2 instanceof Anthropic.APIError) {
+      errorClass = `APIError-${e2.status ?? "?"}`;
       emitResponse();
-      throw new AnthropicSdkError(`Anthropic API error ${e.status ?? "?"} for ${manifest.name}: ${e.message}`, e.status);
+      throw new AnthropicSdkError(`Anthropic API error ${e2.status ?? "?"} for ${manifest.name}: ${e2.message}`, e2.status);
     }
-    errorClass = e instanceof Error ? e.name : "unknown";
+    errorClass = e2 instanceof Error ? e2.name : "unknown";
     emitResponse();
-    throw e;
+    throw e2;
   }
   emitResponse();
-  const textBlock = response.content.find((b) => b.type === "text");
+  const textBlock = response.content.find((b2) => b2.type === "text");
   if (!textBlock || textBlock.type !== "text") {
-    throw new AnthropicSdkError(`no text block in response for ${manifest.name} (blocks: ${response.content.map((b) => b.type).join(", ")})`);
+    throw new AnthropicSdkError(`no text block in response for ${manifest.name} (blocks: ${response.content.map((b2) => b2.type).join(", ")})`);
   }
   const yamlBody = extractYamlBody(textBlock.text);
   let data;
   try {
     data = load(yamlBody);
-  } catch (e) {
-    throw new AnthropicSdkError(`SDK YAML parse failed for ${manifest.name}: ${String(e).slice(0, 200)}`);
+  } catch (e2) {
+    throw new AnthropicSdkError(`SDK YAML parse failed for ${manifest.name}: ${String(e2).slice(0, 200)}`);
   }
   if (typeof data !== "object" || data === null) {
     throw new AnthropicSdkError(`SDK response YAML not an object for ${manifest.name}: got ${typeof data}`);
@@ -14031,7 +14105,7 @@ var init_anthropic_sdk_agent = __esm(() => {
 });
 
 // node_modules/undici/lib/core/symbols.js
-var require_symbols = __commonJS(function(exports, module) {
+var require_symbols = __commonJS((exports, module) => {
   module.exports = {
     kClose: Symbol("close"),
     kDestroy: Symbol("destroy"),
@@ -14102,7 +14176,7 @@ var require_symbols = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/core/errors.js
-var require_errors = __commonJS(function(exports, module) {
+var require_errors = __commonJS((exports, module) => {
   var kUndiciError = Symbol.for("undici.error.UND_ERR");
 
   class UndiciError extends Error {
@@ -14481,7 +14555,7 @@ var require_errors = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/core/constants.js
-var require_constants = __commonJS(function(exports, module) {
+var require_constants = __commonJS((exports, module) => {
   var headerNameLowerCasedRecord = {};
   var wellknownHeaderNames = [
     "Accept",
@@ -14580,8 +14654,8 @@ var require_constants = __commonJS(function(exports, module) {
     "X-Requested-With",
     "X-XSS-Protection"
   ];
-  for (let i = 0;i < wellknownHeaderNames.length; ++i) {
-    const key = wellknownHeaderNames[i];
+  for (let i2 = 0;i2 < wellknownHeaderNames.length; ++i2) {
+    const key = wellknownHeaderNames[i2];
     const lowerCasedKey = key.toLowerCase();
     headerNameLowerCasedRecord[key] = headerNameLowerCasedRecord[lowerCasedKey] = lowerCasedKey;
   }
@@ -14593,7 +14667,7 @@ var require_constants = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/core/tree.js
-var require_tree = __commonJS(function(exports, module) {
+var require_tree = __commonJS((exports, module) => {
   var {
     wellknownHeaderNames,
     headerNameLowerCasedRecord
@@ -14694,8 +14768,8 @@ var require_tree = __commonJS(function(exports, module) {
     }
   }
   var tree = new TernarySearchTree;
-  for (let i = 0;i < wellknownHeaderNames.length; ++i) {
-    const key = headerNameLowerCasedRecord[wellknownHeaderNames[i]];
+  for (let i2 = 0;i2 < wellknownHeaderNames.length; ++i2) {
+    const key = headerNameLowerCasedRecord[wellknownHeaderNames[i2]];
     tree.insert(key, key);
   }
   module.exports = {
@@ -14705,7 +14779,7 @@ var require_tree = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/core/util.js
-var require_util = __commonJS(function(exports, module) {
+var require_util = __commonJS((exports, module) => {
   var assert = __require("node:assert");
   var { kDestroyed, kBodyUsed, kListeners, kBody } = require_symbols();
   var { IncomingMessage } = __require("node:http");
@@ -14718,7 +14792,7 @@ var require_util = __commonJS(function(exports, module) {
   var { InvalidArgumentError } = require_errors();
   var { headerNameLowerCasedRecord } = require_constants();
   var { tree } = require_tree();
-  var [nodeMajor, nodeMinor] = process.versions.node.split(".").map((v) => Number(v));
+  var [nodeMajor, nodeMinor] = process.versions.node.split(".").map((v2) => Number(v2));
 
   class BodyAsyncIterable {
     constructor(body) {
@@ -14757,7 +14831,7 @@ var require_util = __commonJS(function(exports, module) {
   function isStream(obj) {
     return obj && typeof obj === "object" && typeof obj.pipe === "function" && typeof obj.on === "function";
   }
-  function isBlobLike(object) {
+  function isBlobLike2(object) {
     if (object === null) {
       return false;
     } else if (object instanceof Blob2) {
@@ -14818,14 +14892,14 @@ var require_util = __commonJS(function(exports, module) {
       }
       const port = url.port != null ? url.port : url.protocol === "https:" ? 443 : 80;
       let origin = url.origin != null ? url.origin : `${url.protocol || ""}//${url.hostname || ""}:${port}`;
-      let path = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
+      let path2 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
       if (origin[origin.length - 1] === "/") {
         origin = origin.slice(0, origin.length - 1);
       }
-      if (path && path[0] !== "/") {
-        path = `/${path}`;
+      if (path2 && path2[0] !== "/") {
+        path2 = `/${path2}`;
       }
-      return new URL(`${origin}${path}`);
+      return new URL(`${origin}${path2}`);
     }
     if (!isHttpOrHttpsPrefixed(url.origin || url.protocol)) {
       throw new InvalidArgumentError("Invalid URL protocol: the URL must start with `http:` or `https:`.");
@@ -14841,9 +14915,9 @@ var require_util = __commonJS(function(exports, module) {
   }
   function getHostname(host) {
     if (host[0] === "[") {
-      const idx = host.indexOf("]");
-      assert(idx !== -1);
-      return host.substring(1, idx);
+      const idx2 = host.indexOf("]");
+      assert(idx2 !== -1);
+      return host.substring(1, idx2);
     }
     const idx = host.indexOf(":");
     if (idx === -1)
@@ -14864,7 +14938,7 @@ var require_util = __commonJS(function(exports, module) {
   function deepClone(obj) {
     return JSON.parse(JSON.stringify(obj));
   }
-  function isAsyncIterable(obj) {
+  function isAsyncIterable2(obj) {
     return !!(obj != null && typeof obj[Symbol.asyncIterator] === "function");
   }
   function isIterable(obj) {
@@ -14876,7 +14950,7 @@ var require_util = __commonJS(function(exports, module) {
     } else if (isStream(body)) {
       const state = body._readableState;
       return state && state.objectMode === false && state.ended === true && Number.isFinite(state.length) ? state.length : null;
-    } else if (isBlobLike(body)) {
+    } else if (isBlobLike2(body)) {
       return body.size != null ? body.size : null;
     } else if (isBuffer(body)) {
       return body.byteLength;
@@ -14886,28 +14960,28 @@ var require_util = __commonJS(function(exports, module) {
   function isDestroyed(body) {
     return body && !!(body.destroyed || body[kDestroyed] || stream.isDestroyed?.(body));
   }
-  function destroy(stream, err) {
-    if (stream == null || !isStream(stream) || isDestroyed(stream)) {
+  function destroy(stream2, err) {
+    if (stream2 == null || !isStream(stream2) || isDestroyed(stream2)) {
       return;
     }
-    if (typeof stream.destroy === "function") {
-      if (Object.getPrototypeOf(stream).constructor === IncomingMessage) {
-        stream.socket = null;
+    if (typeof stream2.destroy === "function") {
+      if (Object.getPrototypeOf(stream2).constructor === IncomingMessage) {
+        stream2.socket = null;
       }
-      stream.destroy(err);
+      stream2.destroy(err);
     } else if (err) {
       queueMicrotask(() => {
-        stream.emit("error", err);
+        stream2.emit("error", err);
       });
     }
-    if (stream.destroyed !== true) {
-      stream[kDestroyed] = true;
+    if (stream2.destroyed !== true) {
+      stream2[kDestroyed] = true;
     }
   }
   var KEEPALIVE_TIMEOUT_EXPR = /timeout=(\d+)/;
   function parseKeepAliveTimeout(val) {
-    const m = val.toString().match(KEEPALIVE_TIMEOUT_EXPR);
-    return m ? parseInt(m[1], 10) * 1000 : null;
+    const m2 = val.toString().match(KEEPALIVE_TIMEOUT_EXPR);
+    return m2 ? parseInt(m2[1], 10) * 1000 : null;
   }
   function headerNameToString(value) {
     return typeof value === "string" ? headerNameLowerCasedRecord[value] ?? value.toLowerCase() : tree.lookup(value) ?? value.toString("latin1").toLowerCase();
@@ -14918,21 +14992,21 @@ var require_util = __commonJS(function(exports, module) {
   function parseHeaders(headers, obj) {
     if (obj === undefined)
       obj = {};
-    for (let i = 0;i < headers.length; i += 2) {
-      const key = headerNameToString(headers[i]);
+    for (let i2 = 0;i2 < headers.length; i2 += 2) {
+      const key = headerNameToString(headers[i2]);
       let val = obj[key];
       if (val) {
         if (typeof val === "string") {
           val = [val];
           obj[key] = val;
         }
-        val.push(headers[i + 1].toString("utf8"));
+        val.push(headers[i2 + 1].toString("utf8"));
       } else {
-        const headersValue = headers[i + 1];
+        const headersValue = headers[i2 + 1];
         if (typeof headersValue === "string") {
           obj[key] = headersValue;
         } else {
-          obj[key] = Array.isArray(headersValue) ? headersValue.map((x) => x.toString("utf8")) : headersValue.toString("utf8");
+          obj[key] = Array.isArray(headersValue) ? headersValue.map((x2) => x2.toString("utf8")) : headersValue.toString("utf8");
         }
       }
     }
@@ -14949,19 +15023,19 @@ var require_util = __commonJS(function(exports, module) {
     let key;
     let val;
     let kLen = 0;
-    for (let n = 0;n < headers.length; n += 2) {
-      key = headers[n];
-      val = headers[n + 1];
+    for (let n2 = 0;n2 < headers.length; n2 += 2) {
+      key = headers[n2];
+      val = headers[n2 + 1];
       typeof key !== "string" && (key = key.toString());
       typeof val !== "string" && (val = val.toString("utf8"));
       kLen = key.length;
       if (kLen === 14 && key[7] === "-" && (key === "content-length" || key.toLowerCase() === "content-length")) {
         hasContentLength = true;
       } else if (kLen === 19 && key[7] === "-" && (key === "content-disposition" || key.toLowerCase() === "content-disposition")) {
-        contentDispositionIdx = n + 1;
+        contentDispositionIdx = n2 + 1;
       }
-      ret[n] = key;
-      ret[n + 1] = val;
+      ret[n2] = key;
+      ret[n2 + 1] = val;
     }
     if (hasContentLength && contentDispositionIdx !== -1) {
       ret[contentDispositionIdx] = Buffer.from(ret[contentDispositionIdx]).toString("latin1");
@@ -15021,7 +15095,7 @@ var require_util = __commonJS(function(exports, module) {
       bytesRead: socket.bytesRead
     };
   }
-  function ReadableStreamFrom(iterable) {
+  function ReadableStreamFrom2(iterable) {
     let iterator;
     return new ReadableStream({
       async start() {
@@ -15067,8 +15141,8 @@ var require_util = __commonJS(function(exports, module) {
   function isUSVString(val) {
     return hasIsWellFormed ? `${val}`.isWellFormed() : toUSVString(val) === `${val}`;
   }
-  function isTokenCharCode(c) {
-    switch (c) {
+  function isTokenCharCode(c3) {
+    switch (c3) {
       case 34:
       case 40:
       case 41:
@@ -15088,15 +15162,15 @@ var require_util = __commonJS(function(exports, module) {
       case 125:
         return false;
       default:
-        return c >= 33 && c <= 126;
+        return c3 >= 33 && c3 <= 126;
     }
   }
   function isValidHTTPToken(characters) {
     if (characters.length === 0) {
       return false;
     }
-    for (let i = 0;i < characters.length; ++i) {
-      if (!isTokenCharCode(characters.charCodeAt(i))) {
+    for (let i2 = 0;i2 < characters.length; ++i2) {
+      if (!isTokenCharCode(characters.charCodeAt(i2))) {
         return false;
       }
     }
@@ -15109,11 +15183,11 @@ var require_util = __commonJS(function(exports, module) {
   function parseRangeHeader(range) {
     if (range == null || range === "")
       return { start: 0, end: null, size: null };
-    const m = range ? range.match(/^bytes (\d+)-(\d+)\/(\d+)?$/) : null;
-    return m ? {
-      start: parseInt(m[1]),
-      end: m[2] ? parseInt(m[2]) : null,
-      size: m[3] ? parseInt(m[3]) : null
+    const m2 = range ? range.match(/^bytes (\d+)-(\d+)\/(\d+)?$/) : null;
+    return m2 ? {
+      start: parseInt(m2[1]),
+      end: m2[2] ? parseInt(m2[2]) : null,
+      size: m2[3] ? parseInt(m2[3]) : null
     } : null;
   }
   function addListener(obj, name, listener) {
@@ -15132,8 +15206,8 @@ var require_util = __commonJS(function(exports, module) {
     try {
       request.onError(err);
       assert(request.aborted);
-    } catch (err) {
-      client.emit("error", err);
+    } catch (err2) {
+      client.emit("error", err2);
     }
   }
   var kEnumerableProperty = Object.create(null);
@@ -15167,13 +15241,13 @@ var require_util = __commonJS(function(exports, module) {
     isReadable,
     toUSVString,
     isUSVString,
-    isBlobLike,
+    isBlobLike: isBlobLike2,
     parseOrigin,
     parseURL,
     getServerName,
     isStream,
     isIterable,
-    isAsyncIterable,
+    isAsyncIterable: isAsyncIterable2,
     isDestroyed,
     headerNameToString,
     bufferToLowerCasedHeaderName,
@@ -15186,7 +15260,7 @@ var require_util = __commonJS(function(exports, module) {
     destroy,
     bodyLength,
     deepClone,
-    ReadableStreamFrom,
+    ReadableStreamFrom: ReadableStreamFrom2,
     isBuffer,
     validateHandler,
     getSocketInfo,
@@ -15209,7 +15283,7 @@ var require_util = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/core/diagnostics.js
-var require_diagnostics = __commonJS(function(exports, module) {
+var require_diagnostics = __commonJS((exports, module) => {
   var diagnosticsChannel = __require("node:diagnostics_channel");
   var util = __require("node:util");
   var undiciDebugLog = util.debuglog("undici");
@@ -15249,35 +15323,35 @@ var require_diagnostics = __commonJS(function(exports, module) {
     diagnosticsChannel.channel("undici:client:connectError").subscribe((evt) => {
       const {
         connectParams: { version, protocol, port, host },
-        error
+        error: error2
       } = evt;
-      debuglog("connection to %s using %s%s errored - %s", `${host}${port ? `:${port}` : ""}`, protocol, version, error.message);
+      debuglog("connection to %s using %s%s errored - %s", `${host}${port ? `:${port}` : ""}`, protocol, version, error2.message);
     });
     diagnosticsChannel.channel("undici:client:sendHeaders").subscribe((evt) => {
       const {
-        request: { method, path, origin }
+        request: { method, path: path2, origin }
       } = evt;
-      debuglog("sending request to %s %s/%s", method, origin, path);
+      debuglog("sending request to %s %s/%s", method, origin, path2);
     });
     diagnosticsChannel.channel("undici:request:headers").subscribe((evt) => {
       const {
-        request: { method, path, origin },
+        request: { method, path: path2, origin },
         response: { statusCode }
       } = evt;
-      debuglog("received response to %s %s/%s - HTTP %d", method, origin, path, statusCode);
+      debuglog("received response to %s %s/%s - HTTP %d", method, origin, path2, statusCode);
     });
     diagnosticsChannel.channel("undici:request:trailers").subscribe((evt) => {
       const {
-        request: { method, path, origin }
+        request: { method, path: path2, origin }
       } = evt;
-      debuglog("trailers received from %s %s/%s", method, origin, path);
+      debuglog("trailers received from %s %s/%s", method, origin, path2);
     });
     diagnosticsChannel.channel("undici:request:error").subscribe((evt) => {
       const {
-        request: { method, path, origin },
-        error
+        request: { method, path: path2, origin },
+        error: error2
       } = evt;
-      debuglog("request to %s %s/%s errored - %s", method, origin, path, error.message);
+      debuglog("request to %s %s/%s errored - %s", method, origin, path2, error2.message);
     });
     isClientSet = true;
   }
@@ -15299,15 +15373,15 @@ var require_diagnostics = __commonJS(function(exports, module) {
       diagnosticsChannel.channel("undici:client:connectError").subscribe((evt) => {
         const {
           connectParams: { version, protocol, port, host },
-          error
+          error: error2
         } = evt;
-        debuglog("connection to %s%s using %s%s errored - %s", host, port ? `:${port}` : "", protocol, version, error.message);
+        debuglog("connection to %s%s using %s%s errored - %s", host, port ? `:${port}` : "", protocol, version, error2.message);
       });
       diagnosticsChannel.channel("undici:client:sendHeaders").subscribe((evt) => {
         const {
-          request: { method, path, origin }
+          request: { method, path: path2, origin }
         } = evt;
-        debuglog("sending request to %s %s/%s", method, origin, path);
+        debuglog("sending request to %s %s/%s", method, origin, path2);
       });
     }
     diagnosticsChannel.channel("undici:websocket:open").subscribe((evt) => {
@@ -15336,7 +15410,7 @@ var require_diagnostics = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/core/request.js
-var require_request = __commonJS(function(exports, module) {
+var require_request = __commonJS((exports, module) => {
   var {
     InvalidArgumentError,
     NotSupportedError
@@ -15350,7 +15424,7 @@ var require_request = __commonJS(function(exports, module) {
     isBuffer,
     isFormDataLike,
     isIterable,
-    isBlobLike,
+    isBlobLike: isBlobLike2,
     buildURL,
     validateHandler,
     getServerName,
@@ -15363,7 +15437,7 @@ var require_request = __commonJS(function(exports, module) {
 
   class Request2 {
     constructor(origin, {
-      path,
+      path: path2,
       method,
       body,
       headers,
@@ -15378,11 +15452,11 @@ var require_request = __commonJS(function(exports, module) {
       expectContinue,
       servername
     }, handler) {
-      if (typeof path !== "string") {
+      if (typeof path2 !== "string") {
         throw new InvalidArgumentError("path must be a string");
-      } else if (path[0] !== "/" && !(path.startsWith("http://") || path.startsWith("https://")) && method !== "CONNECT") {
+      } else if (path2[0] !== "/" && !(path2.startsWith("http://") || path2.startsWith("https://")) && method !== "CONNECT") {
         throw new InvalidArgumentError("path must be an absolute URL or start with a slash");
-      } else if (invalidPathRegex.test(path)) {
+      } else if (invalidPathRegex.test(path2)) {
         throw new InvalidArgumentError("invalid request path");
       }
       if (typeof method !== "string") {
@@ -15440,7 +15514,7 @@ var require_request = __commonJS(function(exports, module) {
         this.body = body.byteLength ? Buffer.from(body) : null;
       } else if (typeof body === "string") {
         this.body = body.length ? Buffer.from(body) : null;
-      } else if (isFormDataLike(body) || isIterable(body) || isBlobLike(body)) {
+      } else if (isFormDataLike(body) || isIterable(body) || isBlobLike2(body)) {
         this.body = body;
       } else {
         throw new InvalidArgumentError("body must be a string, a Buffer, a Readable stream, an iterable, or an async iterable");
@@ -15448,7 +15522,7 @@ var require_request = __commonJS(function(exports, module) {
       this.completed = false;
       this.aborted = false;
       this.upgrade = upgrade || null;
-      this.path = query ? buildURL(path, query) : path;
+      this.path = query ? buildURL(path2, query) : path2;
       this.origin = origin;
       this.idempotent = idempotent == null ? method === "HEAD" || method === "GET" : idempotent;
       this.blocking = blocking == null ? false : blocking;
@@ -15462,8 +15536,8 @@ var require_request = __commonJS(function(exports, module) {
         if (headers.length % 2 !== 0) {
           throw new InvalidArgumentError("headers array must be even");
         }
-        for (let i = 0;i < headers.length; i += 2) {
-          processHeader(this, headers[i], headers[i + 1]);
+        for (let i2 = 0;i2 < headers.length; i2 += 2) {
+          processHeader(this, headers[i2], headers[i2 + 1]);
         }
       } else if (headers && typeof headers === "object") {
         if (headers[Symbol.iterator]) {
@@ -15475,8 +15549,8 @@ var require_request = __commonJS(function(exports, module) {
           }
         } else {
           const keys = Object.keys(headers);
-          for (let i = 0;i < keys.length; ++i) {
-            processHeader(this, keys[i], headers[keys[i]]);
+          for (let i2 = 0;i2 < keys.length; ++i2) {
+            processHeader(this, keys[i2], headers[keys[i2]]);
           }
         }
       } else if (headers != null) {
@@ -15569,11 +15643,11 @@ var require_request = __commonJS(function(exports, module) {
       }
       this.#publishUpgradeTrailers();
     }
-    onUpgradeError(error) {
+    onUpgradeError(error2) {
       assert(!this.aborted);
       assert(this.completed);
       if (channels.error.hasSubscribers) {
-        channels.error.publish({ request: this, error });
+        channels.error.publish({ request: this, error: error2 });
       }
     }
     #publishUpgradeHeaders(statusCode, headers, statusText) {
@@ -15599,16 +15673,16 @@ var require_request = __commonJS(function(exports, module) {
         this.onError(err);
       }
     }
-    onError(error) {
+    onError(error2) {
       this.onFinally();
       if (channels.error.hasSubscribers) {
-        channels.error.publish({ request: this, error });
+        channels.error.publish({ request: this, error: error2 });
       }
       if (this.aborted) {
         return;
       }
       this.aborted = true;
-      return this[kHandler].onError(error);
+      return this[kHandler].onError(error2);
     }
     onFinally() {
       if (this.errorHandler) {
@@ -15640,22 +15714,22 @@ var require_request = __commonJS(function(exports, module) {
     }
     if (Array.isArray(val)) {
       const arr = [];
-      for (let i = 0;i < val.length; i++) {
-        if (typeof val[i] === "string") {
-          if (!isValidHeaderValue(val[i])) {
+      for (let i2 = 0;i2 < val.length; i2++) {
+        if (typeof val[i2] === "string") {
+          if (!isValidHeaderValue(val[i2])) {
             throw new InvalidArgumentError(`invalid ${key} header`);
           }
-          arr.push(val[i]);
-        } else if (val[i] === null) {
+          arr.push(val[i2]);
+        } else if (val[i2] === null) {
           arr.push("");
-        } else if (typeof val[i] === "object") {
+        } else if (typeof val[i2] === "object") {
           throw new InvalidArgumentError(`invalid ${key} header`);
         } else {
-          const str = `${val[i]}`;
-          if (!isValidHeaderValue(str)) {
+          const str2 = `${val[i2]}`;
+          if (!isValidHeaderValue(str2)) {
             throw new InvalidArgumentError(`invalid ${key} header`);
           }
-          arr.push(str);
+          arr.push(str2);
         }
       }
       val = arr;
@@ -15710,7 +15784,7 @@ var require_request = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/dispatcher/dispatcher.js
-var require_dispatcher = __commonJS(function(exports, module) {
+var require_dispatcher = __commonJS((exports, module) => {
   var EventEmitter = __require("node:events");
 
   class Dispatcher extends EventEmitter {
@@ -15764,7 +15838,7 @@ var require_dispatcher = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/dispatcher/dispatcher-base.js
-var require_dispatcher_base = __commonJS(function(exports, module) {
+var require_dispatcher_base = __commonJS((exports, module) => {
   var buffer = __require("node:buffer");
   var Dispatcher = require_dispatcher();
   var {
@@ -15811,8 +15885,8 @@ var require_dispatcher_base = __commonJS(function(exports, module) {
     }
     set interceptors(newInterceptors) {
       if (newInterceptors) {
-        for (let i = newInterceptors.length - 1;i >= 0; i--) {
-          const interceptor = this[kInterceptors][i];
+        for (let i2 = newInterceptors.length - 1;i2 >= 0; i2--) {
+          const interceptor = this[kInterceptors][i2];
           if (typeof interceptor !== "function") {
             throw new InvalidArgumentError("interceptor must be an function");
           }
@@ -15822,9 +15896,9 @@ var require_dispatcher_base = __commonJS(function(exports, module) {
     }
     close(callback) {
       if (callback === undefined) {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve11, reject) => {
           this.close((err, data) => {
-            return err ? reject(err) : resolve(data);
+            return err ? reject(err) : resolve11(data);
           });
         });
       }
@@ -15848,8 +15922,8 @@ var require_dispatcher_base = __commonJS(function(exports, module) {
       const onClosed = () => {
         const callbacks = this[kOnClosed];
         this[kOnClosed] = null;
-        for (let i = 0;i < callbacks.length; i++) {
-          callbacks[i](null, null);
+        for (let i2 = 0;i2 < callbacks.length; i2++) {
+          callbacks[i2](null, null);
         }
       };
       this[kClose]().then(() => this.destroy()).then(() => {
@@ -15862,9 +15936,9 @@ var require_dispatcher_base = __commonJS(function(exports, module) {
         err = null;
       }
       if (callback === undefined) {
-        return new Promise((resolve, reject) => {
-          this.destroy(err, (err, data) => {
-            return err ? reject(err) : resolve(data);
+        return new Promise((resolve11, reject) => {
+          this.destroy(err, (err2, data) => {
+            return err2 ? reject(err2) : resolve11(data);
           });
         });
       }
@@ -15888,8 +15962,8 @@ var require_dispatcher_base = __commonJS(function(exports, module) {
       const onDestroyed = () => {
         const callbacks = this[kOnDestroyed];
         this[kOnDestroyed] = null;
-        for (let i = 0;i < callbacks.length; i++) {
-          callbacks[i](null, null);
+        for (let i2 = 0;i2 < callbacks.length; i2++) {
+          callbacks[i2](null, null);
         }
       };
       this[kDestroy](err).then(() => {
@@ -15902,8 +15976,8 @@ var require_dispatcher_base = __commonJS(function(exports, module) {
         return this[kDispatch](opts, handler);
       }
       let dispatch = this[kDispatch].bind(this);
-      for (let i = this[kInterceptors].length - 1;i >= 0; i--) {
-        dispatch = this[kInterceptors][i](dispatch);
+      for (let i2 = this[kInterceptors].length - 1;i2 >= 0; i2--) {
+        dispatch = this[kInterceptors][i2](dispatch);
       }
       this[kInterceptedDispatch] = dispatch;
       return dispatch(opts, handler);
@@ -15936,7 +16010,7 @@ var require_dispatcher_base = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/util/timers.js
-var require_timers = __commonJS(function(exports, module) {
+var require_timers = __commonJS((exports, module) => {
   var fastNow = 0;
   var RESOLUTION_MS = 1000;
   var TICK_MS = (RESOLUTION_MS >> 1) - 1;
@@ -16050,13 +16124,13 @@ var require_timers = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/core/connect.js
-var require_connect = __commonJS(function(exports, module) {
+var require_connect = __commonJS((exports, module) => {
   var net = __require("node:net");
   var assert = __require("node:assert");
   var util = require_util();
   var { InvalidArgumentError, ConnectTimeoutError } = require_errors();
   var timers = require_timers();
-  function noop() {}
+  function noop2() {}
   var tls;
   var SessionCache;
   if (global.FinalizationRegistry && !(process.env.NODE_V8_COVERAGE || process.env.UNDICI_NO_FG)) {
@@ -16115,7 +16189,7 @@ var require_connect = __commonJS(function(exports, module) {
     const sessionCache = new SessionCache(maxCachedSessions == null ? 100 : maxCachedSessions);
     timeout = timeout == null ? 1e4 : timeout;
     allowH2 = allowH2 != null ? allowH2 : false;
-    return function connect2({ hostname, host, protocol, port, servername, localAddress, httpSocket }, callback) {
+    return function connect({ hostname, host, protocol, port, servername, localAddress, httpSocket }, callback) {
       let socket;
       if (protocol === "https:") {
         if (!tls) {
@@ -16137,8 +16211,8 @@ var require_connect = __commonJS(function(exports, module) {
           port,
           host: hostname
         });
-        socket.on("session", function(session) {
-          sessionCache.set(sessionKey, session);
+        socket.on("session", function(session2) {
+          sessionCache.set(sessionKey, session2);
         });
       } else {
         assert(!httpSocket, "httpSocket can only be sent on TLS update");
@@ -16176,7 +16250,7 @@ var require_connect = __commonJS(function(exports, module) {
   }
   var setupConnectTimeout = process.platform === "win32" ? (socketWeakRef, opts) => {
     if (!opts.timeout) {
-      return noop;
+      return noop2;
     }
     let s1 = null;
     let s2 = null;
@@ -16192,7 +16266,7 @@ var require_connect = __commonJS(function(exports, module) {
     };
   } : (socketWeakRef, opts) => {
     if (!opts.timeout) {
-      return noop;
+      return noop2;
     }
     let s1 = null;
     const fastTimer = timers.setFastTimeout(() => {
@@ -16222,7 +16296,7 @@ var require_connect = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/llhttp/utils.js
-var require_utils = __commonJS(function(exports) {
+var require_utils = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.enumToMap = undefined;
   function enumToMap(obj) {
@@ -16239,110 +16313,110 @@ var require_utils = __commonJS(function(exports) {
 });
 
 // node_modules/undici/lib/llhttp/constants.js
-var require_constants2 = __commonJS(function(exports) {
+var require_constants2 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.SPECIAL_HEADERS = exports.HEADER_STATE = exports.MINOR = exports.MAJOR = exports.CONNECTION_TOKEN_CHARS = exports.HEADER_CHARS = exports.TOKEN = exports.STRICT_TOKEN = exports.HEX = exports.URL_CHAR = exports.STRICT_URL_CHAR = exports.USERINFO_CHARS = exports.MARK = exports.ALPHANUM = exports.NUM = exports.HEX_MAP = exports.NUM_MAP = exports.ALPHA = exports.FINISH = exports.H_METHOD_MAP = exports.METHOD_MAP = exports.METHODS_RTSP = exports.METHODS_ICE = exports.METHODS_HTTP = exports.METHODS = exports.LENIENT_FLAGS = exports.FLAGS = exports.TYPE = exports.ERROR = undefined;
   var utils_1 = require_utils();
   var ERROR;
-  (function(ERROR) {
-    ERROR[ERROR["OK"] = 0] = "OK";
-    ERROR[ERROR["INTERNAL"] = 1] = "INTERNAL";
-    ERROR[ERROR["STRICT"] = 2] = "STRICT";
-    ERROR[ERROR["LF_EXPECTED"] = 3] = "LF_EXPECTED";
-    ERROR[ERROR["UNEXPECTED_CONTENT_LENGTH"] = 4] = "UNEXPECTED_CONTENT_LENGTH";
-    ERROR[ERROR["CLOSED_CONNECTION"] = 5] = "CLOSED_CONNECTION";
-    ERROR[ERROR["INVALID_METHOD"] = 6] = "INVALID_METHOD";
-    ERROR[ERROR["INVALID_URL"] = 7] = "INVALID_URL";
-    ERROR[ERROR["INVALID_CONSTANT"] = 8] = "INVALID_CONSTANT";
-    ERROR[ERROR["INVALID_VERSION"] = 9] = "INVALID_VERSION";
-    ERROR[ERROR["INVALID_HEADER_TOKEN"] = 10] = "INVALID_HEADER_TOKEN";
-    ERROR[ERROR["INVALID_CONTENT_LENGTH"] = 11] = "INVALID_CONTENT_LENGTH";
-    ERROR[ERROR["INVALID_CHUNK_SIZE"] = 12] = "INVALID_CHUNK_SIZE";
-    ERROR[ERROR["INVALID_STATUS"] = 13] = "INVALID_STATUS";
-    ERROR[ERROR["INVALID_EOF_STATE"] = 14] = "INVALID_EOF_STATE";
-    ERROR[ERROR["INVALID_TRANSFER_ENCODING"] = 15] = "INVALID_TRANSFER_ENCODING";
-    ERROR[ERROR["CB_MESSAGE_BEGIN"] = 16] = "CB_MESSAGE_BEGIN";
-    ERROR[ERROR["CB_HEADERS_COMPLETE"] = 17] = "CB_HEADERS_COMPLETE";
-    ERROR[ERROR["CB_MESSAGE_COMPLETE"] = 18] = "CB_MESSAGE_COMPLETE";
-    ERROR[ERROR["CB_CHUNK_HEADER"] = 19] = "CB_CHUNK_HEADER";
-    ERROR[ERROR["CB_CHUNK_COMPLETE"] = 20] = "CB_CHUNK_COMPLETE";
-    ERROR[ERROR["PAUSED"] = 21] = "PAUSED";
-    ERROR[ERROR["PAUSED_UPGRADE"] = 22] = "PAUSED_UPGRADE";
-    ERROR[ERROR["PAUSED_H2_UPGRADE"] = 23] = "PAUSED_H2_UPGRADE";
-    ERROR[ERROR["USER"] = 24] = "USER";
+  (function(ERROR2) {
+    ERROR2[ERROR2["OK"] = 0] = "OK";
+    ERROR2[ERROR2["INTERNAL"] = 1] = "INTERNAL";
+    ERROR2[ERROR2["STRICT"] = 2] = "STRICT";
+    ERROR2[ERROR2["LF_EXPECTED"] = 3] = "LF_EXPECTED";
+    ERROR2[ERROR2["UNEXPECTED_CONTENT_LENGTH"] = 4] = "UNEXPECTED_CONTENT_LENGTH";
+    ERROR2[ERROR2["CLOSED_CONNECTION"] = 5] = "CLOSED_CONNECTION";
+    ERROR2[ERROR2["INVALID_METHOD"] = 6] = "INVALID_METHOD";
+    ERROR2[ERROR2["INVALID_URL"] = 7] = "INVALID_URL";
+    ERROR2[ERROR2["INVALID_CONSTANT"] = 8] = "INVALID_CONSTANT";
+    ERROR2[ERROR2["INVALID_VERSION"] = 9] = "INVALID_VERSION";
+    ERROR2[ERROR2["INVALID_HEADER_TOKEN"] = 10] = "INVALID_HEADER_TOKEN";
+    ERROR2[ERROR2["INVALID_CONTENT_LENGTH"] = 11] = "INVALID_CONTENT_LENGTH";
+    ERROR2[ERROR2["INVALID_CHUNK_SIZE"] = 12] = "INVALID_CHUNK_SIZE";
+    ERROR2[ERROR2["INVALID_STATUS"] = 13] = "INVALID_STATUS";
+    ERROR2[ERROR2["INVALID_EOF_STATE"] = 14] = "INVALID_EOF_STATE";
+    ERROR2[ERROR2["INVALID_TRANSFER_ENCODING"] = 15] = "INVALID_TRANSFER_ENCODING";
+    ERROR2[ERROR2["CB_MESSAGE_BEGIN"] = 16] = "CB_MESSAGE_BEGIN";
+    ERROR2[ERROR2["CB_HEADERS_COMPLETE"] = 17] = "CB_HEADERS_COMPLETE";
+    ERROR2[ERROR2["CB_MESSAGE_COMPLETE"] = 18] = "CB_MESSAGE_COMPLETE";
+    ERROR2[ERROR2["CB_CHUNK_HEADER"] = 19] = "CB_CHUNK_HEADER";
+    ERROR2[ERROR2["CB_CHUNK_COMPLETE"] = 20] = "CB_CHUNK_COMPLETE";
+    ERROR2[ERROR2["PAUSED"] = 21] = "PAUSED";
+    ERROR2[ERROR2["PAUSED_UPGRADE"] = 22] = "PAUSED_UPGRADE";
+    ERROR2[ERROR2["PAUSED_H2_UPGRADE"] = 23] = "PAUSED_H2_UPGRADE";
+    ERROR2[ERROR2["USER"] = 24] = "USER";
   })(ERROR = exports.ERROR || (exports.ERROR = {}));
   var TYPE;
-  (function(TYPE) {
-    TYPE[TYPE["BOTH"] = 0] = "BOTH";
-    TYPE[TYPE["REQUEST"] = 1] = "REQUEST";
-    TYPE[TYPE["RESPONSE"] = 2] = "RESPONSE";
+  (function(TYPE2) {
+    TYPE2[TYPE2["BOTH"] = 0] = "BOTH";
+    TYPE2[TYPE2["REQUEST"] = 1] = "REQUEST";
+    TYPE2[TYPE2["RESPONSE"] = 2] = "RESPONSE";
   })(TYPE = exports.TYPE || (exports.TYPE = {}));
   var FLAGS;
-  (function(FLAGS) {
-    FLAGS[FLAGS["CONNECTION_KEEP_ALIVE"] = 1] = "CONNECTION_KEEP_ALIVE";
-    FLAGS[FLAGS["CONNECTION_CLOSE"] = 2] = "CONNECTION_CLOSE";
-    FLAGS[FLAGS["CONNECTION_UPGRADE"] = 4] = "CONNECTION_UPGRADE";
-    FLAGS[FLAGS["CHUNKED"] = 8] = "CHUNKED";
-    FLAGS[FLAGS["UPGRADE"] = 16] = "UPGRADE";
-    FLAGS[FLAGS["CONTENT_LENGTH"] = 32] = "CONTENT_LENGTH";
-    FLAGS[FLAGS["SKIPBODY"] = 64] = "SKIPBODY";
-    FLAGS[FLAGS["TRAILING"] = 128] = "TRAILING";
-    FLAGS[FLAGS["TRANSFER_ENCODING"] = 512] = "TRANSFER_ENCODING";
+  (function(FLAGS2) {
+    FLAGS2[FLAGS2["CONNECTION_KEEP_ALIVE"] = 1] = "CONNECTION_KEEP_ALIVE";
+    FLAGS2[FLAGS2["CONNECTION_CLOSE"] = 2] = "CONNECTION_CLOSE";
+    FLAGS2[FLAGS2["CONNECTION_UPGRADE"] = 4] = "CONNECTION_UPGRADE";
+    FLAGS2[FLAGS2["CHUNKED"] = 8] = "CHUNKED";
+    FLAGS2[FLAGS2["UPGRADE"] = 16] = "UPGRADE";
+    FLAGS2[FLAGS2["CONTENT_LENGTH"] = 32] = "CONTENT_LENGTH";
+    FLAGS2[FLAGS2["SKIPBODY"] = 64] = "SKIPBODY";
+    FLAGS2[FLAGS2["TRAILING"] = 128] = "TRAILING";
+    FLAGS2[FLAGS2["TRANSFER_ENCODING"] = 512] = "TRANSFER_ENCODING";
   })(FLAGS = exports.FLAGS || (exports.FLAGS = {}));
   var LENIENT_FLAGS;
-  (function(LENIENT_FLAGS) {
-    LENIENT_FLAGS[LENIENT_FLAGS["HEADERS"] = 1] = "HEADERS";
-    LENIENT_FLAGS[LENIENT_FLAGS["CHUNKED_LENGTH"] = 2] = "CHUNKED_LENGTH";
-    LENIENT_FLAGS[LENIENT_FLAGS["KEEP_ALIVE"] = 4] = "KEEP_ALIVE";
+  (function(LENIENT_FLAGS2) {
+    LENIENT_FLAGS2[LENIENT_FLAGS2["HEADERS"] = 1] = "HEADERS";
+    LENIENT_FLAGS2[LENIENT_FLAGS2["CHUNKED_LENGTH"] = 2] = "CHUNKED_LENGTH";
+    LENIENT_FLAGS2[LENIENT_FLAGS2["KEEP_ALIVE"] = 4] = "KEEP_ALIVE";
   })(LENIENT_FLAGS = exports.LENIENT_FLAGS || (exports.LENIENT_FLAGS = {}));
   var METHODS;
-  (function(METHODS) {
-    METHODS[METHODS["DELETE"] = 0] = "DELETE";
-    METHODS[METHODS["GET"] = 1] = "GET";
-    METHODS[METHODS["HEAD"] = 2] = "HEAD";
-    METHODS[METHODS["POST"] = 3] = "POST";
-    METHODS[METHODS["PUT"] = 4] = "PUT";
-    METHODS[METHODS["CONNECT"] = 5] = "CONNECT";
-    METHODS[METHODS["OPTIONS"] = 6] = "OPTIONS";
-    METHODS[METHODS["TRACE"] = 7] = "TRACE";
-    METHODS[METHODS["COPY"] = 8] = "COPY";
-    METHODS[METHODS["LOCK"] = 9] = "LOCK";
-    METHODS[METHODS["MKCOL"] = 10] = "MKCOL";
-    METHODS[METHODS["MOVE"] = 11] = "MOVE";
-    METHODS[METHODS["PROPFIND"] = 12] = "PROPFIND";
-    METHODS[METHODS["PROPPATCH"] = 13] = "PROPPATCH";
-    METHODS[METHODS["SEARCH"] = 14] = "SEARCH";
-    METHODS[METHODS["UNLOCK"] = 15] = "UNLOCK";
-    METHODS[METHODS["BIND"] = 16] = "BIND";
-    METHODS[METHODS["REBIND"] = 17] = "REBIND";
-    METHODS[METHODS["UNBIND"] = 18] = "UNBIND";
-    METHODS[METHODS["ACL"] = 19] = "ACL";
-    METHODS[METHODS["REPORT"] = 20] = "REPORT";
-    METHODS[METHODS["MKACTIVITY"] = 21] = "MKACTIVITY";
-    METHODS[METHODS["CHECKOUT"] = 22] = "CHECKOUT";
-    METHODS[METHODS["MERGE"] = 23] = "MERGE";
-    METHODS[METHODS["M-SEARCH"] = 24] = "M-SEARCH";
-    METHODS[METHODS["NOTIFY"] = 25] = "NOTIFY";
-    METHODS[METHODS["SUBSCRIBE"] = 26] = "SUBSCRIBE";
-    METHODS[METHODS["UNSUBSCRIBE"] = 27] = "UNSUBSCRIBE";
-    METHODS[METHODS["PATCH"] = 28] = "PATCH";
-    METHODS[METHODS["PURGE"] = 29] = "PURGE";
-    METHODS[METHODS["MKCALENDAR"] = 30] = "MKCALENDAR";
-    METHODS[METHODS["LINK"] = 31] = "LINK";
-    METHODS[METHODS["UNLINK"] = 32] = "UNLINK";
-    METHODS[METHODS["SOURCE"] = 33] = "SOURCE";
-    METHODS[METHODS["PRI"] = 34] = "PRI";
-    METHODS[METHODS["DESCRIBE"] = 35] = "DESCRIBE";
-    METHODS[METHODS["ANNOUNCE"] = 36] = "ANNOUNCE";
-    METHODS[METHODS["SETUP"] = 37] = "SETUP";
-    METHODS[METHODS["PLAY"] = 38] = "PLAY";
-    METHODS[METHODS["PAUSE"] = 39] = "PAUSE";
-    METHODS[METHODS["TEARDOWN"] = 40] = "TEARDOWN";
-    METHODS[METHODS["GET_PARAMETER"] = 41] = "GET_PARAMETER";
-    METHODS[METHODS["SET_PARAMETER"] = 42] = "SET_PARAMETER";
-    METHODS[METHODS["REDIRECT"] = 43] = "REDIRECT";
-    METHODS[METHODS["RECORD"] = 44] = "RECORD";
-    METHODS[METHODS["FLUSH"] = 45] = "FLUSH";
+  (function(METHODS2) {
+    METHODS2[METHODS2["DELETE"] = 0] = "DELETE";
+    METHODS2[METHODS2["GET"] = 1] = "GET";
+    METHODS2[METHODS2["HEAD"] = 2] = "HEAD";
+    METHODS2[METHODS2["POST"] = 3] = "POST";
+    METHODS2[METHODS2["PUT"] = 4] = "PUT";
+    METHODS2[METHODS2["CONNECT"] = 5] = "CONNECT";
+    METHODS2[METHODS2["OPTIONS"] = 6] = "OPTIONS";
+    METHODS2[METHODS2["TRACE"] = 7] = "TRACE";
+    METHODS2[METHODS2["COPY"] = 8] = "COPY";
+    METHODS2[METHODS2["LOCK"] = 9] = "LOCK";
+    METHODS2[METHODS2["MKCOL"] = 10] = "MKCOL";
+    METHODS2[METHODS2["MOVE"] = 11] = "MOVE";
+    METHODS2[METHODS2["PROPFIND"] = 12] = "PROPFIND";
+    METHODS2[METHODS2["PROPPATCH"] = 13] = "PROPPATCH";
+    METHODS2[METHODS2["SEARCH"] = 14] = "SEARCH";
+    METHODS2[METHODS2["UNLOCK"] = 15] = "UNLOCK";
+    METHODS2[METHODS2["BIND"] = 16] = "BIND";
+    METHODS2[METHODS2["REBIND"] = 17] = "REBIND";
+    METHODS2[METHODS2["UNBIND"] = 18] = "UNBIND";
+    METHODS2[METHODS2["ACL"] = 19] = "ACL";
+    METHODS2[METHODS2["REPORT"] = 20] = "REPORT";
+    METHODS2[METHODS2["MKACTIVITY"] = 21] = "MKACTIVITY";
+    METHODS2[METHODS2["CHECKOUT"] = 22] = "CHECKOUT";
+    METHODS2[METHODS2["MERGE"] = 23] = "MERGE";
+    METHODS2[METHODS2["M-SEARCH"] = 24] = "M-SEARCH";
+    METHODS2[METHODS2["NOTIFY"] = 25] = "NOTIFY";
+    METHODS2[METHODS2["SUBSCRIBE"] = 26] = "SUBSCRIBE";
+    METHODS2[METHODS2["UNSUBSCRIBE"] = 27] = "UNSUBSCRIBE";
+    METHODS2[METHODS2["PATCH"] = 28] = "PATCH";
+    METHODS2[METHODS2["PURGE"] = 29] = "PURGE";
+    METHODS2[METHODS2["MKCALENDAR"] = 30] = "MKCALENDAR";
+    METHODS2[METHODS2["LINK"] = 31] = "LINK";
+    METHODS2[METHODS2["UNLINK"] = 32] = "UNLINK";
+    METHODS2[METHODS2["SOURCE"] = 33] = "SOURCE";
+    METHODS2[METHODS2["PRI"] = 34] = "PRI";
+    METHODS2[METHODS2["DESCRIBE"] = 35] = "DESCRIBE";
+    METHODS2[METHODS2["ANNOUNCE"] = 36] = "ANNOUNCE";
+    METHODS2[METHODS2["SETUP"] = 37] = "SETUP";
+    METHODS2[METHODS2["PLAY"] = 38] = "PLAY";
+    METHODS2[METHODS2["PAUSE"] = 39] = "PAUSE";
+    METHODS2[METHODS2["TEARDOWN"] = 40] = "TEARDOWN";
+    METHODS2[METHODS2["GET_PARAMETER"] = 41] = "GET_PARAMETER";
+    METHODS2[METHODS2["SET_PARAMETER"] = 42] = "SET_PARAMETER";
+    METHODS2[METHODS2["REDIRECT"] = 43] = "REDIRECT";
+    METHODS2[METHODS2["RECORD"] = 44] = "RECORD";
+    METHODS2[METHODS2["FLUSH"] = 45] = "FLUSH";
   })(METHODS = exports.METHODS || (exports.METHODS = {}));
   exports.METHODS_HTTP = [
     METHODS.DELETE,
@@ -16408,15 +16482,15 @@ var require_constants2 = __commonJS(function(exports) {
     }
   });
   var FINISH;
-  (function(FINISH) {
-    FINISH[FINISH["SAFE"] = 0] = "SAFE";
-    FINISH[FINISH["SAFE_WITH_CB"] = 1] = "SAFE_WITH_CB";
-    FINISH[FINISH["UNSAFE"] = 2] = "UNSAFE";
+  (function(FINISH2) {
+    FINISH2[FINISH2["SAFE"] = 0] = "SAFE";
+    FINISH2[FINISH2["SAFE_WITH_CB"] = 1] = "SAFE_WITH_CB";
+    FINISH2[FINISH2["UNSAFE"] = 2] = "UNSAFE";
   })(FINISH = exports.FINISH || (exports.FINISH = {}));
   exports.ALPHA = [];
-  for (let i = 65;i <= 90; i++) {
-    exports.ALPHA.push(String.fromCharCode(i));
-    exports.ALPHA.push(String.fromCharCode(i + 32));
+  for (let i2 = 65;i2 <= 90; i2++) {
+    exports.ALPHA.push(String.fromCharCode(i2));
+    exports.ALPHA.push(String.fromCharCode(i2 + 32));
   }
   exports.NUM_MAP = {
     0: 0,
@@ -16502,8 +16576,8 @@ var require_constants2 = __commonJS(function(exports) {
     "~"
   ].concat(exports.ALPHANUM);
   exports.URL_CHAR = exports.STRICT_URL_CHAR.concat(["\t", "\f"]);
-  for (let i = 128;i <= 255; i++) {
-    exports.URL_CHAR.push(i);
+  for (let i2 = 128;i2 <= 255; i2++) {
+    exports.URL_CHAR.push(i2);
   }
   exports.HEX = exports.NUM.concat(["a", "b", "c", "d", "e", "f", "A", "B", "C", "D", "E", "F"]);
   exports.STRICT_TOKEN = [
@@ -16525,25 +16599,25 @@ var require_constants2 = __commonJS(function(exports) {
   ].concat(exports.ALPHANUM);
   exports.TOKEN = exports.STRICT_TOKEN.concat([" "]);
   exports.HEADER_CHARS = ["\t"];
-  for (let i = 32;i <= 255; i++) {
-    if (i !== 127) {
-      exports.HEADER_CHARS.push(i);
+  for (let i2 = 32;i2 <= 255; i2++) {
+    if (i2 !== 127) {
+      exports.HEADER_CHARS.push(i2);
     }
   }
-  exports.CONNECTION_TOKEN_CHARS = exports.HEADER_CHARS.filter((c) => c !== 44);
+  exports.CONNECTION_TOKEN_CHARS = exports.HEADER_CHARS.filter((c3) => c3 !== 44);
   exports.MAJOR = exports.NUM_MAP;
   exports.MINOR = exports.MAJOR;
   var HEADER_STATE;
-  (function(HEADER_STATE) {
-    HEADER_STATE[HEADER_STATE["GENERAL"] = 0] = "GENERAL";
-    HEADER_STATE[HEADER_STATE["CONNECTION"] = 1] = "CONNECTION";
-    HEADER_STATE[HEADER_STATE["CONTENT_LENGTH"] = 2] = "CONTENT_LENGTH";
-    HEADER_STATE[HEADER_STATE["TRANSFER_ENCODING"] = 3] = "TRANSFER_ENCODING";
-    HEADER_STATE[HEADER_STATE["UPGRADE"] = 4] = "UPGRADE";
-    HEADER_STATE[HEADER_STATE["CONNECTION_KEEP_ALIVE"] = 5] = "CONNECTION_KEEP_ALIVE";
-    HEADER_STATE[HEADER_STATE["CONNECTION_CLOSE"] = 6] = "CONNECTION_CLOSE";
-    HEADER_STATE[HEADER_STATE["CONNECTION_UPGRADE"] = 7] = "CONNECTION_UPGRADE";
-    HEADER_STATE[HEADER_STATE["TRANSFER_ENCODING_CHUNKED"] = 8] = "TRANSFER_ENCODING_CHUNKED";
+  (function(HEADER_STATE2) {
+    HEADER_STATE2[HEADER_STATE2["GENERAL"] = 0] = "GENERAL";
+    HEADER_STATE2[HEADER_STATE2["CONNECTION"] = 1] = "CONNECTION";
+    HEADER_STATE2[HEADER_STATE2["CONTENT_LENGTH"] = 2] = "CONTENT_LENGTH";
+    HEADER_STATE2[HEADER_STATE2["TRANSFER_ENCODING"] = 3] = "TRANSFER_ENCODING";
+    HEADER_STATE2[HEADER_STATE2["UPGRADE"] = 4] = "UPGRADE";
+    HEADER_STATE2[HEADER_STATE2["CONNECTION_KEEP_ALIVE"] = 5] = "CONNECTION_KEEP_ALIVE";
+    HEADER_STATE2[HEADER_STATE2["CONNECTION_CLOSE"] = 6] = "CONNECTION_CLOSE";
+    HEADER_STATE2[HEADER_STATE2["CONNECTION_UPGRADE"] = 7] = "CONNECTION_UPGRADE";
+    HEADER_STATE2[HEADER_STATE2["TRANSFER_ENCODING_CHUNKED"] = 8] = "TRANSFER_ENCODING_CHUNKED";
   })(HEADER_STATE = exports.HEADER_STATE || (exports.HEADER_STATE = {}));
   exports.SPECIAL_HEADERS = {
     connection: HEADER_STATE.CONNECTION,
@@ -16555,19 +16629,19 @@ var require_constants2 = __commonJS(function(exports) {
 });
 
 // node_modules/undici/lib/llhttp/llhttp-wasm.js
-var require_llhttp_wasm = __commonJS(function(exports, module) {
+var require_llhttp_wasm = __commonJS((exports, module) => {
   var { Buffer: Buffer2 } = __require("node:buffer");
   module.exports = Buffer2.from("AGFzbQEAAAABJwdgAX8Bf2ADf39/AX9gAX8AYAJ/fwBgBH9/f38Bf2AAAGADf39/AALLAQgDZW52GHdhc21fb25faGVhZGVyc19jb21wbGV0ZQAEA2VudhV3YXNtX29uX21lc3NhZ2VfYmVnaW4AAANlbnYLd2FzbV9vbl91cmwAAQNlbnYOd2FzbV9vbl9zdGF0dXMAAQNlbnYUd2FzbV9vbl9oZWFkZXJfZmllbGQAAQNlbnYUd2FzbV9vbl9oZWFkZXJfdmFsdWUAAQNlbnYMd2FzbV9vbl9ib2R5AAEDZW52GHdhc21fb25fbWVzc2FnZV9jb21wbGV0ZQAAAy0sBQYAAAIAAAAAAAACAQIAAgICAAADAAAAAAMDAwMBAQEBAQEBAQEAAAIAAAAEBQFwARISBQMBAAIGCAF/AUGA1AQLB9EFIgZtZW1vcnkCAAtfaW5pdGlhbGl6ZQAIGV9faW5kaXJlY3RfZnVuY3Rpb25fdGFibGUBAAtsbGh0dHBfaW5pdAAJGGxsaHR0cF9zaG91bGRfa2VlcF9hbGl2ZQAvDGxsaHR0cF9hbGxvYwALBm1hbGxvYwAxC2xsaHR0cF9mcmVlAAwEZnJlZQAMD2xsaHR0cF9nZXRfdHlwZQANFWxsaHR0cF9nZXRfaHR0cF9tYWpvcgAOFWxsaHR0cF9nZXRfaHR0cF9taW5vcgAPEWxsaHR0cF9nZXRfbWV0aG9kABAWbGxodHRwX2dldF9zdGF0dXNfY29kZQAREmxsaHR0cF9nZXRfdXBncmFkZQASDGxsaHR0cF9yZXNldAATDmxsaHR0cF9leGVjdXRlABQUbGxodHRwX3NldHRpbmdzX2luaXQAFQ1sbGh0dHBfZmluaXNoABYMbGxodHRwX3BhdXNlABcNbGxodHRwX3Jlc3VtZQAYG2xsaHR0cF9yZXN1bWVfYWZ0ZXJfdXBncmFkZQAZEGxsaHR0cF9nZXRfZXJybm8AGhdsbGh0dHBfZ2V0X2Vycm9yX3JlYXNvbgAbF2xsaHR0cF9zZXRfZXJyb3JfcmVhc29uABwUbGxodHRwX2dldF9lcnJvcl9wb3MAHRFsbGh0dHBfZXJybm9fbmFtZQAeEmxsaHR0cF9tZXRob2RfbmFtZQAfEmxsaHR0cF9zdGF0dXNfbmFtZQAgGmxsaHR0cF9zZXRfbGVu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PgtBhwEMPQtBiAEMPAtBiQEMOwtBigEMOgtBiwEMOQtBjAEMOAtBjQEMNwtBjgEMNgtBjwEMNQtBkAEMNAtBkQEMMwtBkgEMMgtBkwEMMQtBlAEMMAtBlQEMLwtBlgEMLgtBlwEMLQtBmAEMLAtBmQEMKwtBmgEMKgtBmwEMKQtBnAEMKAtBnQEMJwtBngEMJgtBnwEMJQtBoAEMJAtBoQEMIwtBogEMIgtBowEMIQtBpAEMIAtBpQEMHwtBpgEMHgtBpwEMHQtBqAEMHAtBqQEMGwtBqgEMGgtBqwEMGQtBrAEMGAtBrQEMFwtBrgEMFgtBAQwVC0GvAQwUC0GwAQwTC0GxAQwSC0GzAQwRC0GyAQwQC0G0AQwPC0G1AQwOC0G2AQwNC0G3AQwMC0G4AQwLC0G5AQwKC0G6AQwJC0G7AQwIC0HGAQwHC0G8AQwGC0G9AQwFC0G+AQwEC0G/AQwDC0HAAQwCC0HCAQwBC0HBAQshAwNAAkACQAJAAkACQAJAAkACQAJAIAICfwJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJ/AkACQAJAAkACQAJAAkACQAJAAkACQAJAAkAgAgJ/AkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACfwJAAkACfwJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkAC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iQEhAwykAgtBASABLQAAQd8ARw1nGiABQQFqIQEMXgtBigEhAyABIARGDaICIAIoAgAiACAEIAFraiEFIAEgAGtBAWohBgNAIAEtAAAgAEGMzwBqLQAARw1kIABBAUYN+gEgAEEBaiEAIAQgAUEBaiIBRw0ACyACIAU2AgAMogILQYsBIQMgASAERg2hAiACKAIAIgAgBCABa2ohBSABIABrQQJqIQYCQANAIAEtAAAgAEGOzwBqLQAARw1kIABBAkYNASAAQQFqIQAgBCABQQFqIgFHDQALIAIgBTYCAAyiAgsgAkEANgIAIAZBAWohAUECDGULQYwBIQMgASAERg2gAiACKAIAIgAgBCABa2ohBSABIABrQQFqIQYCQANAIAEtAAAgAEHwzwBqLQAARw1jIABBAUYNASAAQQFqIQAgBCABQQFqIgFHDQALIAIgBTYCAAyhAgsgAkEANgIAIAZBAWohAUEfDGQLQY0BIQMgASAERg2fAiACKAIAIgAgBCABa2ohBSABIABrQQFqIQYCQANAIAEtAAAgAEHyzwBqLQAARw1iIABBAUYNASAAQQFqIQAgBCABQQFqIgFHDQALIAIgBTYCAAygAgsgAkEANgIAIAZBAWohAUEJDGMLIAEgBEYEQEGOASEDDJ8CCwJAAkAgAS0AAEHJAGsOBwBiYmJiYgFiCyABQQFqIQFB+AAhAwyGAgsgAUEBaiEBQfkAIQMMhQILQY8BIQMgASAERg2dAiACKAIAIgAgBCABa2ohBSABIABrQQVqIQYCQANAIAEtAAAgAEGRzwBqLQAARw1gIABBBUYNASAAQQFqIQAgBCABQQFqIgFHDQALIAIgBTYCAAyeAgsgAkEANgIAIAZBAWohAUEYDGELQZABIQMgASAERg2cAiACKAIAIgAgBCABa2ohBSABIABrQQJqIQYCQANAIAEtAAAgAEGXzwBqLQAARw1fIABBAkYNASAAQQFqIQAgBCABQQFqIgFHDQALIAIgBTYCAAydAgsgAkEANgIAIAZBAWohAUEXDGALQZEBIQMgASAERg2bAiACKAIAIgAgBCABa2ohBSABIABrQQZqIQYCQANAIAEtAAAgAEGazwBqLQAARw1eIABBBkYNASAAQQFqIQAgBCABQQFqIgFHDQALIAIgBTYCAAycAgsgAkEANgIAIAZBAWohAUEV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JSIARQ0RIAJB5QA2AhwgAiABNgIUIAIgADYCDEEAIQMMtAELIAIoAgQhACACQQA2AgQgAiAAIAEQJSIARQ0gIAJB0wA2AhwgAiABNgIUIAIgADYCDEEAIQMMswELIAIoAgQhACACQQA2AgQgAiAAIAEQJSIARQ0iIAJB0gA2AhwgAiABNgIUIAIgADYCDEEAIQMMsgELIAIoAgQhACACQQA2AgQgAiAAIAEQJSIARQ0OIAJB5QA2AhwgAiABNgIUIAIgADYCDEEAIQMMsQELIAIoAgQhACACQQA2AgQgAiAAIAEQJSIARQ0dIAJB0wA2AhwgAiABNgIUIAIgADYCDEEAIQMMsAELIAIoAgQhACACQQA2AgQgAiAAIAEQJSIARQ0fIAJB0gA2AhwgAiABNgIUIAIgADYCDEEAIQMMrwELIABBP0cNASABQQFqCyEBQQUhAwyUAQtBACEDIAJBADYCHCACIAE2AhQgAkH9EjYCECACQQc2AgwMrAELIAJBADYCHCACIAE2AhQgAkHcCDYCECACQQc2AgxBACEDDKsBCyACKAIEIQAgAkEANgIEIAIgACABECUiAEUNByACQeUANgIcIAIgATYCFCACIAA2AgxBACEDDKoBCyACKAIEIQAgAkEANgIEIAIgACABECUiAEUNFiACQdMANgIcIAIgATYCFCACIAA2AgxBACEDDKkBCyACKAIEIQAgAkEANgIEIAIgACABECUiAEUNGCACQdIANgIcIAIgATYCFCACIAA2AgxBACEDDKgBCyACQQA2AhwgAiABNgIUIAJBxgo2AhAgAkEHNgIMQQAhAwynAQsgAigCBCEAIAJBADYCBCACIAAgARAlIgBFDQMgAkHlADYCHCACIAE2AhQgAiAANgIMQQAhAwymAQsgAigCBCEAIAJBADYCBCACIAAgARAlIgBFDRIgAkHTADYCHCACIAE2AhQgAiAANgIMQQAhAwylAQsgAigCBCEAIAJBADYCBCACIAAgARAlIgBFDRQgAkHSADYCHCACIAE2AhQgAiAANgIMQQAhAwykAQsgAigCBCEAIAJBADYCBCACIAAgARAlIgBFDQAgAkHlADYCHCACIAE2AhQgAiAANgIMQQAhAwyjAQtB1QAhAwyJAQsgAEEVRwRAIAJBADYCHCACIAE2AhQgAkG5DTYCECACQRo2AgxB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AkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAIABB5ABrDvQDY2IAAWFhYWFhYQIDBAVhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhBgcICQoLDA0OD2FhYWFhEGFhYWFhYWFhYWFhEWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYRITFBUWFxgZGhthYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2YTc4OTphYWFhYWFhYTthYWE8YWFhYT0+P2FhYWFhYWFhQGFhQWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYUJDREVGR0hJSktMTU5PUFFSU2FhYWFhYWFhVFVWV1hZWlthXF1hYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFeYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhX2BhC0HhJw8LQaQhDwtByywPC0H+MQ8LQcAkDwtBqyQPC0GNKA8LQeImDwtBgDAPC0G5Lw8LQdckDwtB7x8PC0HhHw8LQfofDwtB8iAPC0GoLw8LQa4yDwtBiDAPC0HsJw8LQYIiDwtBjh0PC0HQLg8LQcojDwtBxTIPC0HfHA8LQdIcDwtBxCAPC0HXIA8LQaIfDwtB7S4PC0GrMA8LQdQlDwtBzC4PC0H6Lg8LQfwrDwtB0jAPC0HxHQ8LQbsgDwtB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CABB3AgLii1JbnZhbGlkIGNoYXIgaW4gdXJsIHF1ZXJ5AFNwYW4gY2FsbGJhY2sgZXJyb3IgaW4gb25fYm9keQBDb250ZW50LUxlbmd0aCBvdmVyZmxvdwBDaHVuayBzaXplIG92ZXJmbG93AFJlc3BvbnNlIG92ZXJmbG93AEludmFsaWQgbWV0aG9kIGZvciBIVFRQL3gueCByZXF1ZXN0AEludmFsaWQgbWV0aG9kIGZvciBSVFNQL3gueCByZXF1ZXN0AEV4cGVjdGVkIFNPVVJDRSBtZXRob2QgZm9yIElDRS94LnggcmVxdWVzdABJbnZhbGlkIGNoYXIgaW4gdXJsIGZyYWdtZW50IHN0YXJ0AEV4cGVjdGVkIGRvdABTcGFuIGNhbGxiYWNrIGVycm9yIGluIG9uX3N0YXR1cwBJbnZhbGlkIHJlc3BvbnNlIHN0YXR1cwBJbnZhbGlkIGNoYXJhY3RlciBpbiBjaHVuayBleHRlbnNpb25zAFVzZXIgY2FsbGJhY2sgZXJyb3IAYG9uX3Jlc2V0YCBjYWxsYmFjayBlcnJvcgBgb25fY2h1bmtfaGVhZGVyYCBjYWxsYmFjayBlcnJvcgBgb25fbWVzc2FnZV9iZWdpbmAgY2FsbGJhY2sgZXJyb3IAYG9uX2NodW5rX2V4dGVuc2lvbl92YWx1ZWAgY2FsbGJhY2sgZXJyb3IAYG9uX3N0YXR1c19jb21wbGV0ZWAgY2FsbGJhY2sgZXJyb3IAYG9uX3ZlcnNpb25fY29tcGxldGVgIGNhbGxiYWNrIGVycm9yAGBvbl91cmxfY29tcGxldGVgIGNhbGxiYWNrIGVycm9yAGBvbl9jaHVua19jb21wbGV0ZWAgY2FsbGJhY2sgZXJyb3IAYG9uX2hlYWRlcl92YWx1ZV9jb21wbGV0ZWAgY2FsbGJhY2sgZXJyb3IAYG9uX21lc3NhZ2VfY29tcGxldGVgIGNhbGxiYWNrIGVycm9yAGBvbl9tZXRob2RfY29tcGxldGVgIGNhbGxiYWNrIGVycm9yAGBvbl9oZWFkZXJfZmllbGRfY29tcGxldGVgIGNhbGxiYWNrIGVycm9yAGBvbl9jaHVua19leHRlbnNpb25fbmFtZWAgY2FsbGJhY2sgZXJyb3IAVW5leHBlY3RlZCBjaGFyIGluIHVybCBzZXJ2ZXIASW52YWxpZCBoZWFkZXIgdmFsdWUgY2hhcgBJbnZhbGlkIGhlYWRlciBmaWVsZCBjaGFyAFNwYW4gY2FsbGJhY2sgZXJyb3IgaW4gb25fdmVyc2lvbgBJbnZhbGlkIG1pbm9yIHZlcnNpb24ASW52YWxpZCBtYWpvciB2ZXJzaW9uAEV4cGVjdGVkIHNwYWNlIGFmdGVyIHZlcnNpb24ARXhwZWN0ZWQgQ1JMRiBhZnRlciB2ZXJzaW9uAEludmFsaWQgSFRUUCB2ZXJzaW9uAEludmFsaWQgaGVhZGVyIHRva2VuAFNwYW4gY2FsbGJhY2sgZXJyb3IgaW4gb25fdXJsAEludmFsaWQgY2hhcmFjdGVycyBpbiB1cmwAVW5leHBlY3RlZCBzdGFydCBjaGFyIGluIHVybABEb3VibGUgQCBpbiB1cmwARW1wdHkgQ29udGVudC1MZW5ndGgASW52YWxpZCBjaGFyYWN0ZXIgaW4gQ29udGVudC1MZW5ndGgARHVwbGljYXRlIENvbnRlbnQtTGVuZ3RoAEludmFsaWQgY2hhciBpbiB1cmwgcGF0aABDb250ZW50LUxlbmd0aCBjYW4ndCBiZSBwcmVzZW50IHdpdGggVHJhbnNmZXItRW5jb2RpbmcASW52YWxpZCBjaGFyYWN0ZXIgaW4gY2h1bmsgc2l6ZQBTcGFuIGNhbGxiYWNrIGVycm9yIGluIG9uX2hlYWRlcl92YWx1ZQBTcGFuIGNhbGxiYWNrIGVycm9yIGluIG9uX2NodW5rX2V4dGVuc2lvbl92YWx1ZQBJbnZhbGlkIGNoYXJhY3RlciBpbiBjaHVuayBleHRlbnNpb25zIHZhbHVlAE1pc3NpbmcgZXhwZWN0ZWQgTEYgYWZ0ZXIgaGVhZGVyIHZhbHVlAEludmFsaWQgYFRyYW5zZmVyLUVuY29kaW5nYCBoZWFkZXIgdmFsdWUASW52YWxpZCBjaGFyYWN0ZXIgaW4gY2h1bmsgZXh0ZW5zaW9ucyBxdW90ZSB2YWx1ZQBJbnZhbGlkIGNoYXJhY3RlciBpbiBjaHVuayBleHRlbnNpb25zIHF1b3RlZCB2YWx1ZQBQYXVzZWQgYnkgb25faGVhZGVyc19jb21wbGV0ZQBJbnZhbGlkIEVPRiBzdGF0ZQBvbl9yZXNldCBwYXVzZQBvbl9jaHVua19oZWFkZXIgcGF1c2UAb25fbWVzc2FnZV9iZWdpbiBwYXVzZQBvbl9jaHVua19leHRlbnNpb25fdmFsdWUgcGF1c2UAb25fc3RhdHVzX2NvbXBsZXRlIHBhdXNlAG9uX3ZlcnNpb25fY29tcGxldGUgcGF1c2UAb25fdXJsX2NvbXBsZXRlIHBhdXNlAG9uX2NodW5rX2NvbXBsZXRlIHBhdXNlAG9uX2hlYWRlcl92YWx1ZV9jb21wbGV0ZSBwYXVzZQBvbl9tZXNzYWdlX2NvbXBsZXRlIHBhdXNlAG9uX21ldGhvZF9jb21wbGV0ZSBwYXVzZQBvbl9oZWFkZXJfZmllbGRfY29tcGxldGUgcGF1c2UAb25fY2h1bmtfZXh0ZW5zaW9uX25hbWUgcGF1c2UAVW5leHBlY3RlZCBzcGFjZSBhZnRlciBzdGFydCBsaW5lAFNwYW4gY2FsbGJhY2sgZXJyb3IgaW4gb25fY2h1bmtfZXh0ZW5zaW9uX25hbWUASW52YWxpZCBjaGFyYWN0ZXIgaW4gY2h1bmsgZXh0ZW5zaW9ucyBuYW1lAFBhdXNlIG9uIENPTk5FQ1QvVXBncmFkZQBQYXVzZSBvbiBQUkkvVXBncmFkZQBFeHBlY3RlZCBIVFRQLzIgQ29ubmVjdGlvbiBQcmVmYWNlAFNwYW4gY2FsbGJhY2sgZXJyb3IgaW4gb25fbWV0aG9kAEV4cGVjdGVkIHNwYWNlIGFmdGVyIG1ldGhvZABTcGFuIGNhbGxiYWNrIGVycm9yIGluIG9uX2hlYWRlcl9maWVsZABQYXVzZWQASW52YWxpZCB3b3JkIGVuY291bnRlcmVkAEludmFsaWQgbWV0aG9kIGVuY291bnRlcmVkAFVuZXhwZWN0ZWQgY2hhciBpbiB1cmwgc2NoZW1hAFJlcXVlc3QgaGFzIGludmFsaWQgYFRyYW5zZmVyLUVuY29kaW5nYABTV0lUQ0hfUFJPWFkAVVNFX1BST1hZAE1LQUNUSVZJVFkAVU5QUk9DRVNTQUJMRV9FTlRJVFkAQ09QWQBNT1ZFRF9QRVJNQU5FTlRMWQBUT09fRUFSTFkATk9USUZZAEZBSUxFRF9ERVBFTkRFTkNZAEJBRF9HQVRFV0FZAFBMQVkAUFVUAENIRUNLT1VUAEdBVEVXQVlfVElNRU9VVABSRVFVRVNUX1RJTUVPVVQATkVUV09SS19DT05ORUNUX1RJTUVPVVQAQ09OTkVDVElPTl9USU1FT1VUAExPR0lOX1RJTUVPVVQATkVUV09SS19SRUFEX1RJTUVPVVQAUE9TVABNSVNESVJFQ1RFRF9SRVFVRVNUAENMSUVOVF9DTE9TRURfUkVRVUVTVABDTElFTlRfQ0xPU0VEX0xPQURfQkFMQU5DRURfUkVRVUVTVABCQURfUkVRVUVTVABIVFRQX1JFUVVFU1RfU0VOVF9UT19IVFRQU19QT1JUAFJFUE9SVABJTV9BX1RFQVBPVABSRVNFVF9DT05URU5UAE5PX0NPTlRFTlQAUEFSVElBTF9DT05URU5UAEhQRV9JTlZBTElEX0NPTlNUQU5UAEhQRV9DQl9SRVNFVABHRVQASFBFX1NUUklDVABDT05GTElDVABURU1QT1JBUllfUkVESVJFQ1QAUEVSTUFORU5UX1JFRElSRUNUAENPTk5FQ1QATVVMVElfU1RBVFVTAEhQRV9JTlZBTElEX1NUQVRVUwBUT09fTUFOWV9SRVFVRVNUUwBFQVJMWV9ISU5UUwBVTkFWQUlMQUJMRV9GT1JfTEVHQUxfUkVBU09OUwBPUFRJT05TAFNXSVRDSElOR19QUk9UT0NPTFMAVkFSSUFOVF9BTFNPX05FR09USUFURVMATVVMVElQTEVfQ0hPSUNFUwBJTlRFUk5BTF9TRVJWRVJfRVJST1IAV0VCX1NFUlZFUl9VTktOT1dOX0VSUk9SAFJBSUxHVU5fRVJST1IASURFTlRJVFlfUFJPVklERVJfQVVUSEVOVElDQVRJT05fRVJST1IAU1NMX0NFUlRJRklDQVRFX0VSUk9SAElOVkFMSURfWF9GT1JXQVJERURfRk9SAFNFVF9QQVJBTUVURVIAR0VUX1BBUkFNRVRFUgBIUEVfVVNFUgBTRUVfT1RIRVIASFBFX0NCX0NIVU5LX0hFQURFUgBNS0NBTEVOREFSAFNFVFVQAFdFQl9TRVJWRVJfSVNfRE9XTgBURUFSRE9XTgBIUEVfQ0xPU0VEX0NPTk5FQ1RJT04ASEVVUklTVElDX0VYUElSQVRJT04ARElTQ09OTkVDVEVEX09QRVJBVElPTgBOT05fQVVUSE9SSVRBVElWRV9JTkZPUk1BVElPTgBIUEVfSU5WQUxJRF9WRVJTSU9OAEhQRV9DQl9NRVNTQUdFX0JFR0lOAFNJVEVfSVNfRlJPWkVOAEhQRV9JTlZBTElEX0hFQURFUl9UT0tFTgBJTlZBTElEX1RPS0VOAEZPUkJJRERFTgBFTkhBTkNFX1lPVVJfQ0FMTQBIUEVfSU5WQUxJRF9VUkwAQkxPQ0tFRF9CWV9QQVJFTlRBTF9DT05UUk9MAE1LQ09MAEFDTABIUEVfSU5URVJOQUwAUkVRVUVTVF9IRUFERVJfRklFTERTX1RPT19MQVJHRV9VTk9GRklDSUFMAEhQRV9PSwBVTkxJTksAVU5MT0NLAFBSSQBSRVRSWV9XSVRIAEhQRV9JTlZBTElEX0NPTlRFTlRfTEVOR1RIAEhQRV9VTkVYUEVDVEVEX0NPTlRFTlRfTEVOR1RIAEZMVVNIAFBST1BQQVRDSABNLVNFQVJDSABVUklfVE9PX0xPTkcAUFJPQ0VTU0lORwBNSVNDRUxMQU5FT1VTX1BFUlNJU1RFTlRfV0FSTklORwBNSVNDRUxMQU5FT1VTX1dBUk5JTkcASFBFX0lOVkFMSURfVFJBTlNGRVJfRU5DT0RJTkcARXhwZWN0ZWQgQ1JMRgBIUEVfSU5WQUxJRF9DSFVOS19TSVpFAE1PVkUAQ09OVElOVUUASFBFX0NCX1NUQVRVU19DT01QTEVURQBIUEVfQ0JfSEVBREVSU19DT01QTEVURQBIUEVfQ0JfVkVSU0lPTl9DT01QTEVURQBIUEVfQ0JfVVJMX0NPTVBMRVRFAEhQRV9DQl9DSFVOS19DT01QTEVURQBIUEVfQ0JfSEVBREVSX1ZBTFVFX0NPTVBMRVRFAEhQRV9DQl9DSFVOS19FWFRFTlNJT05fVkFMVUVfQ09NUExFVEUASFBFX0NCX0NIVU5LX0VYVEVOU0lPTl9OQU1FX0NPTVBMRVRFAEhQRV9DQl9NRVNTQUdFX0NPTVBMRVRFAEhQRV9DQl9NRVRIT0RfQ09NUExFVEUASFBFX0NCX0hFQURFUl9GSUVMRF9DT01QTEVURQBERUxFVEUASFBFX0lOVkFMSURfRU9GX1NUQVRFAElOVkFMSURfU1NMX0NFUlRJRklDQVRFAFBBVVNFAE5PX1JFU1BPTlNFAFVOU1VQUE9SVEVEX01FRElBX1RZUEUAR09ORQBOT1RfQUNDRVBUQUJMRQBTRVJWSUNFX1VOQVZBSUxBQkxFAFJBTkdFX05PVF9TQVRJU0ZJQUJMRQBPUklHSU5fSVNfVU5SRUFDSEFCTEUAUkVTUE9OU0VfSVNfU1RBTEUAUFVSR0UATUVSR0UAUkVRVUVTVF9IRUFERVJfRklFTERTX1RPT19MQVJHRQBSRVFVRVNUX0hFQURFUl9UT09fTEFSR0UAUEFZTE9BRF9UT09fTEFSR0UASU5TVUZGSUNJRU5UX1NUT1JBR0UASFBFX1BBVVNFRF9VUEdSQURFAEhQRV9QQVVTRURfSDJfVVBHUkFERQBTT1VSQ0UAQU5OT1VOQ0UAVFJBQ0UASFBFX1VORVhQRUNURURfU1BBQ0UAREVTQ1JJQkUAVU5TVUJTQ1JJQkUAUkVDT1JEAEhQRV9JTlZBTElEX01FVEhPRABOT1RfRk9VTkQAUFJPUEZJTkQAVU5CSU5EAFJFQklORABVTkFVVEhPUklaRUQATUVUSE9EX05PVF9BTExPV0VEAEhUVFBfVkVSU0lPTl9OT1RfU1VQUE9SVEVEAEFMUkVBRFlfUkVQT1JURUQAQUNDRVBURUQATk9UX0lNUExFTUVOVEVEAExPT1BfREVURUNURUQASFBFX0NSX0VYUEVDVEVEAEhQRV9MRl9FWFBFQ1RFRABDUkVBVEVEAElNX1VTRUQASFBFX1BBVVNFRABUSU1FT1VUX09DQ1VSRUQAUEFZTUVOVF9SRVFVSVJFRABQUkVDT05ESVRJT05fUkVRVUlSRUQAUFJPWFlfQVVUSEVOVElDQVRJT05fUkVRVUlSRUQATkVUV09SS19BVVRIRU5USUNBVElPTl9SRVFVSVJFRABMRU5HVEhfUkVRVUlSRUQAU1NMX0NFUlRJRklDQVRFX1JFUVVJUkVEAFVQR1JBREVfUkVRVUlSRUQAUEFHRV9FWFBJUkVEAFBSRUNPTkRJVElPTl9GQUlMRUQARVhQRUNUQVRJT05fRkFJTEVEAFJFVkFMSURBVElPTl9GQUlMRUQAU1NMX0hBTkRTSEFLRV9GQUlMRUQATE9DS0VEAFRSQU5TRk9STUFUSU9OX0FQUExJRUQATk9UX01PRElGSUVEAE5PVF9FWFRFTkRFRABCQU5EV0lEVEhfTElNSVRfRVhDRUVERUQAU0lURV9JU19PVkVSTE9BREVEAEhFQUQARXhwZWN0ZWQgSFRUUC8AAF4TAAAmEwAAMBAAAPAXAACdEwAAFRIAADkXAADwEgAAChAAAHUSAACtEgAAghMAAE8UAAB/EAAAoBUAACMUAACJEgAAixQAAE0VAADUEQAAzxQAABAYAADJFgAA3BYAAMERAADgFwAAuxQAAHQUAAB8FQAA5RQAAAgXAAAfEAAAZRUAAKMUAAAoFQAAAhUAAJkVAAAsEAAAixkAAE8PAADUDgAAahAAAM4QAAACFwAAiQ4AAG4TAAAcEwAAZhQAAFYXAADBEwAAzRMAAGwTAABoFwAAZhcAAF8XAAAiEwAAzg8AAGkOAADYDgAAYxYAAMsTAACqDgAAKBcAACYXAADFEwAAXRYAAOgRAABnEwAAZRMAAPIWAABzEwAAHRcAAPkWAADzEQAAzw4AAM4VAAAMEgAAsxEAAKURAABhEAAAMhcAALsTAEH5NQsBAQBBkDYL4AEBAQIBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQBB/TcLAQEAQZE4C14CAwICAgICAAACAgACAgACAgICAgICAgICAAQAAAAAAAICAgICAgICAgICAgICAgICAgICAgICAgICAAAAAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAAgACAEH9OQsBAQBBkToLXgIAAgICAgIAAAICAAICAAICAgICAgICAgIAAwAEAAAAAgICAgICAgICAgICAgICAgICAgICAgICAgIAAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgACAAIAQfA7Cw1sb3NlZWVwLWFsaXZlAEGJPAsBAQBBoDwL4AEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQBBiT4LAQEAQaA+C+cBAQEBAQEBAQEBAQEBAgEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQFjaHVua2VkAEGwwAALXwEBAAEBAQEBAAABAQABAQABAQEBAQEBAQEBAAAAAAAAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAQABAEGQwgALIWVjdGlvbmVudC1sZW5ndGhvbnJveHktY29ubmVjdGlvbgBBwMIACy1yYW5zZmVyLWVuY29kaW5ncGdyYWRlDQoNCg0KU00NCg0KVFRQL0NFL1RTUC8AQfnCAAsFAQIAAQMAQZDDAAvgAQQBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAEH5xAALBQECAAEDAEGQxQAL4AEEAQEFAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQBB+cYACwQBAAABAEGRxwAL3wEBAQABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAEH6yAALBAEAAAIAQZDJAAtfAwQAAAQEBAQEBAQEBAQEBQQEBAQEBAQEBAQEBAAEAAYHBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAQABAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAAAAQAQfrKAAsEAQAAAQBBkMsACwEBAEGqywALQQIAAAAAAAADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwAAAAAAAAMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAEH6zAALBAEAAAEAQZDNAAsBAQBBms0ACwYCAAAAAAIAQbHNAAs6AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMAAAAAAAADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwBB8M4AC5YBTk9VTkNFRUNLT1VUTkVDVEVURUNSSUJFTFVTSEVURUFEU0VBUkNIUkdFQ1RJVklUWUxFTkRBUlZFT1RJRllQVElPTlNDSFNFQVlTVEFUQ0hHRU9SRElSRUNUT1JUUkNIUEFSQU1FVEVSVVJDRUJTQ1JJQkVBUkRPV05BQ0VJTkROS0NLVUJTQ1JJQkVIVFRQL0FEVFAv", "base64");
 });
 
 // node_modules/undici/lib/llhttp/llhttp_simd-wasm.js
-var require_llhttp_simd_wasm = __commonJS(function(exports, module) {
+var require_llhttp_simd_wasm = __commonJS((exports, module) => {
   var { Buffer: Buffer2 } = __require("node:buffer");
   module.exports = Buffer2.from("AGFzbQEAAAABJwdgAX8Bf2ADf39/AX9gAX8AYAJ/fwBgBH9/f38Bf2AAAGADf39/AALLAQgDZW52GHdhc21fb25faGVhZGVyc19jb21wbGV0ZQAEA2VudhV3YXNtX29uX21lc3NhZ2VfYmVnaW4AAANlbnYLd2FzbV9vbl91cmwAAQNlbnYOd2FzbV9vbl9zdGF0dXMAAQNlbnYUd2FzbV9vbl9oZWFkZXJfZmllbGQAAQNlbnYUd2FzbV9vbl9oZWFkZXJfdmFsdWUAAQNlbnYMd2FzbV9vbl9ib2R5AAEDZW52GHdhc21fb25fbWVzc2FnZV9jb21wbGV0ZQAAAy0sBQYAAAIAAAAAAAACAQIAAgICAAADAAAAAAMDAwMBAQEBAQEBAQEAAAIAAAAEBQFwARISBQMBAAIGCAF/AUGA1AQLB9EFIgZtZW1vcnkCAAtfaW5pdGlhbGl6ZQAIGV9faW5kaXJlY3RfZnVuY3Rpb25fdGFibGUBAAtsbGh0dHBfaW5pdAAJGGxsaHR0cF9zaG91bGRfa2VlcF9hbGl2ZQAvDGxsaHR0cF9hbGxvYwALBm1hbGxvYwAxC2xsaHR0cF9mcmVlAAwEZnJlZQAMD2xsaHR0cF9nZXRfdHlwZQANFWxsaHR0cF9nZXRfaHR0cF9tYWpvcgAOFWxsaHR0cF9nZXRfaHR0cF9taW5vcgAPEWxsaHR0cF9nZXRfbWV0aG9kABAWbGxodHRwX2dldF9zdGF0dXNfY29kZQAREmxsaHR0cF9nZXRfdXBncmFkZQASDGxsaHR0cF9yZXNldAATDmxsaHR0cF9leGVjdXRlABQUbGxodHRwX3NldHRpbmdzX2luaXQAFQ1sbGh0dHBfZmluaXNoABYMbGxodHRwX3BhdXNlABcNbGxodHRwX3Jlc3VtZQAYG2xsaHR0cF9yZXN1bWVfYWZ0ZXJfdXBncmFkZQAZEGxsaHR0cF9nZXRfZXJybm8AGhdsbGh0dHBfZ2V0X2Vycm9yX3JlYXNvbgAbF2xsaHR0cF9zZXRfZXJyb3JfcmVhc29uABwUbGxodHRwX2dldF9lcnJvcl9wb3MAHRFsbGh0dHBfZXJybm9fbmFtZQAeEmxsaHR0cF9tZXRob2RfbmFtZQAfEmxsaHR0cF9zdGF0dXNfbmFtZQAgGmxsaHR0cF9zZXRfbGVu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PgtBhwEMPQtBiAEMPAtBiQEMOwtBigEMOgtBiwEMOQtBjAEMOAtBjQEMNwtBjgEMNgtBjwEMNQtBkAEMNAtBkQEMMwtBkgEMMgtBkwEMMQtBlAEMMAtBlQEMLwtBlgEMLgtBlwEMLQtBmAEMLAtBmQEMKwtBmgEMKgtBmwEMKQtBnAEMKAtBnQEMJwtBngEMJgtBnwEMJQtBoAEMJAtBoQEMIwtBogEMIgtBowEMIQtBpAEMIAtBpQEMHwtBpgEMHgtBpwEMHQtBqAEMHAtBqQEMGwtBqgEMGgtBqwEMGQtBrAEMGAtBrQEMFwtBrgEMFgtBAQwVC0GvAQwUC0GwAQwTC0GxAQwSC0GzAQwRC0GyAQwQC0G0AQwPC0G1AQwOC0G2AQwNC0G3AQwMC0G4AQwLC0G5AQwKC0G6AQwJC0G7AQwIC0HGAQwHC0G8AQwGC0G9AQwFC0G+AQwEC0G/AQwDC0HAAQwCC0HCAQwBC0HBAQshAwNAAkACQAJAAkACQAJAAkACQAJAIAICfwJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJ/AkACQAJAAkACQAJAAkACQAJAAkACQAJAAkAgAgJ/AkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACfwJAAkACfwJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACfwJAAkACQAJAAn8CQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQCADDsYBAAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHyAhIyUmKCorLC8wMTIzNDU2Nzk6Ozw9lANAQkRFRklLTk9QUVJTVFVWWFpbXF1eX2BhYmNkZWZnaGpsb3Bxc3V2eHl6e3x/gAGBAYIBgwGEAYUBhgGHAYgBiQGKAYsBjAGNAY4BjwGQAZEBkgGTAZQBlQGWAZcBmAGZAZoBmwGcAZ0BngGfAaABoQGiAaMBpAGlAaYBpwGoAakBqgGrAawBrQGuAa8BsAGxAbIBswG0AbUBtgG3AbgBuQG6AbsBvAG9Ab4BvwHAAcEBwgHDAcQBxQHGAccByAHJAcsBzAHNAc4BzwGKA4kDiAOHA4QDgwOAA/sC+gL5AvgC9wL0AvMC8gLLAsECsALZAQsgASAERw3wAkHdASEDDLMDCyABIARHDcgBQcMBIQMMsgMLIAEgBEcNe0H3ACEDDLEDCyABIARHDXBB7wAhAwywAwsgASAERw1pQeoAIQMMrwMLIAEgBEcNZUHoACEDDK4DCyABIARHDWJB5gAhAwytAwsgASAERw0aQRghAwysAwsgASAERw0VQRIhAwyrAwsgASAERw1CQcUAIQMMqgMLIAEgBEcNNEE/IQMMqQMLIAEgBEcNMkE8IQMMqAMLIAEgBEcNK0ExIQMMpwMLIAItAC5BAUYNnwMMwQILQQAhAAJAAkACQCACLQAqRQ0AIAItACtFDQAgAi8BMCIDQQJxRQ0BDAILIAIvATAiA0EBcUUNAQtBASEAIAItAChBAUYNACACLwEyIgVB5ABrQeQASQ0AIAVBzAFGDQAgBUGwAkYNACADQcAAcQ0AQQAhACADQYgEcUGABEYNACADQShxQQBHIQALIAJBADsBMCACQQA6AC8gAEUN3wIgAkIANwMgDOACC0EAIQACQCACKAI4IgNFDQAgAygCLCIDRQ0AIAIgAxEAACEACyAARQ3MASAAQRVHDd0CIAJBBDYCHCACIAE2AhQgAkGwGDYCECACQRU2AgxBACEDDKQDCyABIARGBEBBBiEDDKQDCyABQQFqIQFBACEAAkAgAigCOCIDRQ0AIAMoAlQiA0UNACACIAMRAAAhAAsgAA3ZAgwcCyACQgA3AyBBEiEDDIkDCyABIARHDRZBHSEDDKEDCyABIARHBEAgAUEBaiEBQRAhAwyIAwtBByEDDKADCyACIAIpAyAiCiAEIAFrrSILfSIMQgAgCiAMWhs3AyAgCiALWA3UAkEIIQMMnwMLIAEgBEcEQCACQQk2AgggAiABNgIEQRQhAwyGAwtBCSEDDJ4DCyACKQMgQgBSDccBIAIgAi8BMEGAAXI7ATAMQgsgASAERw0/QdAAIQMMnAMLIAEgBEYEQEELIQMMnAMLIAFBAWohAUEAIQACQCACKAI4IgNFDQAgAygCUCIDRQ0AIAIgAxEAACEACyAADc8CDMYBC0EAIQACQCACKAI4IgNFDQAgAygCSCIDRQ0AIAIgAxEAACEACyAARQ3GASAAQRVHDc0CIAJBCzYCHCACIAE2AhQgAkGCGTYCECACQRU2AgxBACEDDJoDC0EAIQACQCACKAI4IgNFDQAgAygCSCIDRQ0AIAIgAxEAACEACyAARQ0MIABBFUcNygIgAkEaNgIcIAIgATYCFCACQYIZNgIQIAJBFTYCDEEAIQMMmQMLQQAhAAJAIAIoAjgiA0UNACADKAJMIgNFDQAgAiADEQAAIQALIABFDcQBIABBFUcNxwIgAkELNgIcIAIgATYCFCACQZEXNgIQIAJBFTYCDEEAIQMMmAMLIAEgBEYEQEEPIQMMmAMLIAEtAAAiAEE7Rg0HIABBDUcNxAIgAUEBaiEBDMMBC0EAIQACQCACKAI4IgNFDQAgAygCTCIDRQ0AIAIgAxEAACEACyAARQ3DASAAQRVHDcICIAJBDzYCHCACIAE2AhQgAkGRFzYCECACQRU2AgxBACEDDJYDCwNAIAEtAABB8DVqLQAAIgBBAUcEQCAAQQJHDcECIAIoAgQhAEEAIQMgAkEANgIEIAIgACABQQFqIgEQLSIADcICDMUBCyAEIAFBAWoiAUcNAAtBEiEDDJUDC0EAIQACQCACKAI4IgNFDQAgAygCTCIDRQ0AIAIgAxEAACEACyAARQ3FASAAQRVHDb0CIAJBGzYCHCACIAE2AhQgAkGRFzYCECACQRU2AgxBACEDDJQDCyABIARGBEBBFiEDDJQDCyACQQo2AgggAiABNgIEQQAhAAJAIAIoAjgiA0UNACADKAJIIgNFDQAgAiADEQAAIQALIABFDcIBIABBFUcNuQIgAkEVNgIcIAIgATYCFCACQYIZNgIQIAJBFTYCDEEAIQMMkwMLIAEgBEcEQANAIAEtAABB8DdqLQAAIgBBAkcEQAJAIABBAWsOBMQCvQIAvgK9AgsgAUEBaiEBQQghAwz8AgsgBCABQQFqIgFHDQALQRUhAwyTAwtBFSEDDJIDCwNAIAEtAABB8DlqLQAAIgBBAkcEQCAAQQFrDgTFArcCwwK4ArcCCyAEIAFBAWoiAUcNAAtBGCEDDJEDCyABIARHBEAgAkELNgIIIAIgATYCBEEHIQMM+AILQRkhAwyQAwsgAUEBaiEBDAILIAEgBEYEQEEaIQMMjwMLAkAgAS0AAEENaw4UtQG/Ab8BvwG/Ab8BvwG/Ab8BvwG/Ab8BvwG/Ab8BvwG/Ab8BvwEAvwELQQAhAyACQQA2AhwgAkGvCzYCECACQQI2AgwgAiABQQFqNgIUDI4DCyABIARGBEBBGyEDDI4DCyABLQAAIgBBO0cEQCAAQQ1HDbECIAFBAWohAQy6AQsgAUEBaiEBC0EiIQMM8wILIAEgBEYEQEEcIQMMjAMLQgAhCgJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkAgAS0AAEEwaw43wQLAAgABAgMEBQYH0AHQAdAB0AHQAdAB0AEICQoLDA3QAdAB0AHQAdAB0AHQAdAB0AHQAdAB0AHQAdAB0AHQAdAB0AHQAdAB0AHQAdAB0AHQAdABDg8QERIT0AELQgIhCgzAAgtCAyEKDL8CC0IEIQoMvgILQgUhCgy9AgtCBiEKDLwCC0IHIQoMuwILQgghCgy6AgtCCSEKDLkCC0IKIQoMuAILQgshCgy3AgtCDCEKDLYCC0INIQoMtQILQg4hCgy0AgtCDyEKDLMCC0IKIQoMsgILQgshCgyxAgtCDCEKDLACC0INIQoMrwILQg4hCgyuAgtCDyEKDK0CC0IAIQoCQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAIAEtAABBMGsON8ACvwIAAQIDBAUGB74CvgK+Ar4CvgK+Ar4CCAkKCwwNvgK+Ar4CvgK+Ar4CvgK+Ar4CvgK+Ar4CvgK+Ar4CvgK+Ar4CvgK+Ar4CvgK+Ar4CvgK+Ag4PEBESE74CC0ICIQoMvwILQgMhCgy+AgtCBCEKDL0CC0IFIQoMvAILQgYhCgy7AgtCByEKDLoCC0IIIQoMuQILQgkhCgy4AgtCCiEKDLcCC0ILIQoMtgILQgwhCgy1AgtCDSEKDLQCC0IOIQoMswILQg8hCgyyAgtCCiEKDLECC0ILIQoMsAILQgwhCgyvAgtCDSEKDK4CC0IOIQoMrQILQg8hCgysAgsgAiACKQMgIgogBCABa60iC30iDEIAIAogDFobNwMgIAogC1gNpwJBHyEDDIkDCyABIARHBEAgAkEJNgIIIAIgATYCBEElIQMM8AILQSAhAwyIAwtBASEFIAIvATAiA0EIcUUEQCACKQMgQgBSIQULAkAgAi0ALgRAQQEhACACLQApQQVGDQEgA0HAAHFFIAVxRQ0BC0EAIQAgA0HAAHENAEECIQAgA0EIcQ0AIANBgARxBEACQCACLQAoQQFHDQAgAi0ALUEKcQ0AQQUhAAwCC0EEIQAMAQsgA0EgcUUEQAJAIAItAChBAUYNACACLwEyIgBB5ABrQeQASQ0AIABBzAFGDQAgAEGwAkYNAEEEIQAgA0EocUUNAiADQYgEcUGABEYNAgtBACEADAELQQBBAyACKQMgUBshAAsgAEEBaw4FvgIAsAEBpAKhAgtBESEDDO0CCyACQQE6AC8MhAMLIAEgBEcNnQJBJCEDDIQDCyABIARHDRxBxgAhAwyDAwtBACEAAkAgAigCOCIDRQ0AIAMoAkQiA0UNACACIAMRAAAhAAsgAEUNJyAAQRVHDZgCIAJB0AA2AhwgAiABNgIUIAJBkRg2AhAgAkEVNgIMQQAhAwyCAwsgASAERgRAQSghAwyCAwtBACEDIAJBADYCBCACQQw2AgggAiABIAEQKiIARQ2UAiACQSc2AhwgAiABNgIUIAIgADYCDAyBAwsgASAERgRAQSkhAwyBAwsgAS0AACIAQSBGDRMgAEEJRw2VAiABQQFqIQEMFAsgASAERwRAIAFBAWohAQwWC0EqIQMM/wILIAEgBEYEQEErIQMM/wILIAEtAAAiAEEJRyAAQSBHcQ2QAiACLQAsQQhHDd0CIAJBADoALAzdAgsgASAERgRAQSwhAwz+AgsgAS0AAEEKRw2OAiABQQFqIQEMsAELIAEgBEcNigJBLyEDDPwCCwNAIAEtAAAiAEEgRwRAIABBCmsOBIQCiAKIAoQChgILIAQgAUEBaiIBRw0AC0ExIQMM+wILQTIhAyABIARGDfoCIAIoAgAiACAEIAFraiEHIAEgAGtBA2ohBgJAA0AgAEHwO2otAAAgAS0AACIFQSByIAUgBUHBAGtB/wFxQRpJG0H/AXFHDQEgAEEDRgRAQQYhAQziAgsgAEEBaiEAIAQgAUEBaiIBRw0ACyACIAc2AgAM+wILIAJBADYCAAyGAgtBMyEDIAQgASIARg35AiAEIAFrIAIoAgAiAWohByAAIAFrQQhqIQYCQANAIAFB9DtqLQAAIAAtAAAiBUEgciAFIAVBwQBrQf8BcUEaSRtB/wFxRw0BIAFBCEYEQEEFIQEM4QILIAFBAWohASAEIABBAWoiAEcNAAsgAiAHNgIADPoCCyACQQA2AgAgACEBDIUCC0E0IQMgBCABIgBGDfgCIAQgAWsgAigCACIBaiEHIAAgAWtBBWohBgJAA0AgAUHQwgBqLQAAIAAtAAAiBUEgciAFIAVBwQBrQf8BcUEaSRtB/wFxRw0BIAFBBUYEQEEHIQEM4AILIAFBAWohASAEIABBAWoiAEcNAAsgAiAHNgIADPkCCyACQQA2AgAgACEBDIQCCyABIARHBEADQCABLQAAQYA+ai0AACIAQQFHBEAgAEECRg0JDIECCyAEIAFBAWoiAUcNAAtBMCEDDPgCC0EwIQMM9wILIAEgBEcEQANAIAEtAAAiAEEgRwRAIABBCmsOBP8B/gH+Af8B/gELIAQgAUEBaiIBRw0AC0E4IQMM9wILQTghAwz2AgsDQCABLQAAIgBBIEcgAEEJR3EN9gEgBCABQQFqIgFHDQALQTwhAwz1AgsDQCABLQAAIgBBIEcEQAJAIABBCmsOBPkBBAT5AQALIABBLEYN9QEMAwsgBCABQQFqIgFHDQALQT8hAwz0AgtBwAAhAyABIARGDfMCIAIoAgAiACAEIAFraiEFIAEgAGtBBmohBgJAA0AgAEGAQGstAAAgAS0AAEEgckcNASAAQQZGDdsCIABBAWohACAEIAFBAWoiAUcNAAsgAiAFNgIADPQCCyACQQA2AgALQTYhAwzZAgsgASAERgRAQcEAIQMM8gILIAJBDDYCCCACIAE2AgQgAi0ALEEBaw4E+wHuAewB6wHUAgsgAUEBaiEBDPoBCyABIARHBEADQAJAIAEtAAAiAEEgciAAIABBwQBrQf8BcUEaSRtB/wFxIgBBCUYNACAAQSBGDQACQAJAAkACQCAAQeMAaw4TAAMDAwMDAwMBAwMDAwMDAwMDAgMLIAFBAWohAUExIQMM3AILIAFBAWohAUEyIQMM2wILIAFBAWohAUEzIQMM2gILDP4BCyAEIAFBAWoiAUcNAAtBNSEDDPACC0E1IQMM7wILIAEgBEcEQANAIAEtAABBgDxqLQAAQQFHDfcBIAQgAUEBaiIBRw0AC0E9IQMM7wILQT0hAwzuAgtBACEAAkAgAigCOCIDRQ0AIAMoAkAiA0UNACACIAMRAAAhAAsgAEUNASAAQRVHDeYBIAJBwgA2AhwgAiABNgIUIAJB4xg2AhAgAkEVNgIMQQAhAwztAgsgAUEBaiEBC0E8IQMM0gILIAEgBEYEQEHCACEDDOsCCwJAA0ACQCABLQAAQQlrDhgAAswCzALRAswCzALMAswCzALMAswCzALMAswCzALMAswCzALMAswCzALMAgDMAgsgBCABQQFqIgFHDQALQcIAIQMM6wILIAFBAWohASACLQAtQQFxRQ3+AQtBLCEDDNACCyABIARHDd4BQcQAIQMM6AILA0AgAS0AAEGQwABqLQAAQQFHDZwBIAQgAUEBaiIBRw0AC0HFACEDDOcCCyABLQAAIgBBIEYN/gEgAEE6Rw3AAiACKAIEIQBBACEDIAJBADYCBCACIAAgARApIgAN3gEM3QELQccAIQMgBCABIgBGDeUCIAQgAWsgAigCACIBaiEHIAAgAWtBBWohBgNAIAFBkMIAai0AACAALQAAIgVBIHIgBSAFQcEAa0H/AXFBGkkbQf8BcUcNvwIgAUEFRg3CAiABQQFqIQEgBCAAQQFqIgBHDQALIAIgBzYCAAzlAgtByAAhAyAEIAEiAEYN5AIgBCABayACKAIAIgFqIQcgACABa0EJaiEGA0AgAUGWwgBqLQAAIAAtAAAiBUEgciAFIAVBwQBrQf8BcUEaSRtB/wFxRw2+AkECIAFBCUYNwgIaIAFBAWohASAEIABBAWoiAEcNAAsgAiAHNgIADOQCCyABIARGBEBByQAhAwzkAgsCQAJAIAEtAAAiAEEgciAAIABBwQBrQf8BcUEaSRtB/wFxQe4Aaw4HAL8CvwK/Ar8CvwIBvwILIAFBAWohAUE+IQMMywILIAFBAWohAUE/IQMMygILQcoAIQMgBCABIgBGDeICIAQgAWsgAigCACIBaiEGIAAgAWtBAWohBwNAIAFBoMIAai0AACAALQAAIgVBIHIgBSAFQcEAa0H/AXFBGkkbQf8BcUcNvAIgAUEBRg2+AiABQQFqIQEgBCAAQQFqIgBHDQALIAIgBjYCAAziAgtBywAhAyAEIAEiAEYN4QIgBCABayACKAIAIgFqIQcgACABa0EOaiEGA0AgAUGiwgBqLQAAIAAtAAAiBUEgciAFIAVBwQBrQf8BcUEaSRtB/wFxRw27AiABQQ5GDb4CIAFBAWohASAEIABBAWoiAEcNAAsgAiAHNgIADOECC0HMACEDIAQgASIARg3gAiAEIAFrIAIoAgAiAWohByAAIAFrQQ9qIQYDQCABQcDCAGotAAAgAC0AACIFQSByIAUgBUHBAGtB/wFxQRpJG0H/AXFHDboCQQMgAUEPRg2+AhogAUEBaiEBIAQgAEEBaiIARw0ACyACIAc2AgAM4AILQc0AIQMgBCABIgBGDd8CIAQgAWsgAigCACIBaiEHIAAgAWtBBWohBgNAIAFB0MIAai0AACAALQAAIgVBIHIgBSAFQcEAa0H/AXFBGkkbQf8BcUcNuQJBBCABQQVGDb0CGiABQQFqIQEgBCAAQQFqIgBHDQALIAIgBzYCAAzfAgsgASAERgRAQc4AIQMM3wILAkACQAJAAkAgAS0AACIAQSByIAAgAEHBAGtB/wFxQRpJG0H/AXFB4wBrDhMAvAK8ArwCvAK8ArwCvAK8ArwCvAK8ArwCAbwCvAK8AgIDvAILIAFBAWohAUHBACEDDMgCCyABQQFqIQFBwgAhAwzHAgsgAUEBaiEBQcMAIQMMxgILIAFBAWohAUHEACEDDMUCCyABIARHBEAgAkENNgIIIAIgATYCBEHFACEDDMUCC0HPACEDDN0CCwJAAkAgAS0AAEEKaw4EAZABkAEAkAELIAFBAWohAQtBKCEDDMMCCyABIARGBEBB0QAhAwzcAgsgAS0AAEEgRw0AIAFBAWohASACLQAtQQFxRQ3QAQtBFyEDDMECCyABIARHDcsBQdIAIQMM2QILQdMAIQMgASAERg3YAiACKAIAIgAgBCABa2ohBiABIABrQQFqIQUDQCABLQAAIABB1sIAai0AAEcNxwEgAEEBRg3KASAAQQFqIQAgBCABQQFqIgFHDQALIAIgBjYCAAzYAgsgASAERgRAQdUAIQMM2AILIAEtAABBCkcNwgEgAUEBaiEBDMoBCyABIARGBEBB1gAhAwzXAgsCQAJAIAEtAABBCmsOBADDAcMBAcMBCyABQQFqIQEMygELIAFBAWohAUHKACEDDL0CC0EAIQACQCACKAI4IgNFDQAgAygCPCIDRQ0AIAIgAxEAACEACyAADb8BQc0AIQMMvAILIAItAClBIkYNzwIMiQELIAQgASIFRgRAQdsAIQMM1AILQQAhAEEBIQFBASEGQQAhAwJAAn8CQAJAAkACQAJAAkACQCAFLQAAQTBrDgrFAcQBAAECAwQFBgjDAQtBAgwGC0EDDAULQQQMBAtBBQwDC0EGDAILQQcMAQtBCAshA0EAIQFBACEGDL0BC0EJIQNBASEAQQAhAUEAIQYMvAELIAEgBEYEQEHdACEDDNMCCyABLQAAQS5HDbgBIAFBAWohAQyIAQsgASAERw22AUHfACEDDNECCyABIARHBEAgAkEONgIIIAIgATYCBEHQACEDDLgCC0HgACEDDNACC0HhACEDIAEgBEYNzwIgAigCACIAIAQgAWtqIQUgASAAa0EDaiEGA0AgAS0AACAAQeLCAGotAABHDbEBIABBA0YNswEgAEEBaiEAIAQgAUEBaiIBRw0ACyACIAU2AgAMzwILQeIAIQMgASAERg3OAiACKAIAIgAgBCABa2ohBSABIABrQQJqIQYDQCABLQAAIABB5sIAai0AAEcNsAEgAEECRg2vASAAQQFqIQAgBCABQQFqIgFHDQALIAIgBTYCAAzOAgtB4wAhAyABIARGDc0CIAIoAgAiACAEIAFraiEFIAEgAGtBA2ohBgNAIAEtAAAgAEHpwgBqLQAARw2vASAAQQNGDa0BIABBAWohACAEIAFBAWoiAUcNAAsgAiAFNgIADM0CCyABIARGBEBB5QAhAwzNAgsgAUEBaiEBQQAhAAJAIAIoAjgiA0UNACADKAIwIgNFDQAgAiADEQAAIQALIAANqgFB1gAhAwyzAgsgASAERwRAA0AgAS0AACIAQSBHBEACQAJAAkAgAEHIAGsOCwABswGzAbMBswGzAbMBswGzAQKzAQsgAUEBaiEBQdIAIQMMtwILIAFBAWohAUHTACEDDLYCCyABQQFqIQFB1AAhAwy1AgsgBCABQQFqIgFHDQALQeQAIQMMzAILQeQAIQMMywILA0AgAS0AAEHwwgBqLQAAIgBBAUcEQCAAQQJrDgOnAaYBpQGkAQsgBCABQQFqIgFHDQALQeYAIQMMygILIAFBAWogASAERw0CGkHnACEDDMkCCwNAIAEtAABB8MQAai0AACIAQQFHBEACQCAAQQJrDgSiAaEBoAEAnwELQdcAIQMMsQILIAQgAUEBaiIBRw0AC0HoACEDDMgCCyABIARGBEBB6QAhAwzIAgsCQCABLQAAIgBBCmsOGrcBmwGbAbQBmwGbAZsBmwGbAZsBmwGbAZsBmwGbAZsBmwGbAZsBmwGbAZsBpAGbAZsBAJkBCyABQQFqCyEBQQYhAwytAgsDQCABLQAAQfDGAGotAABBAUcNfSAEIAFBAWoiAUcNAAtB6gAhAwzFAgsgAUEBaiABIARHDQIaQesAIQMMxAILIAEgBEYEQEHsACEDDMQCCyABQQFqDAELIAEgBEYEQEHtACEDDMMCCyABQQFqCyEBQQQhAwyoAgsgASAERgRAQe4AIQMMwQILAkACQAJAIAEtAABB8MgAai0AAEEBaw4HkAGPAY4BAHwBAo0BCyABQQFqIQEMCwsgAUEBagyTAQtBACEDIAJBADYCHCACQZsSNgIQIAJBBzYCDCACIAFBAWo2AhQMwAILAkADQCABLQAAQfDIAGotAAAiAEEERwRAAkACQCAAQQFrDgeUAZMBkgGNAQAEAY0BC0HaACEDDKoCCyABQQFqIQFB3AAhAwypAgsgBCABQQFqIgFHDQALQe8AIQMMwAILIAFBAWoMkQELIAQgASIARgRAQfAAIQMMvwILIAAtAABBL0cNASAAQQFqIQEMBwsgBCABIgBGBEBB8QAhAwy+AgsgAC0AACIBQS9GBEAgAEEBaiEBQd0AIQMMpQILIAFBCmsiA0EWSw0AIAAhAUEBIAN0QYmAgAJxDfkBC0EAIQMgAkEANgIcIAIgADYCFCACQYwcNgIQIAJBBzYCDAy8AgsgASAERwRAIAFBAWohAUHeACEDDKMCC0HyACEDDLsCCyABIARGBEBB9AAhAwy7AgsCQCABLQAAQfDMAGotAABBAWsOA/cBcwCCAQtB4QAhAwyhAgsgASAERwRAA0AgAS0AAEHwygBqLQAAIgBBA0cEQAJAIABBAWsOAvkBAIUBC0HfACEDDKMCCyAEIAFBAWoiAUcNAAtB8wAhAwy6AgtB8wAhAwy5AgsgASAERwRAIAJBDzYCCCACIAE2AgRB4AAhAwygAgtB9QAhAwy4AgsgASAERgRAQfYAIQMMuAILIAJBDzYCCCACIAE2AgQLQQMhAwydAgsDQCABLQAAQSBHDY4CIAQgAUEBaiIBRw0AC0H3ACEDDLUCCyABIARGBEBB+AAhAwy1AgsgAS0AAEEgRw16IAFBAWohAQxbC0EAIQACQCACKAI4IgNFDQAgAygCOCIDRQ0AIAIgAxEAACEACyAADXgMgAILIAEgBEYEQEH6ACEDDLMCCyABLQAAQcwARw10IAFBAWohAUETDHYLQfsAIQMgASAERg2xAiACKAIAIgAgBCABa2ohBSABIABrQQVqIQYDQCABLQAAIABB8M4Aai0AAEcNcyAAQQVGDXUgAEEBaiEAIAQgAUEBaiIBRw0ACyACIAU2AgAMsQILIAEgBEYEQEH8ACEDDLECCwJAAkAgAS0AAEHDAGsODAB0dHR0dHR0dHR0AXQLIAFBAWohAUHmACEDDJgCCyABQQFqIQFB5wAhAwyXAgtB/QAhAyABIARGDa8CIAIoAgAiACAEIAFraiEFIAEgAGtBAmohBgJAA0AgAS0AACAAQe3PAGotAABHDXIgAEECRg0BIABBAWohACAEIAFBAWoiAUcNAAsgAiAFNgIADLACCyACQQA2AgAgBkEBaiEBQRAMcwtB/gAhAyABIARGDa4CIAIoAgAiACAEIAFraiEFIAEgAGtBBWohBgJAA0AgAS0AACAAQfbOAGotAABHDXEgAEEFRg0BIABBAWohACAEIAFBAWoiAUcNAAsgAiAFNgIADK8CCyACQQA2AgAgBkEBaiEBQRYMcgtB/wAhAyABIARGDa0CIAIoAgAiACAEIAFraiEFIAEgAGtBA2ohBgJAA0AgAS0AACAAQfzOAGotAABHDXAgAEEDRg0BIABBAWohACAEIAFBAWoiAUcNAAsgAiAFNgIADK4CCyACQQA2AgAgBkEBaiEBQQUMcQsgASAERgRAQYABIQMMrQILIAEtAABB2QBHDW4gAUEBaiEBQQgMcAsgASAERgRAQYEBIQMMrAILAkACQCABLQAAQc4Aaw4DAG8BbwsgAUEBaiEBQesAIQMMkwILIAFBAWohAUHsACEDDJICCyABIARGBEBBggEhAwyrAgsCQAJAIAEtAABByABrDggAbm5ubm5uAW4LIAFBAWohAUHqACEDDJICCyABQQFqIQFB7QAhAwyRAgtBgwEhAyABIARGDakCIAIoAgAiACAEIAFraiEFIAEgAGtBAmohBgJAA0AgAS0AACAAQYDPAGotAABHDWwgAEECRg0BIABBAWohACAEIAFBAWoiAUcNAAsgAiAFNgIADKoCCyACQQA2AgAgBkEBaiEBQQAMbQtBhAEhAyABIARGDagCIAIoAgAiACAEIAFraiEFIAEgAGtBBGohBgJAA0AgAS0AACAAQYPPAGotAABHDWsgAEEERg0BIABBAWohACAEIAFBAWoiAUcNAAsgAiAFNgIADKkCCyACQQA2AgAgBkEBaiEBQSMMbAsgASAERgRAQYUBIQMMqAILAkACQCABLQAAQcwAaw4IAGtra2trawFrCyABQQFqIQFB7wAhAwyPAgsgAUEBaiEBQfAAIQMMjgILIAEgBEYEQEGGASEDDKcCCyABLQAAQcUARw1oIAFBAWohAQxgC0GHASEDIAEgBEYNpQIgAigCACIAIAQgAWtqIQUgASAAa0EDaiEGAkADQCABLQAAIABBiM8Aai0AAEcNaCAAQQNGDQEgAEEBaiEAIAQgAUEBaiIBRw0ACyACIAU2AgAMpgILIAJBADYCACAGQQFqIQFBLQxpC0GIASEDIAEgBEYNpAIgAigCACIAIAQgAWtqIQUgASAAa0EIaiEGAkADQCABLQAAIABB0M8Aai0AAEcNZyAAQQhGDQEgAEEBaiEAIAQgAUEBaiIBRw0ACyACIAU2AgAMpQILIAJBADYCACAGQQFqIQFBKQxoCyABIARGBEBBiQEhAwykAgtBASABLQAAQd8ARw1nGiABQQFqIQEMXgtBigEhAyABIARGDaICIAIoAgAiACAEIAFraiEFIAEgAGtBAWohBgNAIAEtAAAgAEGMzwBqLQAARw1kIABBAUYN+gEgAEEBaiEAIAQgAUEBaiIBRw0ACyACIAU2AgAMogILQYsBIQMgASAERg2hAiACKAIAIgAgBCABa2ohBSABIABrQQJqIQYCQANAIAEtAAAgAEGOzwBqLQAARw1kIABBAkYNASAAQQFqIQAgBCABQQFqIgFHDQALIAIgBTYCAAyiAgsgAkEANgIAIAZBAWohAUECDGULQYwBIQMgASAERg2gAiACKAIAIgAgBCABa2ohBSABIABrQQFqIQYCQANAIAEtAAAgAEHwzwBqLQAARw1jIABBAUYNASAAQQFqIQAgBCABQQFqIgFHDQALIAIgBTYCAAyhAgsgAkEANgIAIAZBAWohAUEfDGQLQY0BIQMgASAERg2fAiACKAIAIgAgBCABa2ohBSABIABrQQFqIQYCQANAIAEtAAAgAEHyzwBqLQAARw1iIABBAUYNASAAQQFqIQAgBCABQQFqIgFHDQALIAIgBTYCAAygAgsgAkEANgIAIAZBAWohAUEJDGMLIAEgBEYEQEGOASEDDJ8CCwJAAkAgAS0AAEHJAGsOBwBiYmJiYgFiCyABQQFqIQFB+AAhAwyGAgsgAUEBaiEBQfkAIQMMhQILQY8BIQMgASAERg2dAiACKAIAIgAgBCABa2ohBSABIABrQQVqIQYCQANAIAEtAAAgAEGRzwBqLQAARw1gIABBBUYNASAAQQFqIQAgBCABQQFqIgFHDQALIAIgBTYCAAyeAgsgAkEANgIAIAZBAWohAUEYDGELQZABIQMgASAERg2cAiACKAIAIgAgBCABa2ohBSABIABrQQJqIQYCQANAIAEtAAAgAEGXzwBqLQAARw1fIABBAkYNASAAQQFqIQAgBCABQQFqIgFHDQALIAIgBTYCAAydAgsgAkEANgIAIAZBAWohAUEXDGALQZEBIQMgASAERg2bAiACKAIAIgAgBCABa2ohBSABIABrQQZqIQYCQANAIAEtAAAgAEGazwBqLQAARw1eIABBBkYNASAAQQFqIQAgBCABQQFqIgFHDQALIAIgBTYCAAycAgsgAkEANgIAIAZBAWohAUEV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JSIARQ0RIAJB5QA2AhwgAiABNgIUIAIgADYCDEEAIQMMtAELIAIoAgQhACACQQA2AgQgAiAAIAEQJSIARQ0gIAJB0wA2AhwgAiABNgIUIAIgADYCDEEAIQMMswELIAIoAgQhACACQQA2AgQgAiAAIAEQJSIARQ0iIAJB0gA2AhwgAiABNgIUIAIgADYCDEEAIQMMsgELIAIoAgQhACACQQA2AgQgAiAAIAEQJSIARQ0OIAJB5QA2AhwgAiABNgIUIAIgADYCDEEAIQMMsQELIAIoAgQhACACQQA2AgQgAiAAIAEQJSIARQ0dIAJB0wA2AhwgAiABNgIUIAIgADYCDEEAIQMMsAELIAIoAgQhACACQQA2AgQgAiAAIAEQJSIARQ0fIAJB0gA2AhwgAiABNgIUIAIgADYCDEEAIQMMrwELIABBP0cNASABQQFqCyEBQQUhAwyUAQtBACEDIAJBADYCHCACIAE2AhQgAkH9EjYCECACQQc2AgwMrAELIAJBADYCHCACIAE2AhQgAkHcCDYCECACQQc2AgxBACEDDKsBCyACKAIEIQAgAkEANgIEIAIgACABECUiAEUNByACQeUANgIcIAIgATYCFCACIAA2AgxBACEDDKoBCyACKAIEIQAgAkEANgIEIAIgACABECUiAEUNFiACQdMANgIcIAIgATYCFCACIAA2AgxBACEDDKkBCyACKAIEIQAgAkEANgIEIAIgACABECUiAEUNGCACQdIANgIcIAIgATYCFCACIAA2AgxBACEDDKgBCyACQQA2AhwgAiABNgIUIAJBxgo2AhAgAkEHNgIMQQAhAwynAQsgAigCBCEAIAJBADYCBCACIAAgARAlIgBFDQMgAkHlADYCHCACIAE2AhQgAiAANgIMQQAhAwymAQsgAigCBCEAIAJBADYCBCACIAAgARAlIgBFDRIgAkHTADYCHCACIAE2AhQgAiAANgIMQQAhAwylAQsgAigCBCEAIAJBADYCBCACIAAgARAlIgBFDRQgAkHSADYCHCACIAE2AhQgAiAANgIMQQAhAwykAQsgAigCBCEAIAJBADYCBCACIAAgARAlIgBFDQAgAkHlADYCHCACIAE2AhQgAiAANgIMQQAhAwyjAQtB1QAhAwyJAQsgAEEVRwRAIAJBADYCHCACIAE2AhQgAkG5DTYCECACQRo2AgxB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AkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAIABB5ABrDvQDY2IAAWFhYWFhYQIDBAVhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhBgcICQoLDA0OD2FhYWFhEGFhYWFhYWFhYWFhEWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYRITFBUWFxgZGhthYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2YTc4OTphYWFhYWFhYTthYWE8YWFhYT0+P2FhYWFhYWFhQGFhQWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYUJDREVGR0hJSktMTU5PUFFSU2FhYWFhYWFhVFVWV1hZWlthXF1hYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFeYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhX2BhC0HhJw8LQaQhDwtByywPC0H+MQ8LQcAkDwtBqyQPC0GNKA8LQeImDwtBgDAPC0G5Lw8LQdckDwtB7x8PC0HhHw8LQfofDwtB8iAPC0GoLw8LQa4yDwtBiDAPC0HsJw8LQYIiDwtBjh0PC0HQLg8LQcojDwtBxTIPC0HfHA8LQdIcDwtBxCAPC0HXIA8LQaIfDwtB7S4PC0GrMA8LQdQlDwtBzC4PC0H6Lg8LQfwrDwtB0jAPC0HxHQ8LQbsgDwtB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AAADAEGUCAsFBAAAAAUAQaQICwkGAAAABwAAAAgAQdwIC4otSW52YWxpZCBjaGFyIGluIHVybCBxdWVyeQBTcGFuIGNhbGxiYWNrIGVycm9yIGluIG9uX2JvZHkAQ29udGVudC1MZW5ndGggb3ZlcmZsb3cAQ2h1bmsgc2l6ZSBvdmVyZmxvdwBSZXNwb25zZSBvdmVyZmxvdwBJbnZhbGlkIG1ldGhvZCBmb3IgSFRUUC94LnggcmVxdWVzdABJbnZhbGlkIG1ldGhvZCBmb3IgUlRTUC94LnggcmVxdWVzdABFeHBlY3RlZCBTT1VSQ0UgbWV0aG9kIGZvciBJQ0UveC54IHJlcXVlc3QASW52YWxpZCBjaGFyIGluIHVybCBmcmFnbWVudCBzdGFydABFeHBlY3RlZCBkb3QAU3BhbiBjYWxsYmFjayBlcnJvciBpbiBvbl9zdGF0dXMASW52YWxpZCByZXNwb25zZSBzdGF0dXMASW52YWxpZCBjaGFyYWN0ZXIgaW4gY2h1bmsgZXh0ZW5zaW9ucwBVc2VyIGNhbGxiYWNrIGVycm9yAGBvbl9yZXNldGAgY2FsbGJhY2sgZXJyb3IAYG9uX2NodW5rX2hlYWRlcmAgY2FsbGJhY2sgZXJyb3IAYG9uX21lc3NhZ2VfYmVnaW5gIGNhbGxiYWNrIGVycm9yAGBvbl9jaHVua19leHRlbnNpb25fdmFsdWVgIGNhbGxiYWNrIGVycm9yAGBvbl9zdGF0dXNfY29tcGxldGVgIGNhbGxiYWNrIGVycm9yAGBvbl92ZXJzaW9uX2NvbXBsZXRlYCBjYWxsYmFjayBlcnJvcgBgb25fdXJsX2NvbXBsZXRlYCBjYWxsYmFjayBlcnJvcgBgb25fY2h1bmtfY29tcGxldGVgIGNhbGxiYWNrIGVycm9yAGBvbl9oZWFkZXJfdmFsdWVfY29tcGxldGVgIGNhbGxiYWNrIGVycm9yAGBvbl9tZXNzYWdlX2NvbXBsZXRlYCBjYWxsYmFjayBlcnJvcgBgb25fbWV0aG9kX2NvbXBsZXRlYCBjYWxsYmFjayBlcnJvcgBgb25faGVhZGVyX2ZpZWxkX2NvbXBsZXRlYCBjYWxsYmFjayBlcnJvcgBgb25fY2h1bmtfZXh0ZW5zaW9uX25hbWVgIGNhbGxiYWNrIGVycm9yAFVuZXhwZWN0ZWQgY2hhciBpbiB1cmwgc2VydmVyAEludmFsaWQgaGVhZGVyIHZhbHVlIGNoYXIASW52YWxpZCBoZWFkZXIgZmllbGQgY2hhcgBTcGFuIGNhbGxiYWNrIGVycm9yIGluIG9uX3ZlcnNpb24ASW52YWxpZCBtaW5vciB2ZXJzaW9uAEludmFsaWQgbWFqb3IgdmVyc2lvbgBFeHBlY3RlZCBzcGFjZSBhZnRlciB2ZXJzaW9uAEV4cGVjdGVkIENSTEYgYWZ0ZXIgdmVyc2lvbgBJbnZhbGlkIEhUVFAgdmVyc2lvbgBJbnZhbGlkIGhlYWRlciB0b2tlbgBTcGFuIGNhbGxiYWNrIGVycm9yIGluIG9uX3VybABJbnZhbGlkIGNoYXJhY3RlcnMgaW4gdXJsAFVuZXhwZWN0ZWQgc3RhcnQgY2hhciBpbiB1cmwARG91YmxlIEAgaW4gdXJsAEVtcHR5IENvbnRlbnQtTGVuZ3RoAEludmFsaWQgY2hhcmFjdGVyIGluIENvbnRlbnQtTGVuZ3RoAER1cGxpY2F0ZSBDb250ZW50LUxlbmd0aABJbnZhbGlkIGNoYXIgaW4gdXJsIHBhdGgAQ29udGVudC1MZW5ndGggY2FuJ3QgYmUgcHJlc2VudCB3aXRoIFRyYW5zZmVyLUVuY29kaW5nAEludmFsaWQgY2hhcmFjdGVyIGluIGNodW5rIHNpemUAU3BhbiBjYWxsYmFjayBlcnJvciBpbiBvbl9oZWFkZXJfdmFsdWUAU3BhbiBjYWxsYmFjayBlcnJvciBpbiBvbl9jaHVua19leHRlbnNpb25fdmFsdWUASW52YWxpZCBjaGFyYWN0ZXIgaW4gY2h1bmsgZXh0ZW5zaW9ucyB2YWx1ZQBNaXNzaW5nIGV4cGVjdGVkIExGIGFmdGVyIGhlYWRlciB2YWx1ZQBJbnZhbGlkIGBUcmFuc2Zlci1FbmNvZGluZ2AgaGVhZGVyIHZhbHVlAEludmFsaWQgY2hhcmFjdGVyIGluIGNodW5rIGV4dGVuc2lvbnMgcXVvdGUgdmFsdWUASW52YWxpZCBjaGFyYWN0ZXIgaW4gY2h1bmsgZXh0ZW5zaW9ucyBxdW90ZWQgdmFsdWUAUGF1c2VkIGJ5IG9uX2hlYWRlcnNfY29tcGxldGUASW52YWxpZCBFT0Ygc3RhdGUAb25fcmVzZXQgcGF1c2UAb25fY2h1bmtfaGVhZGVyIHBhdXNlAG9uX21lc3NhZ2VfYmVnaW4gcGF1c2UAb25fY2h1bmtfZXh0ZW5zaW9uX3ZhbHVlIHBhdXNlAG9uX3N0YXR1c19jb21wbGV0ZSBwYXVzZQBvbl92ZXJzaW9uX2NvbXBsZXRlIHBhdXNlAG9uX3VybF9jb21wbGV0ZSBwYXVzZQBvbl9jaHVua19jb21wbGV0ZSBwYXVzZQBvbl9oZWFkZXJfdmFsdWVfY29tcGxldGUgcGF1c2UAb25fbWVzc2FnZV9jb21wbGV0ZSBwYXVzZQBvbl9tZXRob2RfY29tcGxldGUgcGF1c2UAb25faGVhZGVyX2ZpZWxkX2NvbXBsZXRlIHBhdXNlAG9uX2NodW5rX2V4dGVuc2lvbl9uYW1lIHBhdXNlAFVuZXhwZWN0ZWQgc3BhY2UgYWZ0ZXIgc3RhcnQgbGluZQBTcGFuIGNhbGxiYWNrIGVycm9yIGluIG9uX2NodW5rX2V4dGVuc2lvbl9uYW1lAEludmFsaWQgY2hhcmFjdGVyIGluIGNodW5rIGV4dGVuc2lvbnMgbmFtZQBQYXVzZSBvbiBDT05ORUNUL1VwZ3JhZGUAUGF1c2Ugb24gUFJJL1VwZ3JhZGUARXhwZWN0ZWQgSFRUUC8yIENvbm5lY3Rpb24gUHJlZmFjZQBTcGFuIGNhbGxiYWNrIGVycm9yIGluIG9uX21ldGhvZABFeHBlY3RlZCBzcGFjZSBhZnRlciBtZXRob2QAU3BhbiBjYWxsYmFjayBlcnJvciBpbiBvbl9oZWFkZXJfZmllbGQAUGF1c2VkAEludmFsaWQgd29yZCBlbmNvdW50ZXJlZABJbnZhbGlkIG1ldGhvZCBlbmNvdW50ZXJlZABVbmV4cGVjdGVkIGNoYXIgaW4gdXJsIHNjaGVtYQBSZXF1ZXN0IGhhcyBpbnZhbGlkIGBUcmFuc2Zlci1FbmNvZGluZ2AAU1dJVENIX1BST1hZAFVTRV9QUk9YWQBNS0FDVElWSVRZAFVOUFJPQ0VTU0FCTEVfRU5USVRZAENPUFkATU9WRURfUEVSTUFORU5UTFkAVE9PX0VBUkxZAE5PVElGWQBGQUlMRURfREVQRU5ERU5DWQBCQURfR0FURVdBWQBQTEFZAFBVVABDSEVDS09VVABHQVRFV0FZX1RJTUVPVVQAUkVRVUVTVF9USU1FT1VUAE5FVFdPUktfQ09OTkVDVF9USU1FT1VUAENPTk5FQ1RJT05fVElNRU9VVABMT0dJTl9USU1FT1VUAE5FVFdPUktfUkVBRF9USU1FT1VUAFBPU1QATUlTRElSRUNURURfUkVRVUVTVABDTElFTlRfQ0xPU0VEX1JFUVVFU1QAQ0xJRU5UX0NMT1NFRF9MT0FEX0JBTEFOQ0VEX1JFUVVFU1QAQkFEX1JFUVVFU1QASFRUUF9SRVFVRVNUX1NFTlRfVE9fSFRUUFNfUE9SVABSRVBPUlQASU1fQV9URUFQT1QAUkVTRVRfQ09OVEVOVABOT19DT05URU5UAFBBUlRJQUxfQ09OVEVOVABIUEVfSU5WQUxJRF9DT05TVEFOVABIUEVfQ0JfUkVTRVQAR0VUAEhQRV9TVFJJQ1QAQ09ORkxJQ1QAVEVNUE9SQVJZX1JFRElSRUNUAFBFUk1BTkVOVF9SRURJUkVDVABDT05ORUNUAE1VTFRJX1NUQVRVUwBIUEVfSU5WQUxJRF9TVEFUVVMAVE9PX01BTllfUkVRVUVTVFMARUFSTFlfSElOVFMAVU5BVkFJTEFCTEVfRk9SX0xFR0FMX1JFQVNPTlMAT1BUSU9OUwBTV0lUQ0hJTkdfUFJPVE9DT0xTAFZBUklBTlRfQUxTT19ORUdPVElBVEVTAE1VTFRJUExFX0NIT0lDRVMASU5URVJOQUxfU0VSVkVSX0VSUk9SAFdFQl9TRVJWRVJfVU5LTk9XTl9FUlJPUgBSQUlMR1VOX0VSUk9SAElERU5USVRZX1BST1ZJREVSX0FVVEhFTlRJQ0FUSU9OX0VSUk9SAFNTTF9DRVJUSUZJQ0FURV9FUlJPUgBJTlZBTElEX1hfRk9SV0FSREVEX0ZPUgBTRVRfUEFSQU1FVEVSAEdFVF9QQVJBTUVURVIASFBFX1VTRVIAU0VFX09USEVSAEhQRV9DQl9DSFVOS19IRUFERVIATUtDQUxFTkRBUgBTRVRVUABXRUJfU0VSVkVSX0lTX0RPV04AVEVBUkRPV04ASFBFX0NMT1NFRF9DT05ORUNUSU9OAEhFVVJJU1RJQ19FWFBJUkFUSU9OAERJU0NPTk5FQ1RFRF9PUEVSQVRJT04ATk9OX0FVVEhPUklUQVRJVkVfSU5GT1JNQVRJT04ASFBFX0lOVkFMSURfVkVSU0lPTgBIUEVfQ0JfTUVTU0FHRV9CRUdJTgBTSVRFX0lTX0ZST1pFTgBIUEVfSU5WQUxJRF9IRUFERVJfVE9LRU4ASU5WQUxJRF9UT0tFTgBGT1JCSURERU4ARU5IQU5DRV9ZT1VSX0NBTE0ASFBFX0lOVkFMSURfVVJMAEJMT0NLRURfQllfUEFSRU5UQUxfQ09OVFJPTABNS0NPTABBQ0wASFBFX0lOVEVSTkFMAFJFUVVFU1RfSEVBREVSX0ZJRUxEU19UT09fTEFSR0VfVU5PRkZJQ0lBTABIUEVfT0sAVU5MSU5LAFVOTE9DSwBQUkkAUkVUUllfV0lUSABIUEVfSU5WQUxJRF9DT05URU5UX0xFTkdUSABIUEVfVU5FWFBFQ1RFRF9DT05URU5UX0xFTkdUSABGTFVTSABQUk9QUEFUQ0gATS1TRUFSQ0gAVVJJX1RPT19MT05HAFBST0NFU1NJTkcATUlTQ0VMTEFORU9VU19QRVJTSVNURU5UX1dBUk5JTkcATUlTQ0VMTEFORU9VU19XQVJOSU5HAEhQRV9JTlZBTElEX1RSQU5TRkVSX0VOQ09ESU5HAEV4cGVjdGVkIENSTEYASFBFX0lOVkFMSURfQ0hVTktfU0laRQBNT1ZFAENPTlRJTlVFAEhQRV9DQl9TVEFUVVNfQ09NUExFVEUASFBFX0NCX0hFQURFUlNfQ09NUExFVEUASFBFX0NCX1ZFUlNJT05fQ09NUExFVEUASFBFX0NCX1VSTF9DT01QTEVURQBIUEVfQ0JfQ0hVTktfQ09NUExFVEUASFBFX0NCX0hFQURFUl9WQUxVRV9DT01QTEVURQBIUEVfQ0JfQ0hVTktfRVhURU5TSU9OX1ZBTFVFX0NPTVBMRVRFAEhQRV9DQl9DSFVOS19FWFRFTlNJT05fTkFNRV9DT01QTEVURQBIUEVfQ0JfTUVTU0FHRV9DT01QTEVURQBIUEVfQ0JfTUVUSE9EX0NPTVBMRVRFAEhQRV9DQl9IRUFERVJfRklFTERfQ09NUExFVEUAREVMRVRFAEhQRV9JTlZBTElEX0VPRl9TVEFURQBJTlZBTElEX1NTTF9DRVJUSUZJQ0FURQBQQVVTRQBOT19SRVNQT05TRQBVTlNVUFBPUlRFRF9NRURJQV9UWVBFAEdPTkUATk9UX0FDQ0VQVEFCTEUAU0VSVklDRV9VTkFWQUlMQUJMRQBSQU5HRV9OT1RfU0FUSVNGSUFCTEUAT1JJR0lOX0lTX1VOUkVBQ0hBQkxFAFJFU1BPTlNFX0lTX1NUQUxFAFBVUkdFAE1FUkdFAFJFUVVFU1RfSEVBREVSX0ZJRUxEU19UT09fTEFSR0UAUkVRVUVTVF9IRUFERVJfVE9PX0xBUkdFAFBBWUxPQURfVE9PX0xBUkdFAElOU1VGRklDSUVOVF9TVE9SQUdFAEhQRV9QQVVTRURfVVBHUkFERQBIUEVfUEFVU0VEX0gyX1VQR1JBREUAU09VUkNFAEFOTk9VTkNFAFRSQUNFAEhQRV9VTkVYUEVDVEVEX1NQQUNFAERFU0NSSUJFAFVOU1VCU0NSSUJFAFJFQ09SRABIUEVfSU5WQUxJRF9NRVRIT0QATk9UX0ZPVU5EAFBST1BGSU5EAFVOQklORABSRUJJTkQAVU5BVVRIT1JJWkVEAE1FVEhPRF9OT1RfQUxMT1dFRABIVFRQX1ZFUlNJT05fTk9UX1NVUFBPUlRFRABBTFJFQURZX1JFUE9SVEVEAEFDQ0VQVEVEAE5PVF9JTVBMRU1FTlRFRABMT09QX0RFVEVDVEVEAEhQRV9DUl9FWFBFQ1RFRABIUEVfTEZfRVhQRUNURUQAQ1JFQVRFRABJTV9VU0VEAEhQRV9QQVVTRUQAVElNRU9VVF9PQ0NVUkVEAFBBWU1FTlRfUkVRVUlSRUQAUFJFQ09ORElUSU9OX1JFUVVJUkVEAFBST1hZX0FVVEhFTlRJQ0FUSU9OX1JFUVVJUkVEAE5FVFdPUktfQVVUSEVOVElDQVRJT05fUkVRVUlSRUQATEVOR1RIX1JFUVVJUkVEAFNTTF9DRVJUSUZJQ0FURV9SRVFVSVJFRABVUEdSQURFX1JFUVVJUkVEAFBBR0VfRVhQSVJFRABQUkVDT05ESVRJT05fRkFJTEVEAEVYUEVDVEFUSU9OX0ZBSUxFRABSRVZBTElEQVRJT05fRkFJTEVEAFNTTF9IQU5EU0hBS0VfRkFJTEVEAExPQ0tFRABUUkFOU0ZPUk1BVElPTl9BUFBMSUVEAE5PVF9NT0RJRklFRABOT1RfRVhURU5ERUQAQkFORFdJRFRIX0xJTUlUX0VYQ0VFREVEAFNJVEVfSVNfT1ZFUkxPQURFRABIRUFEAEV4cGVjdGVkIEhUVFAvAABeEwAAJhMAADAQAADwFwAAnRMAABUSAAA5FwAA8BIAAAoQAAB1EgAArRIAAIITAABPFAAAfxAAAKAVAAAjFAAAiRIAAIsUAABNFQAA1BEAAM8UAAAQGAAAyRYAANwWAADBEQAA4BcAALsUAAB0FAAAfBUAAOUUAAAIFwAAHxAAAGUVAACjFAAAKBUAAAIVAACZFQAALBAAAIsZAABPDwAA1A4AAGoQAADOEAAAAhcAAIkOAABuEwAAHBMAAGYUAABWFwAAwRMAAM0TAABsEwAAaBcAAGYXAABfFwAAIhMAAM4PAABpDgAA2A4AAGMWAADLEwAAqg4AACgXAAAmFwAAxRMAAF0WAADoEQAAZxMAAGUTAADyFgAAcxMAAB0XAAD5FgAA8xEAAM8OAADOFQAADBIAALMRAAClEQAAYRAAADIXAAC7EwBB+TULAQEAQZA2C+ABAQECAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAQf03CwEBAEGROAteAgMCAgICAgAAAgIAAgIAAgICAgICAgICAgAEAAAAAAACAgICAgICAgICAgICAgICAgICAgICAgICAgAAAAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAAIAAgBB/TkLAQEAQZE6C14CAAICAgICAAACAgACAgACAgICAgICAgICAAMABAAAAAICAgICAgICAgICAgICAgICAgICAgICAgICAAAAAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAAgACAEHwOwsNbG9zZWVlcC1hbGl2ZQBBiTwLAQEAQaA8C+ABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAQYk+CwEBAEGgPgvnAQEBAQEBAQEBAQEBAQIBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBY2h1bmtlZABBsMAAC18BAQABAQEBAQAAAQEAAQEAAQEBAQEBAQEBAQAAAAAAAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAEAAQBBkMIACyFlY3Rpb25lbnQtbGVuZ3Rob25yb3h5LWNvbm5lY3Rpb24AQcDCAAstcmFuc2Zlci1lbmNvZGluZ3BncmFkZQ0KDQoNClNNDQoNClRUUC9DRS9UU1AvAEH5wgALBQECAAEDAEGQwwAL4AEEAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQBB+cQACwUBAgABAwBBkMUAC+ABBAEBBQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAQfnGAAsEAQAAAQBBkccAC98BAQEAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQBB+sgACwQBAAACAEGQyQALXwMEAAAEBAQEBAQEBAQEBAUEBAQEBAQEBAQEBAQABAAGBwQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAEAAQABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAAAAEAEH6ygALBAEAAAEAQZDLAAsBAQBBqssAC0ECAAAAAAAAAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMAAAAAAAADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwBB+swACwQBAAABAEGQzQALAQEAQZrNAAsGAgAAAAACAEGxzQALOgMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAAAAAAAAAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMAQfDOAAuWAU5PVU5DRUVDS09VVE5FQ1RFVEVDUklCRUxVU0hFVEVBRFNFQVJDSFJHRUNUSVZJVFlMRU5EQVJWRU9USUZZUFRJT05TQ0hTRUFZU1RBVENIR0VPUkRJUkVDVE9SVFJDSFBBUkFNRVRFUlVSQ0VCU0NSSUJFQVJET1dOQUNFSU5ETktDS1VCU0NSSUJFSFRUUC9BRFRQLw==", "base64");
 });
 
 // node_modules/undici/lib/web/fetch/constants.js
-var require_constants3 = __commonJS(function(exports, module) {
+var require_constants3 = __commonJS((exports, module) => {
   var corsSafeListedMethods = ["GET", "HEAD", "POST"];
   var corsSafeListedMethodsSet = new Set(corsSafeListedMethods);
   var nullBodyStatus = [101, 204, 205, 304];
@@ -16736,7 +16810,7 @@ var require_constants3 = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/fetch/global.js
-var require_global = __commonJS(function(exports, module) {
+var require_global = __commonJS((exports, module) => {
   var globalOrigin = Symbol.for("undici.globalOrigin.1");
   function getGlobalOrigin() {
     return globalThis[globalOrigin];
@@ -16769,7 +16843,7 @@ var require_global = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/fetch/data-url.js
-var require_data_url = __commonJS(function(exports, module) {
+var require_data_url = __commonJS((exports, module) => {
   var assert = __require("node:assert");
   var encoder = new TextEncoder;
   var HTTP_TOKEN_CODEPOINTS = /^[!#$%&'*+\-.^_|~A-Za-z0-9]+$/;
@@ -16853,15 +16927,15 @@ var require_data_url = __commonJS(function(exports, module) {
     const length = input.length;
     const output = new Uint8Array(length);
     let j = 0;
-    for (let i = 0;i < length; ++i) {
-      const byte = input[i];
+    for (let i2 = 0;i2 < length; ++i2) {
+      const byte = input[i2];
       if (byte !== 37) {
         output[j++] = byte;
-      } else if (byte === 37 && !(isHexCharByte(input[i + 1]) && isHexCharByte(input[i + 2]))) {
+      } else if (byte === 37 && !(isHexCharByte(input[i2 + 1]) && isHexCharByte(input[i2 + 2]))) {
         output[j++] = 37;
       } else {
-        output[j++] = hexByteToNumber(input[i + 1]) << 4 | hexByteToNumber(input[i + 2]);
-        i += 2;
+        output[j++] = hexByteToNumber(input[i2 + 1]) << 4 | hexByteToNumber(input[i2 + 2]);
+        i2 += 2;
       }
     }
     return length === j ? output : output.subarray(0, j);
@@ -16869,8 +16943,8 @@ var require_data_url = __commonJS(function(exports, module) {
   function parseMIMEType(input) {
     input = removeHTTPWhitespace(input, true, true);
     const position = { position: 0 };
-    const type = collectASequenceOfCodePointsFast("/", input, position);
-    if (type.length === 0 || !HTTP_TOKEN_CODEPOINTS.test(type)) {
+    const type2 = collectASequenceOfCodePointsFast("/", input, position);
+    if (type2.length === 0 || !HTTP_TOKEN_CODEPOINTS.test(type2)) {
       return "failure";
     }
     if (position.position > input.length) {
@@ -16882,7 +16956,7 @@ var require_data_url = __commonJS(function(exports, module) {
     if (subtype.length === 0 || !HTTP_TOKEN_CODEPOINTS.test(subtype)) {
       return "failure";
     }
-    const typeLowercase = type.toLowerCase();
+    const typeLowercase = type2.toLowerCase();
     const subtypeLowercase = subtype.toLowerCase();
     const mimeType = {
       type: typeLowercase,
@@ -16990,27 +17064,27 @@ var require_data_url = __commonJS(function(exports, module) {
   function isHTTPWhiteSpace(char) {
     return char === 13 || char === 10 || char === 9 || char === 32;
   }
-  function removeHTTPWhitespace(str, leading = true, trailing = true) {
-    return removeChars(str, leading, trailing, isHTTPWhiteSpace);
+  function removeHTTPWhitespace(str2, leading = true, trailing = true) {
+    return removeChars(str2, leading, trailing, isHTTPWhiteSpace);
   }
   function isASCIIWhitespace(char) {
     return char === 13 || char === 10 || char === 9 || char === 12 || char === 32;
   }
-  function removeASCIIWhitespace(str, leading = true, trailing = true) {
-    return removeChars(str, leading, trailing, isASCIIWhitespace);
+  function removeASCIIWhitespace(str2, leading = true, trailing = true) {
+    return removeChars(str2, leading, trailing, isASCIIWhitespace);
   }
-  function removeChars(str, leading, trailing, predicate) {
+  function removeChars(str2, leading, trailing, predicate) {
     let lead = 0;
-    let trail = str.length - 1;
+    let trail = str2.length - 1;
     if (leading) {
-      while (lead < str.length && predicate(str.charCodeAt(lead)))
+      while (lead < str2.length && predicate(str2.charCodeAt(lead)))
         lead++;
     }
     if (trailing) {
-      while (trail > 0 && predicate(str.charCodeAt(trail)))
+      while (trail > 0 && predicate(str2.charCodeAt(trail)))
         trail--;
     }
-    return lead === 0 && trail === str.length - 1 ? str : str.slice(lead, trail + 1);
+    return lead === 0 && trail === str2.length - 1 ? str2 : str2.slice(lead, trail + 1);
   }
   function isomorphicDecode(input) {
     const length = input.length;
@@ -17018,13 +17092,13 @@ var require_data_url = __commonJS(function(exports, module) {
       return String.fromCharCode.apply(null, input);
     }
     let result = "";
-    let i = 0;
+    let i2 = 0;
     let addition = (2 << 15) - 1;
-    while (i < length) {
-      if (i + addition > length) {
-        addition = length - i;
+    while (i2 < length) {
+      if (i2 + addition > length) {
+        addition = length - i2;
       }
-      result += String.fromCharCode.apply(null, input.subarray(i, i += addition));
+      result += String.fromCharCode.apply(null, input.subarray(i2, i2 += addition));
     }
     return result;
   }
@@ -17082,8 +17156,8 @@ var require_data_url = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/fetch/webidl.js
-var require_webidl = __commonJS(function(exports, module) {
-  var { types, inspect } = __require("node:util");
+var require_webidl = __commonJS((exports, module) => {
+  var { types: types2, inspect } = __require("node:util");
   var { markAsUncloneable } = __require("node:worker_threads");
   var { toUSVString } = require_util();
   var webidl = {};
@@ -17107,15 +17181,15 @@ var require_webidl = __commonJS(function(exports, module) {
       message: `"${context.value}" is an invalid ${context.type}.`
     });
   };
-  webidl.brandCheck = function(V, I, opts) {
+  webidl.brandCheck = function(V2, I3, opts) {
     if (opts?.strict !== false) {
-      if (!(V instanceof I)) {
+      if (!(V2 instanceof I3)) {
         const err = new TypeError("Illegal invocation");
         err.code = "ERR_INVALID_THIS";
         throw err;
       }
     } else {
-      if (V?.[Symbol.toStringTag] !== I.prototype[Symbol.toStringTag]) {
+      if (V2?.[Symbol.toStringTag] !== I3.prototype[Symbol.toStringTag]) {
         const err = new TypeError("Illegal invocation");
         err.code = "ERR_INVALID_THIS";
         throw err;
@@ -17136,8 +17210,8 @@ var require_webidl = __commonJS(function(exports, module) {
       message: "Illegal constructor"
     });
   };
-  webidl.util.Type = function(V) {
-    switch (typeof V) {
+  webidl.util.Type = function(V2) {
+    switch (typeof V2) {
       case "undefined":
         return "Undefined";
       case "boolean":
@@ -17152,7 +17226,7 @@ var require_webidl = __commonJS(function(exports, module) {
         return "BigInt";
       case "function":
       case "object": {
-        if (V === null) {
+        if (V2 === null) {
           return "Null";
         }
         return "Object";
@@ -17160,7 +17234,7 @@ var require_webidl = __commonJS(function(exports, module) {
     }
   };
   webidl.util.markAsUncloneable = markAsUncloneable || (() => {});
-  webidl.util.ConvertToInt = function(V, bitLength, signedness, opts) {
+  webidl.util.ConvertToInt = function(V2, bitLength, signedness, opts) {
     let upperBound;
     let lowerBound;
     if (bitLength === 64) {
@@ -17177,75 +17251,75 @@ var require_webidl = __commonJS(function(exports, module) {
       lowerBound = Math.pow(-2, bitLength) - 1;
       upperBound = Math.pow(2, bitLength - 1) - 1;
     }
-    let x = Number(V);
-    if (x === 0) {
-      x = 0;
+    let x2 = Number(V2);
+    if (x2 === 0) {
+      x2 = 0;
     }
     if (opts?.enforceRange === true) {
-      if (Number.isNaN(x) || x === Number.POSITIVE_INFINITY || x === Number.NEGATIVE_INFINITY) {
+      if (Number.isNaN(x2) || x2 === Number.POSITIVE_INFINITY || x2 === Number.NEGATIVE_INFINITY) {
         throw webidl.errors.exception({
           header: "Integer conversion",
-          message: `Could not convert ${webidl.util.Stringify(V)} to an integer.`
+          message: `Could not convert ${webidl.util.Stringify(V2)} to an integer.`
         });
       }
-      x = webidl.util.IntegerPart(x);
-      if (x < lowerBound || x > upperBound) {
+      x2 = webidl.util.IntegerPart(x2);
+      if (x2 < lowerBound || x2 > upperBound) {
         throw webidl.errors.exception({
           header: "Integer conversion",
-          message: `Value must be between ${lowerBound}-${upperBound}, got ${x}.`
+          message: `Value must be between ${lowerBound}-${upperBound}, got ${x2}.`
         });
       }
-      return x;
+      return x2;
     }
-    if (!Number.isNaN(x) && opts?.clamp === true) {
-      x = Math.min(Math.max(x, lowerBound), upperBound);
-      if (Math.floor(x) % 2 === 0) {
-        x = Math.floor(x);
+    if (!Number.isNaN(x2) && opts?.clamp === true) {
+      x2 = Math.min(Math.max(x2, lowerBound), upperBound);
+      if (Math.floor(x2) % 2 === 0) {
+        x2 = Math.floor(x2);
       } else {
-        x = Math.ceil(x);
+        x2 = Math.ceil(x2);
       }
-      return x;
+      return x2;
     }
-    if (Number.isNaN(x) || x === 0 && Object.is(0, x) || x === Number.POSITIVE_INFINITY || x === Number.NEGATIVE_INFINITY) {
+    if (Number.isNaN(x2) || x2 === 0 && Object.is(0, x2) || x2 === Number.POSITIVE_INFINITY || x2 === Number.NEGATIVE_INFINITY) {
       return 0;
     }
-    x = webidl.util.IntegerPart(x);
-    x = x % Math.pow(2, bitLength);
-    if (signedness === "signed" && x >= Math.pow(2, bitLength) - 1) {
-      return x - Math.pow(2, bitLength);
+    x2 = webidl.util.IntegerPart(x2);
+    x2 = x2 % Math.pow(2, bitLength);
+    if (signedness === "signed" && x2 >= Math.pow(2, bitLength) - 1) {
+      return x2 - Math.pow(2, bitLength);
     }
-    return x;
+    return x2;
   };
-  webidl.util.IntegerPart = function(n) {
-    const r = Math.floor(Math.abs(n));
-    if (n < 0) {
-      return -1 * r;
+  webidl.util.IntegerPart = function(n2) {
+    const r3 = Math.floor(Math.abs(n2));
+    if (n2 < 0) {
+      return -1 * r3;
     }
-    return r;
+    return r3;
   };
-  webidl.util.Stringify = function(V) {
-    const type = webidl.util.Type(V);
-    switch (type) {
+  webidl.util.Stringify = function(V2) {
+    const type2 = webidl.util.Type(V2);
+    switch (type2) {
       case "Symbol":
-        return `Symbol(${V.description})`;
+        return `Symbol(${V2.description})`;
       case "Object":
-        return inspect(V);
+        return inspect(V2);
       case "String":
-        return `"${V}"`;
+        return `"${V2}"`;
       default:
-        return `${V}`;
+        return `${V2}`;
     }
   };
   webidl.sequenceConverter = function(converter) {
-    return (V, prefix, argument, Iterable) => {
-      if (webidl.util.Type(V) !== "Object") {
+    return (V2, prefix, argument, Iterable) => {
+      if (webidl.util.Type(V2) !== "Object") {
         throw webidl.errors.exception({
           header: prefix,
-          message: `${argument} (${webidl.util.Stringify(V)}) is not iterable.`
+          message: `${argument} (${webidl.util.Stringify(V2)}) is not iterable.`
         });
       }
-      const method = typeof Iterable === "function" ? Iterable() : V?.[Symbol.iterator]?.();
-      const seq = [];
+      const method = typeof Iterable === "function" ? Iterable() : V2?.[Symbol.iterator]?.();
+      const seq2 = [];
       let index = 0;
       if (method === undefined || typeof method.next !== "function") {
         throw webidl.errors.exception({
@@ -17258,59 +17332,59 @@ var require_webidl = __commonJS(function(exports, module) {
         if (done) {
           break;
         }
-        seq.push(converter(value, prefix, `${argument}[${index++}]`));
+        seq2.push(converter(value, prefix, `${argument}[${index++}]`));
       }
-      return seq;
+      return seq2;
     };
   };
   webidl.recordConverter = function(keyConverter, valueConverter) {
-    return (O, prefix, argument) => {
-      if (webidl.util.Type(O) !== "Object") {
+    return (O3, prefix, argument) => {
+      if (webidl.util.Type(O3) !== "Object") {
         throw webidl.errors.exception({
           header: prefix,
-          message: `${argument} ("${webidl.util.Type(O)}") is not an Object.`
+          message: `${argument} ("${webidl.util.Type(O3)}") is not an Object.`
         });
       }
       const result = {};
-      if (!types.isProxy(O)) {
-        const keys = [...Object.getOwnPropertyNames(O), ...Object.getOwnPropertySymbols(O)];
-        for (const key of keys) {
+      if (!types2.isProxy(O3)) {
+        const keys2 = [...Object.getOwnPropertyNames(O3), ...Object.getOwnPropertySymbols(O3)];
+        for (const key of keys2) {
           const typedKey = keyConverter(key, prefix, argument);
-          const typedValue = valueConverter(O[key], prefix, argument);
+          const typedValue = valueConverter(O3[key], prefix, argument);
           result[typedKey] = typedValue;
         }
         return result;
       }
-      const keys = Reflect.ownKeys(O);
+      const keys = Reflect.ownKeys(O3);
       for (const key of keys) {
-        const desc = Reflect.getOwnPropertyDescriptor(O, key);
+        const desc = Reflect.getOwnPropertyDescriptor(O3, key);
         if (desc?.enumerable) {
           const typedKey = keyConverter(key, prefix, argument);
-          const typedValue = valueConverter(O[key], prefix, argument);
+          const typedValue = valueConverter(O3[key], prefix, argument);
           result[typedKey] = typedValue;
         }
       }
       return result;
     };
   };
-  webidl.interfaceConverter = function(i) {
-    return (V, prefix, argument, opts) => {
-      if (opts?.strict !== false && !(V instanceof i)) {
+  webidl.interfaceConverter = function(i2) {
+    return (V2, prefix, argument, opts) => {
+      if (opts?.strict !== false && !(V2 instanceof i2)) {
         throw webidl.errors.exception({
           header: prefix,
-          message: `Expected ${argument} ("${webidl.util.Stringify(V)}") to be an instance of ${i.name}.`
+          message: `Expected ${argument} ("${webidl.util.Stringify(V2)}") to be an instance of ${i2.name}.`
         });
       }
-      return V;
+      return V2;
     };
   };
   webidl.dictionaryConverter = function(converters) {
     return (dictionary, prefix, argument) => {
-      const type = webidl.util.Type(dictionary);
+      const type2 = webidl.util.Type(dictionary);
       const dict = {};
-      if (type === "Null" || type === "Undefined") {
+      if (type2 === "Null" || type2 === "Undefined") {
         return dict;
-      } else if (type !== "Object") {
+      } else if (type2 !== "Object") {
         throw webidl.errors.exception({
           header: prefix,
           message: `Expected ${dictionary} to be one of: Null, Undefined, Object.`
@@ -17346,136 +17420,136 @@ var require_webidl = __commonJS(function(exports, module) {
     };
   };
   webidl.nullableConverter = function(converter) {
-    return (V, prefix, argument) => {
-      if (V === null) {
-        return V;
+    return (V2, prefix, argument) => {
+      if (V2 === null) {
+        return V2;
       }
-      return converter(V, prefix, argument);
+      return converter(V2, prefix, argument);
     };
   };
-  webidl.converters.DOMString = function(V, prefix, argument, opts) {
-    if (V === null && opts?.legacyNullToEmptyString) {
+  webidl.converters.DOMString = function(V2, prefix, argument, opts) {
+    if (V2 === null && opts?.legacyNullToEmptyString) {
       return "";
     }
-    if (typeof V === "symbol") {
+    if (typeof V2 === "symbol") {
       throw webidl.errors.exception({
         header: prefix,
         message: `${argument} is a symbol, which cannot be converted to a DOMString.`
       });
     }
-    return String(V);
+    return String(V2);
   };
-  webidl.converters.ByteString = function(V, prefix, argument) {
-    const x = webidl.converters.DOMString(V, prefix, argument);
-    for (let index = 0;index < x.length; index++) {
-      if (x.charCodeAt(index) > 255) {
-        throw new TypeError("Cannot convert argument to a ByteString because the character at " + `index ${index} has a value of ${x.charCodeAt(index)} which is greater than 255.`);
+  webidl.converters.ByteString = function(V2, prefix, argument) {
+    const x2 = webidl.converters.DOMString(V2, prefix, argument);
+    for (let index = 0;index < x2.length; index++) {
+      if (x2.charCodeAt(index) > 255) {
+        throw new TypeError("Cannot convert argument to a ByteString because the character at " + `index ${index} has a value of ${x2.charCodeAt(index)} which is greater than 255.`);
       }
     }
-    return x;
+    return x2;
   };
   webidl.converters.USVString = toUSVString;
-  webidl.converters.boolean = function(V) {
-    const x = Boolean(V);
-    return x;
+  webidl.converters.boolean = function(V2) {
+    const x2 = Boolean(V2);
+    return x2;
   };
-  webidl.converters.any = function(V) {
-    return V;
+  webidl.converters.any = function(V2) {
+    return V2;
   };
-  webidl.converters["long long"] = function(V, prefix, argument) {
-    const x = webidl.util.ConvertToInt(V, 64, "signed", undefined, prefix, argument);
-    return x;
+  webidl.converters["long long"] = function(V2, prefix, argument) {
+    const x2 = webidl.util.ConvertToInt(V2, 64, "signed", undefined, prefix, argument);
+    return x2;
   };
-  webidl.converters["unsigned long long"] = function(V, prefix, argument) {
-    const x = webidl.util.ConvertToInt(V, 64, "unsigned", undefined, prefix, argument);
-    return x;
+  webidl.converters["unsigned long long"] = function(V2, prefix, argument) {
+    const x2 = webidl.util.ConvertToInt(V2, 64, "unsigned", undefined, prefix, argument);
+    return x2;
   };
-  webidl.converters["unsigned long"] = function(V, prefix, argument) {
-    const x = webidl.util.ConvertToInt(V, 32, "unsigned", undefined, prefix, argument);
-    return x;
+  webidl.converters["unsigned long"] = function(V2, prefix, argument) {
+    const x2 = webidl.util.ConvertToInt(V2, 32, "unsigned", undefined, prefix, argument);
+    return x2;
   };
-  webidl.converters["unsigned short"] = function(V, prefix, argument, opts) {
-    const x = webidl.util.ConvertToInt(V, 16, "unsigned", opts, prefix, argument);
-    return x;
+  webidl.converters["unsigned short"] = function(V2, prefix, argument, opts) {
+    const x2 = webidl.util.ConvertToInt(V2, 16, "unsigned", opts, prefix, argument);
+    return x2;
   };
-  webidl.converters.ArrayBuffer = function(V, prefix, argument, opts) {
-    if (webidl.util.Type(V) !== "Object" || !types.isAnyArrayBuffer(V)) {
+  webidl.converters.ArrayBuffer = function(V2, prefix, argument, opts) {
+    if (webidl.util.Type(V2) !== "Object" || !types2.isAnyArrayBuffer(V2)) {
       throw webidl.errors.conversionFailed({
         prefix,
-        argument: `${argument} ("${webidl.util.Stringify(V)}")`,
+        argument: `${argument} ("${webidl.util.Stringify(V2)}")`,
         types: ["ArrayBuffer"]
       });
     }
-    if (opts?.allowShared === false && types.isSharedArrayBuffer(V)) {
+    if (opts?.allowShared === false && types2.isSharedArrayBuffer(V2)) {
       throw webidl.errors.exception({
         header: "ArrayBuffer",
         message: "SharedArrayBuffer is not allowed."
       });
     }
-    if (V.resizable || V.growable) {
+    if (V2.resizable || V2.growable) {
       throw webidl.errors.exception({
         header: "ArrayBuffer",
         message: "Received a resizable ArrayBuffer."
       });
     }
-    return V;
+    return V2;
   };
-  webidl.converters.TypedArray = function(V, T, prefix, name, opts) {
-    if (webidl.util.Type(V) !== "Object" || !types.isTypedArray(V) || V.constructor.name !== T.name) {
+  webidl.converters.TypedArray = function(V2, T3, prefix, name, opts) {
+    if (webidl.util.Type(V2) !== "Object" || !types2.isTypedArray(V2) || V2.constructor.name !== T3.name) {
       throw webidl.errors.conversionFailed({
         prefix,
-        argument: `${name} ("${webidl.util.Stringify(V)}")`,
-        types: [T.name]
+        argument: `${name} ("${webidl.util.Stringify(V2)}")`,
+        types: [T3.name]
       });
     }
-    if (opts?.allowShared === false && types.isSharedArrayBuffer(V.buffer)) {
+    if (opts?.allowShared === false && types2.isSharedArrayBuffer(V2.buffer)) {
       throw webidl.errors.exception({
         header: "ArrayBuffer",
         message: "SharedArrayBuffer is not allowed."
       });
     }
-    if (V.buffer.resizable || V.buffer.growable) {
+    if (V2.buffer.resizable || V2.buffer.growable) {
       throw webidl.errors.exception({
         header: "ArrayBuffer",
         message: "Received a resizable ArrayBuffer."
       });
     }
-    return V;
+    return V2;
   };
-  webidl.converters.DataView = function(V, prefix, name, opts) {
-    if (webidl.util.Type(V) !== "Object" || !types.isDataView(V)) {
+  webidl.converters.DataView = function(V2, prefix, name, opts) {
+    if (webidl.util.Type(V2) !== "Object" || !types2.isDataView(V2)) {
       throw webidl.errors.exception({
         header: prefix,
         message: `${name} is not a DataView.`
       });
     }
-    if (opts?.allowShared === false && types.isSharedArrayBuffer(V.buffer)) {
+    if (opts?.allowShared === false && types2.isSharedArrayBuffer(V2.buffer)) {
       throw webidl.errors.exception({
         header: "ArrayBuffer",
         message: "SharedArrayBuffer is not allowed."
       });
     }
-    if (V.buffer.resizable || V.buffer.growable) {
+    if (V2.buffer.resizable || V2.buffer.growable) {
       throw webidl.errors.exception({
         header: "ArrayBuffer",
         message: "Received a resizable ArrayBuffer."
       });
     }
-    return V;
+    return V2;
   };
-  webidl.converters.BufferSource = function(V, prefix, name, opts) {
-    if (types.isAnyArrayBuffer(V)) {
-      return webidl.converters.ArrayBuffer(V, prefix, name, { ...opts, allowShared: false });
+  webidl.converters.BufferSource = function(V2, prefix, name, opts) {
+    if (types2.isAnyArrayBuffer(V2)) {
+      return webidl.converters.ArrayBuffer(V2, prefix, name, { ...opts, allowShared: false });
     }
-    if (types.isTypedArray(V)) {
-      return webidl.converters.TypedArray(V, V.constructor, prefix, name, { ...opts, allowShared: false });
+    if (types2.isTypedArray(V2)) {
+      return webidl.converters.TypedArray(V2, V2.constructor, prefix, name, { ...opts, allowShared: false });
     }
-    if (types.isDataView(V)) {
-      return webidl.converters.DataView(V, prefix, name, { ...opts, allowShared: false });
+    if (types2.isDataView(V2)) {
+      return webidl.converters.DataView(V2, prefix, name, { ...opts, allowShared: false });
     }
     throw webidl.errors.conversionFailed({
       prefix,
-      argument: `${name} ("${webidl.util.Stringify(V)}")`,
+      argument: `${name} ("${webidl.util.Stringify(V2)}")`,
       types: ["BufferSource"]
     });
   };
@@ -17488,14 +17562,14 @@ var require_webidl = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/fetch/util.js
-var require_util2 = __commonJS(function(exports, module) {
+var require_util2 = __commonJS((exports, module) => {
   var { Transform } = __require("node:stream");
   var zlib = __require("node:zlib");
   var { redirectStatusSet, referrerPolicySet: referrerPolicyTokens, badPortsSet } = require_constants3();
   var { getGlobalOrigin } = require_global();
   var { collectASequenceOfCodePoints, collectAnHTTPQuotedString, removeChars, parseMIMEType } = require_data_url();
   var { performance: performance2 } = __require("node:perf_hooks");
-  var { isBlobLike, ReadableStreamFrom, isValidHTTPToken, normalizedMethodRecordsBase } = require_util();
+  var { isBlobLike: isBlobLike2, ReadableStreamFrom: ReadableStreamFrom2, isValidHTTPToken, normalizedMethodRecordsBase } = require_util();
   var assert = __require("node:assert");
   var { isUint8Array } = __require("node:util/types");
   var { webidl } = require_webidl();
@@ -17528,8 +17602,8 @@ var require_util2 = __commonJS(function(exports, module) {
     return location;
   }
   function isValidEncodedURL(url) {
-    for (let i = 0;i < url.length; ++i) {
-      const code = url.charCodeAt(i);
+    for (let i2 = 0;i2 < url.length; ++i2) {
+      const code = url.charCodeAt(i2);
       if (code > 126 || code < 32) {
         return false;
       }
@@ -17553,9 +17627,9 @@ var require_util2 = __commonJS(function(exports, module) {
     return object instanceof Error || (object?.constructor?.name === "Error" || object?.constructor?.name === "DOMException");
   }
   function isValidReasonPhrase(statusText) {
-    for (let i = 0;i < statusText.length; ++i) {
-      const c = statusText.charCodeAt(i);
-      if (!(c === 9 || c >= 32 && c <= 126 || c >= 128 && c <= 255)) {
+    for (let i2 = 0;i2 < statusText.length; ++i2) {
+      const c3 = statusText.charCodeAt(i2);
+      if (!(c3 === 9 || c3 >= 32 && c3 <= 126 || c3 >= 128 && c3 <= 255)) {
         return false;
       }
     }
@@ -17571,8 +17645,8 @@ var require_util2 = __commonJS(function(exports, module) {
     const policyHeader = (headersList.get("referrer-policy", true) ?? "").split(",");
     let policy = "";
     if (policyHeader.length > 0) {
-      for (let i = policyHeader.length;i !== 0; i--) {
-        const token = policyHeader[i - 1].trim();
+      for (let i2 = policyHeader.length;i2 !== 0; i2--) {
+        const token = policyHeader[i2 - 1].trim();
         if (referrerPolicyTokens.has(token)) {
           policy = token;
           break;
@@ -17626,8 +17700,8 @@ var require_util2 = __commonJS(function(exports, module) {
       request.headersList.append("origin", serializedOrigin, true);
     }
   }
-  function coarsenTime(timestamp, crossOriginIsolatedCapability) {
-    return timestamp;
+  function coarsenTime(timestamp2, crossOriginIsolatedCapability) {
+    return timestamp2;
   }
   function clampAndCoarsenConnectionTimingInfo(connectionTimingInfo, defaultStartTime, crossOriginIsolatedCapability) {
     if (!connectionTimingInfo?.startTime || connectionTimingInfo.startTime < defaultStartTime) {
@@ -17817,8 +17891,8 @@ var require_util2 = __commonJS(function(exports, module) {
     if (algorithm[3] === "5") {
       return algorithm;
     }
-    for (let i = 1;i < metadataList.length; ++i) {
-      const metadata = metadataList[i];
+    for (let i2 = 1;i2 < metadataList.length; ++i2) {
+      const metadata = metadataList[i2];
       if (metadata.algo[3] === "5") {
         algorithm = "sha512";
         break;
@@ -17835,9 +17909,9 @@ var require_util2 = __commonJS(function(exports, module) {
       return metadataList;
     }
     let pos = 0;
-    for (let i = 0;i < metadataList.length; ++i) {
-      if (metadataList[i].algo === algorithm) {
-        metadataList[pos++] = metadataList[i];
+    for (let i2 = 0;i2 < metadataList.length; ++i2) {
+      if (metadataList[i2].algo === algorithm) {
+        metadataList[pos++] = metadataList[i2];
       }
     }
     metadataList.length = pos;
@@ -17847,9 +17921,9 @@ var require_util2 = __commonJS(function(exports, module) {
     if (actualValue.length !== expectedValue.length) {
       return false;
     }
-    for (let i = 0;i < actualValue.length; ++i) {
-      if (actualValue[i] !== expectedValue[i]) {
-        if (actualValue[i] === "+" && expectedValue[i] === "-" || actualValue[i] === "/" && expectedValue[i] === "_") {
+    for (let i2 = 0;i2 < actualValue.length; ++i2) {
+      if (actualValue[i2] !== expectedValue[i2]) {
+        if (actualValue[i2] === "+" && expectedValue[i2] === "-" || actualValue[i2] === "/" && expectedValue[i2] === "_") {
           continue;
         }
         return false;
@@ -17858,11 +17932,11 @@ var require_util2 = __commonJS(function(exports, module) {
     return true;
   }
   function tryUpgradeRequestToAPotentiallyTrustworthyURL(request) {}
-  function sameOrigin(A, B) {
-    if (A.origin === B.origin && A.origin === "null") {
+  function sameOrigin(A3, B2) {
+    if (A3.origin === B2.origin && A3.origin === "null") {
       return true;
     }
-    if (A.protocol === B.protocol && A.hostname === B.hostname && A.port === B.port) {
+    if (A3.protocol === B2.protocol && A3.hostname === B2.hostname && A3.port === B2.port) {
       return true;
     }
     return false;
@@ -17870,8 +17944,8 @@ var require_util2 = __commonJS(function(exports, module) {
   function createDeferredPromise() {
     let res;
     let rej;
-    const promise = new Promise((resolve, reject) => {
-      res = resolve;
+    const promise = new Promise((resolve11, reject) => {
+      res = resolve11;
       rej = reject;
     });
     return { promise, resolve: res, reject: rej };
@@ -18015,14 +18089,14 @@ var require_util2 = __commonJS(function(exports, module) {
     let reader;
     try {
       reader = body.stream.getReader();
-    } catch (e) {
-      errorSteps(e);
+    } catch (e2) {
+      errorSteps(e2);
       return;
     }
     try {
       successSteps(await readAllBytes(reader));
-    } catch (e) {
-      errorSteps(e);
+    } catch (e2) {
+      errorSteps(e2);
     }
   }
   function isReadableStreamLike(stream) {
@@ -18249,7 +18323,7 @@ var require_util2 = __commonJS(function(exports, module) {
     isCancelled,
     isValidEncodedURL,
     createDeferredPromise,
-    ReadableStreamFrom,
+    ReadableStreamFrom: ReadableStreamFrom2,
     tryUpgradeRequestToAPotentiallyTrustworthyURL,
     clampAndCoarsenConnectionTimingInfo,
     coarsenedSharedCurrentTime,
@@ -18268,7 +18342,7 @@ var require_util2 = __commonJS(function(exports, module) {
     requestCurrentURL,
     responseURL,
     responseLocationURL,
-    isBlobLike,
+    isBlobLike: isBlobLike2,
     isURLPotentiallyTrustworthy,
     isValidReasonPhrase,
     sameOrigin,
@@ -18300,7 +18374,7 @@ var require_util2 = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/fetch/symbols.js
-var require_symbols2 = __commonJS(function(exports, module) {
+var require_symbols2 = __commonJS((exports, module) => {
   module.exports = {
     kUrl: Symbol("url"),
     kHeaders: Symbol("headers"),
@@ -18311,21 +18385,21 @@ var require_symbols2 = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/fetch/file.js
-var require_file = __commonJS(function(exports, module) {
+var require_file = __commonJS((exports, module) => {
   var { Blob: Blob2, File: File2 } = __require("node:buffer");
   var { kState } = require_symbols2();
   var { webidl } = require_webidl();
 
   class FileLike {
     constructor(blobLike, fileName, options = {}) {
-      const n = fileName;
-      const t = options.type;
-      const d = options.lastModified ?? Date.now();
+      const n2 = fileName;
+      const t2 = options.type;
+      const d2 = options.lastModified ?? Date.now();
       this[kState] = {
         blobLike,
-        name: n,
-        type: t,
-        lastModified: d
+        name: n2,
+        type: t2,
+        lastModified: d2
       };
     }
     stream(...args) {
@@ -18365,18 +18439,18 @@ var require_file = __commonJS(function(exports, module) {
     }
   }
   webidl.converters.Blob = webidl.interfaceConverter(Blob2);
-  function isFileLike(object) {
+  function isFileLike2(object) {
     return object instanceof File2 || object && (typeof object.stream === "function" || typeof object.arrayBuffer === "function") && object[Symbol.toStringTag] === "File";
   }
-  module.exports = { FileLike, isFileLike };
+  module.exports = { FileLike, isFileLike: isFileLike2 };
 });
 
 // node_modules/undici/lib/web/fetch/formdata.js
-var require_formdata = __commonJS(function(exports, module) {
-  var { isBlobLike, iteratorMixin } = require_util2();
+var require_formdata = __commonJS((exports, module) => {
+  var { isBlobLike: isBlobLike2, iteratorMixin } = require_util2();
   var { kState } = require_symbols2();
   var { kEnumerableProperty } = require_util();
-  var { FileLike, isFileLike } = require_file();
+  var { FileLike, isFileLike: isFileLike2 } = require_file();
   var { webidl } = require_webidl();
   var { File: NativeFile } = __require("node:buffer");
   var nodeUtil = __require("node:util");
@@ -18398,11 +18472,11 @@ var require_formdata = __commonJS(function(exports, module) {
       webidl.brandCheck(this, FormData2);
       const prefix = "FormData.append";
       webidl.argumentLengthCheck(arguments, 2, prefix);
-      if (arguments.length === 3 && !isBlobLike(value)) {
+      if (arguments.length === 3 && !isBlobLike2(value)) {
         throw new TypeError("Failed to execute 'append' on 'FormData': parameter 2 is not of type 'Blob'");
       }
       name = webidl.converters.USVString(name, prefix, "name");
-      value = isBlobLike(value) ? webidl.converters.Blob(value, prefix, "value", { strict: false }) : webidl.converters.USVString(value, prefix, "value");
+      value = isBlobLike2(value) ? webidl.converters.Blob(value, prefix, "value", { strict: false }) : webidl.converters.USVString(value, prefix, "value");
       filename = arguments.length === 3 ? webidl.converters.USVString(filename, prefix, "filename") : undefined;
       const entry = makeEntry(name, value, filename);
       this[kState].push(entry);
@@ -18443,36 +18517,36 @@ var require_formdata = __commonJS(function(exports, module) {
       webidl.brandCheck(this, FormData2);
       const prefix = "FormData.set";
       webidl.argumentLengthCheck(arguments, 2, prefix);
-      if (arguments.length === 3 && !isBlobLike(value)) {
+      if (arguments.length === 3 && !isBlobLike2(value)) {
         throw new TypeError("Failed to execute 'set' on 'FormData': parameter 2 is not of type 'Blob'");
       }
       name = webidl.converters.USVString(name, prefix, "name");
-      value = isBlobLike(value) ? webidl.converters.Blob(value, prefix, "name", { strict: false }) : webidl.converters.USVString(value, prefix, "name");
+      value = isBlobLike2(value) ? webidl.converters.Blob(value, prefix, "name", { strict: false }) : webidl.converters.USVString(value, prefix, "name");
       filename = arguments.length === 3 ? webidl.converters.USVString(filename, prefix, "name") : undefined;
       const entry = makeEntry(name, value, filename);
-      const idx = this[kState].findIndex((entry) => entry.name === name);
+      const idx = this[kState].findIndex((entry2) => entry2.name === name);
       if (idx !== -1) {
         this[kState] = [
           ...this[kState].slice(0, idx),
           entry,
-          ...this[kState].slice(idx + 1).filter((entry) => entry.name !== name)
+          ...this[kState].slice(idx + 1).filter((entry2) => entry2.name !== name)
         ];
       } else {
         this[kState].push(entry);
       }
     }
     [nodeUtil.inspect.custom](depth, options) {
-      const state = this[kState].reduce((a, b) => {
-        if (a[b.name]) {
-          if (Array.isArray(a[b.name])) {
-            a[b.name].push(b.value);
+      const state = this[kState].reduce((a2, b2) => {
+        if (a2[b2.name]) {
+          if (Array.isArray(a2[b2.name])) {
+            a2[b2.name].push(b2.value);
           } else {
-            a[b.name] = [a[b.name], b.value];
+            a2[b2.name] = [a2[b2.name], b2.value];
           }
         } else {
-          a[b.name] = b.value;
+          a2[b2.name] = b2.value;
         }
-        return a;
+        return a2;
       }, { __proto__: null });
       options.depth ??= depth;
       options.colors ??= true;
@@ -18495,7 +18569,7 @@ var require_formdata = __commonJS(function(exports, module) {
   });
   function makeEntry(name, value, filename) {
     if (typeof value === "string") {} else {
-      if (!isFileLike(value)) {
+      if (!isFileLike2(value)) {
         value = value instanceof Blob ? new File2([value], "blob", { type: value.type }) : new FileLike(value, "blob", { type: value.type });
       }
       if (filename !== undefined) {
@@ -18512,11 +18586,11 @@ var require_formdata = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/fetch/formdata-parser.js
-var require_formdata_parser = __commonJS(function(exports, module) {
+var require_formdata_parser = __commonJS((exports, module) => {
   var { isUSVString, bufferToLowerCasedHeaderName } = require_util();
   var { utf8DecodeBytes } = require_util2();
   var { HTTP_TOKEN_CODEPOINTS, isomorphicDecode } = require_data_url();
-  var { isFileLike } = require_file();
+  var { isFileLike: isFileLike2 } = require_file();
   var { makeEntry } = require_formdata();
   var assert = __require("node:assert");
   var { File: NodeFile } = __require("node:buffer");
@@ -18527,8 +18601,8 @@ var require_formdata_parser = __commonJS(function(exports, module) {
   var ddcrlf = Buffer.from(`--\r
 `);
   function isAsciiString(chars) {
-    for (let i = 0;i < chars.length; ++i) {
-      if ((chars.charCodeAt(i) & ~127) !== 0) {
+    for (let i2 = 0;i2 < chars.length; ++i2) {
+      if ((chars.charCodeAt(i2) & ~127) !== 0) {
         return false;
       }
     }
@@ -18539,8 +18613,8 @@ var require_formdata_parser = __commonJS(function(exports, module) {
     if (length < 27 || length > 70) {
       return false;
     }
-    for (let i = 0;i < length; ++i) {
-      const cp = boundary.charCodeAt(i);
+    for (let i2 = 0;i2 < length; ++i2) {
+      const cp = boundary.charCodeAt(i2);
       if (!(cp >= 48 && cp <= 57 || cp >= 65 && cp <= 90 || cp >= 97 && cp <= 122 || cp === 39 || cp === 45 || cp === 95)) {
         return false;
       }
@@ -18613,7 +18687,7 @@ var require_formdata_parser = __commonJS(function(exports, module) {
         value = utf8DecodeBytes(Buffer.from(body));
       }
       assert(isUSVString(name));
-      assert(typeof value === "string" && isUSVString(value) || isFileLike(value));
+      assert(typeof value === "string" && isUSVString(value) || isFileLike2(value));
       entryList.push(makeEntry(name, value, filename));
     }
   }
@@ -18726,8 +18800,8 @@ var require_formdata_parser = __commonJS(function(exports, module) {
     if (buffer.length < start.length) {
       return false;
     }
-    for (let i = 0;i < start.length; i++) {
-      if (start[i] !== buffer[position.position + i]) {
+    for (let i2 = 0;i2 < start.length; i2++) {
+      if (start[i2] !== buffer[position.position + i2]) {
         return false;
       }
     }
@@ -18740,11 +18814,11 @@ var require_formdata_parser = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/fetch/body.js
-var require_body = __commonJS(function(exports, module) {
+var require_body = __commonJS((exports, module) => {
   var util = require_util();
   var {
-    ReadableStreamFrom,
-    isBlobLike,
+    ReadableStreamFrom: ReadableStreamFrom2,
+    isBlobLike: isBlobLike2,
     isReadableStreamLike,
     readableStreamClose,
     createDeferredPromise,
@@ -18769,14 +18843,14 @@ var require_body = __commonJS(function(exports, module) {
     random = (max) => Math.floor(Math.random(max));
   }
   var textEncoder = new TextEncoder;
-  function noop() {}
+  function noop2() {}
   var hasFinalizationRegistry = globalThis.FinalizationRegistry && process.version.indexOf("v18") !== 0;
   var streamRegistry;
   if (hasFinalizationRegistry) {
     streamRegistry = new FinalizationRegistry((weakRef) => {
       const stream = weakRef.deref();
       if (stream && !stream.locked && !isDisturbed(stream) && !isErrored(stream)) {
-        stream.cancel("Response object has been garbage collected").catch(noop);
+        stream.cancel("Response object has been garbage collected").catch(noop2);
       }
     });
   }
@@ -18784,7 +18858,7 @@ var require_body = __commonJS(function(exports, module) {
     let stream = null;
     if (object instanceof ReadableStream) {
       stream = object;
-    } else if (isBlobLike(object)) {
+    } else if (isBlobLike2(object)) {
       stream = object.stream();
     } else {
       stream = new ReadableStream({
@@ -18803,13 +18877,13 @@ var require_body = __commonJS(function(exports, module) {
     let action = null;
     let source = null;
     let length = null;
-    let type = null;
+    let type2 = null;
     if (typeof object === "string") {
       source = object;
-      type = "text/plain;charset=UTF-8";
+      type2 = "text/plain;charset=UTF-8";
     } else if (object instanceof URLSearchParams) {
       source = object.toString();
-      type = "application/x-www-form-urlencoded;charset=UTF-8";
+      type2 = "application/x-www-form-urlencoded;charset=UTF-8";
     } else if (isArrayBuffer(object)) {
       source = new Uint8Array(object.slice());
     } else if (ArrayBuffer.isView(object)) {
@@ -18819,7 +18893,7 @@ var require_body = __commonJS(function(exports, module) {
       const prefix = `--${boundary}\r
 Content-Disposition: form-data`;
       /*! formdata-polyfill. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> */
-      const escape = (str) => str.replace(/\n/g, "%0A").replace(/\r/g, "%0D").replace(/"/g, "%22");
+      const escape = (str2) => str2.replace(/\n/g, "%0A").replace(/\r/g, "%0D").replace(/"/g, "%22");
       const normalizeLinefeeds = (value) => value.replace(/\r?\n|\r/g, `\r
 `);
       const blobParts = [];
@@ -18828,20 +18902,20 @@ Content-Disposition: form-data`;
       let hasUnknownSizeValue = false;
       for (const [name, value] of object) {
         if (typeof value === "string") {
-          const chunk = textEncoder.encode(prefix + `; name="${escape(normalizeLinefeeds(name))}"` + `\r
+          const chunk2 = textEncoder.encode(prefix + `; name="${escape(normalizeLinefeeds(name))}"` + `\r
 \r
 ${normalizeLinefeeds(value)}\r
 `);
-          blobParts.push(chunk);
-          length += chunk.byteLength;
+          blobParts.push(chunk2);
+          length += chunk2.byteLength;
         } else {
-          const chunk = textEncoder.encode(`${prefix}; name="${escape(normalizeLinefeeds(name))}"` + (value.name ? `; filename="${escape(value.name)}"` : "") + `\r
+          const chunk2 = textEncoder.encode(`${prefix}; name="${escape(normalizeLinefeeds(name))}"` + (value.name ? `; filename="${escape(value.name)}"` : "") + `\r
 ` + `Content-Type: ${value.type || "application/octet-stream"}\r
 \r
 `);
-          blobParts.push(chunk, value, rn);
+          blobParts.push(chunk2, value, rn);
           if (typeof value.size === "number") {
-            length += chunk.byteLength + value.size + rn.byteLength;
+            length += chunk2.byteLength + value.size + rn.byteLength;
           } else {
             hasUnknownSizeValue = true;
           }
@@ -18864,12 +18938,12 @@ ${normalizeLinefeeds(value)}\r
           }
         }
       };
-      type = `multipart/form-data; boundary=${boundary}`;
-    } else if (isBlobLike(object)) {
+      type2 = `multipart/form-data; boundary=${boundary}`;
+    } else if (isBlobLike2(object)) {
       source = object;
       length = object.size;
       if (object.type) {
-        type = object.type;
+        type2 = object.type;
       }
     } else if (typeof object[Symbol.asyncIterator] === "function") {
       if (keepalive) {
@@ -18878,7 +18952,7 @@ ${normalizeLinefeeds(value)}\r
       if (util.isDisturbed(object) || object.locked) {
         throw new TypeError("Response body object should not be disturbed or locked");
       }
-      stream = object instanceof ReadableStream ? object : ReadableStreamFrom(object);
+      stream = object instanceof ReadableStream ? object : ReadableStreamFrom2(object);
     }
     if (typeof source === "string" || util.isBuffer(source)) {
       length = Buffer.byteLength(source);
@@ -18913,7 +18987,7 @@ ${normalizeLinefeeds(value)}\r
       });
     }
     const body = { stream, source, length };
-    return [body, type];
+    return [body, type2];
   }
   function safelyExtractBody(object, keepalive = false) {
     if (object instanceof ReadableStream) {
@@ -18977,8 +19051,8 @@ ${normalizeLinefeeds(value)}\r
               case "application/x-www-form-urlencoded": {
                 const entries = new URLSearchParams(value.toString());
                 const fd = new FormData2;
-                for (const [name, value] of entries) {
-                  fd.append(name, value);
+                for (const [name, value2] of entries) {
+                  fd.append(name, value2);
                 }
                 return fd;
               }
@@ -19005,12 +19079,12 @@ ${normalizeLinefeeds(value)}\r
     }
     throwIfAborted(object[kState]);
     const promise = createDeferredPromise();
-    const errorSteps = (error) => promise.reject(error);
+    const errorSteps = (error2) => promise.reject(error2);
     const successSteps = (data) => {
       try {
         promise.resolve(convertBytesToJSValue(data));
-      } catch (e) {
-        errorSteps(e);
+      } catch (e2) {
+        errorSteps(e2);
       }
     };
     if (object[kState].body == null) {
@@ -19047,7 +19121,7 @@ ${normalizeLinefeeds(value)}\r
 });
 
 // node_modules/undici/lib/dispatcher/client-h1.js
-var require_client_h1 = __commonJS(function(exports, module) {
+var require_client_h1 = __commonJS((exports, module) => {
   var assert = __require("node:assert");
   var util = require_util();
   var { channels } = require_diagnostics();
@@ -19112,7 +19186,7 @@ var require_client_h1 = __commonJS(function(exports, module) {
     let mod;
     try {
       mod = await WebAssembly.compile(require_llhttp_simd_wasm());
-    } catch (e) {
+    } catch (e2) {
       mod = await WebAssembly.compile(llhttpWasmData || require_llhttp_wasm());
     }
     return await WebAssembly.instantiate(mod, {
@@ -19193,14 +19267,14 @@ var require_client_h1 = __commonJS(function(exports, module) {
       this.connection = "";
       this.maxResponseSize = client[kMaxResponseSize];
     }
-    setTimeout(delay, type) {
-      if (delay !== this.timeoutValue || type & USE_FAST_TIMER ^ this.timeoutType & USE_FAST_TIMER) {
+    setTimeout(delay, type2) {
+      if (delay !== this.timeoutValue || type2 & USE_FAST_TIMER ^ this.timeoutType & USE_FAST_TIMER) {
         if (this.timeout) {
           timers.clearTimeout(this.timeout);
           this.timeout = null;
         }
         if (delay) {
-          if (type & USE_FAST_TIMER) {
+          if (type2 & USE_FAST_TIMER) {
             this.timeout = timers.setFastTimeout(onParserTimeout, delay, new WeakRef(this));
           } else {
             this.timeout = setTimeout(onParserTimeout, delay, new WeakRef(this));
@@ -19213,7 +19287,7 @@ var require_client_h1 = __commonJS(function(exports, module) {
           this.timeout.refresh();
         }
       }
-      this.timeoutType = type;
+      this.timeoutType = type2;
     }
     resume() {
       if (this.socket.destroyed || !this.paused) {
@@ -19408,9 +19482,9 @@ var require_client_h1 = __commonJS(function(exports, module) {
       client.emit("disconnect", client[kUrl], [client], new InformationalError("upgrade"));
       try {
         request.onUpgrade(statusCode, headers, socket, statusText);
-      } catch (error) {
-        util.errorRequest(client, request, error);
-        util.destroy(socket, error);
+      } catch (error2) {
+        util.errorRequest(client, request, error2);
+        util.destroy(socket, error2);
       }
       client[kResume]();
     }
@@ -19563,14 +19637,14 @@ var require_client_h1 = __commonJS(function(exports, module) {
     }
   }
   function onParserTimeout(parser) {
-    const { socket, timeoutType, client, paused } = parser.deref();
+    const { socket, timeoutType, client, paused: paused2 } = parser.deref();
     if (timeoutType === TIMEOUT_HEADERS) {
       if (!socket[kWriting] || socket.writableNeedDrain || client[kRunning] > 1) {
-        assert(!paused, "cannot be paused while waiting for headers");
+        assert(!paused2, "cannot be paused while waiting for headers");
         util.destroy(socket, new HeadersTimeoutError);
       }
     } else if (timeoutType === TIMEOUT_BODY) {
-      if (!paused) {
+      if (!paused2) {
         util.destroy(socket, new BodyTimeoutError);
       }
     } else if (timeoutType === TIMEOUT_KEEP_ALIVE) {
@@ -19623,7 +19697,7 @@ var require_client_h1 = __commonJS(function(exports, module) {
       util.destroy(this, new SocketError("other side closed", util.getSocketInfo(this)));
     });
     addListener(socket, "close", function() {
-      const client = this[kClient];
+      const client2 = this[kClient];
       const parser = this[kParser];
       clearIdleSocketValidation(this);
       if (parser) {
@@ -19634,24 +19708,24 @@ var require_client_h1 = __commonJS(function(exports, module) {
         this[kParser] = null;
       }
       const err = this[kError] || new SocketError("closed", util.getSocketInfo(this));
-      client[kSocket] = null;
-      client[kHTTPContext] = null;
-      if (client.destroyed) {
-        assert(client[kPending] === 0);
-        const requests = client[kQueue].splice(client[kRunningIdx]);
-        for (let i = 0;i < requests.length; i++) {
-          const request = requests[i];
-          util.errorRequest(client, request, err);
+      client2[kSocket] = null;
+      client2[kHTTPContext] = null;
+      if (client2.destroyed) {
+        assert(client2[kPending] === 0);
+        const requests = client2[kQueue].splice(client2[kRunningIdx]);
+        for (let i2 = 0;i2 < requests.length; i2++) {
+          const request = requests[i2];
+          util.errorRequest(client2, request, err);
         }
-      } else if (client[kRunning] > 0 && err.code !== "UND_ERR_INFO") {
-        const request = client[kQueue][client[kRunningIdx]];
-        client[kQueue][client[kRunningIdx]++] = null;
-        util.errorRequest(client, request, err);
+      } else if (client2[kRunning] > 0 && err.code !== "UND_ERR_INFO") {
+        const request = client2[kQueue][client2[kRunningIdx]];
+        client2[kQueue][client2[kRunningIdx]++] = null;
+        util.errorRequest(client2, request, err);
       }
-      client[kPendingIdx] = client[kRunningIdx];
-      assert(client[kRunning] === 0);
-      client.emit("disconnect", client[kUrl], [client], err);
-      client[kResume]();
+      client2[kPendingIdx] = client2[kRunningIdx];
+      assert(client2[kRunning] === 0);
+      client2.emit("disconnect", client2[kUrl], [client2], err);
+      client2[kResume]();
     });
     let closed = false;
     socket.on("close", () => {
@@ -19764,7 +19838,7 @@ var require_client_h1 = __commonJS(function(exports, module) {
     return method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && method !== "TRACE" && method !== "CONNECT";
   }
   function writeH1(client, request) {
-    const { method, path, host, upgrade, blocking, reset } = request;
+    const { method, path: path2, host, upgrade, blocking, reset } = request;
     let { body, headers, contentLength } = request;
     const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH" || method === "QUERY" || method === "PROPFIND" || method === "PROPPATCH";
     if (util.isFormDataLike(body)) {
@@ -19791,8 +19865,8 @@ var require_client_h1 = __commonJS(function(exports, module) {
     if (body && typeof body.read === "function") {
       body.read(0);
     }
-    const bodyLength2 = util.bodyLength(body);
-    contentLength = bodyLength2 ?? contentLength;
+    const bodyLength = util.bodyLength(body);
+    contentLength = bodyLength ?? contentLength;
     if (contentLength === null) {
       contentLength = request.contentLength;
     }
@@ -19808,7 +19882,7 @@ var require_client_h1 = __commonJS(function(exports, module) {
     }
     const socket = client[kSocket];
     clearIdleSocketValidation(socket);
-    const abort = (error) => {
+    const abort = (error2) => {
       if (request.aborted) {
         return;
       }
@@ -19818,7 +19892,7 @@ var require_client_h1 = __commonJS(function(exports, module) {
         }
         return;
       }
-      util.errorRequest(client, request, error || new RequestAbortedError);
+      util.errorRequest(client, request, error2 || new RequestAbortedError);
       util.destroy(body);
       util.destroy(socket, new InformationalError("aborted"));
     };
@@ -19845,7 +19919,7 @@ var require_client_h1 = __commonJS(function(exports, module) {
     if (blocking) {
       socket[kBlocking] = true;
     }
-    let header = `${method} ${path} HTTP/1.1\r
+    let header = `${method} ${path2} HTTP/1.1\r
 `;
     if (typeof host === "string") {
       header += `host: ${host}\r
@@ -19865,12 +19939,12 @@ upgrade: ${upgrade}\r
 `;
     }
     if (Array.isArray(headers)) {
-      for (let n = 0;n < headers.length; n += 2) {
-        const key = headers[n + 0];
-        const val = headers[n + 1];
+      for (let n2 = 0;n2 < headers.length; n2 += 2) {
+        const key = headers[n2 + 0];
+        const val = headers[n2 + 1];
         if (Array.isArray(val)) {
-          for (let i = 0;i < val.length; i++) {
-            header += `${key}: ${val[i]}\r
+          for (let i2 = 0;i2 < val.length; i2++) {
+            header += `${key}: ${val[i2]}\r
 `;
           }
         } else {
@@ -19882,7 +19956,7 @@ upgrade: ${upgrade}\r
     if (channels.sendHeaders.hasSubscribers) {
       channels.sendHeaders.publish({ request, headers: header, socket });
     }
-    if (!body || bodyLength2 === 0) {
+    if (!body || bodyLength === 0) {
       writeBuffer(abort, null, client, request, socket, contentLength, header, expectsPayload);
     } else if (util.isBuffer(body)) {
       writeBuffer(abort, body, client, request, socket, contentLength, header, expectsPayload);
@@ -19893,7 +19967,7 @@ upgrade: ${upgrade}\r
         writeBlob(abort, body, client, request, socket, contentLength, header, expectsPayload);
       }
     } else if (util.isStream(body)) {
-      writeStream(abort, body, client, request, socket, contentLength, header, expectsPayload);
+      writeStream2(abort, body, client, request, socket, contentLength, header, expectsPayload);
     } else if (util.isIterable(body)) {
       writeIterable(abort, body, client, request, socket, contentLength, header, expectsPayload);
     } else {
@@ -19901,7 +19975,7 @@ upgrade: ${upgrade}\r
     }
     return true;
   }
-  function writeStream(abort, body, client, request, socket, contentLength, header, expectsPayload) {
+  function writeStream2(abort, body, client, request, socket, contentLength, header, expectsPayload) {
     assert(contentLength !== 0 || client[kRunning] === 0, "stream body cannot be pipelined");
     let finished = false;
     const writer = new AsyncWriter({ abort, socket, request, contentLength, client, expectsPayload, header });
@@ -20034,12 +20108,12 @@ upgrade: ${upgrade}\r
         cb();
       }
     }
-    const waitForDrain = () => new Promise((resolve, reject) => {
+    const waitForDrain = () => new Promise((resolve11, reject) => {
       assert(callback === null);
       if (socket[kError]) {
         reject(socket[kError]);
       } else {
-        callback = resolve;
+        callback = resolve11;
       }
     });
     socket.on("close", onDrain).on("drain", onDrain);
@@ -20175,7 +20249,7 @@ ${len.toString(16)}\r
 });
 
 // node_modules/undici/lib/dispatcher/client-h2.js
-var require_client_h2 = __commonJS(function(exports, module) {
+var require_client_h2 = __commonJS((exports, module) => {
   var assert = __require("node:assert");
   var { errorMonitor } = __require("node:events");
   var { pipeline } = __require("node:stream");
@@ -20262,16 +20336,16 @@ var require_client_h2 = __commonJS(function(exports, module) {
     util.addListener(session, "end", onHttp2SessionEnd);
     util.addListener(session, "goaway", onHTTP2GoAway);
     util.addListener(session, "close", function() {
-      const { [kClient]: client } = this;
-      const { [kSocket]: socket } = client;
-      const err = this[kSocket][kError] || this[kError] || new SocketError("closed", util.getSocketInfo(socket));
-      client[kHTTP2Session] = null;
-      if (client.destroyed) {
-        assert(client[kPending] === 0);
-        const requests = client[kQueue].splice(client[kRunningIdx]);
-        for (let i = 0;i < requests.length; i++) {
-          const request = requests[i];
-          util.errorRequest(client, request, err);
+      const { [kClient]: client2 } = this;
+      const { [kSocket]: socket2 } = client2;
+      const err = this[kSocket][kError] || this[kError] || new SocketError("closed", util.getSocketInfo(socket2));
+      client2[kHTTP2Session] = null;
+      if (client2.destroyed) {
+        assert(client2[kPending] === 0);
+        const requests = client2[kQueue].splice(client2[kRunningIdx]);
+        for (let i2 = 0;i2 < requests.length; i2++) {
+          const request = requests[i2];
+          util.errorRequest(client2, request, err);
         }
       }
     });
@@ -20340,9 +20414,9 @@ var require_client_h2 = __commonJS(function(exports, module) {
     this[kSocket][kError] = err;
     this[kClient][kOnError](err);
   }
-  function onHttp2FrameError(type, code, id) {
+  function onHttp2FrameError(type2, code, id) {
     if (id === 0) {
-      const err = new InformationalError(`HTTP/2: "frameError" received - type ${type}, code ${code}`);
+      const err = new InformationalError(`HTTP/2: "frameError" received - type ${type2}, code ${code}`);
       this[kSocket][kError] = err;
       this[kClient][kOnError](err);
     }
@@ -20377,22 +20451,22 @@ var require_client_h2 = __commonJS(function(exports, module) {
   }
   function writeH2(client, request) {
     const session = client[kHTTP2Session];
-    const { method, path, host, upgrade, expectContinue, signal, headers: reqHeaders } = request;
+    const { method, path: path2, host, upgrade, expectContinue, signal, headers: reqHeaders } = request;
     let { body } = request;
     if (upgrade) {
       util.errorRequest(client, request, new Error("Upgrade not supported for H2"));
       return false;
     }
     const headers = {};
-    for (let n = 0;n < reqHeaders.length; n += 2) {
-      const key = reqHeaders[n + 0];
-      const val = reqHeaders[n + 1];
+    for (let n2 = 0;n2 < reqHeaders.length; n2 += 2) {
+      const key = reqHeaders[n2 + 0];
+      const val = reqHeaders[n2 + 1];
       if (Array.isArray(val)) {
-        for (let i = 0;i < val.length; i++) {
+        for (let i2 = 0;i2 < val.length; i2++) {
           if (headers[key]) {
-            headers[key] += `,${val[i]}`;
+            headers[key] += `,${val[i2]}`;
           } else {
-            headers[key] = val[i];
+            headers[key] = val[i2];
           }
         }
       } else {
@@ -20403,22 +20477,22 @@ var require_client_h2 = __commonJS(function(exports, module) {
     const { hostname, port } = client[kUrl];
     headers[HTTP2_HEADER_AUTHORITY] = host || `${hostname}${port ? `:${port}` : ""}`;
     headers[HTTP2_HEADER_METHOD] = method;
-    const abort = (error) => {
+    const abort = (error2) => {
       if (request.aborted) {
         return;
       }
       if (request.completed) {
         if (method === "CONNECT" && stream != null) {
-          util.destroy(stream, error || new RequestAbortedError);
+          util.destroy(stream, error2 || new RequestAbortedError);
         }
         return;
       }
-      error = error || new RequestAbortedError;
-      util.errorRequest(client, request, error);
+      error2 = error2 || new RequestAbortedError;
+      util.errorRequest(client, request, error2);
       if (stream != null) {
-        util.destroy(stream, error);
+        util.destroy(stream, error2);
       }
-      util.destroy(body, error);
+      util.destroy(body, error2);
       client[kQueue][client[kRunningIdx]++] = null;
       client[kResume]();
     };
@@ -20434,22 +20508,22 @@ var require_client_h2 = __commonJS(function(exports, module) {
       session.ref();
       stream = session.request(headers, { endStream: false, signal });
       let upgradeResponseFinished = false;
-      const onResponse = (headers) => {
+      const onResponse = (headers2) => {
         upgradeResponseFinished = true;
         stream.off(errorMonitor, onUpgradeError);
-        request.onUpgradeResponse(Number(headers[HTTP2_HEADER_STATUS]), headers, parseH2ResponseHeaders);
+        request.onUpgradeResponse(Number(headers2[HTTP2_HEADER_STATUS]), headers2, parseH2ResponseHeaders);
       };
-      const onUpgradeError = (error) => {
+      const onUpgradeError = (error2) => {
         upgradeResponseFinished = true;
         stream.off("response", onResponse);
-        request.onUpgradeError(error);
+        request.onUpgradeError(error2);
       };
       const onReady = () => {
         try {
           request.onUpgrade(null, null, stream);
-        } catch (error) {
+        } catch (error2) {
           stream.off("response", onResponse);
-          abort(error);
+          abort(error2);
           return;
         }
         if (request.aborted) {
@@ -20475,7 +20549,7 @@ var require_client_h2 = __commonJS(function(exports, module) {
       });
       return true;
     }
-    headers[HTTP2_HEADER_PATH] = path;
+    headers[HTTP2_HEADER_PATH] = path2;
     headers[HTTP2_HEADER_SCHEME] = "https";
     const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH";
     if (body && typeof body.read === "function") {
@@ -20520,8 +20594,8 @@ var require_client_h2 = __commonJS(function(exports, module) {
       writeBodyH2();
     }
     ++session[kOpenStreams];
-    stream.once("response", (headers) => {
-      const { [HTTP2_HEADER_STATUS]: statusCode, ...realHeaders } = headers;
+    stream.once("response", (headers2) => {
+      const { [HTTP2_HEADER_STATUS]: statusCode, ...realHeaders } = headers2;
       request.onResponseStarted();
       if (request.aborted) {
         const err = new RequestAbortedError;
@@ -20559,8 +20633,8 @@ var require_client_h2 = __commonJS(function(exports, module) {
     stream.once("error", function(err) {
       abort(err);
     });
-    stream.once("frameError", (type, code) => {
-      abort(new InformationalError(`HTTP/2: "frameError" received - type ${type}, code ${code}`));
+    stream.once("frameError", (type2, code) => {
+      abort(new InformationalError(`HTTP/2: "frameError" received - type ${type2}, code ${code}`));
     });
     return true;
     function writeBodyH2() {
@@ -20575,7 +20649,7 @@ var require_client_h2 = __commonJS(function(exports, module) {
           writeBlob(abort, stream, body, client, request, client[kSocket], contentLength, expectsPayload);
         }
       } else if (util.isStream(body)) {
-        writeStream(abort, client[kSocket], expectsPayload, stream, body, client, request, contentLength);
+        writeStream2(abort, client[kSocket], expectsPayload, stream, body, client, request, contentLength);
       } else if (util.isIterable(body)) {
         writeIterable(abort, stream, body, client, request, client[kSocket], contentLength, expectsPayload);
       } else {
@@ -20598,11 +20672,11 @@ var require_client_h2 = __commonJS(function(exports, module) {
       }
       request.onRequestSent();
       client[kResume]();
-    } catch (error) {
-      abort(error);
+    } catch (error2) {
+      abort(error2);
     }
   }
-  function writeStream(abort, socket, expectsPayload, h2stream, body, client, request, contentLength) {
+  function writeStream2(abort, socket, expectsPayload, h2stream, body, client, request, contentLength) {
     assert(contentLength !== 0 || client[kRunning] === 0, "stream body cannot be pipelined");
     const pipe = pipeline(body, h2stream, (err) => {
       if (err) {
@@ -20653,12 +20727,12 @@ var require_client_h2 = __commonJS(function(exports, module) {
         cb();
       }
     }
-    const waitForDrain = () => new Promise((resolve, reject) => {
+    const waitForDrain = () => new Promise((resolve11, reject) => {
       assert(callback === null);
       if (socket[kError]) {
         reject(socket[kError]);
       } else {
-        callback = resolve;
+        callback = resolve11;
       }
     });
     h2stream.on("close", onDrain).on("drain", onDrain);
@@ -20689,7 +20763,7 @@ var require_client_h2 = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/handler/redirect-handler.js
-var require_redirect_handler = __commonJS(function(exports, module) {
+var require_redirect_handler = __commonJS((exports, module) => {
   var util = require_util();
   var { kBodyUsed } = require_symbols();
   var assert = __require("node:assert");
@@ -20749,8 +20823,8 @@ var require_redirect_handler = __commonJS(function(exports, module) {
     onUpgrade(statusCode, headers, socket) {
       this.handler.onUpgrade(statusCode, headers, socket);
     }
-    onError(error) {
-      this.handler.onError(error);
+    onError(error2) {
+      this.handler.onError(error2);
     }
     onHeaders(statusCode, headers, resume, statusText) {
       this.location = this.history.length >= this.maxRedirections || util.isDisturbed(this.opts.body) ? null : parseLocation(statusCode, headers);
@@ -20769,9 +20843,9 @@ var require_redirect_handler = __commonJS(function(exports, module) {
         return this.handler.onHeaders(statusCode, headers, resume, statusText);
       }
       const { origin, pathname, search } = util.parseURL(new URL(this.location, this.opts.origin && new URL(this.opts.path, this.opts.origin)));
-      const path = search ? `${pathname}${search}` : pathname;
+      const path2 = search ? `${pathname}${search}` : pathname;
       this.opts.headers = cleanRequestHeaders(this.opts.headers, statusCode === 303, this.opts.origin !== origin);
-      this.opts.path = path;
+      this.opts.path = path2;
       this.opts.origin = origin;
       this.opts.maxRedirections = 0;
       this.opts.query = null;
@@ -20804,9 +20878,9 @@ var require_redirect_handler = __commonJS(function(exports, module) {
     if (redirectableStatusCodes.indexOf(statusCode) === -1) {
       return null;
     }
-    for (let i = 0;i < headers.length; i += 2) {
-      if (headers[i].length === 8 && util.headerNameToString(headers[i]) === "location") {
-        return headers[i + 1];
+    for (let i2 = 0;i2 < headers.length; i2 += 2) {
+      if (headers[i2].length === 8 && util.headerNameToString(headers[i2]) === "location") {
+        return headers[i2 + 1];
       }
     }
   }
@@ -20826,9 +20900,9 @@ var require_redirect_handler = __commonJS(function(exports, module) {
   function cleanRequestHeaders(headers, removeContent, unknownOrigin) {
     const ret = [];
     if (Array.isArray(headers)) {
-      for (let i = 0;i < headers.length; i += 2) {
-        if (!shouldRemoveHeader(headers[i], removeContent, unknownOrigin)) {
-          ret.push(headers[i], headers[i + 1]);
+      for (let i2 = 0;i2 < headers.length; i2 += 2) {
+        if (!shouldRemoveHeader(headers[i2], removeContent, unknownOrigin)) {
+          ret.push(headers[i2], headers[i2 + 1]);
         }
       }
     } else if (headers && typeof headers === "object") {
@@ -20846,7 +20920,7 @@ var require_redirect_handler = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/interceptor/redirect-interceptor.js
-var require_redirect_interceptor = __commonJS(function(exports, module) {
+var require_redirect_interceptor = __commonJS((exports, module) => {
   var RedirectHandler = require_redirect_handler();
   function createRedirectInterceptor({ maxRedirections: defaultMaxRedirections }) {
     return (dispatch) => {
@@ -20865,7 +20939,7 @@ var require_redirect_interceptor = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/dispatcher/client.js
-var require_client = __commonJS(function(exports, module) {
+var require_client = __commonJS((exports, module) => {
   var assert = __require("node:assert");
   var net = __require("node:net");
   var http = __require("node:http");
@@ -20925,7 +20999,7 @@ var require_client = __commonJS(function(exports, module) {
   var connectH2 = require_client_h2();
   var deprecatedInterceptorWarned = false;
   var kClosedResolve = Symbol("kClosedResolve");
-  var noop = () => {};
+  var noop2 = () => {};
   function getPipelining(client) {
     return client[kPipelining] ?? client[kHTTPContext]?.defaultPipelining ?? 1;
   }
@@ -20933,7 +21007,7 @@ var require_client = __commonJS(function(exports, module) {
   class Client extends DispatcherBase {
     constructor(url, {
       interceptors,
-      maxHeaderSize: maxHeaderSize2,
+      maxHeaderSize,
       headersTimeout,
       socketTimeout,
       requestTimeout,
@@ -20951,7 +21025,7 @@ var require_client = __commonJS(function(exports, module) {
       strictContentLength,
       maxCachedSessions,
       maxRedirections,
-      connect,
+      connect: connect2,
       maxRequestsPerClient,
       localAddress,
       maxResponseSize,
@@ -20978,7 +21052,7 @@ var require_client = __commonJS(function(exports, module) {
       if (maxKeepAliveTimeout !== undefined) {
         throw new InvalidArgumentError("unsupported maxKeepAliveTimeout, use keepAliveMaxTimeout instead");
       }
-      if (maxHeaderSize2 != null && !Number.isFinite(maxHeaderSize2)) {
+      if (maxHeaderSize != null && !Number.isFinite(maxHeaderSize)) {
         throw new InvalidArgumentError("invalid maxHeaderSize");
       }
       if (socketPath != null && typeof socketPath !== "string") {
@@ -21002,7 +21076,7 @@ var require_client = __commonJS(function(exports, module) {
       if (bodyTimeout != null && (!Number.isInteger(bodyTimeout) || bodyTimeout < 0)) {
         throw new InvalidArgumentError("bodyTimeout must be a positive integer or zero");
       }
-      if (connect != null && typeof connect !== "function" && typeof connect !== "object") {
+      if (connect2 != null && typeof connect2 !== "function" && typeof connect2 !== "object") {
         throw new InvalidArgumentError("connect must be a function or an object");
       }
       if (maxRedirections != null && (!Number.isInteger(maxRedirections) || maxRedirections < 0)) {
@@ -21026,15 +21100,15 @@ var require_client = __commonJS(function(exports, module) {
       if (maxConcurrentStreams != null && (typeof maxConcurrentStreams !== "number" || maxConcurrentStreams < 1)) {
         throw new InvalidArgumentError("maxConcurrentStreams must be a positive integer, greater than 0");
       }
-      if (typeof connect !== "function") {
-        connect = buildConnector({
+      if (typeof connect2 !== "function") {
+        connect2 = buildConnector({
           ...tls,
           maxCachedSessions,
           allowH2,
           socketPath,
           timeout: connectTimeout,
           ...autoSelectFamily ? { autoSelectFamily, autoSelectFamilyAttemptTimeout } : undefined,
-          ...connect
+          ...connect2
         });
       }
       if (interceptors?.Client && Array.isArray(interceptors.Client)) {
@@ -21049,9 +21123,9 @@ var require_client = __commonJS(function(exports, module) {
         this[kInterceptors] = [createRedirectInterceptor({ maxRedirections })];
       }
       this[kUrl] = util.parseOrigin(url);
-      this[kConnector] = connect;
+      this[kConnector] = connect2;
       this[kPipelining] = pipelining != null ? pipelining : 1;
-      this[kMaxHeadersSize] = maxHeaderSize2 || http.maxHeaderSize;
+      this[kMaxHeadersSize] = maxHeaderSize || http.maxHeaderSize;
       this[kKeepAliveDefaultTimeout] = keepAliveTimeout == null ? 4000 : keepAliveTimeout;
       this[kKeepAliveMaxTimeout] = keepAliveMaxTimeout == null ? 600000 : keepAliveMaxTimeout;
       this[kKeepAliveTimeoutThreshold] = keepAliveTimeoutThreshold == null ? 2000 : keepAliveTimeoutThreshold;
@@ -21119,19 +21193,19 @@ var require_client = __commonJS(function(exports, module) {
       return this[kNeedDrain] < 2;
     }
     async[kClose]() {
-      return new Promise((resolve) => {
+      return new Promise((resolve11) => {
         if (this[kSize]) {
-          this[kClosedResolve] = resolve;
+          this[kClosedResolve] = resolve11;
         } else {
-          resolve(null);
+          resolve11(null);
         }
       });
     }
     async[kDestroy](err) {
-      return new Promise((resolve) => {
+      return new Promise((resolve11) => {
         const requests = this[kQueue].splice(this[kPendingIdx]);
-        for (let i = 0;i < requests.length; i++) {
-          const request = requests[i];
+        for (let i2 = 0;i2 < requests.length; i2++) {
+          const request = requests[i2];
           util.errorRequest(this, request, err);
         }
         const callback = () => {
@@ -21139,7 +21213,7 @@ var require_client = __commonJS(function(exports, module) {
             this[kClosedResolve]();
             this[kClosedResolve] = null;
           }
-          resolve(null);
+          resolve11(null);
         };
         if (this[kHTTPContext]) {
           this[kHTTPContext].destroy(err, callback);
@@ -21156,8 +21230,8 @@ var require_client = __commonJS(function(exports, module) {
     if (client[kRunning] === 0 && err.code !== "UND_ERR_INFO" && err.code !== "UND_ERR_SOCKET") {
       assert(client[kPendingIdx] === client[kRunningIdx]);
       const requests = client[kQueue].splice(client[kRunningIdx]);
-      for (let i = 0;i < requests.length; i++) {
-        const request = requests[i];
+      for (let i2 = 0;i2 < requests.length; i2++) {
+        const request = requests[i2];
         util.errorRequest(client, request, err);
       }
       assert(client[kSize] === 0);
@@ -21190,7 +21264,7 @@ var require_client = __commonJS(function(exports, module) {
       });
     }
     try {
-      const socket = await new Promise((resolve, reject) => {
+      const socket = await new Promise((resolve11, reject) => {
         client[kConnector]({
           host,
           hostname,
@@ -21198,23 +21272,23 @@ var require_client = __commonJS(function(exports, module) {
           port,
           servername: client[kServerName],
           localAddress: client[kLocalAddress]
-        }, (err, socket) => {
+        }, (err, socket2) => {
           if (err) {
             reject(err);
           } else {
-            resolve(socket);
+            resolve11(socket2);
           }
         });
       });
       if (client.destroyed) {
-        util.destroy(socket.on("error", noop), new ClientDestroyedError);
+        util.destroy(socket.on("error", noop2), new ClientDestroyedError);
         return;
       }
       assert(socket);
       try {
         client[kHTTPContext] = socket.alpnProtocol === "h2" ? await connectH2(client, socket) : await connectH1(client, socket);
       } catch (err) {
-        socket.destroy().on("error", noop);
+        socket.destroy().on("error", noop2);
         throw err;
       }
       client[kConnecting] = false;
@@ -21354,7 +21428,7 @@ var require_client = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/dispatcher/fixed-queue.js
-var require_fixed_queue = __commonJS(function(exports, module) {
+var require_fixed_queue = __commonJS((exports, module) => {
   var kSize = 2048;
   var kMask = kSize - 1;
 
@@ -21409,7 +21483,7 @@ var require_fixed_queue = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/dispatcher/pool-stats.js
-var require_pool_stats = __commonJS(function(exports, module) {
+var require_pool_stats = __commonJS((exports, module) => {
   var { kFree, kConnected, kPending, kQueued, kRunning, kSize } = require_symbols();
   var kPool = Symbol("pool");
 
@@ -21440,7 +21514,7 @@ var require_pool_stats = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/dispatcher/pool-base.js
-var require_pool_base = __commonJS(function(exports, module) {
+var require_pool_base = __commonJS((exports, module) => {
   var DispatcherBase = require_dispatcher_base();
   var FixedQueue = require_fixed_queue();
   var { kConnected, kSize, kRunning, kPending, kQueued, kBusy, kFree, kUrl, kClose, kDestroy, kDispatch } = require_symbols();
@@ -21466,10 +21540,10 @@ var require_pool_base = __commonJS(function(exports, module) {
       this[kQueued] = 0;
       const pool = this;
       this[kOnDrain] = function onDrain(origin, targets) {
-        const queue = pool[kQueue];
+        const queue2 = pool[kQueue];
         let needDrain = false;
         while (!needDrain) {
-          const item = queue.shift();
+          const item = queue2.shift();
           if (!item) {
             break;
           }
@@ -21481,8 +21555,8 @@ var require_pool_base = __commonJS(function(exports, module) {
           pool[kNeedDrain] = false;
           pool.emit("drain", origin, [pool, ...targets]);
         }
-        if (pool[kClosedResolve] && queue.isEmpty()) {
-          Promise.all(pool[kClients].map((c) => c.close())).then(pool[kClosedResolve]);
+        if (pool[kClosedResolve] && queue2.isEmpty()) {
+          Promise.all(pool[kClients].map((c3) => c3.close())).then(pool[kClosedResolve]);
         }
       };
       this[kOnConnect] = (origin, targets) => {
@@ -21531,10 +21605,10 @@ var require_pool_base = __commonJS(function(exports, module) {
     }
     async[kClose]() {
       if (this[kQueue].isEmpty()) {
-        await Promise.all(this[kClients].map((c) => c.close()));
+        await Promise.all(this[kClients].map((c3) => c3.close()));
       } else {
-        await new Promise((resolve) => {
-          this[kClosedResolve] = resolve;
+        await new Promise((resolve11) => {
+          this[kClosedResolve] = resolve11;
         });
       }
     }
@@ -21546,7 +21620,7 @@ var require_pool_base = __commonJS(function(exports, module) {
         }
         item.handler.onError(err);
       }
-      await Promise.all(this[kClients].map((c) => c.destroy(err)));
+      await Promise.all(this[kClients].map((c3) => c3.destroy(err)));
     }
     [kDispatch](opts, handler) {
       const dispatcher = this[kGetDispatcher]();
@@ -21593,7 +21667,7 @@ var require_pool_base = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/dispatcher/pool.js
-var require_pool = __commonJS(function(exports, module) {
+var require_pool = __commonJS((exports, module) => {
   var {
     PoolBase,
     kClients,
@@ -21656,7 +21730,7 @@ var require_pool = __commonJS(function(exports, module) {
       this[kOptions] = { ...util.deepClone(options), connect, allowH2 };
       this[kOptions].interceptors = options.interceptors ? { ...options.interceptors } : undefined;
       this[kFactory] = factory;
-      this.on("connectionError", (origin, targets, error) => {
+      this.on("connectionError", (origin2, targets, error2) => {
         for (const target of targets) {
           const idx = this[kClients].indexOf(target);
           if (idx !== -1) {
@@ -21682,7 +21756,7 @@ var require_pool = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/dispatcher/balanced-pool.js
-var require_balanced_pool = __commonJS(function(exports, module) {
+var require_balanced_pool = __commonJS((exports, module) => {
   var {
     BalancedPoolMissingUpstreamError,
     InvalidArgumentError
@@ -21706,15 +21780,15 @@ var require_balanced_pool = __commonJS(function(exports, module) {
   var kWeight = Symbol("kWeight");
   var kMaxWeightPerServer = Symbol("kMaxWeightPerServer");
   var kErrorPenalty = Symbol("kErrorPenalty");
-  function getGreatestCommonDivisor(a, b) {
-    if (a === 0)
-      return b;
-    while (b !== 0) {
-      const t = b;
-      b = a % b;
-      a = t;
+  function getGreatestCommonDivisor(a2, b2) {
+    if (a2 === 0)
+      return b2;
+    while (b2 !== 0) {
+      const t2 = b2;
+      b2 = a2 % b2;
+      a2 = t2;
     }
-    return a;
+    return a2;
   }
   function defaultFactory(origin, opts) {
     return new Pool(origin, opts);
@@ -21743,7 +21817,7 @@ var require_balanced_pool = __commonJS(function(exports, module) {
     }
     addUpstream(upstream) {
       const upstreamOrigin = parseOrigin(upstream).origin;
-      if (this[kClients].find((pool) => pool[kUrl].origin === upstreamOrigin && pool.closed !== true && pool.destroyed !== true)) {
+      if (this[kClients].find((pool2) => pool2[kUrl].origin === upstreamOrigin && pool2.closed !== true && pool2.destroyed !== true)) {
         return this;
       }
       const pool = this[kFactory](upstreamOrigin, Object.assign({}, this[kOptions]));
@@ -21770,14 +21844,14 @@ var require_balanced_pool = __commonJS(function(exports, module) {
     }
     _updateBalancedPoolStats() {
       let result = 0;
-      for (let i = 0;i < this[kClients].length; i++) {
-        result = getGreatestCommonDivisor(this[kClients][i][kWeight], result);
+      for (let i2 = 0;i2 < this[kClients].length; i2++) {
+        result = getGreatestCommonDivisor(this[kClients][i2][kWeight], result);
       }
       this[kGreatestCommonDivisor] = result;
     }
     removeUpstream(upstream) {
       const upstreamOrigin = parseOrigin(upstream).origin;
-      const pool = this[kClients].find((pool) => pool[kUrl].origin === upstreamOrigin && pool.closed !== true && pool.destroyed !== true);
+      const pool = this[kClients].find((pool2) => pool2[kUrl].origin === upstreamOrigin && pool2.closed !== true && pool2.destroyed !== true);
       if (pool) {
         this[kRemoveClient](pool);
       }
@@ -21790,11 +21864,11 @@ var require_balanced_pool = __commonJS(function(exports, module) {
       if (this[kClients].length === 0) {
         throw new BalancedPoolMissingUpstreamError;
       }
-      const dispatcher = this[kClients].find((dispatcher) => !dispatcher[kNeedDrain] && dispatcher.closed !== true && dispatcher.destroyed !== true);
+      const dispatcher = this[kClients].find((dispatcher2) => !dispatcher2[kNeedDrain] && dispatcher2.closed !== true && dispatcher2.destroyed !== true);
       if (!dispatcher) {
         return;
       }
-      const allClientsBusy = this[kClients].map((pool) => pool[kNeedDrain]).reduce((a, b) => a && b, true);
+      const allClientsBusy = this[kClients].map((pool) => pool[kNeedDrain]).reduce((a2, b2) => a2 && b2, true);
       if (allClientsBusy) {
         return;
       }
@@ -21825,7 +21899,7 @@ var require_balanced_pool = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/dispatcher/agent.js
-var require_agent = __commonJS(function(exports, module) {
+var require_agent = __commonJS((exports, module) => {
   var { InvalidArgumentError } = require_errors();
   var { kClients, kRunning, kClose, kDestroy, kDispatch, kInterceptors } = require_symbols();
   var DispatcherBase = require_dispatcher_base();
@@ -21923,7 +21997,7 @@ var require_agent = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/dispatcher/proxy-agent.js
-var require_proxy_agent = __commonJS(function(exports, module) {
+var require_proxy_agent = __commonJS((exports, module) => {
   var { kProxy, kClose, kDestroy, kDispatch, kInterceptors } = require_symbols();
   var { URL: URL2 } = __require("node:url");
   var Agent = require_agent();
@@ -21945,7 +22019,7 @@ var require_proxy_agent = __commonJS(function(exports, module) {
   function defaultFactory(origin, opts) {
     return new Pool(origin, opts);
   }
-  var noop = () => {};
+  var noop2 = () => {};
   function defaultAgentFactory(origin, opts) {
     if (opts.connections === 1) {
       return new Client(origin, opts);
@@ -21981,10 +22055,10 @@ var require_proxy_agent = __commonJS(function(exports, module) {
       };
       const {
         origin,
-        path = "/",
+        path: path2 = "/",
         headers = {}
       } = opts;
-      opts.path = origin + path;
+      opts.path = origin + path2;
       if (!("host" in headers) && !("Host" in headers)) {
         const { host } = new URL2(origin);
         headers.host = host;
@@ -22031,43 +22105,43 @@ var require_proxy_agent = __commonJS(function(exports, module) {
       const connect = buildConnector({ ...opts.proxyTls });
       this[kConnectEndpoint] = buildConnector({ ...opts.requestTls });
       const agentFactory = opts.factory || defaultAgentFactory;
-      const factory = (origin, options) => {
-        const { protocol } = new URL2(origin);
-        if (!this[kTunnelProxy] && protocol === "http:" && this[kProxy].protocol === "http:") {
+      const factory = (origin2, options) => {
+        const { protocol: protocol2 } = new URL2(origin2);
+        if (!this[kTunnelProxy] && protocol2 === "http:" && this[kProxy].protocol === "http:") {
           return new Http1ProxyWrapper(this[kProxy].uri, {
             headers: this[kProxyHeaders],
             connect,
             factory: agentFactory
           });
         }
-        return agentFactory(origin, options);
+        return agentFactory(origin2, options);
       };
       this[kClient] = clientFactory(url, { connect });
       this[kAgent] = new Agent({
         ...opts,
         factory,
-        connect: async (opts, callback) => {
-          let requestedPath = opts.host;
-          if (!opts.port) {
-            requestedPath += `:${defaultProtocolPort(opts.protocol)}`;
+        connect: async (opts2, callback) => {
+          let requestedPath = opts2.host;
+          if (!opts2.port) {
+            requestedPath += `:${defaultProtocolPort(opts2.protocol)}`;
           }
           try {
             const { socket, statusCode } = await this[kClient].connect({
               origin,
               port,
               path: requestedPath,
-              signal: opts.signal,
+              signal: opts2.signal,
               headers: {
                 ...this[kProxyHeaders],
-                host: opts.host
+                host: opts2.host
               },
               servername: this[kProxyTls]?.servername || proxyHostname
             });
             if (statusCode !== 200) {
-              socket.on("error", noop).destroy();
+              socket.on("error", noop2).destroy();
               callback(new RequestAbortedError(`Proxy response (${statusCode}) !== 200 when HTTP Tunneling`));
             }
-            if (opts.protocol !== "https:") {
+            if (opts2.protocol !== "https:") {
               callback(null, socket);
               return;
             }
@@ -22075,9 +22149,9 @@ var require_proxy_agent = __commonJS(function(exports, module) {
             if (this[kRequestTls]) {
               servername = this[kRequestTls].servername;
             } else {
-              servername = opts.servername;
+              servername = opts2.servername;
             }
-            this[kConnectEndpoint]({ ...opts, servername, httpSocket: socket }, callback);
+            this[kConnectEndpoint]({ ...opts2, servername, httpSocket: socket }, callback);
           } catch (err) {
             if (err.code === "ERR_TLS_CERT_ALTNAME_INVALID") {
               callback(new SecureProxyConnectionError(err));
@@ -22089,7 +22163,7 @@ var require_proxy_agent = __commonJS(function(exports, module) {
       });
     }
     dispatch(opts, handler) {
-      const headers = buildHeaders(opts.headers);
+      const headers = buildHeaders2(opts.headers);
       throwIfProxyAuthIsSent(headers);
       if (headers && !("host" in headers) && !("Host" in headers)) {
         const { host } = new URL2(opts.origin);
@@ -22118,11 +22192,11 @@ var require_proxy_agent = __commonJS(function(exports, module) {
       await this[kClient].destroy();
     }
   }
-  function buildHeaders(headers) {
+  function buildHeaders2(headers) {
     if (Array.isArray(headers)) {
       const headersPair = {};
-      for (let i = 0;i < headers.length; i += 2) {
-        headersPair[headers[i]] = headers[i + 1];
+      for (let i2 = 0;i2 < headers.length; i2 += 2) {
+        headersPair[headers[i2]] = headers[i2 + 1];
       }
       return headersPair;
     }
@@ -22138,7 +22212,7 @@ var require_proxy_agent = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/dispatcher/env-http-proxy-agent.js
-var require_env_http_proxy_agent = __commonJS(function(exports, module) {
+var require_env_http_proxy_agent = __commonJS((exports, module) => {
   var DispatcherBase = require_dispatcher_base();
   var { kClose, kDestroy, kClosed, kDestroyed, kDispatch, kNoProxyAgent, kHttpProxyAgent, kHttpsProxyAgent } = require_symbols();
   var ProxyAgent = require_proxy_agent();
@@ -22223,8 +22297,8 @@ var require_env_http_proxy_agent = __commonJS(function(exports, module) {
       if (this.#noProxyValue === "*") {
         return false;
       }
-      for (let i = 0;i < this.#noProxyEntries.length; i++) {
-        const entry = this.#noProxyEntries[i];
+      for (let i2 = 0;i2 < this.#noProxyEntries.length; i2++) {
+        const entry = this.#noProxyEntries[i2];
         if (entry.port && entry.port !== port) {
           continue;
         }
@@ -22244,8 +22318,8 @@ var require_env_http_proxy_agent = __commonJS(function(exports, module) {
       const noProxyValue = this.#opts.noProxy ?? this.#noProxyEnv;
       const noProxySplit = noProxyValue.split(/[,\s]/);
       const noProxyEntries = [];
-      for (let i = 0;i < noProxySplit.length; i++) {
-        const entry = noProxySplit[i];
+      for (let i2 = 0;i2 < noProxySplit.length; i2++) {
+        const entry = noProxySplit[i2];
         if (!entry) {
           continue;
         }
@@ -22272,7 +22346,7 @@ var require_env_http_proxy_agent = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/handler/retry-handler.js
-var require_retry_handler = __commonJS(function(exports, module) {
+var require_retry_handler = __commonJS((exports, module) => {
   var assert = __require("node:assert");
   var { kRetryHandlerDefaultRetry } = require_symbols();
   var { RequestRetryError } = require_errors();
@@ -22545,9 +22619,9 @@ var require_retry_handler = __commonJS(function(exports, module) {
         state: { counter: this.retryCount },
         opts: { retryOptions: this.retryOpts, ...this.opts }
       }, onRetry.bind(this));
-      function onRetry(err) {
-        if (err != null || this.aborted || isDisturbed(this.opts.body)) {
-          return this.handler.onError(err);
+      function onRetry(err2) {
+        if (err2 != null || this.aborted || isDisturbed(this.opts.body)) {
+          return this.handler.onError(err2);
         }
         if (this.start !== 0) {
           const headers = { range: `bytes=${this.start}-${this.end ?? ""}` };
@@ -22565,8 +22639,8 @@ var require_retry_handler = __commonJS(function(exports, module) {
         try {
           this.retryCountCheckpoint = this.retryCount;
           this.dispatch(this.opts, this);
-        } catch (err) {
-          this.handler.onError(err);
+        } catch (err3) {
+          this.handler.onError(err3);
         }
       }
     }
@@ -22575,7 +22649,7 @@ var require_retry_handler = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/dispatcher/retry-agent.js
-var require_retry_agent = __commonJS(function(exports, module) {
+var require_retry_agent = __commonJS((exports, module) => {
   var Dispatcher = require_dispatcher();
   var RetryHandler = require_retry_handler();
 
@@ -22608,19 +22682,19 @@ var require_retry_agent = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/api/readable.js
-var require_readable = __commonJS(function(exports, module) {
+var require_readable = __commonJS((exports, module) => {
   var assert = __require("node:assert");
   var { Readable } = __require("node:stream");
   var { RequestAbortedError, NotSupportedError, InvalidArgumentError, AbortError } = require_errors();
   var util = require_util();
-  var { ReadableStreamFrom } = require_util();
+  var { ReadableStreamFrom: ReadableStreamFrom2 } = require_util();
   var kConsume = Symbol("kConsume");
   var kReading = Symbol("kReading");
   var kBody = Symbol("kBody");
   var kAbort = Symbol("kAbort");
   var kContentType = Symbol("kContentType");
   var kContentLength = Symbol("kContentLength");
-  var noop = () => {};
+  var noop2 = () => {};
 
   class BodyReadable extends Readable {
     constructor({
@@ -22710,7 +22784,7 @@ var require_readable = __commonJS(function(exports, module) {
     }
     get body() {
       if (!this[kBody]) {
-        this[kBody] = ReadableStreamFrom(this);
+        this[kBody] = ReadableStreamFrom2(this);
         if (this[kConsume]) {
           this[kBody].getReader();
           assert(this[kBody].locked);
@@ -22728,7 +22802,7 @@ var require_readable = __commonJS(function(exports, module) {
       if (this._readableState.closeEmitted) {
         return null;
       }
-      return await new Promise((resolve, reject) => {
+      return await new Promise((resolve11, reject) => {
         if (this[kContentLength] > limit) {
           this.destroy(new AbortError);
         }
@@ -22741,9 +22815,9 @@ var require_readable = __commonJS(function(exports, module) {
           if (signal?.aborted) {
             reject(signal.reason ?? new AbortError);
           } else {
-            resolve(null);
+            resolve11(null);
           }
-        }).on("error", noop).on("data", function(chunk) {
+        }).on("error", noop2).on("data", function(chunk) {
           limit -= chunk.length;
           if (limit <= 0) {
             this.destroy();
@@ -22758,9 +22832,9 @@ var require_readable = __commonJS(function(exports, module) {
   function isUnusable(self) {
     return util.isDisturbed(self) || isLocked(self);
   }
-  async function consume(stream, type) {
+  async function consume(stream, type2) {
     assert(!stream[kConsume]);
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve11, reject) => {
       if (isUnusable(stream)) {
         const rState = stream._readableState;
         if (rState.destroyed && rState.closeEmitted === false) {
@@ -22775,9 +22849,9 @@ var require_readable = __commonJS(function(exports, module) {
       } else {
         queueMicrotask(() => {
           stream[kConsume] = {
-            type,
+            type: type2,
             stream,
-            resolve,
+            resolve: resolve11,
             reject,
             length: 0,
             body: []
@@ -22794,31 +22868,31 @@ var require_readable = __commonJS(function(exports, module) {
       }
     });
   }
-  function consumeStart(consume) {
-    if (consume.body === null) {
+  function consumeStart(consume2) {
+    if (consume2.body === null) {
       return;
     }
-    const { _readableState: state } = consume.stream;
+    const { _readableState: state } = consume2.stream;
     if (state.bufferIndex) {
       const start = state.bufferIndex;
       const end = state.buffer.length;
-      for (let n = start;n < end; n++) {
-        consumePush(consume, state.buffer[n]);
+      for (let n2 = start;n2 < end; n2++) {
+        consumePush(consume2, state.buffer[n2]);
       }
     } else {
       for (const chunk of state.buffer) {
-        consumePush(consume, chunk);
+        consumePush(consume2, chunk);
       }
     }
     if (state.endEmitted) {
       consumeEnd(this[kConsume]);
     } else {
-      consume.stream.on("end", function() {
+      consume2.stream.on("end", function() {
         consumeEnd(this[kConsume]);
       });
     }
-    consume.stream.resume();
-    while (consume.stream.read() != null) {}
+    consume2.stream.resume();
+    while (consume2.stream.read() != null) {}
   }
   function chunksDecode(chunks, length) {
     if (chunks.length === 0 || length === 0) {
@@ -22838,57 +22912,57 @@ var require_readable = __commonJS(function(exports, module) {
     }
     const buffer = new Uint8Array(Buffer.allocUnsafeSlow(length).buffer);
     let offset = 0;
-    for (let i = 0;i < chunks.length; ++i) {
-      const chunk = chunks[i];
+    for (let i2 = 0;i2 < chunks.length; ++i2) {
+      const chunk = chunks[i2];
       buffer.set(chunk, offset);
       offset += chunk.length;
     }
     return buffer;
   }
-  function consumeEnd(consume) {
-    const { type, body, resolve, stream, length } = consume;
+  function consumeEnd(consume2) {
+    const { type: type2, body, resolve: resolve11, stream, length } = consume2;
     try {
-      if (type === "text") {
-        resolve(chunksDecode(body, length));
-      } else if (type === "json") {
-        resolve(JSON.parse(chunksDecode(body, length)));
-      } else if (type === "arrayBuffer") {
-        resolve(chunksConcat(body, length).buffer);
-      } else if (type === "blob") {
-        resolve(new Blob(body, { type: stream[kContentType] }));
-      } else if (type === "bytes") {
-        resolve(chunksConcat(body, length));
+      if (type2 === "text") {
+        resolve11(chunksDecode(body, length));
+      } else if (type2 === "json") {
+        resolve11(JSON.parse(chunksDecode(body, length)));
+      } else if (type2 === "arrayBuffer") {
+        resolve11(chunksConcat(body, length).buffer);
+      } else if (type2 === "blob") {
+        resolve11(new Blob(body, { type: stream[kContentType] }));
+      } else if (type2 === "bytes") {
+        resolve11(chunksConcat(body, length));
       }
-      consumeFinish(consume);
+      consumeFinish(consume2);
     } catch (err) {
       stream.destroy(err);
     }
   }
-  function consumePush(consume, chunk) {
-    consume.length += chunk.length;
-    consume.body.push(chunk);
+  function consumePush(consume2, chunk) {
+    consume2.length += chunk.length;
+    consume2.body.push(chunk);
   }
-  function consumeFinish(consume, err) {
-    if (consume.body === null) {
+  function consumeFinish(consume2, err) {
+    if (consume2.body === null) {
       return;
     }
     if (err) {
-      consume.reject(err);
+      consume2.reject(err);
     } else {
-      consume.resolve();
+      consume2.resolve();
     }
-    consume.type = null;
-    consume.stream = null;
-    consume.resolve = null;
-    consume.reject = null;
-    consume.length = 0;
-    consume.body = null;
+    consume2.type = null;
+    consume2.stream = null;
+    consume2.resolve = null;
+    consume2.reject = null;
+    consume2.length = 0;
+    consume2.body = null;
   }
   module.exports = { Readable: BodyReadable, chunksDecode };
 });
 
 // node_modules/undici/lib/api/util.js
-var require_util3 = __commonJS(function(exports, module) {
+var require_util3 = __commonJS((exports, module) => {
   var assert = __require("node:assert");
   var {
     ResponseStatusCodeError
@@ -22946,7 +23020,7 @@ var require_util3 = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/api/api-request.js
-var require_api_request = __commonJS(function(exports, module) {
+var require_api_request = __commonJS((exports, module) => {
   var assert = __require("node:assert");
   var { Readable } = require_readable();
   var { InvalidArgumentError, RequestAbortedError } = require_errors();
@@ -23105,9 +23179,9 @@ var require_api_request = __commonJS(function(exports, module) {
   }
   function request(opts, callback) {
     if (callback === undefined) {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve11, reject) => {
         request.call(this, opts, (err, data) => {
-          return err ? reject(err) : resolve(data);
+          return err ? reject(err) : resolve11(data);
         });
       });
     }
@@ -23126,7 +23200,7 @@ var require_api_request = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/api/abort-signal.js
-var require_abort_signal = __commonJS(function(exports, module) {
+var require_abort_signal = __commonJS((exports, module) => {
   var { addAbortListener } = require_util();
   var { RequestAbortedError } = require_errors();
   var kListener = Symbol("kListener");
@@ -23175,7 +23249,7 @@ var require_abort_signal = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/api/api-stream.js
-var require_api_stream = __commonJS(function(exports, module) {
+var require_api_stream = __commonJS((exports, module) => {
   var assert = __require("node:assert");
   var { finished, PassThrough } = __require("node:stream");
   var { InvalidArgumentError, InvalidReturnValueError } = require_errors();
@@ -23271,13 +23345,13 @@ var require_api_stream = __commonJS(function(exports, module) {
           throw new InvalidReturnValueError("expected Writable");
         }
         finished(res, { readable: false }, (err) => {
-          const { callback, res, opaque, trailers, abort } = this;
+          const { callback: callback2, res: res2, opaque: opaque2, trailers, abort } = this;
           this.res = null;
-          if (err || !res.readable) {
-            util.destroy(res, err);
+          if (err || !res2.readable) {
+            util.destroy(res2, err);
           }
           this.callback = null;
-          this.runInAsyncScope(callback, null, err || null, { opaque, trailers });
+          this.runInAsyncScope(callback2, null, err || null, { opaque: opaque2, trailers });
           if (err) {
             abort();
           }
@@ -23322,9 +23396,9 @@ var require_api_stream = __commonJS(function(exports, module) {
   }
   function stream(opts, factory, callback) {
     if (callback === undefined) {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve11, reject) => {
         stream.call(this, opts, factory, (err, data) => {
-          return err ? reject(err) : resolve(data);
+          return err ? reject(err) : resolve11(data);
         });
       });
     }
@@ -23342,7 +23416,7 @@ var require_api_stream = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/api/api-pipeline.js
-var require_api_pipeline = __commonJS(function(exports, module) {
+var require_api_pipeline = __commonJS((exports, module) => {
   var {
     Readable,
     Duplex,
@@ -23497,9 +23571,9 @@ var require_api_pipeline = __commonJS(function(exports, module) {
         throw new InvalidReturnValueError("expected Readable");
       }
       body.on("data", (chunk) => {
-        const { ret, body } = this;
-        if (!ret.push(chunk) && body.pause) {
-          body.pause();
+        const { ret, body: body2 } = this;
+        if (!ret.push(chunk) && body2.pause) {
+          body2.pause();
         }
       }).on("error", (err) => {
         const { ret } = this;
@@ -23542,7 +23616,7 @@ var require_api_pipeline = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/api/api-upgrade.js
-var require_api_upgrade = __commonJS(function(exports, module) {
+var require_api_upgrade = __commonJS((exports, module) => {
   var { InvalidArgumentError, SocketError } = require_errors();
   var { AsyncResource } = __require("node:async_hooks");
   var util = require_util();
@@ -23607,9 +23681,9 @@ var require_api_upgrade = __commonJS(function(exports, module) {
   }
   function upgrade(opts, callback) {
     if (callback === undefined) {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve11, reject) => {
         upgrade.call(this, opts, (err, data) => {
-          return err ? reject(err) : resolve(data);
+          return err ? reject(err) : resolve11(data);
         });
       });
     }
@@ -23632,7 +23706,7 @@ var require_api_upgrade = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/api/api-connect.js
-var require_api_connect = __commonJS(function(exports, module) {
+var require_api_connect = __commonJS((exports, module) => {
   var assert = __require("node:assert");
   var { AsyncResource } = __require("node:async_hooks");
   var { InvalidArgumentError, SocketError } = require_errors();
@@ -23699,9 +23773,9 @@ var require_api_connect = __commonJS(function(exports, module) {
   }
   function connect(opts, callback) {
     if (callback === undefined) {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve11, reject) => {
         connect.call(this, opts, (err, data) => {
-          return err ? reject(err) : resolve(data);
+          return err ? reject(err) : resolve11(data);
         });
       });
     }
@@ -23720,7 +23794,7 @@ var require_api_connect = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/api/index.js
-var require_api = __commonJS(function(exports, module) {
+var require_api = __commonJS((exports, module) => {
   exports.request = require_api_request();
   exports.stream = require_api_stream();
   exports.pipeline = require_api_pipeline();
@@ -23729,7 +23803,7 @@ var require_api = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/mock/mock-errors.js
-var require_mock_errors = __commonJS(function(exports, module) {
+var require_mock_errors = __commonJS((exports, module) => {
   var { UndiciError } = require_errors();
   var kMockNotMatchedError = Symbol.for("undici.error.UND_MOCK_ERR_MOCK_NOT_MATCHED");
 
@@ -23752,7 +23826,7 @@ var require_mock_errors = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/mock/mock-symbols.js
-var require_mock_symbols = __commonJS(function(exports, module) {
+var require_mock_symbols = __commonJS((exports, module) => {
   module.exports = {
     kAgent: Symbol("agent"),
     kOptions: Symbol("options"),
@@ -23777,7 +23851,7 @@ var require_mock_symbols = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/mock/mock-utils.js
-var require_mock_utils = __commonJS(function(exports, module) {
+var require_mock_utils = __commonJS((exports, module) => {
   var { MockNotMatchedError } = require_mock_errors();
   var {
     kDispatches,
@@ -23812,9 +23886,9 @@ var require_mock_utils = __commonJS(function(exports, module) {
   }
   function getHeaderByName(headers, key) {
     if (Array.isArray(headers)) {
-      for (let i = 0;i < headers.length; i += 2) {
-        if (headers[i].toLocaleLowerCase() === key.toLocaleLowerCase()) {
-          return headers[i + 1];
+      for (let i2 = 0;i2 < headers.length; i2 += 2) {
+        if (headers[i2].toLocaleLowerCase() === key.toLocaleLowerCase()) {
+          return headers[i2 + 1];
         }
       }
       return;
@@ -23832,20 +23906,20 @@ var require_mock_utils = __commonJS(function(exports, module) {
     }
     return Object.fromEntries(entries);
   }
-  function matchHeaders(mockDispatch, headers) {
-    if (typeof mockDispatch.headers === "function") {
+  function matchHeaders(mockDispatch2, headers) {
+    if (typeof mockDispatch2.headers === "function") {
       if (Array.isArray(headers)) {
         headers = buildHeadersFromArray(headers);
       }
-      return mockDispatch.headers(headers ? lowerCaseEntries(headers) : {});
+      return mockDispatch2.headers(headers ? lowerCaseEntries(headers) : {});
     }
-    if (typeof mockDispatch.headers === "undefined") {
+    if (typeof mockDispatch2.headers === "undefined") {
       return true;
     }
-    if (typeof headers !== "object" || typeof mockDispatch.headers !== "object") {
+    if (typeof headers !== "object" || typeof mockDispatch2.headers !== "object") {
       return false;
     }
-    for (const [matchHeaderName, matchHeaderValue] of Object.entries(mockDispatch.headers)) {
+    for (const [matchHeaderName, matchHeaderValue] of Object.entries(mockDispatch2.headers)) {
       const headerValue = getHeaderByName(headers, matchHeaderName);
       if (!matchValue(matchHeaderValue, headerValue)) {
         return false;
@@ -23853,23 +23927,23 @@ var require_mock_utils = __commonJS(function(exports, module) {
     }
     return true;
   }
-  function safeUrl(path) {
-    if (typeof path !== "string") {
-      return path;
+  function safeUrl(path2) {
+    if (typeof path2 !== "string") {
+      return path2;
     }
-    const pathSegments = path.split("?");
+    const pathSegments = path2.split("?");
     if (pathSegments.length !== 2) {
-      return path;
+      return path2;
     }
     const qp = new URLSearchParams(pathSegments.pop());
     qp.sort();
     return [...pathSegments, qp.toString()].join("?");
   }
-  function matchKey(mockDispatch, { path, method, body, headers }) {
-    const pathMatch = matchValue(mockDispatch.path, path);
-    const methodMatch = matchValue(mockDispatch.method, method);
-    const bodyMatch = typeof mockDispatch.body !== "undefined" ? matchValue(mockDispatch.body, body) : true;
-    const headersMatch = matchHeaders(mockDispatch, headers);
+  function matchKey(mockDispatch2, { path: path2, method, body, headers }) {
+    const pathMatch = matchValue(mockDispatch2.path, path2);
+    const methodMatch = matchValue(mockDispatch2.method, method);
+    const bodyMatch = typeof mockDispatch2.body !== "undefined" ? matchValue(mockDispatch2.body, body) : true;
+    const headersMatch = matchHeaders(mockDispatch2, headers);
     return pathMatch && methodMatch && bodyMatch && headersMatch;
   }
   function getResponseData(data) {
@@ -23888,7 +23962,7 @@ var require_mock_utils = __commonJS(function(exports, module) {
   function getMockDispatch(mockDispatches, key) {
     const basePath = key.query ? buildURL(key.path, key.query) : key.path;
     const resolvedPath = typeof basePath === "string" ? safeUrl(basePath) : basePath;
-    let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path }) => matchValue(safeUrl(path), resolvedPath));
+    let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path2 }) => matchValue(safeUrl(path2), resolvedPath));
     if (matchedMockDispatches.length === 0) {
       throw new MockNotMatchedError(`Mock dispatch not matched for path '${resolvedPath}'`);
     }
@@ -23900,7 +23974,7 @@ var require_mock_utils = __commonJS(function(exports, module) {
     if (matchedMockDispatches.length === 0) {
       throw new MockNotMatchedError(`Mock dispatch not matched for body '${key.body}' on path '${resolvedPath}'`);
     }
-    matchedMockDispatches = matchedMockDispatches.filter((mockDispatch) => matchHeaders(mockDispatch, key.headers));
+    matchedMockDispatches = matchedMockDispatches.filter((mockDispatch2) => matchHeaders(mockDispatch2, key.headers));
     if (matchedMockDispatches.length === 0) {
       const headers = typeof key.headers === "object" ? JSON.stringify(key.headers) : key.headers;
       throw new MockNotMatchedError(`Mock dispatch not matched for headers '${headers}' on path '${resolvedPath}'`);
@@ -23926,9 +24000,9 @@ var require_mock_utils = __commonJS(function(exports, module) {
     }
   }
   function buildKey(opts) {
-    const { path, method, body, headers, query } = opts;
+    const { path: path2, method, body, headers, query } = opts;
     return {
-      path,
+      path: path2,
       method,
       body,
       headers,
@@ -23938,8 +24012,8 @@ var require_mock_utils = __commonJS(function(exports, module) {
   function generateKeyValues(data) {
     const keys = Object.keys(data);
     const result = [];
-    for (let i = 0;i < keys.length; ++i) {
-      const key = keys[i];
+    for (let i2 = 0;i2 < keys.length; ++i2) {
+      const key = keys[i2];
       const value = data[key];
       const name = Buffer.from(`${key}`);
       if (Array.isArray(value)) {
@@ -23964,18 +24038,18 @@ var require_mock_utils = __commonJS(function(exports, module) {
   }
   function mockDispatch(opts, handler) {
     const key = buildKey(opts);
-    const mockDispatch = getMockDispatch(this[kDispatches], key);
-    mockDispatch.timesInvoked++;
-    if (mockDispatch.data.callback) {
-      mockDispatch.data = { ...mockDispatch.data, ...mockDispatch.data.callback(opts) };
+    const mockDispatch2 = getMockDispatch(this[kDispatches], key);
+    mockDispatch2.timesInvoked++;
+    if (mockDispatch2.data.callback) {
+      mockDispatch2.data = { ...mockDispatch2.data, ...mockDispatch2.data.callback(opts) };
     }
-    const { data: { statusCode, data, headers, trailers, error }, delay, persist } = mockDispatch;
-    const { timesInvoked, times } = mockDispatch;
-    mockDispatch.consumed = !persist && timesInvoked >= times;
-    mockDispatch.pending = timesInvoked < times;
-    if (error !== null) {
+    const { data: { statusCode, data, headers, trailers, error: error2 }, delay, persist } = mockDispatch2;
+    const { timesInvoked, times } = mockDispatch2;
+    mockDispatch2.consumed = !persist && timesInvoked >= times;
+    mockDispatch2.pending = timesInvoked < times;
+    if (error2 !== null) {
       deleteMockDispatch(this[kDispatches], key);
-      handler.onError(error);
+      handler.onError(error2);
       return true;
     }
     if (typeof delay === "number" && delay > 0) {
@@ -24012,19 +24086,19 @@ var require_mock_utils = __commonJS(function(exports, module) {
       if (agent.isMockActive) {
         try {
           mockDispatch.call(this, opts, handler);
-        } catch (error) {
-          if (error instanceof MockNotMatchedError) {
+        } catch (error2) {
+          if (error2 instanceof MockNotMatchedError) {
             const netConnect = agent[kGetNetConnect]();
             if (netConnect === false) {
-              throw new MockNotMatchedError(`${error.message}: subsequent request to origin ${origin} was not allowed (net.connect disabled)`);
+              throw new MockNotMatchedError(`${error2.message}: subsequent request to origin ${origin} was not allowed (net.connect disabled)`);
             }
             if (checkNetConnect(netConnect, origin)) {
               originalDispatch.call(this, opts, handler);
             } else {
-              throw new MockNotMatchedError(`${error.message}: subsequent request to origin ${origin} was not allowed (net.connect is not enabled for this origin)`);
+              throw new MockNotMatchedError(`${error2.message}: subsequent request to origin ${origin} was not allowed (net.connect is not enabled for this origin)`);
             }
           } else {
-            throw error;
+            throw error2;
           }
         }
       } else {
@@ -24067,7 +24141,7 @@ var require_mock_utils = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/mock/mock-interceptor.js
-var require_mock_interceptor = __commonJS(function(exports, module) {
+var require_mock_interceptor = __commonJS((exports, module) => {
   var { getResponseData, buildKey, addMockDispatch } = require_mock_utils();
   var {
     kDispatches,
@@ -24154,14 +24228,14 @@ var require_mock_interceptor = __commonJS(function(exports, module) {
           if (typeof resolvedData !== "object" || resolvedData === null) {
             throw new InvalidArgumentError("reply options callback must return an object");
           }
-          const replyParameters = { data: "", responseOptions: {}, ...resolvedData };
-          this.validateReplyParameters(replyParameters);
+          const replyParameters2 = { data: "", responseOptions: {}, ...resolvedData };
+          this.validateReplyParameters(replyParameters2);
           return {
-            ...this.createMockScopeDispatchData(replyParameters)
+            ...this.createMockScopeDispatchData(replyParameters2)
           };
         };
-        const newMockDispatch = addMockDispatch(this[kDispatches], this[kDispatchKey], wrappedDefaultsCallback);
-        return new MockScope(newMockDispatch);
+        const newMockDispatch2 = addMockDispatch(this[kDispatches], this[kDispatchKey], wrappedDefaultsCallback);
+        return new MockScope(newMockDispatch2);
       }
       const replyParameters = {
         statusCode: replyOptionsCallbackOrStatusCode,
@@ -24173,11 +24247,11 @@ var require_mock_interceptor = __commonJS(function(exports, module) {
       const newMockDispatch = addMockDispatch(this[kDispatches], this[kDispatchKey], dispatchData);
       return new MockScope(newMockDispatch);
     }
-    replyWithError(error) {
-      if (typeof error === "undefined") {
+    replyWithError(error2) {
+      if (typeof error2 === "undefined") {
         throw new InvalidArgumentError("error must be defined");
       }
-      const newMockDispatch = addMockDispatch(this[kDispatches], this[kDispatchKey], { error });
+      const newMockDispatch = addMockDispatch(this[kDispatches], this[kDispatchKey], { error: error2 });
       return new MockScope(newMockDispatch);
     }
     defaultReplyHeaders(headers) {
@@ -24204,7 +24278,7 @@ var require_mock_interceptor = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/mock/mock-client.js
-var require_mock_client = __commonJS(function(exports, module) {
+var require_mock_client = __commonJS((exports, module) => {
   var { promisify } = __require("node:util");
   var Client = require_client();
   var { buildMockDispatch } = require_mock_utils();
@@ -24252,7 +24326,7 @@ var require_mock_client = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/mock/mock-pool.js
-var require_mock_pool = __commonJS(function(exports, module) {
+var require_mock_pool = __commonJS((exports, module) => {
   var { promisify } = __require("node:util");
   var Pool = require_pool();
   var { buildMockDispatch } = require_mock_utils();
@@ -24300,7 +24374,7 @@ var require_mock_pool = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/mock/pluralizer.js
-var require_pluralizer = __commonJS(function(exports, module) {
+var require_pluralizer = __commonJS((exports, module) => {
   var singulars = {
     pronoun: "it",
     is: "is",
@@ -24328,7 +24402,7 @@ var require_pluralizer = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/mock/pending-interceptors-formatter.js
-var require_pending_interceptors_formatter = __commonJS(function(exports, module) {
+var require_pending_interceptors_formatter = __commonJS((exports, module) => {
   var { Transform } = __require("node:stream");
   var { Console } = __require("node:console");
   var PERSISTENT = process.versions.icu ? "✅" : "Y ";
@@ -24348,10 +24422,10 @@ var require_pending_interceptors_formatter = __commonJS(function(exports, module
       });
     }
     format(pendingInterceptors) {
-      const withPrettyHeaders = pendingInterceptors.map(({ method, path, data: { statusCode }, persist, times, timesInvoked, origin }) => ({
+      const withPrettyHeaders = pendingInterceptors.map(({ method, path: path2, data: { statusCode }, persist, times, timesInvoked, origin }) => ({
         Method: method,
         Origin: origin,
-        Path: path,
+        Path: path2,
         "Status code": statusCode,
         Persistent: persist ? PERSISTENT : NOT_PERSISTENT,
         Invocations: timesInvoked,
@@ -24364,7 +24438,7 @@ var require_pending_interceptors_formatter = __commonJS(function(exports, module
 });
 
 // node_modules/undici/lib/mock/mock-agent.js
-var require_mock_agent = __commonJS(function(exports, module) {
+var require_mock_agent = __commonJS((exports, module) => {
   var { kClients } = require_symbols();
   var Agent = require_agent();
   var {
@@ -24490,7 +24564,7 @@ ${pendingInterceptorsFormatter.format(pending)}
 });
 
 // node_modules/undici/lib/global.js
-var require_global2 = __commonJS(function(exports, module) {
+var require_global2 = __commonJS((exports, module) => {
   var globalDispatcher = Symbol.for("undici.globalDispatcher.1");
   var { InvalidArgumentError } = require_errors();
   var Agent = require_agent();
@@ -24518,7 +24592,7 @@ var require_global2 = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/handler/decorator-handler.js
-var require_decorator_handler = __commonJS(function(exports, module) {
+var require_decorator_handler = __commonJS((exports, module) => {
   module.exports = class DecoratorHandler {
     #handler;
     constructor(handler) {
@@ -24555,17 +24629,17 @@ var require_decorator_handler = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/interceptor/redirect.js
-var require_redirect = __commonJS(function(exports, module) {
+var require_redirect = __commonJS((exports, module) => {
   var RedirectHandler = require_redirect_handler();
   module.exports = (opts) => {
     const globalMaxRedirections = opts?.maxRedirections;
     return (dispatch) => {
-      return function redirectInterceptor(opts, handler) {
-        const { maxRedirections = globalMaxRedirections, ...baseOpts } = opts;
+      return function redirectInterceptor(opts2, handler) {
+        const { maxRedirections = globalMaxRedirections, ...baseOpts } = opts2;
         if (!maxRedirections) {
-          return dispatch(opts, handler);
+          return dispatch(opts2, handler);
         }
-        const redirectHandler = new RedirectHandler(dispatch, maxRedirections, opts, handler);
+        const redirectHandler = new RedirectHandler(dispatch, maxRedirections, opts2, handler);
         return dispatch(baseOpts, redirectHandler);
       };
     };
@@ -24573,7 +24647,7 @@ var require_redirect = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/interceptor/retry.js
-var require_retry = __commonJS(function(exports, module) {
+var require_retry = __commonJS((exports, module) => {
   var RetryHandler = require_retry_handler();
   module.exports = (globalOpts) => {
     return (dispatch) => {
@@ -24588,7 +24662,7 @@ var require_retry = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/interceptor/dump.js
-var require_dump = __commonJS(function(exports, module) {
+var require_dump = __commonJS((exports, module) => {
   var util = require_util();
   var { InvalidArgumentError, RequestAbortedError } = require_errors();
   var DecoratorHandler = require_decorator_handler();
@@ -24673,7 +24747,7 @@ var require_dump = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/interceptor/dns.js
-var require_dns = __commonJS(function(exports, module) {
+var require_dns = __commonJS((exports, module) => {
   var { isIP } = __require("node:net");
   var { lookup } = __require("node:dns");
   var DecoratorHandler = require_decorator_handler();
@@ -24809,10 +24883,10 @@ var require_dns = __commonJS(function(exports, module) {
       return ip;
     }
     setRecords(origin, addresses) {
-      const timestamp = Date.now();
+      const timestamp2 = Date.now();
       const records = { records: { 4: null, 6: null } };
       for (const record of addresses) {
-        record.timestamp = timestamp;
+        record.timestamp = timestamp2;
         if (typeof record.ttl === "number") {
           record.ttl = Math.min(record.ttl, this.#maxTTL);
         } else {
@@ -24848,9 +24922,9 @@ var require_dns = __commonJS(function(exports, module) {
         case "ETIMEDOUT":
         case "ECONNREFUSED": {
           if (this.#state.dualStack) {
-            this.#state.runLookup(this.#origin, this.#opts, (err, newOrigin) => {
-              if (err) {
-                return this.#handler.onError(err);
+            this.#state.runLookup(this.#origin, this.#opts, (err2, newOrigin) => {
+              if (err2) {
+                return this.#handler.onError(err2);
               }
               const dispatchOpts = {
                 ...this.#opts,
@@ -24935,7 +25009,7 @@ var require_dns = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/fetch/headers.js
-var require_headers = __commonJS(function(exports, module) {
+var require_headers = __commonJS((exports, module) => {
   var { kConstruct } = require_symbols();
   var { kEnumerableProperty } = require_util();
   var {
@@ -24952,18 +25026,18 @@ var require_headers = __commonJS(function(exports, module) {
     return code === 10 || code === 13 || code === 9 || code === 32;
   }
   function headerValueNormalize(potentialValue) {
-    let i = 0;
+    let i2 = 0;
     let j = potentialValue.length;
-    while (j > i && isHTTPWhiteSpaceCharCode(potentialValue.charCodeAt(j - 1)))
+    while (j > i2 && isHTTPWhiteSpaceCharCode(potentialValue.charCodeAt(j - 1)))
       --j;
-    while (j > i && isHTTPWhiteSpaceCharCode(potentialValue.charCodeAt(i)))
-      ++i;
-    return i === 0 && j === potentialValue.length ? potentialValue : potentialValue.substring(i, j);
+    while (j > i2 && isHTTPWhiteSpaceCharCode(potentialValue.charCodeAt(i2)))
+      ++i2;
+    return i2 === 0 && j === potentialValue.length ? potentialValue : potentialValue.substring(i2, j);
   }
   function fill(headers, object) {
     if (Array.isArray(object)) {
-      for (let i = 0;i < object.length; ++i) {
-        const header = object[i];
+      for (let i2 = 0;i2 < object.length; ++i2) {
+        const header = object[i2];
         if (header.length !== 2) {
           throw webidl.errors.exception({
             header: "Headers constructor",
@@ -24974,8 +25048,8 @@ var require_headers = __commonJS(function(exports, module) {
       }
     } else if (typeof object === "object" && object !== null) {
       const keys = Object.keys(object);
-      for (let i = 0;i < keys.length; ++i) {
-        appendHeader(headers, keys[i], object[keys[i]]);
+      for (let i2 = 0;i2 < keys.length; ++i2) {
+        appendHeader(headers, keys[i2], object[keys[i2]]);
       }
     } else {
       throw webidl.errors.conversionFailed({
@@ -25005,19 +25079,19 @@ var require_headers = __commonJS(function(exports, module) {
     }
     return getHeadersList(headers).append(name, value, false);
   }
-  function compareHeaderName(a, b) {
-    return a[0] < b[0] ? -1 : 1;
+  function compareHeaderName(a2, b2) {
+    return a2[0] < b2[0] ? -1 : 1;
   }
 
   class HeadersList {
     cookies = null;
-    constructor(init) {
-      if (init instanceof HeadersList) {
-        this[kHeadersMap] = new Map(init[kHeadersMap]);
-        this[kHeadersSortedMap] = init[kHeadersSortedMap];
-        this.cookies = init.cookies === null ? null : [...init.cookies];
+    constructor(init2) {
+      if (init2 instanceof HeadersList) {
+        this[kHeadersMap] = new Map(init2[kHeadersMap]);
+        this[kHeadersSortedMap] = init2[kHeadersSortedMap];
+        this.cookies = init2.cookies === null ? null : [...init2.cookies];
       } else {
-        this[kHeadersMap] = new Map(init);
+        this[kHeadersMap] = new Map(init2);
         this[kHeadersSortedMap] = null;
       }
     }
@@ -25109,26 +25183,26 @@ var require_headers = __commonJS(function(exports, module) {
         const firstValue = iterator.next().value;
         array[0] = [firstValue[0], firstValue[1].value];
         assert(firstValue[1].value !== null);
-        for (let i = 1, j = 0, right = 0, left = 0, pivot = 0, x, value;i < size; ++i) {
+        for (let i2 = 1, j = 0, right = 0, left = 0, pivot = 0, x2, value;i2 < size; ++i2) {
           value = iterator.next().value;
-          x = array[i] = [value[0], value[1].value];
-          assert(x[1] !== null);
+          x2 = array[i2] = [value[0], value[1].value];
+          assert(x2[1] !== null);
           left = 0;
-          right = i;
+          right = i2;
           while (left < right) {
             pivot = left + (right - left >> 1);
-            if (array[pivot][0] <= x[0]) {
+            if (array[pivot][0] <= x2[0]) {
               left = pivot + 1;
             } else {
               right = pivot;
             }
           }
-          if (i !== pivot) {
-            j = i;
+          if (i2 !== pivot) {
+            j = i2;
             while (j > left) {
               array[j] = array[--j];
             }
-            array[left] = x;
+            array[left] = x2;
           }
         }
         if (!iterator.next().done) {
@@ -25136,9 +25210,9 @@ var require_headers = __commonJS(function(exports, module) {
         }
         return array;
       } else {
-        let i = 0;
+        let i2 = 0;
         for (const { 0: name, 1: { value } } of this[kHeadersMap]) {
-          array[i++] = [name, value];
+          array[i2++] = [name, value];
           assert(value !== null);
         }
         return array.sort(compareHeaderName);
@@ -25149,16 +25223,16 @@ var require_headers = __commonJS(function(exports, module) {
   class Headers2 {
     #guard;
     #headersList;
-    constructor(init = undefined) {
+    constructor(init2 = undefined) {
       webidl.util.markAsUncloneable(this);
-      if (init === kConstruct) {
+      if (init2 === kConstruct) {
         return;
       }
       this.#headersList = new HeadersList;
       this.#guard = "none";
-      if (init !== undefined) {
-        init = webidl.converters.HeadersInit(init, "Headers contructor", "init");
-        fill(this, init);
+      if (init2 !== undefined) {
+        init2 = webidl.converters.HeadersInit(init2, "Headers contructor", "init");
+        fill(this, init2);
       }
     }
     append(name, value) {
@@ -25260,8 +25334,8 @@ var require_headers = __commonJS(function(exports, module) {
       if (cookies === null || cookies.length === 1) {
         return this.#headersList[kHeadersSortedMap] = names;
       }
-      for (let i = 0;i < names.length; ++i) {
-        const { 0: name, 1: value } = names[i];
+      for (let i2 = 0;i2 < names.length; ++i2) {
+        const { 0: name, 1: value } = names[i2];
         if (name === "set-cookie") {
           for (let j = 0;j < cookies.length; ++j) {
             headers.push([name, cookies[j]]);
@@ -25276,17 +25350,17 @@ var require_headers = __commonJS(function(exports, module) {
       options.depth ??= depth;
       return `Headers ${util.formatWithOptions(options, this.#headersList.entries)}`;
     }
-    static getHeadersGuard(o) {
-      return o.#guard;
+    static getHeadersGuard(o3) {
+      return o3.#guard;
     }
-    static setHeadersGuard(o, guard) {
-      o.#guard = guard;
+    static setHeadersGuard(o3, guard) {
+      o3.#guard = guard;
     }
-    static getHeadersList(o) {
-      return o.#headersList;
+    static getHeadersList(o3) {
+      return o3.#headersList;
     }
-    static setHeadersList(o, list) {
-      o.#headersList = list;
+    static setHeadersList(o3, list) {
+      o3.#headersList = list;
     }
   }
   var { getHeadersGuard, setHeadersGuard, getHeadersList, setHeadersList } = Headers2;
@@ -25310,18 +25384,18 @@ var require_headers = __commonJS(function(exports, module) {
       enumerable: false
     }
   });
-  webidl.converters.HeadersInit = function(V, prefix, argument) {
-    if (webidl.util.Type(V) === "Object") {
-      const iterator = Reflect.get(V, Symbol.iterator);
-      if (!util.types.isProxy(V) && iterator === Headers2.prototype.entries) {
+  webidl.converters.HeadersInit = function(V2, prefix, argument) {
+    if (webidl.util.Type(V2) === "Object") {
+      const iterator = Reflect.get(V2, Symbol.iterator);
+      if (!util.types.isProxy(V2) && iterator === Headers2.prototype.entries) {
         try {
-          return getHeadersList(V).entriesList;
+          return getHeadersList(V2).entriesList;
         } catch {}
       }
       if (typeof iterator === "function") {
-        return webidl.converters["sequence<sequence<ByteString>>"](V, prefix, argument, iterator.bind(V));
+        return webidl.converters["sequence<sequence<ByteString>>"](V2, prefix, argument, iterator.bind(V2));
       }
-      return webidl.converters["record<ByteString, ByteString>"](V, prefix, argument);
+      return webidl.converters["record<ByteString, ByteString>"](V2, prefix, argument);
     }
     throw webidl.errors.conversionFailed({
       prefix: "Headers constructor",
@@ -25342,7 +25416,7 @@ var require_headers = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/fetch/response.js
-var require_response = __commonJS(function(exports, module) {
+var require_response = __commonJS((exports, module) => {
   var { Headers: Headers2, HeadersList, fill, getHeadersGuard, setHeadersGuard, setHeadersList } = require_headers();
   var { extractBody, cloneBody, mixinBody, hasFinalizationRegistry, streamRegistry, bodyUnusable } = require_body();
   var util = require_util();
@@ -25352,7 +25426,7 @@ var require_response = __commonJS(function(exports, module) {
     isValidReasonPhrase,
     isCancelled,
     isAborted,
-    isBlobLike,
+    isBlobLike: isBlobLike2,
     serializeJavascriptValueToJSONString,
     isErrorLike,
     isomorphicEncode,
@@ -25368,7 +25442,7 @@ var require_response = __commonJS(function(exports, module) {
   var { URLSerializer } = require_data_url();
   var { kConstruct } = require_symbols();
   var assert = __require("node:assert");
-  var { types } = __require("node:util");
+  var { types: types2 } = __require("node:util");
   var textEncoder = new TextEncoder("utf-8");
 
   class Response2 {
@@ -25376,15 +25450,15 @@ var require_response = __commonJS(function(exports, module) {
       const responseObject = fromInnerResponse(makeNetworkError(), "immutable");
       return responseObject;
     }
-    static json(data, init = {}) {
+    static json(data, init2 = {}) {
       webidl.argumentLengthCheck(arguments, 1, "Response.json");
-      if (init !== null) {
-        init = webidl.converters.ResponseInit(init);
+      if (init2 !== null) {
+        init2 = webidl.converters.ResponseInit(init2);
       }
       const bytes = textEncoder.encode(serializeJavascriptValueToJSONString(data));
       const body = extractBody(bytes);
       const responseObject = fromInnerResponse(makeResponse({}), "response");
-      initializeResponse(responseObject, init, { body: body[0], type: "application/json" });
+      initializeResponse(responseObject, init2, { body: body[0], type: "application/json" });
       return responseObject;
     }
     static redirect(url, status = 302) {
@@ -25406,7 +25480,7 @@ var require_response = __commonJS(function(exports, module) {
       responseObject[kState].headersList.append("location", value, true);
       return responseObject;
     }
-    constructor(body = null, init = {}) {
+    constructor(body = null, init2 = {}) {
       webidl.util.markAsUncloneable(this);
       if (body === kConstruct) {
         return;
@@ -25414,17 +25488,17 @@ var require_response = __commonJS(function(exports, module) {
       if (body !== null) {
         body = webidl.converters.BodyInit(body);
       }
-      init = webidl.converters.ResponseInit(init);
+      init2 = webidl.converters.ResponseInit(init2);
       this[kState] = makeResponse({});
       this[kHeaders] = new Headers2(kConstruct);
       setHeadersGuard(this[kHeaders], "response");
       setHeadersList(this[kHeaders], this[kState].headersList);
       let bodyWithType = null;
       if (body != null) {
-        const [extractedBody, type] = extractBody(body);
-        bodyWithType = { body: extractedBody, type };
+        const [extractedBody, type2] = extractBody(body);
+        bodyWithType = { body: extractedBody, type: type2 };
       }
-      initializeResponse(this, init, bodyWithType);
+      initializeResponse(this, init2, bodyWithType);
     }
     get type() {
       webidl.brandCheck(this, Response2);
@@ -25532,7 +25606,7 @@ var require_response = __commonJS(function(exports, module) {
     }
     return newResponse;
   }
-  function makeResponse(init) {
+  function makeResponse(init2) {
     return {
       aborted: false,
       rangeRequested: false,
@@ -25543,9 +25617,9 @@ var require_response = __commonJS(function(exports, module) {
       timingInfo: null,
       cacheState: "",
       statusText: "",
-      ...init,
-      headersList: init?.headersList ? new HeadersList(init?.headersList) : new HeadersList,
-      urlList: init?.urlList ? [...init.urlList] : []
+      ...init2,
+      headersList: init2?.headersList ? new HeadersList(init2?.headersList) : new HeadersList,
+      urlList: init2?.urlList ? [...init2.urlList] : []
     };
   }
   function makeNetworkError(reason) {
@@ -25576,18 +25650,18 @@ var require_response = __commonJS(function(exports, module) {
       }
     });
   }
-  function filterResponse(response, type) {
-    if (type === "basic") {
+  function filterResponse(response, type2) {
+    if (type2 === "basic") {
       return makeFilteredResponse(response, {
         type: "basic",
         headersList: response.headersList
       });
-    } else if (type === "cors") {
+    } else if (type2 === "cors") {
       return makeFilteredResponse(response, {
         type: "cors",
         headersList: response.headersList
       });
-    } else if (type === "opaque") {
+    } else if (type2 === "opaque") {
       return makeFilteredResponse(response, {
         type: "opaque",
         urlList: Object.freeze([]),
@@ -25595,7 +25669,7 @@ var require_response = __commonJS(function(exports, module) {
         statusText: "",
         body: null
       });
-    } else if (type === "opaqueredirect") {
+    } else if (type2 === "opaqueredirect") {
       return makeFilteredResponse(response, {
         type: "opaqueredirect",
         status: 0,
@@ -25611,23 +25685,23 @@ var require_response = __commonJS(function(exports, module) {
     assert(isCancelled(fetchParams));
     return isAborted(fetchParams) ? makeNetworkError(Object.assign(new DOMException("The operation was aborted.", "AbortError"), { cause: err })) : makeNetworkError(Object.assign(new DOMException("Request was cancelled."), { cause: err }));
   }
-  function initializeResponse(response, init, body) {
-    if (init.status !== null && (init.status < 200 || init.status > 599)) {
+  function initializeResponse(response, init2, body) {
+    if (init2.status !== null && (init2.status < 200 || init2.status > 599)) {
       throw new RangeError('init["status"] must be in the range of 200 to 599, inclusive.');
     }
-    if ("statusText" in init && init.statusText != null) {
-      if (!isValidReasonPhrase(String(init.statusText))) {
+    if ("statusText" in init2 && init2.statusText != null) {
+      if (!isValidReasonPhrase(String(init2.statusText))) {
         throw new TypeError("Invalid statusText");
       }
     }
-    if ("status" in init && init.status != null) {
-      response[kState].status = init.status;
+    if ("status" in init2 && init2.status != null) {
+      response[kState].status = init2.status;
     }
-    if ("statusText" in init && init.statusText != null) {
-      response[kState].statusText = init.statusText;
+    if ("statusText" in init2 && init2.statusText != null) {
+      response[kState].statusText = init2.statusText;
     }
-    if ("headers" in init && init.headers != null) {
-      fill(response[kHeaders], init.headers);
+    if ("headers" in init2 && init2.headers != null) {
+      fill(response[kHeaders], init2.headers);
     }
     if (body) {
       if (nullBodyStatus.includes(response.status)) {
@@ -25656,32 +25730,32 @@ var require_response = __commonJS(function(exports, module) {
   webidl.converters.ReadableStream = webidl.interfaceConverter(ReadableStream);
   webidl.converters.FormData = webidl.interfaceConverter(FormData2);
   webidl.converters.URLSearchParams = webidl.interfaceConverter(URLSearchParams);
-  webidl.converters.XMLHttpRequestBodyInit = function(V, prefix, name) {
-    if (typeof V === "string") {
-      return webidl.converters.USVString(V, prefix, name);
+  webidl.converters.XMLHttpRequestBodyInit = function(V2, prefix, name) {
+    if (typeof V2 === "string") {
+      return webidl.converters.USVString(V2, prefix, name);
     }
-    if (isBlobLike(V)) {
-      return webidl.converters.Blob(V, prefix, name, { strict: false });
+    if (isBlobLike2(V2)) {
+      return webidl.converters.Blob(V2, prefix, name, { strict: false });
     }
-    if (ArrayBuffer.isView(V) || types.isArrayBuffer(V)) {
-      return webidl.converters.BufferSource(V, prefix, name);
+    if (ArrayBuffer.isView(V2) || types2.isArrayBuffer(V2)) {
+      return webidl.converters.BufferSource(V2, prefix, name);
     }
-    if (util.isFormDataLike(V)) {
-      return webidl.converters.FormData(V, prefix, name, { strict: false });
+    if (util.isFormDataLike(V2)) {
+      return webidl.converters.FormData(V2, prefix, name, { strict: false });
     }
-    if (V instanceof URLSearchParams) {
-      return webidl.converters.URLSearchParams(V, prefix, name);
+    if (V2 instanceof URLSearchParams) {
+      return webidl.converters.URLSearchParams(V2, prefix, name);
     }
-    return webidl.converters.DOMString(V, prefix, name);
+    return webidl.converters.DOMString(V2, prefix, name);
   };
-  webidl.converters.BodyInit = function(V, prefix, argument) {
-    if (V instanceof ReadableStream) {
-      return webidl.converters.ReadableStream(V, prefix, argument);
+  webidl.converters.BodyInit = function(V2, prefix, argument) {
+    if (V2 instanceof ReadableStream) {
+      return webidl.converters.ReadableStream(V2, prefix, argument);
     }
-    if (V?.[Symbol.asyncIterator]) {
-      return V;
+    if (V2?.[Symbol.asyncIterator]) {
+      return V2;
     }
-    return webidl.converters.XMLHttpRequestBodyInit(V, prefix, argument);
+    return webidl.converters.XMLHttpRequestBodyInit(V2, prefix, argument);
   };
   webidl.converters.ResponseInit = webidl.dictionaryConverter([
     {
@@ -25712,7 +25786,7 @@ var require_response = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/fetch/dispatcher-weakref.js
-var require_dispatcher_weakref = __commonJS(function(exports, module) {
+var require_dispatcher_weakref = __commonJS((exports, module) => {
   var { kConnected, kSize } = require_symbols();
 
   class CompatWeakRef {
@@ -25752,7 +25826,7 @@ var require_dispatcher_weakref = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/fetch/request.js
-var require_request2 = __commonJS(function(exports, module) {
+var require_request2 = __commonJS((exports, module) => {
   var { extractBody, mixinBody, cloneBody, bodyUnusable } = require_body();
   var { Headers: Headers2, fill: fillHeaders, HeadersList, setHeadersGuard, getHeadersGuard, setHeadersList, getHeadersList } = require_headers();
   var { FinalizationRegistry: FinalizationRegistry2 } = require_dispatcher_weakref()();
@@ -25812,7 +25886,7 @@ var require_request2 = __commonJS(function(exports, module) {
   var patchMethodWarning = false;
 
   class Request2 {
-    constructor(input, init = {}) {
+    constructor(input, init2 = {}) {
       webidl.util.markAsUncloneable(this);
       if (input === kConstruct) {
         return;
@@ -25820,13 +25894,13 @@ var require_request2 = __commonJS(function(exports, module) {
       const prefix = "Request constructor";
       webidl.argumentLengthCheck(arguments, 1, prefix);
       input = webidl.converters.RequestInfo(input, prefix, "input");
-      init = webidl.converters.RequestInit(init, prefix, "init");
+      init2 = webidl.converters.RequestInit(init2, prefix, "init");
       let request = null;
       let fallbackMode = null;
       const baseUrl = environmentSettingsObject.settingsObject.baseUrl;
       let signal = null;
       if (typeof input === "string") {
-        this[kDispatcher] = init.dispatcher;
+        this[kDispatcher] = init2.dispatcher;
         let parsedURL;
         try {
           parsedURL = new URL(input, baseUrl);
@@ -25839,7 +25913,7 @@ var require_request2 = __commonJS(function(exports, module) {
         request = makeRequest({ urlList: [parsedURL] });
         fallbackMode = "cors";
       } else {
-        this[kDispatcher] = init.dispatcher || input[kDispatcher];
+        this[kDispatcher] = init2.dispatcher || input[kDispatcher];
         assert(input instanceof Request2);
         request = input[kState];
         signal = input[kSignal];
@@ -25849,10 +25923,10 @@ var require_request2 = __commonJS(function(exports, module) {
       if (request.window?.constructor?.name === "EnvironmentSettingsObject" && sameOrigin(request.window, origin)) {
         window2 = request.window;
       }
-      if (init.window != null) {
+      if (init2.window != null) {
         throw new TypeError(`'window' option '${window2}' must be null`);
       }
-      if ("window" in init) {
+      if ("window" in init2) {
         window2 = "no-window";
       }
       request = makeRequest({
@@ -25875,7 +25949,7 @@ var require_request2 = __commonJS(function(exports, module) {
         historyNavigation: request.historyNavigation,
         urlList: [...request.urlList]
       });
-      const initHasKey = Object.keys(init).length !== 0;
+      const initHasKey = Object.keys(init2).length !== 0;
       if (initHasKey) {
         if (request.mode === "navigate") {
           request.mode = "same-origin";
@@ -25888,8 +25962,8 @@ var require_request2 = __commonJS(function(exports, module) {
         request.url = request.urlList[request.urlList.length - 1];
         request.urlList = [request.url];
       }
-      if (init.referrer !== undefined) {
-        const referrer = init.referrer;
+      if (init2.referrer !== undefined) {
+        const referrer = init2.referrer;
         if (referrer === "") {
           request.referrer = "no-referrer";
         } else {
@@ -25906,12 +25980,12 @@ var require_request2 = __commonJS(function(exports, module) {
           }
         }
       }
-      if (init.referrerPolicy !== undefined) {
-        request.referrerPolicy = init.referrerPolicy;
+      if (init2.referrerPolicy !== undefined) {
+        request.referrerPolicy = init2.referrerPolicy;
       }
       let mode;
-      if (init.mode !== undefined) {
-        mode = init.mode;
+      if (init2.mode !== undefined) {
+        mode = init2.mode;
       } else {
         mode = fallbackMode;
       }
@@ -25924,26 +25998,26 @@ var require_request2 = __commonJS(function(exports, module) {
       if (mode != null) {
         request.mode = mode;
       }
-      if (init.credentials !== undefined) {
-        request.credentials = init.credentials;
+      if (init2.credentials !== undefined) {
+        request.credentials = init2.credentials;
       }
-      if (init.cache !== undefined) {
-        request.cache = init.cache;
+      if (init2.cache !== undefined) {
+        request.cache = init2.cache;
       }
       if (request.cache === "only-if-cached" && request.mode !== "same-origin") {
         throw new TypeError("'only-if-cached' can be set only with 'same-origin' mode");
       }
-      if (init.redirect !== undefined) {
-        request.redirect = init.redirect;
+      if (init2.redirect !== undefined) {
+        request.redirect = init2.redirect;
       }
-      if (init.integrity != null) {
-        request.integrity = String(init.integrity);
+      if (init2.integrity != null) {
+        request.integrity = String(init2.integrity);
       }
-      if (init.keepalive !== undefined) {
-        request.keepalive = Boolean(init.keepalive);
+      if (init2.keepalive !== undefined) {
+        request.keepalive = Boolean(init2.keepalive);
       }
-      if (init.method !== undefined) {
-        let method = init.method;
+      if (init2.method !== undefined) {
+        let method = init2.method;
         const mayBeNormalized = normalizedMethodRecords[method];
         if (mayBeNormalized !== undefined) {
           request.method = mayBeNormalized;
@@ -25965,8 +26039,8 @@ var require_request2 = __commonJS(function(exports, module) {
           patchMethodWarning = true;
         }
       }
-      if (init.signal !== undefined) {
-        signal = init.signal;
+      if (init2.signal !== undefined) {
+        signal = init2.signal;
       }
       this[kState] = request;
       const ac = new AbortController;
@@ -26003,7 +26077,7 @@ var require_request2 = __commonJS(function(exports, module) {
       }
       if (initHasKey) {
         const headersList = getHeadersList(this[kHeaders]);
-        const headers = init.headers !== undefined ? init.headers : new HeadersList(headersList);
+        const headers = init2.headers !== undefined ? init2.headers : new HeadersList(headersList);
         headersList.clear();
         if (headers instanceof HeadersList) {
           for (const { name, value } of headers.rawValues()) {
@@ -26015,12 +26089,12 @@ var require_request2 = __commonJS(function(exports, module) {
         }
       }
       const inputBody = input instanceof Request2 ? input[kState].body : null;
-      if ((init.body != null || inputBody != null) && (request.method === "GET" || request.method === "HEAD")) {
+      if ((init2.body != null || inputBody != null) && (request.method === "GET" || request.method === "HEAD")) {
         throw new TypeError("Request with GET/HEAD method cannot have body.");
       }
       let initBody = null;
-      if (init.body != null) {
-        const [extractedBody, contentType] = extractBody(init.body, request.keepalive);
+      if (init2.body != null) {
+        const [extractedBody, contentType] = extractBody(init2.body, request.keepalive);
         initBody = extractedBody;
         if (contentType && !getHeadersList(this[kHeaders]).contains("content-type", true)) {
           this[kHeaders].append("content-type", contentType);
@@ -26028,7 +26102,7 @@ var require_request2 = __commonJS(function(exports, module) {
       }
       const inputOrInitBody = initBody ?? inputBody;
       if (inputOrInitBody != null && inputOrInitBody.source == null) {
-        if (initBody != null && init.duplex == null) {
+        if (initBody != null && init2.duplex == null) {
           throw new TypeError("RequestInit: duplex option is required when sending a body.");
         }
         if (request.mode !== "same-origin" && request.mode !== "cors") {
@@ -26175,46 +26249,46 @@ var require_request2 = __commonJS(function(exports, module) {
     }
   }
   mixinBody(Request2);
-  function makeRequest(init) {
+  function makeRequest(init2) {
     return {
-      method: init.method ?? "GET",
-      localURLsOnly: init.localURLsOnly ?? false,
-      unsafeRequest: init.unsafeRequest ?? false,
-      body: init.body ?? null,
-      client: init.client ?? null,
-      reservedClient: init.reservedClient ?? null,
-      replacesClientId: init.replacesClientId ?? "",
-      window: init.window ?? "client",
-      keepalive: init.keepalive ?? false,
-      serviceWorkers: init.serviceWorkers ?? "all",
-      initiator: init.initiator ?? "",
-      destination: init.destination ?? "",
-      priority: init.priority ?? null,
-      origin: init.origin ?? "client",
-      policyContainer: init.policyContainer ?? "client",
-      referrer: init.referrer ?? "client",
-      referrerPolicy: init.referrerPolicy ?? "",
-      mode: init.mode ?? "no-cors",
-      useCORSPreflightFlag: init.useCORSPreflightFlag ?? false,
-      credentials: init.credentials ?? "same-origin",
-      useCredentials: init.useCredentials ?? false,
-      cache: init.cache ?? "default",
-      redirect: init.redirect ?? "follow",
-      integrity: init.integrity ?? "",
-      cryptoGraphicsNonceMetadata: init.cryptoGraphicsNonceMetadata ?? "",
-      parserMetadata: init.parserMetadata ?? "",
-      reloadNavigation: init.reloadNavigation ?? false,
-      historyNavigation: init.historyNavigation ?? false,
-      userActivation: init.userActivation ?? false,
-      taintedOrigin: init.taintedOrigin ?? false,
-      redirectCount: init.redirectCount ?? 0,
-      responseTainting: init.responseTainting ?? "basic",
-      preventNoCacheCacheControlHeaderModification: init.preventNoCacheCacheControlHeaderModification ?? false,
-      done: init.done ?? false,
-      timingAllowFailed: init.timingAllowFailed ?? false,
-      urlList: init.urlList,
-      url: init.urlList[0],
-      headersList: init.headersList ? new HeadersList(init.headersList) : new HeadersList
+      method: init2.method ?? "GET",
+      localURLsOnly: init2.localURLsOnly ?? false,
+      unsafeRequest: init2.unsafeRequest ?? false,
+      body: init2.body ?? null,
+      client: init2.client ?? null,
+      reservedClient: init2.reservedClient ?? null,
+      replacesClientId: init2.replacesClientId ?? "",
+      window: init2.window ?? "client",
+      keepalive: init2.keepalive ?? false,
+      serviceWorkers: init2.serviceWorkers ?? "all",
+      initiator: init2.initiator ?? "",
+      destination: init2.destination ?? "",
+      priority: init2.priority ?? null,
+      origin: init2.origin ?? "client",
+      policyContainer: init2.policyContainer ?? "client",
+      referrer: init2.referrer ?? "client",
+      referrerPolicy: init2.referrerPolicy ?? "",
+      mode: init2.mode ?? "no-cors",
+      useCORSPreflightFlag: init2.useCORSPreflightFlag ?? false,
+      credentials: init2.credentials ?? "same-origin",
+      useCredentials: init2.useCredentials ?? false,
+      cache: init2.cache ?? "default",
+      redirect: init2.redirect ?? "follow",
+      integrity: init2.integrity ?? "",
+      cryptoGraphicsNonceMetadata: init2.cryptoGraphicsNonceMetadata ?? "",
+      parserMetadata: init2.parserMetadata ?? "",
+      reloadNavigation: init2.reloadNavigation ?? false,
+      historyNavigation: init2.historyNavigation ?? false,
+      userActivation: init2.userActivation ?? false,
+      taintedOrigin: init2.taintedOrigin ?? false,
+      redirectCount: init2.redirectCount ?? 0,
+      responseTainting: init2.responseTainting ?? "basic",
+      preventNoCacheCacheControlHeaderModification: init2.preventNoCacheCacheControlHeaderModification ?? false,
+      done: init2.done ?? false,
+      timingAllowFailed: init2.timingAllowFailed ?? false,
+      urlList: init2.urlList,
+      url: init2.urlList[0],
+      headersList: init2.headersList ? new HeadersList(init2.headersList) : new HeadersList
     };
   }
   function cloneRequest(request) {
@@ -26260,14 +26334,14 @@ var require_request2 = __commonJS(function(exports, module) {
     }
   });
   webidl.converters.Request = webidl.interfaceConverter(Request2);
-  webidl.converters.RequestInfo = function(V, prefix, argument) {
-    if (typeof V === "string") {
-      return webidl.converters.USVString(V, prefix, argument);
+  webidl.converters.RequestInfo = function(V2, prefix, argument) {
+    if (typeof V2 === "string") {
+      return webidl.converters.USVString(V2, prefix, argument);
     }
-    if (V instanceof Request2) {
-      return webidl.converters.Request(V, prefix, argument);
+    if (V2 instanceof Request2) {
+      return webidl.converters.Request(V2, prefix, argument);
     }
-    return webidl.converters.USVString(V, prefix, argument);
+    return webidl.converters.USVString(V2, prefix, argument);
   };
   webidl.converters.AbortSignal = webidl.interfaceConverter(AbortSignal);
   webidl.converters.RequestInit = webidl.dictionaryConverter([
@@ -26342,7 +26416,7 @@ var require_request2 = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/fetch/index.js
-var require_fetch = __commonJS(function(exports, module) {
+var require_fetch = __commonJS((exports, module) => {
   var {
     makeNetworkError,
     makeAppropriateNetworkError,
@@ -26371,7 +26445,7 @@ var require_fetch = __commonJS(function(exports, module) {
     determineRequestsReferrer,
     coarsenedSharedCurrentTime,
     createDeferredPromise,
-    isBlobLike,
+    isBlobLike: isBlobLike2,
     sameOrigin,
     isCancelled,
     isAborted,
@@ -26425,30 +26499,30 @@ var require_fetch = __commonJS(function(exports, module) {
       this.connection?.destroy(reason);
       this.emit("terminated", reason);
     }
-    abort(error) {
+    abort(error2) {
       if (this.state !== "ongoing") {
         return;
       }
       this.state = "aborted";
-      if (!error) {
-        error = new DOMException("The operation was aborted.", "AbortError");
+      if (!error2) {
+        error2 = new DOMException("The operation was aborted.", "AbortError");
       }
-      this.serializedAbortReason = error;
-      this.connection?.destroy(error);
-      this.emit("terminated", error);
+      this.serializedAbortReason = error2;
+      this.connection?.destroy(error2);
+      this.emit("terminated", error2);
     }
   }
   function handleFetchDone(response) {
     finalizeAndReportTiming(response, "fetch");
   }
-  function fetch2(input, init = undefined) {
+  function fetch2(input, init2 = undefined) {
     webidl.argumentLengthCheck(arguments, 1, "globalThis.fetch");
     let p = createDeferredPromise();
     let requestObject;
     try {
-      requestObject = new Request2(input, init);
-    } catch (e) {
-      p.reject(e);
+      requestObject = new Request2(input, init2);
+    } catch (e2) {
+      p.reject(e2);
       return p.promise;
     }
     const request = requestObject[kState];
@@ -26521,12 +26595,12 @@ var require_fetch = __commonJS(function(exports, module) {
     markResourceTiming(timingInfo, originalURL.href, initiatorType, globalThis, cacheState);
   }
   var markResourceTiming = performance.markResourceTiming;
-  function abortFetch(p, request, responseObject, error) {
+  function abortFetch(p, request, responseObject, error2) {
     if (p) {
-      p.reject(error);
+      p.reject(error2);
     }
     if (request.body != null && isReadable(request.body?.stream)) {
-      request.body.stream.cancel(error).catch((err) => {
+      request.body.stream.cancel(error2).catch((err) => {
         if (err.code === "ERR_INVALID_STATE") {
           return;
         }
@@ -26538,7 +26612,7 @@ var require_fetch = __commonJS(function(exports, module) {
     }
     const response = responseObject[kState];
     if (response.body != null && isReadable(response.body?.stream)) {
-      response.body.stream.cancel(error).catch((err) => {
+      response.body.stream.cancel(error2).catch((err) => {
         if (err.code === "ERR_INVALID_STATE") {
           return;
         }
@@ -26714,19 +26788,19 @@ var require_fetch = __commonJS(function(exports, module) {
           return Promise.resolve(makeNetworkError("NetworkError when attempting to fetch resource."));
         }
         const blob = resolveObjectURL(blobURLEntry.toString());
-        if (request.method !== "GET" || !isBlobLike(blob)) {
+        if (request.method !== "GET" || !isBlobLike2(blob)) {
           return Promise.resolve(makeNetworkError("invalid method"));
         }
         const response = makeResponse();
         const fullLength = blob.size;
         const serializedFullLength = isomorphicEncode(`${fullLength}`);
-        const type = blob.type;
+        const type2 = blob.type;
         if (!request.headersList.contains("range", true)) {
           const bodyWithType = extractBody(blob);
           response.statusText = "OK";
           response.body = bodyWithType[0];
           response.headersList.set("content-length", serializedFullLength, true);
-          response.headersList.set("content-type", type, true);
+          response.headersList.set("content-type", type2, true);
         } else {
           response.rangeRequested = true;
           const rangeHeader = request.headersList.get("range", true);
@@ -26746,7 +26820,7 @@ var require_fetch = __commonJS(function(exports, module) {
               rangeEnd = fullLength - 1;
             }
           }
-          const slicedBlob = blob.slice(rangeStart, rangeEnd, type);
+          const slicedBlob = blob.slice(rangeStart, rangeEnd, type2);
           const slicedBodyWithType = extractBody(slicedBlob);
           response.body = slicedBodyWithType[0];
           const serializedSlicedLength = isomorphicEncode(`${slicedBlob.size}`);
@@ -26754,7 +26828,7 @@ var require_fetch = __commonJS(function(exports, module) {
           response.status = 206;
           response.statusText = "Partial Content";
           response.headersList.set("content-length", serializedSlicedLength, true);
-          response.headersList.set("content-type", type, true);
+          response.headersList.set("content-type", type2, true);
           response.headersList.set("content-range", contentRange, true);
         }
         return Promise.resolve(response);
@@ -27063,7 +27137,7 @@ var require_fetch = __commonJS(function(exports, module) {
       request.cache = "no-store";
     }
     const newConnection = forceNewConnection ? "yes" : "no";
-    if (request.mode === "websocket") {}
+    if (request.mode === "websocket") {} else {}
     let requestBody = null;
     if (request.body == null && fetchParams.processRequestEndOfBody) {
       queueMicrotask(() => fetchParams.processRequestEndOfBody());
@@ -27083,14 +27157,14 @@ var require_fetch = __commonJS(function(exports, module) {
           fetchParams.processRequestEndOfBody();
         }
       };
-      const processBodyError = (e) => {
+      const processBodyError = (e2) => {
         if (isCancelled(fetchParams)) {
           return;
         }
-        if (e.name === "AbortError") {
+        if (e2.name === "AbortError") {
           fetchParams.controller.abort();
         } else {
-          fetchParams.controller.terminate(e);
+          fetchParams.controller.terminate(e2);
         }
       };
       requestBody = async function* () {
@@ -27204,7 +27278,7 @@ var require_fetch = __commonJS(function(exports, module) {
     function dispatch({ body }) {
       const url = requestCurrentURL(request);
       const agent = fetchParams.controller.dispatcher;
-      return new Promise((resolve, reject) => agent.dispatch({
+      return new Promise((resolve11, reject) => agent.dispatch({
         path: url.pathname + url.search,
         origin: url.origin,
         method: request.method,
@@ -27235,8 +27309,8 @@ var require_fetch = __commonJS(function(exports, module) {
           }
           let location = "";
           const headersList = new HeadersList;
-          for (let i = 0;i < rawHeaders.length; i += 2) {
-            headersList.append(bufferToLowerCasedHeaderName(rawHeaders[i]), rawHeaders[i + 1].toString("latin1"), true);
+          for (let i2 = 0;i2 < rawHeaders.length; i2 += 2) {
+            headersList.append(bufferToLowerCasedHeaderName(rawHeaders[i2]), rawHeaders[i2 + 1].toString("latin1"), true);
           }
           location = headersList.get("location", true);
           const decoders = [];
@@ -27249,8 +27323,8 @@ var require_fetch = __commonJS(function(exports, module) {
               this.abort(new Error(`too many content-encodings in response: ${codings.length}, maximum allowed is ${maxContentEncodings}`));
               return true;
             }
-            for (let i = codings.length - 1;i >= 0; --i) {
-              const coding = codings[i].trim();
+            for (let i2 = codings.length - 1;i2 >= 0; --i2) {
+              const coding = codings[i2].trim();
               if (coding === "x-gzip" || coding === "gzip") {
                 decoders.push(zlib.createGunzip({
                   flush: zlib.constants.Z_SYNC_FLUSH,
@@ -27274,7 +27348,7 @@ var require_fetch = __commonJS(function(exports, module) {
           }
           this.body = new Readable({ read: resume });
           const onError = this.onError.bind(this);
-          resolve({
+          resolve11({
             status,
             statusText,
             headersList,
@@ -27301,23 +27375,23 @@ var require_fetch = __commonJS(function(exports, module) {
           fetchParams.controller.ended = true;
           this.body.push(null);
         },
-        onError(error) {
+        onError(error2) {
           if (this.abort) {
             fetchParams.controller.off("terminated", this.abort);
           }
-          this.body?.destroy(error);
-          fetchParams.controller.terminate(error);
-          reject(error);
+          this.body?.destroy(error2);
+          fetchParams.controller.terminate(error2);
+          reject(error2);
         },
         onUpgrade(status, rawHeaders, socket) {
           if (status !== 101) {
             return;
           }
           const headersList = new HeadersList;
-          for (let i = 0;i < rawHeaders.length; i += 2) {
-            headersList.append(bufferToLowerCasedHeaderName(rawHeaders[i]), rawHeaders[i + 1].toString("latin1"), true);
+          for (let i2 = 0;i2 < rawHeaders.length; i2 += 2) {
+            headersList.append(bufferToLowerCasedHeaderName(rawHeaders[i2]), rawHeaders[i2 + 1].toString("latin1"), true);
           }
-          resolve({
+          resolve11({
             status,
             statusText: STATUS_CODES[status],
             headersList,
@@ -27337,7 +27411,7 @@ var require_fetch = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/fileapi/symbols.js
-var require_symbols3 = __commonJS(function(exports, module) {
+var require_symbols3 = __commonJS((exports, module) => {
   module.exports = {
     kState: Symbol("FileReader state"),
     kResult: Symbol("FileReader result"),
@@ -27349,15 +27423,15 @@ var require_symbols3 = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/fileapi/progressevent.js
-var require_progressevent = __commonJS(function(exports, module) {
+var require_progressevent = __commonJS((exports, module) => {
   var { webidl } = require_webidl();
   var kState = Symbol("ProgressEvent state");
 
   class ProgressEvent extends Event {
-    constructor(type, eventInitDict = {}) {
-      type = webidl.converters.DOMString(type, "ProgressEvent constructor", "type");
+    constructor(type2, eventInitDict = {}) {
+      type2 = webidl.converters.DOMString(type2, "ProgressEvent constructor", "type");
       eventInitDict = webidl.converters.ProgressEventInit(eventInitDict ?? {});
-      super(type, eventInitDict);
+      super(type2, eventInitDict);
       this[kState] = {
         lengthComputable: eventInitDict.lengthComputable,
         loaded: eventInitDict.loaded,
@@ -27415,7 +27489,7 @@ var require_progressevent = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/fileapi/encoding.js
-var require_encoding = __commonJS(function(exports, module) {
+var require_encoding = __commonJS((exports, module) => {
   function getEncoding(label) {
     if (!label) {
       return "failure";
@@ -27698,7 +27772,7 @@ var require_encoding = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/fileapi/util.js
-var require_util4 = __commonJS(function(exports, module) {
+var require_util4 = __commonJS((exports, module) => {
   var {
     kState,
     kError,
@@ -27709,7 +27783,7 @@ var require_util4 = __commonJS(function(exports, module) {
   var { ProgressEvent } = require_progressevent();
   var { getEncoding } = require_encoding();
   var { serializeAMimeType, parseMIMEType } = require_data_url();
-  var { types } = __require("node:util");
+  var { types: types2 } = __require("node:util");
   var { StringDecoder } = __require("string_decoder");
   var { btoa } = __require("node:buffer");
   var staticPropertyDescriptors = {
@@ -27717,7 +27791,7 @@ var require_util4 = __commonJS(function(exports, module) {
     writable: false,
     configurable: false
   };
-  function readOperation(fr, blob, type, encodingName) {
+  function readOperation(fr, blob, type2, encodingName) {
     if (fr[kState] === "loading") {
       throw new DOMException("Invalid state", "InvalidStateError");
     }
@@ -27739,7 +27813,7 @@ var require_util4 = __commonJS(function(exports, module) {
             });
           }
           isFirstChunk = false;
-          if (!done && types.isUint8Array(value)) {
+          if (!done && types2.isUint8Array(value)) {
             bytes.push(value);
             if ((fr[kLastProgressEventFired] === undefined || Date.now() - fr[kLastProgressEventFired] >= 50) && !fr[kAborted]) {
               fr[kLastProgressEventFired] = Date.now();
@@ -27752,14 +27826,14 @@ var require_util4 = __commonJS(function(exports, module) {
             queueMicrotask(() => {
               fr[kState] = "done";
               try {
-                const result = packageData(bytes, type, blob.type, encodingName);
+                const result = packageData(bytes, type2, blob.type, encodingName);
                 if (fr[kAborted]) {
                   return;
                 }
                 fr[kResult] = result;
                 fireAProgressEvent("load", fr);
-              } catch (error) {
-                fr[kError] = error;
+              } catch (error2) {
+                fr[kError] = error2;
                 fireAProgressEvent("error", fr);
               }
               if (fr[kState] !== "loading") {
@@ -27768,13 +27842,13 @@ var require_util4 = __commonJS(function(exports, module) {
             });
             break;
           }
-        } catch (error) {
+        } catch (error2) {
           if (fr[kAborted]) {
             return;
           }
           queueMicrotask(() => {
             fr[kState] = "done";
-            fr[kError] = error;
+            fr[kError] = error2;
             fireAProgressEvent("error", fr);
             if (fr[kState] !== "loading") {
               fireAProgressEvent("loadend", fr);
@@ -27785,15 +27859,15 @@ var require_util4 = __commonJS(function(exports, module) {
       }
     })();
   }
-  function fireAProgressEvent(e, reader) {
-    const event = new ProgressEvent(e, {
+  function fireAProgressEvent(e2, reader) {
+    const event = new ProgressEvent(e2, {
       bubbles: false,
       cancelable: false
     });
     reader.dispatchEvent(event);
   }
-  function packageData(bytes, type, mimeType, encodingName) {
-    switch (type) {
+  function packageData(bytes, type2, mimeType, encodingName) {
+    switch (type2) {
       case "DataURL": {
         let dataURL = "data:";
         const parsed = parseMIMEType(mimeType || "application/octet-stream");
@@ -27814,9 +27888,9 @@ var require_util4 = __commonJS(function(exports, module) {
           encoding = getEncoding(encodingName);
         }
         if (encoding === "failure" && mimeType) {
-          const type = parseMIMEType(mimeType);
-          if (type !== "failure") {
-            encoding = getEncoding(type.parameters.get("charset"));
+          const type3 = parseMIMEType(mimeType);
+          if (type3 !== "failure") {
+            encoding = getEncoding(type3.parameters.get("charset"));
           }
         }
         if (encoding === "failure") {
@@ -27851,25 +27925,25 @@ var require_util4 = __commonJS(function(exports, module) {
     return new TextDecoder(encoding).decode(sliced);
   }
   function BOMSniffing(ioQueue) {
-    const [a, b, c] = ioQueue;
-    if (a === 239 && b === 187 && c === 191) {
+    const [a2, b2, c3] = ioQueue;
+    if (a2 === 239 && b2 === 187 && c3 === 191) {
       return "UTF-8";
-    } else if (a === 254 && b === 255) {
+    } else if (a2 === 254 && b2 === 255) {
       return "UTF-16BE";
-    } else if (a === 255 && b === 254) {
+    } else if (a2 === 255 && b2 === 254) {
       return "UTF-16LE";
     }
     return null;
   }
   function combineByteSequences(sequences) {
-    const size = sequences.reduce((a, b) => {
-      return a + b.byteLength;
+    const size = sequences.reduce((a2, b2) => {
+      return a2 + b2.byteLength;
     }, 0);
     let offset = 0;
-    return sequences.reduce((a, b) => {
-      a.set(b, offset);
-      offset += b.byteLength;
-      return a;
+    return sequences.reduce((a2, b2) => {
+      a2.set(b2, offset);
+      offset += b2.byteLength;
+      return a2;
     }, new Uint8Array(size));
   }
   module.exports = {
@@ -27880,7 +27954,7 @@ var require_util4 = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/fileapi/filereader.js
-var require_filereader = __commonJS(function(exports, module) {
+var require_filereader = __commonJS((exports, module) => {
   var {
     staticPropertyDescriptors,
     readOperation,
@@ -28108,20 +28182,20 @@ var require_filereader = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/cache/symbols.js
-var require_symbols4 = __commonJS(function(exports, module) {
+var require_symbols4 = __commonJS((exports, module) => {
   module.exports = {
     kConstruct: require_symbols().kConstruct
   };
 });
 
 // node_modules/undici/lib/web/cache/util.js
-var require_util5 = __commonJS(function(exports, module) {
+var require_util5 = __commonJS((exports, module) => {
   var assert = __require("node:assert");
   var { URLSerializer } = require_data_url();
   var { isValidHeaderName } = require_util2();
-  function urlEquals(A, B, excludeFragment = false) {
-    const serializedA = URLSerializer(A, excludeFragment);
-    const serializedB = URLSerializer(B, excludeFragment);
+  function urlEquals(A3, B2, excludeFragment = false) {
+    const serializedA = URLSerializer(A3, excludeFragment);
+    const serializedB = URLSerializer(B2, excludeFragment);
     return serializedA === serializedB;
   }
   function getFieldValues(header) {
@@ -28142,7 +28216,7 @@ var require_util5 = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/cache/cache.js
-var require_cache = __commonJS(function(exports, module) {
+var require_cache = __commonJS((exports, module) => {
   var { kConstruct } = require_symbols4();
   var { urlEquals, getFieldValues } = require_util5();
   var { kEnumerableProperty, isDisturbed } = require_util();
@@ -28210,8 +28284,8 @@ var require_cache = __commonJS(function(exports, module) {
         if (typeof request === "string") {
           continue;
         }
-        const r = request[kState];
-        if (!urlIsHttpHttpsScheme(r.url) || r.method !== "GET") {
+        const r3 = request[kState];
+        if (!urlIsHttpHttpsScheme(r3.url) || r3.method !== "GET") {
           throw webidl.errors.exception({
             header: prefix,
             message: "Expected http/s scheme when method is not GET."
@@ -28220,19 +28294,19 @@ var require_cache = __commonJS(function(exports, module) {
       }
       const fetchControllers = [];
       for (const request of requests) {
-        const r = new Request2(request)[kState];
-        if (!urlIsHttpHttpsScheme(r.url)) {
+        const r3 = new Request2(request)[kState];
+        if (!urlIsHttpHttpsScheme(r3.url)) {
           throw webidl.errors.exception({
             header: prefix,
             message: "Expected http/s scheme."
           });
         }
-        r.initiator = "fetch";
-        r.destination = "subresource";
-        requestList.push(r);
+        r3.initiator = "fetch";
+        r3.destination = "subresource";
+        requestList.push(r3);
         const responsePromise = createDeferredPromise();
         fetchControllers.push(fetching({
-          request: r,
+          request: r3,
           processResponse(response) {
             if (response.type === "error" || response.status === 206 || response.status < 200 || response.status > 299) {
               responsePromise.reject(webidl.errors.exception({
@@ -28282,8 +28356,8 @@ var require_cache = __commonJS(function(exports, module) {
       let errorData = null;
       try {
         this.#batchCacheOperations(operations);
-      } catch (e) {
-        errorData = e;
+      } catch (e2) {
+        errorData = e2;
       }
       queueMicrotask(() => {
         if (errorData === null) {
@@ -28360,8 +28434,8 @@ var require_cache = __commonJS(function(exports, module) {
       let errorData = null;
       try {
         this.#batchCacheOperations(operations);
-      } catch (e) {
-        errorData = e;
+      } catch (e2) {
+        errorData = e2;
       }
       queueMicrotask(() => {
         if (errorData === null) {
@@ -28378,20 +28452,20 @@ var require_cache = __commonJS(function(exports, module) {
       webidl.argumentLengthCheck(arguments, 1, prefix);
       request = webidl.converters.RequestInfo(request, prefix, "request");
       options = webidl.converters.CacheQueryOptions(options, prefix, "options");
-      let r = null;
+      let r3 = null;
       if (request instanceof Request2) {
-        r = request[kState];
-        if (r.method !== "GET" && !options.ignoreMethod) {
+        r3 = request[kState];
+        if (r3.method !== "GET" && !options.ignoreMethod) {
           return false;
         }
       } else {
         assert(typeof request === "string");
-        r = new Request2(request)[kState];
+        r3 = new Request2(request)[kState];
       }
       const operations = [];
       const operation = {
         type: "delete",
-        request: r,
+        request: r3,
         options
       };
       operations.push(operation);
@@ -28400,8 +28474,8 @@ var require_cache = __commonJS(function(exports, module) {
       let requestResponses;
       try {
         requestResponses = this.#batchCacheOperations(operations);
-      } catch (e) {
-        errorData = e;
+      } catch (e2) {
+        errorData = e2;
       }
       queueMicrotask(() => {
         if (errorData === null) {
@@ -28418,15 +28492,15 @@ var require_cache = __commonJS(function(exports, module) {
       if (request !== undefined)
         request = webidl.converters.RequestInfo(request, prefix, "request");
       options = webidl.converters.CacheQueryOptions(options, prefix, "options");
-      let r = null;
+      let r3 = null;
       if (request !== undefined) {
         if (request instanceof Request2) {
-          r = request[kState];
-          if (r.method !== "GET" && !options.ignoreMethod) {
+          r3 = request[kState];
+          if (r3.method !== "GET" && !options.ignoreMethod) {
             return [];
           }
         } else if (typeof request === "string") {
-          r = new Request2(request)[kState];
+          r3 = new Request2(request)[kState];
         }
       }
       const promise = createDeferredPromise();
@@ -28436,15 +28510,15 @@ var require_cache = __commonJS(function(exports, module) {
           requests.push(requestResponse[0]);
         }
       } else {
-        const requestResponses = this.#queryCache(r, options);
+        const requestResponses = this.#queryCache(r3, options);
         for (const requestResponse of requestResponses) {
           requests.push(requestResponse[0]);
         }
       }
       queueMicrotask(() => {
         const requestList = [];
-        for (const request of requests) {
-          const requestObject = fromInnerRequest(request, new AbortController().signal, "immutable");
+        for (const request2 of requests) {
+          const requestObject = fromInnerRequest(request2, new AbortController().signal, "immutable");
           requestList.push(requestObject);
         }
         promise.resolve(Object.freeze(requestList));
@@ -28491,14 +28565,14 @@ var require_cache = __commonJS(function(exports, module) {
                 message: "put operation should have an associated response"
               });
             }
-            const r = operation.request;
-            if (!urlIsHttpHttpsScheme(r.url)) {
+            const r3 = operation.request;
+            if (!urlIsHttpHttpsScheme(r3.url)) {
               throw webidl.errors.exception({
                 header: "Cache.#batchCacheOperations",
                 message: "expected http or https scheme"
               });
             }
-            if (r.method !== "GET") {
+            if (r3.method !== "GET") {
               throw webidl.errors.exception({
                 header: "Cache.#batchCacheOperations",
                 message: "not get method"
@@ -28522,10 +28596,10 @@ var require_cache = __commonJS(function(exports, module) {
           resultList.push([operation.request, operation.response]);
         }
         return resultList;
-      } catch (e) {
+      } catch (e2) {
         this.#relevantRequestResponseList.length = 0;
         this.#relevantRequestResponseList = backupCache;
-        throw e;
+        throw e2;
       }
     }
     #queryCache(requestQuery, options, targetStorage) {
@@ -28566,15 +28640,15 @@ var require_cache = __commonJS(function(exports, module) {
       return true;
     }
     #internalMatchAll(request, options, maxResponses = Infinity) {
-      let r = null;
+      let r3 = null;
       if (request !== undefined) {
         if (request instanceof Request2) {
-          r = request[kState];
-          if (r.method !== "GET" && !options.ignoreMethod) {
+          r3 = request[kState];
+          if (r3.method !== "GET" && !options.ignoreMethod) {
             return [];
           }
         } else if (typeof request === "string") {
-          r = new Request2(request)[kState];
+          r3 = new Request2(request)[kState];
         }
       }
       const responses = [];
@@ -28583,7 +28657,7 @@ var require_cache = __commonJS(function(exports, module) {
           responses.push(requestResponse[1]);
         }
       } else {
-        const requestResponses = this.#queryCache(r, options);
+        const requestResponses = this.#queryCache(r3, options);
         for (const requestResponse of requestResponses) {
           responses.push(requestResponse[1]);
         }
@@ -28645,7 +28719,7 @@ var require_cache = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/cache/cachestorage.js
-var require_cachestorage = __commonJS(function(exports, module) {
+var require_cachestorage = __commonJS((exports, module) => {
   var { kConstruct } = require_symbols4();
   var { Cache } = require_cache();
   var { webidl } = require_webidl();
@@ -28693,8 +28767,8 @@ var require_cachestorage = __commonJS(function(exports, module) {
       webidl.argumentLengthCheck(arguments, 1, prefix);
       cacheName = webidl.converters.DOMString(cacheName, prefix, "cacheName");
       if (this.#caches.has(cacheName)) {
-        const cache = this.#caches.get(cacheName);
-        return new Cache(kConstruct, cache);
+        const cache2 = this.#caches.get(cacheName);
+        return new Cache(kConstruct, cache2);
       }
       const cache = [];
       this.#caches.set(cacheName, cache);
@@ -28730,7 +28804,7 @@ var require_cachestorage = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/cookies/constants.js
-var require_constants4 = __commonJS(function(exports, module) {
+var require_constants4 = __commonJS((exports, module) => {
   var maxAttributeValueSize = 1024;
   var maxNameValuePairSize = 4096;
   module.exports = {
@@ -28740,10 +28814,10 @@ var require_constants4 = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/cookies/util.js
-var require_util6 = __commonJS(function(exports, module) {
+var require_util6 = __commonJS((exports, module) => {
   function isCTLExcludingHtab(value) {
-    for (let i = 0;i < value.length; ++i) {
-      const code = value.charCodeAt(i);
+    for (let i2 = 0;i2 < value.length; ++i2) {
+      const code = value.charCodeAt(i2);
       if (code >= 0 && code <= 8 || code >= 10 && code <= 31 || code === 127) {
         return true;
       }
@@ -28751,8 +28825,8 @@ var require_util6 = __commonJS(function(exports, module) {
     return false;
   }
   function validateCookieName(name) {
-    for (let i = 0;i < name.length; ++i) {
-      const code = name.charCodeAt(i);
+    for (let i2 = 0;i2 < name.length; ++i2) {
+      const code = name.charCodeAt(i2);
       if (code < 33 || code > 126 || code === 34 || code === 40 || code === 41 || code === 60 || code === 62 || code === 64 || code === 44 || code === 59 || code === 58 || code === 92 || code === 47 || code === 91 || code === 93 || code === 63 || code === 61 || code === 123 || code === 125) {
         throw new Error("Invalid cookie name");
       }
@@ -28760,24 +28834,24 @@ var require_util6 = __commonJS(function(exports, module) {
   }
   function validateCookieValue(value) {
     let len = value.length;
-    let i = 0;
+    let i2 = 0;
     if (value[0] === '"') {
       if (len === 1 || value[len - 1] !== '"') {
         throw new Error("Invalid cookie value");
       }
       --len;
-      ++i;
+      ++i2;
     }
-    while (i < len) {
-      const code = value.charCodeAt(i++);
+    while (i2 < len) {
+      const code = value.charCodeAt(i2++);
       if (code < 33 || code > 126 || code === 34 || code === 44 || code === 59 || code === 92) {
         throw new Error("Invalid cookie value");
       }
     }
   }
-  function validateCookiePath(path) {
-    for (let i = 0;i < path.length; ++i) {
-      const code = path.charCodeAt(i);
+  function validateCookiePath(path2) {
+    for (let i2 = 0;i2 < path2.length; ++i2) {
+      const code = path2.charCodeAt(i2);
       if (code < 32 || code > 126 || code === 59) {
         throw new Error("Invalid cookie path");
       }
@@ -28794,13 +28868,13 @@ var require_util6 = __commonJS(function(exports, module) {
       throw new Error("Invalid cookie domain");
     }
     let labelLength = 0;
-    for (let i = 0;i < domain.length; ++i) {
-      const code = domain.charCodeAt(i);
+    for (let i2 = 0;i2 < domain.length; ++i2) {
+      const code = domain.charCodeAt(i2);
       if (code === 46) {
         if (labelLength === 0) {
           throw new Error("Invalid cookie domain");
         }
-        if (domain.charCodeAt(i - 1) === 45) {
+        if (domain.charCodeAt(i2 - 1) === 45) {
           throw new Error("Invalid cookie domain");
         }
         labelLength = 0;
@@ -28843,7 +28917,7 @@ var require_util6 = __commonJS(function(exports, module) {
     "Nov",
     "Dec"
   ];
-  var IMFPaddedNumbers = Array(61).fill(0).map((_, i) => i.toString().padStart(2, "0"));
+  var IMFPaddedNumbers = Array(61).fill(0).map((_3, i2) => i2.toString().padStart(2, "0"));
   function toIMFDate(date) {
     if (typeof date === "number") {
       date = new Date(date);
@@ -28918,7 +28992,7 @@ var require_util6 = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/cookies/parse.js
-var require_parse = __commonJS(function(exports, module) {
+var require_parse = __commonJS((exports, module) => {
   var { maxNameValuePairSize, maxAttributeValueSize } = require_constants4();
   var { isCTLExcludingHtab } = require_util6();
   var { collectASequenceOfCodePointsFast } = require_data_url();
@@ -29039,7 +29113,7 @@ var require_parse = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/cookies/index.js
-var require_cookies = __commonJS(function(exports, module) {
+var require_cookies = __commonJS((exports, module) => {
   var { parseSetCookie } = require_parse();
   var { stringify } = require_util6();
   var { webidl } = require_webidl();
@@ -29084,9 +29158,9 @@ var require_cookies = __commonJS(function(exports, module) {
     webidl.argumentLengthCheck(arguments, 2, "setCookie");
     webidl.brandCheck(headers, Headers2, { strict: false });
     cookie = webidl.converters.Cookie(cookie);
-    const str = stringify(cookie);
-    if (str) {
-      headers.append("Set-Cookie", str);
+    const str2 = stringify(cookie);
+    if (str2) {
+      headers.append("Set-Cookie", str2);
     }
   }
   webidl.converters.DeleteCookieAttributes = webidl.dictionaryConverter([
@@ -29165,7 +29239,7 @@ var require_cookies = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/websocket/events.js
-var require_events = __commonJS(function(exports, module) {
+var require_events = __commonJS((exports, module) => {
   var { webidl } = require_webidl();
   var { kEnumerableProperty } = require_util();
   var { kConstruct } = require_symbols();
@@ -29173,17 +29247,17 @@ var require_events = __commonJS(function(exports, module) {
 
   class MessageEvent extends Event {
     #eventInit;
-    constructor(type, eventInitDict = {}) {
-      if (type === kConstruct) {
+    constructor(type2, eventInitDict = {}) {
+      if (type2 === kConstruct) {
         super(arguments[1], arguments[2]);
         webidl.util.markAsUncloneable(this);
         return;
       }
       const prefix = "MessageEvent constructor";
       webidl.argumentLengthCheck(arguments, 1, prefix);
-      type = webidl.converters.DOMString(type, prefix, "type");
+      type2 = webidl.converters.DOMString(type2, prefix, "type");
       eventInitDict = webidl.converters.MessageEventInit(eventInitDict, prefix, "eventInitDict");
-      super(type, eventInitDict);
+      super(type2, eventInitDict);
       this.#eventInit = eventInitDict;
       webidl.util.markAsUncloneable(this);
     }
@@ -29210,10 +29284,10 @@ var require_events = __commonJS(function(exports, module) {
       }
       return this.#eventInit.ports;
     }
-    initMessageEvent(type, bubbles = false, cancelable = false, data = null, origin = "", lastEventId = "", source = null, ports = []) {
+    initMessageEvent(type2, bubbles = false, cancelable = false, data = null, origin = "", lastEventId = "", source = null, ports = []) {
       webidl.brandCheck(this, MessageEvent);
       webidl.argumentLengthCheck(arguments, 1, "MessageEvent.initMessageEvent");
-      return new MessageEvent(type, {
+      return new MessageEvent(type2, {
         bubbles,
         cancelable,
         data,
@@ -29223,9 +29297,9 @@ var require_events = __commonJS(function(exports, module) {
         ports
       });
     }
-    static createFastMessageEvent(type, init) {
-      const messageEvent = new MessageEvent(kConstruct, type, init);
-      messageEvent.#eventInit = init;
+    static createFastMessageEvent(type2, init2) {
+      const messageEvent = new MessageEvent(kConstruct, type2, init2);
+      messageEvent.#eventInit = init2;
       messageEvent.#eventInit.data ??= null;
       messageEvent.#eventInit.origin ??= "";
       messageEvent.#eventInit.lastEventId ??= "";
@@ -29239,12 +29313,12 @@ var require_events = __commonJS(function(exports, module) {
 
   class CloseEvent extends Event {
     #eventInit;
-    constructor(type, eventInitDict = {}) {
+    constructor(type2, eventInitDict = {}) {
       const prefix = "CloseEvent constructor";
       webidl.argumentLengthCheck(arguments, 1, prefix);
-      type = webidl.converters.DOMString(type, prefix, "type");
+      type2 = webidl.converters.DOMString(type2, prefix, "type");
       eventInitDict = webidl.converters.CloseEventInit(eventInitDict);
-      super(type, eventInitDict);
+      super(type2, eventInitDict);
       this.#eventInit = eventInitDict;
       webidl.util.markAsUncloneable(this);
     }
@@ -29264,12 +29338,12 @@ var require_events = __commonJS(function(exports, module) {
 
   class ErrorEvent extends Event {
     #eventInit;
-    constructor(type, eventInitDict) {
+    constructor(type2, eventInitDict) {
       const prefix = "ErrorEvent constructor";
       webidl.argumentLengthCheck(arguments, 1, prefix);
-      super(type, eventInitDict);
+      super(type2, eventInitDict);
       webidl.util.markAsUncloneable(this);
-      type = webidl.converters.DOMString(type, prefix, "type");
+      type2 = webidl.converters.DOMString(type2, prefix, "type");
       eventInitDict = webidl.converters.ErrorEventInit(eventInitDict ?? {});
       this.#eventInit = eventInitDict;
     }
@@ -29427,7 +29501,7 @@ var require_events = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/websocket/constants.js
-var require_constants5 = __commonJS(function(exports, module) {
+var require_constants5 = __commonJS((exports, module) => {
   var uid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
   var staticPropertyDescriptors = {
     enumerable: true,
@@ -29481,7 +29555,7 @@ var require_constants5 = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/websocket/symbols.js
-var require_symbols5 = __commonJS(function(exports, module) {
+var require_symbols5 = __commonJS((exports, module) => {
   module.exports = {
     kWebSocketURL: Symbol("url"),
     kReadyState: Symbol("ready state"),
@@ -29495,7 +29569,7 @@ var require_symbols5 = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/websocket/util.js
-var require_util7 = __commonJS(function(exports, module) {
+var require_util7 = __commonJS((exports, module) => {
   var { kReadyState, kController, kResponse, kBinaryType, kWebSocketURL } = require_symbols5();
   var { states, opcodes } = require_constants5();
   var { ErrorEvent, createFastMessageEvent } = require_events();
@@ -29513,23 +29587,23 @@ var require_util7 = __commonJS(function(exports, module) {
   function isClosed(ws) {
     return ws[kReadyState] === states.CLOSED;
   }
-  function fireEvent(e, target, eventFactory = (type, init) => new Event(type, init), eventInitDict = {}) {
-    const event = eventFactory(e, eventInitDict);
+  function fireEvent(e2, target, eventFactory = (type2, init2) => new Event(type2, init2), eventInitDict = {}) {
+    const event = eventFactory(e2, eventInitDict);
     target.dispatchEvent(event);
   }
-  function websocketMessageReceived(ws, type, data) {
+  function websocketMessageReceived(ws, type2, data) {
     if (ws[kReadyState] !== states.OPEN) {
       return;
     }
     let dataForEvent;
-    if (type === opcodes.TEXT) {
+    if (type2 === opcodes.TEXT) {
       try {
         dataForEvent = utf8Decode(data);
       } catch {
         failWebsocketConnection(ws, "Received invalid UTF-8 in text frame.");
         return;
       }
-    } else if (type === opcodes.BINARY) {
+    } else if (type2 === opcodes.BINARY) {
       if (ws[kBinaryType] === "blob") {
         dataForEvent = new Blob([data]);
       } else {
@@ -29551,8 +29625,8 @@ var require_util7 = __commonJS(function(exports, module) {
     if (protocol.length === 0) {
       return false;
     }
-    for (let i = 0;i < protocol.length; ++i) {
-      const code = protocol.charCodeAt(i);
+    for (let i2 = 0;i2 < protocol.length; ++i2) {
+      const code = protocol.charCodeAt(i2);
       if (code < 33 || code > 126 || code === 34 || code === 40 || code === 41 || code === 44 || code === 47 || code === 58 || code === 59 || code === 60 || code === 61 || code === 62 || code === 63 || code === 64 || code === 91 || code === 92 || code === 93 || code === 123 || code === 125) {
         return false;
       }
@@ -29572,7 +29646,7 @@ var require_util7 = __commonJS(function(exports, module) {
       response.socket.destroy();
     }
     if (reason) {
-      fireEvent("error", ws, (type, init) => new ErrorEvent(type, init), {
+      fireEvent("error", ws, (type2, init2) => new ErrorEvent(type2, init2), {
         error: new Error(reason),
         message: reason
       });
@@ -29605,8 +29679,8 @@ var require_util7 = __commonJS(function(exports, module) {
     if (value.length === 0) {
       return false;
     }
-    for (let i = 0;i < value.length; i++) {
-      const byte = value.charCodeAt(i);
+    for (let i2 = 0;i2 < value.length; i2++) {
+      const byte = value.charCodeAt(i2);
       if (byte < 48 || byte > 57) {
         return false;
       }
@@ -29643,7 +29717,7 @@ var require_util7 = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/websocket/frame.js
-var require_frame = __commonJS(function(exports, module) {
+var require_frame = __commonJS((exports, module) => {
   var { maxUnsigned16Bit } = require_constants5();
   var BUFFER_SIZE = 16386;
   var crypto2;
@@ -29653,11 +29727,11 @@ var require_frame = __commonJS(function(exports, module) {
     crypto2 = __require("node:crypto");
   } catch {
     crypto2 = {
-      randomFillSync: function randomFillSync(buffer, _offset, _size) {
-        for (let i = 0;i < buffer.length; ++i) {
-          buffer[i] = Math.random() * 255 | 0;
+      randomFillSync: function randomFillSync(buffer2, _offset, _size) {
+        for (let i2 = 0;i2 < buffer2.length; ++i2) {
+          buffer2[i2] = Math.random() * 255 | 0;
         }
-        return buffer;
+        return buffer2;
       }
     };
   }
@@ -29686,27 +29760,27 @@ var require_frame = __commonJS(function(exports, module) {
         offset += 2;
         payloadLength = 126;
       }
-      const buffer = Buffer.allocUnsafe(bodyLength + offset);
-      buffer[0] = buffer[1] = 0;
-      buffer[0] |= 128;
-      buffer[0] = (buffer[0] & 240) + opcode;
+      const buffer2 = Buffer.allocUnsafe(bodyLength + offset);
+      buffer2[0] = buffer2[1] = 0;
+      buffer2[0] |= 128;
+      buffer2[0] = (buffer2[0] & 240) + opcode;
       /*! ws. MIT License. Einar Otto Stangvik <einaros@gmail.com> */
-      buffer[offset - 4] = maskKey[0];
-      buffer[offset - 3] = maskKey[1];
-      buffer[offset - 2] = maskKey[2];
-      buffer[offset - 1] = maskKey[3];
-      buffer[1] = payloadLength;
+      buffer2[offset - 4] = maskKey[0];
+      buffer2[offset - 3] = maskKey[1];
+      buffer2[offset - 2] = maskKey[2];
+      buffer2[offset - 1] = maskKey[3];
+      buffer2[1] = payloadLength;
       if (payloadLength === 126) {
-        buffer.writeUInt16BE(bodyLength, 2);
+        buffer2.writeUInt16BE(bodyLength, 2);
       } else if (payloadLength === 127) {
-        buffer[2] = buffer[3] = 0;
-        buffer.writeUIntBE(bodyLength, 4, 6);
+        buffer2[2] = buffer2[3] = 0;
+        buffer2.writeUIntBE(bodyLength, 4, 6);
       }
-      buffer[1] |= 128;
-      for (let i = 0;i < bodyLength; ++i) {
-        buffer[offset + i] = frameData[i] ^ maskKey[i & 3];
+      buffer2[1] |= 128;
+      for (let i2 = 0;i2 < bodyLength; ++i2) {
+        buffer2[offset + i2] = frameData[i2] ^ maskKey[i2 & 3];
       }
-      return buffer;
+      return buffer2;
     }
   }
   module.exports = {
@@ -29715,7 +29789,7 @@ var require_frame = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/websocket/connection.js
-var require_connection = __commonJS(function(exports, module) {
+var require_connection = __commonJS((exports, module) => {
   var { uid, states, sentCloseFrameState, emptyBuffer, opcodes } = require_constants5();
   var {
     kReadyState,
@@ -29867,7 +29941,7 @@ var require_connection = __commonJS(function(exports, module) {
       code = 1006;
     }
     ws[kReadyState] = states.CLOSED;
-    fireEvent("close", ws, (type, init) => new CloseEvent(type, init), {
+    fireEvent("close", ws, (type2, init2) => new CloseEvent(type2, init2), {
       wasClean,
       code,
       reason
@@ -29880,11 +29954,11 @@ var require_connection = __commonJS(function(exports, module) {
       });
     }
   }
-  function onSocketError(error) {
+  function onSocketError(error2) {
     const { ws } = this;
     ws[kReadyState] = states.CLOSING;
     if (channels.socketError.hasSubscribers) {
-      channels.socketError.publish(error);
+      channels.socketError.publish(error2);
     }
     this.destroy();
   }
@@ -29895,7 +29969,7 @@ var require_connection = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/websocket/permessage-deflate.js
-var require_permessage_deflate = __commonJS(function(exports, module) {
+var require_permessage_deflate = __commonJS((exports, module) => {
   var { createInflateRaw, Z_DEFAULT_WINDOWBITS } = __require("node:zlib");
   var { isValidClientWindowBits } = require_util7();
   var { MessageSizeExceededError } = require_errors();
@@ -29965,7 +30039,7 @@ var require_permessage_deflate = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/websocket/receiver.js
-var require_receiver = __commonJS(function(exports, module) {
+var require_receiver = __commonJS((exports, module) => {
   var { Writable } = __require("node:stream");
   var assert = __require("node:assert");
   var { parserStates, opcodes, states, emptyBuffer, sentCloseFrameState } = require_constants5();
@@ -30011,7 +30085,7 @@ var require_receiver = __commonJS(function(exports, module) {
         this.#extensions.set("permessage-deflate", new PerMessageDeflate(extensions, options));
       }
     }
-    _write(chunk, _, callback) {
+    _write(chunk, _3, callback) {
       this.#buffers.push(chunk);
       this.#byteOffset += chunk.length;
       this.#loop = true;
@@ -30153,10 +30227,10 @@ var require_receiver = __commonJS(function(exports, module) {
               }
               this.#state = parserStates.INFO;
             } else {
-              this.#extensions.get("permessage-deflate").decompress(body, this.#info.fin, (error, data) => {
-                if (error) {
-                  const code = error instanceof MessageSizeExceededError ? 1009 : 1007;
-                  failWebsocketConnectionWithCode(this.ws, code, error.message);
+              this.#extensions.get("permessage-deflate").decompress(body, this.#info.fin, (error2, data) => {
+                if (error2) {
+                  const code = error2 instanceof MessageSizeExceededError ? 1009 : 1007;
+                  failWebsocketConnectionWithCode(this.ws, code, error2.message);
                   return;
                 }
                 if (!this.writeFragments(data)) {
@@ -30184,34 +30258,34 @@ var require_receiver = __commonJS(function(exports, module) {
         }
       }
     }
-    consume(n) {
-      if (n > this.#byteOffset) {
+    consume(n2) {
+      if (n2 > this.#byteOffset) {
         throw new Error("Called consume() before buffers satiated.");
-      } else if (n === 0) {
+      } else if (n2 === 0) {
         return emptyBuffer;
       }
-      if (this.#buffers[0].length === n) {
+      if (this.#buffers[0].length === n2) {
         this.#byteOffset -= this.#buffers[0].length;
         return this.#buffers.shift();
       }
-      const buffer = Buffer.allocUnsafe(n);
+      const buffer = Buffer.allocUnsafe(n2);
       let offset = 0;
-      while (offset !== n) {
+      while (offset !== n2) {
         const next = this.#buffers[0];
         const { length } = next;
-        if (length + offset === n) {
+        if (length + offset === n2) {
           buffer.set(this.#buffers.shift(), offset);
           break;
-        } else if (length + offset > n) {
-          buffer.set(next.subarray(0, n - offset), offset);
-          this.#buffers[0] = next.subarray(n - offset);
+        } else if (length + offset > n2) {
+          buffer.set(next.subarray(0, n2 - offset), offset);
+          this.#buffers[0] = next.subarray(n2 - offset);
           break;
         } else {
           buffer.set(this.#buffers.shift(), offset);
           offset += next.length;
         }
       }
-      this.#byteOffset -= n;
+      this.#byteOffset -= n2;
       return buffer;
     }
     writeFragments(fragment) {
@@ -30269,12 +30343,12 @@ var require_receiver = __commonJS(function(exports, module) {
           return false;
         }
         if (this.ws[kSentClose] !== sentCloseFrameState.SENT) {
-          let body = emptyBuffer;
+          let body2 = emptyBuffer;
           if (this.#info.closeInfo.code) {
-            body = Buffer.allocUnsafe(2);
-            body.writeUInt16BE(this.#info.closeInfo.code, 0);
+            body2 = Buffer.allocUnsafe(2);
+            body2.writeUInt16BE(this.#info.closeInfo.code, 0);
           }
-          const closeFrame = new WebsocketFrameSend(body);
+          const closeFrame = new WebsocketFrameSend(body2);
           this.ws[kResponse].socket.write(closeFrame.createFrame(opcodes.CLOSE), (err) => {
             if (!err) {
               this.ws[kSentClose] = sentCloseFrameState.SENT;
@@ -30313,7 +30387,7 @@ var require_receiver = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/websocket/sender.js
-var require_sender = __commonJS(function(exports, module) {
+var require_sender = __commonJS((exports, module) => {
   var { WebsocketFrameSend } = require_frame();
   var { opcodes, sendHints } = require_constants5();
   var FixedQueue = require_fixed_queue();
@@ -30332,12 +30406,12 @@ var require_sender = __commonJS(function(exports, module) {
         if (!this.#running) {
           this.#socket.write(frame, cb);
         } else {
-          const node = {
+          const node2 = {
             promise: null,
             callback: cb,
             frame
           };
-          this.#queue.push(node);
+          this.#queue.push(node2);
         }
         return;
       }
@@ -30356,9 +30430,9 @@ var require_sender = __commonJS(function(exports, module) {
     }
     async#run() {
       this.#running = true;
-      const queue = this.#queue;
-      while (!queue.isEmpty()) {
-        const node = queue.shift();
+      const queue2 = this.#queue;
+      while (!queue2.isEmpty()) {
+        const node = queue2.shift();
         if (node.promise !== null) {
           await node.promise;
         }
@@ -30386,7 +30460,7 @@ var require_sender = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/websocket/websocket.js
-var require_websocket = __commonJS(function(exports, module) {
+var require_websocket = __commonJS((exports, module) => {
   var { webidl } = require_webidl();
   var { URLSerializer } = require_data_url();
   var { environmentSettingsObject } = require_util2();
@@ -30409,9 +30483,9 @@ var require_websocket = __commonJS(function(exports, module) {
   } = require_util7();
   var { establishWebSocketConnection, closeWebSocketConnection } = require_connection();
   var { ByteParser } = require_receiver();
-  var { kEnumerableProperty, isBlobLike } = require_util();
+  var { kEnumerableProperty, isBlobLike: isBlobLike2 } = require_util();
   var { getGlobalDispatcher } = require_global2();
-  var { types } = __require("node:util");
+  var { types: types2 } = __require("node:util");
   var { ErrorEvent, CloseEvent } = require_events();
   var { SendQueue } = require_sender();
 
@@ -30438,8 +30512,8 @@ var require_websocket = __commonJS(function(exports, module) {
       let urlRecord;
       try {
         urlRecord = new URL(url, baseURL);
-      } catch (e) {
-        throw new DOMException(e, "SyntaxError");
+      } catch (e2) {
+        throw new DOMException(e2, "SyntaxError");
       }
       if (urlRecord.protocol === "http:") {
         urlRecord.protocol = "ws:";
@@ -30508,7 +30582,7 @@ var require_websocket = __commonJS(function(exports, module) {
         this.#sendQueue.add(data, () => {
           this.#bufferedAmount -= length;
         }, sendHints.string);
-      } else if (types.isArrayBuffer(data)) {
+      } else if (types2.isArrayBuffer(data)) {
         this.#bufferedAmount += data.byteLength;
         this.#sendQueue.add(data, () => {
           this.#bufferedAmount -= data.byteLength;
@@ -30518,7 +30592,7 @@ var require_websocket = __commonJS(function(exports, module) {
         this.#sendQueue.add(data, () => {
           this.#bufferedAmount -= data.byteLength;
         }, sendHints.typedArray);
-      } else if (isBlobLike(data)) {
+      } else if (isBlobLike2(data)) {
         this.#bufferedAmount += data.size;
         this.#sendQueue.add(data, () => {
           this.#bufferedAmount -= data.size;
@@ -30613,12 +30687,12 @@ var require_websocket = __commonJS(function(exports, module) {
       webidl.brandCheck(this, WebSocket);
       return this[kBinaryType];
     }
-    set binaryType(type) {
+    set binaryType(type2) {
       webidl.brandCheck(this, WebSocket);
-      if (type !== "blob" && type !== "arraybuffer") {
+      if (type2 !== "blob" && type2 !== "arraybuffer") {
         this[kBinaryType] = "blob";
       } else {
-        this[kBinaryType] = type;
+        this[kBinaryType] = type2;
       }
     }
     #onConnectionEstablished(response, parsedExtensions) {
@@ -30682,11 +30756,11 @@ var require_websocket = __commonJS(function(exports, module) {
     CLOSED: staticPropertyDescriptors
   });
   webidl.converters["sequence<DOMString>"] = webidl.sequenceConverter(webidl.converters.DOMString);
-  webidl.converters["DOMString or sequence<DOMString>"] = function(V, prefix, argument) {
-    if (webidl.util.Type(V) === "Object" && Symbol.iterator in V) {
-      return webidl.converters["sequence<DOMString>"](V);
+  webidl.converters["DOMString or sequence<DOMString>"] = function(V2, prefix, argument) {
+    if (webidl.util.Type(V2) === "Object" && Symbol.iterator in V2) {
+      return webidl.converters["sequence<DOMString>"](V2);
     }
-    return webidl.converters.DOMString(V, prefix, argument);
+    return webidl.converters.DOMString(V2, prefix, argument);
   };
   webidl.converters.WebSocketInit = webidl.dictionaryConverter([
     {
@@ -30704,22 +30778,22 @@ var require_websocket = __commonJS(function(exports, module) {
       converter: webidl.nullableConverter(webidl.converters.HeadersInit)
     }
   ]);
-  webidl.converters["DOMString or sequence<DOMString> or WebSocketInit"] = function(V) {
-    if (webidl.util.Type(V) === "Object" && !(Symbol.iterator in V)) {
-      return webidl.converters.WebSocketInit(V);
+  webidl.converters["DOMString or sequence<DOMString> or WebSocketInit"] = function(V2) {
+    if (webidl.util.Type(V2) === "Object" && !(Symbol.iterator in V2)) {
+      return webidl.converters.WebSocketInit(V2);
     }
-    return { protocols: webidl.converters["DOMString or sequence<DOMString>"](V) };
+    return { protocols: webidl.converters["DOMString or sequence<DOMString>"](V2) };
   };
-  webidl.converters.WebSocketSendData = function(V) {
-    if (webidl.util.Type(V) === "Object") {
-      if (isBlobLike(V)) {
-        return webidl.converters.Blob(V, { strict: false });
+  webidl.converters.WebSocketSendData = function(V2) {
+    if (webidl.util.Type(V2) === "Object") {
+      if (isBlobLike2(V2)) {
+        return webidl.converters.Blob(V2, { strict: false });
       }
-      if (ArrayBuffer.isView(V) || types.isArrayBuffer(V)) {
-        return webidl.converters.BufferSource(V);
+      if (ArrayBuffer.isView(V2) || types2.isArrayBuffer(V2)) {
+        return webidl.converters.BufferSource(V2);
       }
     }
-    return webidl.converters.USVString(V);
+    return webidl.converters.USVString(V2);
   };
   function onParserDrain() {
     this.ws[kResponse].socket.resume();
@@ -30742,22 +30816,22 @@ var require_websocket = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/eventsource/util.js
-var require_util8 = __commonJS(function(exports, module) {
+var require_util8 = __commonJS((exports, module) => {
   function isValidLastEventId(value) {
     return value.indexOf("\x00") === -1;
   }
   function isASCIINumber(value) {
     if (value.length === 0)
       return false;
-    for (let i = 0;i < value.length; i++) {
-      if (value.charCodeAt(i) < 48 || value.charCodeAt(i) > 57)
+    for (let i2 = 0;i2 < value.length; i2++) {
+      if (value.charCodeAt(i2) < 48 || value.charCodeAt(i2) > 57)
         return false;
     }
     return true;
   }
   function delay(ms) {
-    return new Promise((resolve) => {
-      setTimeout(resolve, ms).unref();
+    return new Promise((resolve11) => {
+      setTimeout(resolve11, ms).unref();
     });
   }
   module.exports = {
@@ -30768,7 +30842,7 @@ var require_util8 = __commonJS(function(exports, module) {
 });
 
 // node_modules/undici/lib/web/eventsource/eventsource-stream.js
-var require_eventsource_stream = __commonJS(function(exports, module) {
+var require_eventsource_stream = __commonJS((exports, module) => {
   var buffer = __require("node:buffer");
   var { Transform } = __require("node:stream");
   var { isASCIINumber, isValidLastEventId } = require_util8();
@@ -30785,20 +30859,20 @@ var require_eventsource_stream = __commonJS(function(exports, module) {
   var minParserItems = 1024;
   var maxParserItems = 131072;
   var bytesPerParserItem = 128;
-  function isASCIINumberBytes(buffer, start) {
-    if (start >= buffer.length) {
+  function isASCIINumberBytes(buffer2, start) {
+    if (start >= buffer2.length) {
       return false;
     }
-    for (let i = start;i < buffer.length; i++) {
-      if (buffer[i] < 48 || buffer[i] > 57) {
+    for (let i2 = start;i2 < buffer2.length; i2++) {
+      if (buffer2[i2] < 48 || buffer2[i2] > 57) {
         return false;
       }
     }
     return true;
   }
-  function isValidLastEventIdBytes(buffer, start) {
-    for (let i = start;i < buffer.length; i++) {
-      if (buffer[i] === 0) {
+  function isValidLastEventIdBytes(buffer2, start) {
+    for (let i2 = start;i2 < buffer2.length; i2++) {
+      if (buffer2[i2] === 0) {
         return false;
       }
     }
@@ -30808,17 +30882,17 @@ var require_eventsource_stream = __commonJS(function(exports, module) {
     if (length !== field.length) {
       return false;
     }
-    for (let i = 0;i < length; i++) {
-      if (line[i] !== field[i]) {
+    for (let i2 = 0;i2 < length; i2++) {
+      if (line[i2] !== field[i2]) {
         return false;
       }
     }
     return true;
   }
   function createMaxEventSizeExceededError() {
-    const error = new Error("EventSource message size exceeded");
-    error.aborted = false;
-    return error;
+    const error2 = new Error("EventSource message size exceeded");
+    error2.aborted = false;
+    return error2;
   }
 
   class EventSourceStream extends Transform {
@@ -30903,8 +30977,8 @@ var require_eventsource_stream = __commonJS(function(exports, module) {
           }
           try {
             this.parseLine(this.readLine(), this.event);
-          } catch (error) {
-            callback(error);
+          } catch (error2) {
+            callback(error2);
             return;
           }
           this.consumeCurrentByte();
@@ -30919,10 +30993,10 @@ var require_eventsource_stream = __commonJS(function(exports, module) {
       }
       callback();
     }
-    _destroy(error, callback) {
+    _destroy(error2, callback) {
       this.chunks.length = 0;
       this.clearEvent();
-      super._destroy(error, callback);
+      super._destroy(error2, callback);
     }
     parseLine(line, event) {
       if (line.length === 0) {
@@ -31064,10 +31138,10 @@ ${value}`;
       }
       const chunks = [];
       let length = 0;
-      for (let i = this.lineChunkIndex;i <= this.chunkIndex; i++) {
-        const chunk = this.chunks[i];
-        const start = i === this.lineChunkIndex ? this.linePos : 0;
-        const end = i === this.chunkIndex ? this.pos : chunk.length;
+      for (let i2 = this.lineChunkIndex;i2 <= this.chunkIndex; i2++) {
+        const chunk = this.chunks[i2];
+        const start = i2 === this.lineChunkIndex ? this.linePos : 0;
+        const end = i2 === this.chunkIndex ? this.pos : chunk.length;
         const slice = chunk.subarray(start, end);
         length += slice.length;
         chunks.push(slice);
@@ -31136,7 +31210,7 @@ ${value}`;
 });
 
 // node_modules/undici/lib/web/eventsource/eventsource.js
-var require_eventsource = __commonJS(function(exports, module) {
+var require_eventsource = __commonJS((exports, module) => {
   var { pipeline } = __require("node:stream");
   var { fetching } = require_fetch();
   var { makeRequest } = require_request2();
@@ -31193,8 +31267,8 @@ var require_eventsource = __commonJS(function(exports, module) {
       try {
         urlRecord = new URL(url, settings.settingsObject.baseUrl);
         this.#state.origin = urlRecord.origin;
-      } catch (e) {
-        throw new DOMException(e, "SyntaxError");
+      } catch (e2) {
+        throw new DOMException(e2, "SyntaxError");
       }
       this.#url = urlRecord.href;
       let corsAttributeState = ANONYMOUS;
@@ -31271,8 +31345,8 @@ var require_eventsource = __commonJS(function(exports, module) {
             this.dispatchEvent(createFastMessageEvent(event.type, event.options));
           }
         });
-        pipeline(response.body.stream, eventSourceStream, (error) => {
-          if (error?.aborted === false) {
+        pipeline(response.body.stream, eventSourceStream, (error2) => {
+          if (error2?.aborted === false) {
             this.close();
             this.dispatchEvent(new Event("error"));
           }
@@ -31413,11 +31487,11 @@ function makeDispatcher(fn) {
       if (typeof opts.path !== "string") {
         throw new InvalidArgumentError("invalid opts.path");
       }
-      let path = opts.path;
+      let path2 = opts.path;
       if (!opts.path.startsWith("/")) {
-        path = `/${path}`;
+        path2 = `/${path2}`;
       }
-      url = new URL(util.parseOrigin(url).origin + path);
+      url = new URL(util.parseOrigin(url).origin + path2);
     } else {
       if (!opts) {
         opts = typeof url === "object" ? url : {};
@@ -31436,7 +31510,7 @@ function makeDispatcher(fn) {
     }, handler);
   };
 }
-var Client, Dispatcher, Pool, BalancedPool, Agent, ProxyAgent, EnvHttpProxyAgent, RetryAgent, errors, util, InvalidArgumentError, api, buildConnector, MockClient, MockAgent, MockPool, mockErrors, RetryHandler, getGlobalDispatcher, setGlobalDispatcher, DecoratorHandler, RedirectHandler, createRedirectInterceptor, $ProxyAgent, $interceptors, fetchImpl, $Headers, $Response, $Request, $FormData, $File, $FileReader, setGlobalOrigin, getGlobalOrigin, CacheStorage, kConstruct, $caches, deleteCookie, getCookies, getSetCookies, setCookie, parseMIMEType, serializeAMimeType, CloseEvent, ErrorEvent, MessageEvent, $WebSocket, $request, $stream, $pipeline, $connect, $upgrade, EventSource;
+var Client, Dispatcher, Pool, BalancedPool, Agent, ProxyAgent, EnvHttpProxyAgent, RetryAgent, errors, util, InvalidArgumentError, api, buildConnector, MockClient, MockAgent, MockPool, mockErrors, RetryHandler, getGlobalDispatcher, setGlobalDispatcher, DecoratorHandler, RedirectHandler, createRedirectInterceptor, $ProxyAgent, $interceptors, $util, fetchImpl, $Headers, $Response, $Request, $FormData, $File, $FileReader, setGlobalOrigin, getGlobalOrigin, CacheStorage, kConstruct, $caches, deleteCookie, getCookies, getSetCookies, setCookie, parseMIMEType, serializeAMimeType, CloseEvent, ErrorEvent, MessageEvent, $WebSocket, $request, $stream, $pipeline, $connect, $upgrade, EventSource;
 var init_undici = __esm(() => {
   Client = require_client();
   Dispatcher = require_dispatcher();
@@ -31468,6 +31542,10 @@ var init_undici = __esm(() => {
     dump: require_dump(),
     dns: require_dns()
   };
+  $util = {
+    parseHeaders: util.parseHeaders,
+    headerNameToString: util.headerNameToString
+  };
   fetchImpl = require_fetch().fetch;
   $Headers = require_headers().Headers;
   $Response = require_response().Response;
@@ -31492,12 +31570,12 @@ var init_undici = __esm(() => {
 });
 
 // src/dispatcher/proxy-fetch.ts
-function proxyUrlFromEnv(env) {
-  return env["HTTPS_PROXY"] || env["https_proxy"] || env["HTTP_PROXY"] || env["http_proxy"] || undefined;
+function proxyUrlFromEnv(env2) {
+  return env2["HTTPS_PROXY"] || env2["https_proxy"] || env2["HTTP_PROXY"] || env2["http_proxy"] || undefined;
 }
-function noProxyEntries(env) {
-  const raw = env["NO_PROXY"] || env["no_proxy"] || "";
-  return raw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+function noProxyEntries(env2) {
+  const raw = env2["NO_PROXY"] || env2["no_proxy"] || "";
+  return raw.split(",").map((s2) => s2.trim().toLowerCase()).filter(Boolean);
 }
 function hostOf(input) {
   try {
@@ -31548,16 +31626,16 @@ function dispatcherFor(url) {
   cached = { url, agent };
   return agent;
 }
-function makeProxyAwareFetch(baseFetch, env = process.env) {
-  return (input, init) => {
+function makeProxyAwareFetch(baseFetch, env2 = process.env) {
+  return (input, init2) => {
     const base = baseFetch ?? globalThis.fetch;
-    const url = proxyUrlFromEnv(env);
+    const url = proxyUrlFromEnv(env2);
     if (!url)
-      return base(input, init);
-    if (shouldBypass(hostOf(input), noProxyEntries(env)))
-      return base(input, init);
+      return base(input, init2);
+    if (shouldBypass(hostOf(input), noProxyEntries(env2)))
+      return base(input, init2);
     const dispatcher = dispatcherFor(url);
-    return base(input, { ...init, dispatcher });
+    return base(input, { ...init2, dispatcher });
   };
 }
 var cached, proxyAwareFetch;
@@ -31582,15 +31660,15 @@ function extractYamlBlock(text) {
   if (generic)
     return generic[1].trim();
   return text.split(`
-`).filter((l) => !/^\s*```/.test(l)).join(`
+`).filter((l2) => !/^\s*```/.test(l2)).join(`
 `).trim();
 }
-async function runOpenRouterAgent(promptPath, manifest, fetchFn, ctx) {
+async function runOpenRouterAgent(promptPath2, manifest, fetchFn, ctx) {
   const apiKey = process.env["OPENROUTER_API_KEY"];
   if (!apiKey) {
     throw new OpenRouterError("OPENROUTER_API_KEY not set");
   }
-  const promptText = readFileSync11(promptPath, "utf8");
+  const promptText = readFileSync11(promptPath2, "utf8");
   const { systemPart, userPart } = splitPrompt(promptText);
   const maxTokens = Math.min(manifest.token_budget ?? 4096, MAX_TOKENS_CAP2);
   const timeoutMs = (manifest.timeout_s ?? 60) * 1000;
@@ -31670,16 +31748,16 @@ async function runOpenRouterAgent(promptPath, manifest, fetchFn, ctx) {
       body: JSON.stringify(body),
       signal: controller.signal
     });
-  } catch (e) {
-    if (e.name === "AbortError") {
+  } catch (e2) {
+    if (e2.name === "AbortError") {
       outcome = "timeout";
       errorClass = "AbortError";
       emitResponse();
       throw new OpenRouterError(`OpenRouter request timed out after ${timeoutMs}ms for ${manifest.name}`);
     }
-    errorClass = e?.name ?? "unknown";
+    errorClass = e2?.name ?? "unknown";
     emitResponse();
-    throw new OpenRouterError(`OpenRouter fetch failed for ${manifest.name}: ${e.message}`);
+    throw new OpenRouterError(`OpenRouter fetch failed for ${manifest.name}: ${e2.message}`);
   } finally {
     clearTimeout(timer);
   }
@@ -31689,24 +31767,24 @@ async function runOpenRouterAgent(promptPath, manifest, fetchFn, ctx) {
     const errorText = await response.text().catch(() => "(unreadable)");
     throw new OpenRouterError(`OpenRouter ${response.status} for ${manifest.name}: ${errorText.slice(0, 200)}`, response.status);
   }
-  const json = await response.json();
-  const content = json?.choices?.[0]?.message?.content;
+  const json2 = await response.json();
+  const content = json2?.choices?.[0]?.message?.content;
   if (typeof content !== "string" || content.trim() === "") {
     errorClass = "MissingContent";
     emitResponse();
-    throw new OpenRouterError(`OpenRouter returned no content for ${manifest.name}: ${JSON.stringify(json).slice(0, 200)}`);
+    throw new OpenRouterError(`OpenRouter returned no content for ${manifest.name}: ${JSON.stringify(json2).slice(0, 200)}`);
   }
-  const u = json?.usage;
-  usageInput = u?.prompt_tokens;
-  usageOutput = u?.completion_tokens;
+  const u3 = json2?.usage;
+  usageInput = u3?.prompt_tokens;
+  usageOutput = u3?.completion_tokens;
   outcome = "success";
   emitResponse();
   const yamlBody = extractYamlBlock(content);
   let data;
   try {
     data = load(yamlBody);
-  } catch (e) {
-    throw new OpenRouterError(`OpenRouter YAML parse failed for ${manifest.name}: ${String(e).slice(0, 200)}`);
+  } catch (e2) {
+    throw new OpenRouterError(`OpenRouter YAML parse failed for ${manifest.name}: ${String(e2).slice(0, 200)}`);
   }
   if (typeof data !== "object" || data === null) {
     throw new OpenRouterError(`OpenRouter response YAML not an object for ${manifest.name}: got ${typeof data}`);
@@ -31735,35 +31813,35 @@ function clampTimeout(rawMs) {
   return Math.max(MIN_TIMEOUT_MS, Math.min(MAX_TIMEOUT_MS, rawMs));
 }
 async function retryWithBackoff(fn, opts) {
-  const sleep = opts.sleep ?? defaultSleep;
+  const sleep2 = opts.sleep ?? defaultSleep;
   const rng = opts.rng ?? Math.random;
   const base = opts.baseDelayMs ?? 1000;
   for (let attempt = 0;; attempt++) {
     try {
       return await fn();
-    } catch (e) {
-      if (attempt < opts.maxRetries && opts.isRetryable(e)) {
+    } catch (e2) {
+      if (attempt < opts.maxRetries && opts.isRetryable(e2)) {
         const baseMs = Math.pow(2, attempt) * base;
         const jitter = baseMs * 0.2 * (2 * rng() - 1);
-        await sleep(Math.max(100, baseMs + jitter));
+        await sleep2(Math.max(100, baseMs + jitter));
         continue;
       }
-      throw e;
+      throw e2;
     }
   }
 }
-function isTransientLlmError(e) {
-  const status = e?.status;
+function isTransientLlmError(e2) {
+  const status = e2?.status;
   if (typeof status === "number") {
     if (status === 408 || status === 409 || status === 429 || status >= 500) {
       return true;
     }
     return false;
   }
-  const name = e?.name;
+  const name = e2?.name;
   if (name === "AbortError")
     return true;
-  const msg = e instanceof Error ? e.message : "";
+  const msg = e2 instanceof Error ? e2.message : "";
   return /\b(timed out|exceeded \d+\s*ms|aborted|overloaded|too many requests|service unavailable|temporarily unavailable|rate[ _-]?limit(ed|ing)?)\b/i.test(msg);
 }
 function installSignalHandlersOnce() {
@@ -31786,23 +31864,23 @@ function deregisterOpenSpawn(spawnId) {
   openSpawns.delete(spawnId);
 }
 function drainOpenSpawnsForSignal(signal) {
-  for (const [spawnId, e] of openSpawns) {
+  for (const [spawnId, e2] of openSpawns) {
     try {
-      e.abort?.();
+      e2.abort?.();
     } catch {}
     try {
-      e.llmClose?.("interrupted");
+      e2.llmClose?.("interrupted");
     } catch {}
     try {
-      e.logger.event({
-        task_id: e.taskId,
+      e2.logger.event({
+        task_id: e2.taskId,
         spawn_id: spawnId,
-        agent: e.agent,
+        agent: e2.agent,
         event_type: "spawn.end",
         level: "warn",
         payload: {
           outcome: "interrupted",
-          elapsed_ms: Date.now() - e.startTs,
+          elapsed_ms: Date.now() - e2.startTs,
           signal
         }
       });
@@ -31833,9 +31911,9 @@ function generateUlid() {
 }
 function resolveMode(opts = {}, manifest) {
   for (const route of ROUTES) {
-    const m = route.resolve(opts, manifest);
-    if (m)
-      return m;
+    const m2 = route.resolve(opts, manifest);
+    if (m2)
+      return m2;
   }
   return "file-poll";
 }
@@ -31855,7 +31933,7 @@ function forbiddenTokensFor(agentName) {
   }
   return out;
 }
-function formatPrompt(spawnId, manifest, input, tokens, resultPath) {
+function formatPrompt(spawnId, manifest, input, tokens, resultPath2) {
   if (manifest.prompt_path) {
     let template;
     try {
@@ -31901,8 +31979,8 @@ ${dump(manifest.outputs ?? {}).trimEnd()}
 
 ` + `### Your scope (this call)
 
-` + `You hold these pinned tokens: ${tokens.map((t) => `\`${t}\``).join(", ") || "(none)"}.
-` + (forbidden.length > 0 ? `You are FORBIDDEN from: ${forbidden.map((t) => `\`${t}\``).join(", ")} (Invariant §1).
+` + `You hold these pinned tokens: ${tokens.map((t2) => `\`${t2}\``).join(", ") || "(none)"}.
+` + (forbidden.length > 0 ? `You are FORBIDDEN from: ${forbidden.map((t2) => `\`${t2}\``).join(", ")} (Invariant §1).
 ` : "") + `
 ### Task input
 
@@ -31912,7 +31990,7 @@ ${dump(input).trimEnd()}
 
 ` + `## Submit
 
-` + `Write your YAML to: \`${resultPath}\`
+` + `Write your YAML to: \`${resultPath2}\`
 
 ` + `Or use the helper:
 
@@ -31925,17 +32003,17 @@ ${dump(input).trimEnd()}
   return `${systemPrefix}
 ${inputBlock}`;
 }
-async function pollForResult(resultPath, timeoutMs, intervalMs) {
+async function pollForResult(resultPath2, timeoutMs, intervalMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (existsSync10(resultPath)) {
-      const text = readFileSync12(resultPath, "utf8");
+    if (existsSync10(resultPath2)) {
+      const text = readFileSync12(resultPath2, "utf8");
       const { data } = parseFrontmatter(text);
       return data;
     }
-    await new Promise((r) => setTimeout(r, intervalMs));
+    await new Promise((r3) => setTimeout(r3, intervalMs));
   }
-  throw new SpawnTimeout(resultPath, timeoutMs);
+  throw new SpawnTimeout(resultPath2, timeoutMs);
 }
 async function spawn3(agentName, input, opts = {}) {
   const manifest = getSubagentManifest(agentName);
@@ -31984,14 +32062,14 @@ async function spawn3(agentName, input, opts = {}) {
       agentName,
       logger,
       registerAbort: (abort) => {
-        const e = openSpawns.get(spawnId);
-        if (e)
-          e.abort = abort;
+        const e2 = openSpawns.get(spawnId);
+        if (e2)
+          e2.abort = abort;
       },
       registerLlmClose: (close) => {
-        const e = openSpawns.get(spawnId);
-        if (e)
-          e.llmClose = close;
+        const e2 = openSpawns.get(spawnId);
+        if (e2)
+          e2.llmClose = close;
       }
     };
     if (mode === "inline" && opts.inlineStub) {
@@ -32011,7 +32089,7 @@ async function spawn3(agentName, input, opts = {}) {
       const timeoutMs = clampTimeout(rawTimeoutMs);
       output = await retryWithBackoff(() => pollForResult(resultPath2, timeoutMs, opts.pollIntervalMs ?? 1000), {
         maxRetries: opts.maxRetries ?? 0,
-        isRetryable: (e) => e instanceof SpawnTimeout,
+        isRetryable: (e2) => e2 instanceof SpawnTimeout,
         sleep: opts.sleep,
         rng: opts.rng
       });
@@ -32019,7 +32097,7 @@ async function spawn3(agentName, input, opts = {}) {
     validateOutputShape(manifest, output);
     const leak = scanOutputForLeak(agentName, output, getFingerprintsCached(stateRoot));
     if (leak.hit) {
-      throw new SpawnError(`Invariant §1 violation (output leak): agent ${agentName} output contains ${leak.count} line(s) matching solutions/ content. ` + `Sample(s): ${leak.samples.map((s) => `"${s}"`).join(", ")}. ` + `The LLM likely accessed solutions/ outside its pinned scope (§8). ` + `See sgc-invariants.md §1 + sgc-capabilities.yaml /review.solutions=[].`);
+      throw new SpawnError(`Invariant §1 violation (output leak): agent ${agentName} output contains ${leak.count} line(s) matching solutions/ content. ` + `Sample(s): ${leak.samples.map((s2) => `"${s2}"`).join(", ")}. ` + `The LLM likely accessed solutions/ outside its pinned scope (§8). ` + `See sgc-invariants.md §1 + sgc-capabilities.yaml /review.solutions=[].`);
     }
     const bannedTerms = detectBannedVocab(JSON.stringify(output));
     if (bannedTerms.length > 0) {
@@ -32034,9 +32112,9 @@ async function spawn3(agentName, input, opts = {}) {
     }
     outcome = "success";
     return { spawnId, output, promptPath: promptPath2, resultPath: resultPath2, mode };
-  } catch (e) {
-    outcome = e instanceof SpawnTimeout ? "timeout" : "error";
-    throw e;
+  } catch (e2) {
+    outcome = e2 instanceof SpawnTimeout ? "timeout" : "error";
+    throw e2;
   } finally {
     logger.event({
       task_id: opts.taskId ?? null,
@@ -32049,7 +32127,7 @@ async function spawn3(agentName, input, opts = {}) {
     deregisterOpenSpawn(spawnId);
   }
 }
-var MIN_TIMEOUT_MS = 30000, MAX_TIMEOUT_MS = 300000, SpawnTimeout, defaultSleep = (ms) => new Promise((r) => setTimeout(r, ms)), openSpawns, signalHandlersInstalled = false, SpawnError, PRIOR_ART_SENTINEL_BEGIN = "<!-- sgc:prior-art:begin -->", PRIOR_ART_SENTINEL_END = "<!-- sgc:prior-art:end -->", PRE_MORTEM_SENTINEL_BEGIN = "<!-- sgc:pre-mortem:begin -->", PRE_MORTEM_SENTINEL_END = "<!-- sgc:pre-mortem:end -->", PRIOR_ART_BACK_CHANNEL_RE, PRE_MORTEM_BACK_CHANNEL_RE, root2 = (custom) => resolve11(custom ?? process.env["SGC_STATE_ROOT"] ?? ".sgc"), VALID_ENV_MODES, ROUTES;
+var MIN_TIMEOUT_MS = 30000, MAX_TIMEOUT_MS = 300000, SpawnTimeout, defaultSleep = (ms) => new Promise((r3) => setTimeout(r3, ms)), openSpawns, signalHandlersInstalled = false, SpawnError, PRIOR_ART_SENTINEL_BEGIN = "<!-- sgc:prior-art:begin -->", PRIOR_ART_SENTINEL_END = "<!-- sgc:prior-art:end -->", PRE_MORTEM_SENTINEL_BEGIN = "<!-- sgc:pre-mortem:begin -->", PRE_MORTEM_SENTINEL_END = "<!-- sgc:pre-mortem:end -->", PRIOR_ART_BACK_CHANNEL_RE, PRE_MORTEM_BACK_CHANNEL_RE, root2 = (custom) => resolve11(custom ?? process.env["SGC_STATE_ROOT"] ?? ".sgc"), VALID_ENV_MODES, ROUTES;
 var init_spawn = __esm(() => {
   init_js_yaml();
   init_capabilities();
@@ -32095,8 +32173,8 @@ var init_spawn = __esm(() => {
     {
       reason: "SGC_AGENT_MODE env override",
       resolve: () => {
-        const m = process.env["SGC_AGENT_MODE"];
-        return m && VALID_ENV_MODES.has(m) ? m : null;
+        const m2 = process.env["SGC_AGENT_MODE"];
+        return m2 && VALID_ENV_MODES.has(m2) ? m2 : null;
       }
     },
     {
@@ -32109,11 +32187,11 @@ var init_spawn = __esm(() => {
     },
     {
       reason: "manifest.prompt_path + ANTHROPIC_API_KEY → anthropic-sdk",
-      resolve: (_opts, m) => m?.prompt_path && process.env["ANTHROPIC_API_KEY"] ? "anthropic-sdk" : null
+      resolve: (_opts, m2) => m2?.prompt_path && process.env["ANTHROPIC_API_KEY"] ? "anthropic-sdk" : null
     },
     {
       reason: "manifest.prompt_path + OPENROUTER_API_KEY → openrouter",
-      resolve: (_opts, m) => m?.prompt_path && process.env["OPENROUTER_API_KEY"] ? "openrouter" : null
+      resolve: (_opts, m2) => m2?.prompt_path && process.env["OPENROUTER_API_KEY"] ? "openrouter" : null
     },
     {
       reason: "inline-stub fallback for templateless agents",
@@ -32220,6 +32298,10 @@ var init_clarifier_discover2 = __esm(() => {
 });
 
 // src/commands/discover.ts
+var exports_discover = {};
+__export(exports_discover, {
+  runDiscover: () => runDiscover
+});
 function summarizeActiveTask(stateRoot) {
   try {
     const ct = readCurrentTask(stateRoot);
@@ -32246,8 +32328,8 @@ function renderQuestions(out, log) {
     if (qs.length === 0)
       continue;
     log(header);
-    for (const q of qs)
-      log(`  - ${q}`);
+    for (const q2 of qs)
+      log(`  - ${q2}`);
     log("");
   }
   log(`Next:`);
@@ -32255,7 +32337,7 @@ function renderQuestions(out, log) {
 }
 async function runDiscover(opts) {
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
-  const log = (m) => logger.say(m);
+  const log = (m2) => logger.say(m2);
   const stateRoot = opts.stateRoot;
   const topic = (opts.topic ?? "").trim();
   if (topic.length === 0) {
@@ -32269,14 +32351,14 @@ async function runDiscover(opts) {
     template = opts.template;
   }
   const current_task_summary = summarizeActiveTask(stateRoot);
-  const r = await spawn3("clarifier.discover", { topic, current_task_summary, ...template ? { template } : {} }, {
+  const r3 = await spawn3("clarifier.discover", { topic, current_task_summary, ...template ? { template } : {} }, {
     stateRoot,
-    inlineStub: (i) => clarifierDiscover(i),
+    inlineStub: (i2) => clarifierDiscover(i2),
     logger,
     taskId: undefined
   });
-  renderQuestions(r.output, log);
-  return r.output;
+  renderQuestions(r3.output, log);
+  return r3.output;
 }
 var init_discover = __esm(() => {
   init_spawn();
@@ -32286,6 +32368,16 @@ var init_discover = __esm(() => {
 });
 
 // src/dispatcher/plan-jobs.ts
+var exports_plan_jobs = {};
+__export(exports_plan_jobs, {
+  showJob: () => showJob,
+  listJobs: () => listJobs,
+  forkAsyncPlanJob: () => forkAsyncPlanJob,
+  failPlanJob: () => failPlanJob,
+  emitAsyncStart: () => emitAsyncStart,
+  completePlanJob: () => completePlanJob,
+  PlanJobError: () => PlanJobError
+});
 import {
   closeSync,
   existsSync as existsSync11,
@@ -32294,19 +32386,39 @@ import {
   readFileSync as readFileSync13,
   writeFileSync as writeFileSync3
 } from "node:fs";
+import { mkdir as mkdir2 } from "node:fs/promises";
+import { spawn as nodeSpawn } from "node:child_process";
 import { resolve as resolve12 } from "node:path";
+function generateUlid2() {
+  return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
+}
 function defaultIsAlive2(pid) {
   try {
     process.kill(pid, 0);
     return true;
-  } catch (e) {
-    if (e && typeof e === "object" && "code" in e) {
-      const code = e.code;
+  } catch (e2) {
+    if (e2 && typeof e2 === "object" && "code" in e2) {
+      const code = e2.code;
       if (code === "ESRCH")
         return false;
     }
     return true;
   }
+}
+function getSgcEntry() {
+  return process.argv[1] ?? "";
+}
+function defaultSpawnImpl(argv2, opts) {
+  const [cmd, ...rest] = argv2;
+  if (!cmd)
+    throw new Error("forkAsyncPlanJob: argv[0] missing");
+  const proc = nodeSpawn(cmd, rest, {
+    stdio: ["ignore", opts.logFd, opts.logFd],
+    detached: true,
+    env: opts.env
+  });
+  proc.unref();
+  return { pid: proc.pid ?? -1 };
 }
 function jobsDir(stateRoot) {
   return resolve12(resolveStateRoot(stateRoot), "plan-jobs");
@@ -32314,23 +32426,35 @@ function jobsDir(stateRoot) {
 function jobPath(stateRoot, jobId) {
   return resolve12(jobsDir(stateRoot), `${jobId}.md`);
 }
-function readJob(path) {
+function forkLockPath(stateRoot) {
+  return resolve12(jobsDir(stateRoot), ".fork.lock");
+}
+function logPathFor(stateRoot, jobId) {
+  return resolve12(jobsDir(stateRoot), `${jobId}.log`);
+}
+function doneSentinel(stateRoot, jobId) {
+  return resolve12(jobsDir(stateRoot), `${jobId}.done`);
+}
+function failedSentinel(stateRoot, jobId) {
+  return resolve12(jobsDir(stateRoot), `${jobId}.failed`);
+}
+function readJob(path2) {
   let text;
   try {
-    text = readFileSync13(path, "utf8");
+    text = readFileSync13(path2, "utf8");
   } catch (err) {
-    throw new PlanJobError("MalformedJobFile", `plan-job file unreadable at ${path}: ${err.message}`, { path });
+    throw new PlanJobError("MalformedJobFile", `plan-job file unreadable at ${path2}: ${err.message}`, { path: path2 });
   }
   try {
     const { data } = parseFrontmatter(text);
     return data;
   } catch (err) {
-    throw new PlanJobError("MalformedJobFile", `plan-job file unparseable at ${path}: ${err.message}`, { path });
+    throw new PlanJobError("MalformedJobFile", `plan-job file unparseable at ${path2}: ${err.message}`, { path: path2 });
   }
 }
-function writeJob(path, job) {
+function writeJob(path2, job) {
   const content = serializeFrontmatter(job, "");
-  writeAtomic(path, content);
+  writeAtomic(path2, content);
 }
 function listJobsRaw(stateRoot) {
   const dir = jobsDir(stateRoot);
@@ -32355,19 +32479,88 @@ function applyStaleProbe(job, stateRoot, isAlive) {
   writeJob(jobPath(stateRoot, job.job_id), updated);
   return updated;
 }
+async function forkAsyncPlanJob(task, opts = {}) {
+  const stateRoot = opts.stateRoot;
+  const now = opts.now ?? Date.now;
+  const ulid = opts.ulid ?? generateUlid2;
+  const isAlive = opts.isAlive ?? defaultIsAlive2;
+  const spawnImpl = opts.spawnImpl ?? defaultSpawnImpl;
+  await mkdir2(jobsDir(stateRoot), { recursive: true });
+  let releaseLock;
+  try {
+    releaseLock = acquireFileLock(forkLockPath(stateRoot), { isAlive });
+  } catch (err) {
+    if (err instanceof LockHeldError) {
+      throw new PlanJobError("ConcurrentJobActive", `another plan fork is in progress (holder pid=${err.holderPid}). Retry once it completes.`, { active_pid: err.holderPid });
+    }
+    throw err;
+  }
+  try {
+    return await claimAndFork(task, stateRoot, { now, ulid, isAlive, spawnImpl, extraEnv: opts.extraEnv });
+  } finally {
+    releaseLock();
+  }
+}
+async function claimAndFork(task, stateRoot, { now, ulid, isAlive, spawnImpl, extraEnv }) {
+  for (const prior of listJobsRaw(stateRoot)) {
+    if (prior.status === "running") {
+      if (isAlive(prior.pid)) {
+        throw new PlanJobError("ConcurrentJobActive", `another plan job is running (job_id=${prior.job_id}, pid=${prior.pid}). Tail with: sgc plan --status ${prior.job_id}`, { active_job_id: prior.job_id, active_pid: prior.pid });
+      }
+      writeJob(jobPath(stateRoot, prior.job_id), {
+        ...prior,
+        status: "stale"
+      });
+    }
+  }
+  const job_id = ulid();
+  const log_path = logPathFor(stateRoot, job_id);
+  const job_path = jobPath(stateRoot, job_id);
+  const logFd = openSync(log_path, "a", 420);
+  const env2 = {};
+  for (const k2 of Object.keys(process.env)) {
+    const v2 = process.env[k2];
+    if (v2 !== undefined)
+      env2[k2] = v2;
+  }
+  env2["SGC_PLAN_ASYNC_CHILD"] = job_id;
+  env2["SGC_STATE_ROOT"] = resolveStateRoot(stateRoot);
+  if (extraEnv) {
+    for (const [k2, v2] of Object.entries(extraEnv))
+      env2[k2] = v2;
+  }
+  const argv2 = [process.execPath, getSgcEntry(), "plan", task];
+  try {
+    const { pid } = spawnImpl(argv2, { logFd, env: env2 });
+    const job = {
+      job_id,
+      task,
+      started_at: new Date(now()).toISOString(),
+      pid,
+      log_path,
+      status: "running"
+    };
+    writeJob(job_path, job);
+    return { job, jobPath: job_path };
+  } finally {
+    try {
+      closeSync(logFd);
+    } catch {}
+  }
+}
 async function listJobs(opts = {}) {
   const isAlive = opts.isAlive ?? defaultIsAlive2;
   const raw = listJobsRaw(opts.stateRoot);
   const probed = raw.map((j) => applyStaleProbe(j, opts.stateRoot, isAlive));
-  probed.sort((a, b) => b.started_at.localeCompare(a.started_at));
+  probed.sort((a2, b2) => b2.started_at.localeCompare(a2.started_at));
   return probed;
 }
 async function showJob(jobId, opts = {}) {
-  const path = jobPath(opts.stateRoot, jobId);
-  if (!existsSync11(path)) {
+  const path2 = jobPath(opts.stateRoot, jobId);
+  if (!existsSync11(path2)) {
     throw new PlanJobError("JobNotFound", `plan-jobs/${jobId}.md not found under ${resolveStateRoot(opts.stateRoot)}`, { job_id: jobId });
   }
-  const raw = readJob(path);
+  const raw = readJob(path2);
   const isAlive = opts.isAlive ?? defaultIsAlive2;
   const job = applyStaleProbe(raw, opts.stateRoot, isAlive);
   let logTail = "";
@@ -32377,12 +32570,82 @@ async function showJob(jobId, opts = {}) {
 `);
     if (lines.length > 0 && lines[lines.length - 1] === "")
       lines.pop();
-    const n = opts.logTailLines ?? 100;
-    logTail = lines.length === 0 ? "" : lines.slice(-n).join(`
+    const n2 = opts.logTailLines ?? 100;
+    logTail = lines.length === 0 ? "" : lines.slice(-n2).join(`
 `) + `
 `;
   }
   return { job, logTail };
+}
+async function completePlanJob(jobId, completion, opts = {}) {
+  const path2 = jobPath(opts.stateRoot, jobId);
+  if (!existsSync11(path2)) {
+    throw new PlanJobError("JobNotFound", `plan-jobs/${jobId}.md not found`);
+  }
+  const job = readJob(path2);
+  const now = opts.now ?? Date.now;
+  const updated = {
+    ...job,
+    status: "done",
+    completed_at: new Date(now()).toISOString()
+  };
+  if (completion.taskId)
+    updated.task_id = completion.taskId;
+  if (completion.level)
+    updated.level = completion.level;
+  if (completion.intentPath)
+    updated.intent_path = completion.intentPath;
+  writeJob(path2, updated);
+  writeFileSync3(doneSentinel(opts.stateRoot, jobId), "", "utf8");
+  const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot });
+  logger.event({
+    task_id: completion.taskId ?? null,
+    spawn_id: null,
+    agent: "sgc.plan-async",
+    event_type: "plan.async_complete",
+    level: "info",
+    payload: {
+      job_id: jobId,
+      task_id: completion.taskId ?? null,
+      level: completion.level ?? null,
+      intent_path: completion.intentPath ?? null
+    }
+  });
+}
+async function failPlanJob(jobId, error2, opts = {}) {
+  const path2 = jobPath(opts.stateRoot, jobId);
+  if (!existsSync11(path2)) {
+    throw new PlanJobError("JobNotFound", `plan-jobs/${jobId}.md not found`);
+  }
+  const job = readJob(path2);
+  const now = opts.now ?? Date.now;
+  const updated = {
+    ...job,
+    status: "failed",
+    completed_at: new Date(now()).toISOString(),
+    error: error2
+  };
+  writeJob(path2, updated);
+  writeFileSync3(failedSentinel(opts.stateRoot, jobId), "", "utf8");
+  const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot });
+  logger.event({
+    task_id: null,
+    spawn_id: null,
+    agent: "sgc.plan-async",
+    event_type: "plan.async_failed",
+    level: "error",
+    payload: { job_id: jobId, error: error2 }
+  });
+}
+function emitAsyncStart(jobId, task, logger, payload = {}) {
+  logger.event({
+    task_id: null,
+    spawn_id: null,
+    agent: "sgc.plan-async",
+    event_type: "plan.async_start",
+    level: "info",
+    payload: { job_id: jobId, task, ...payload }
+  });
 }
 var PlanJobError;
 var init_plan_jobs = __esm(() => {
@@ -32671,30 +32934,30 @@ function renderPlanMarkdown(list, intent) {
   out.push("---");
   out.push("");
   let taskNo = 1;
-  for (const f of list.features) {
-    out.push(`### Task ${taskNo}: ${f.title}`);
+  for (const f3 of list.features) {
+    out.push(`### Task ${taskNo}: ${f3.title}`);
     out.push("");
-    if (f.files) {
+    if (f3.files) {
       out.push("**Files:**");
-      for (const p of f.files.create)
+      for (const p of f3.files.create)
         out.push(`- Create: \`${p}\``);
-      for (const p of f.files.modify)
+      for (const p of f3.files.modify)
         out.push(`- Modify: \`${p}\``);
-      for (const p of f.files.test)
+      for (const p of f3.files.test)
         out.push(`- Test: \`${p}\``);
       out.push("");
     }
-    if (f.prior_art_refs && f.prior_art_refs.length > 0) {
-      out.push(`**Prior art (reused):** ${f.prior_art_refs.map((r) => `\`${r}\``).join(", ")}`);
+    if (f3.prior_art_refs && f3.prior_art_refs.length > 0) {
+      out.push(`**Prior art (reused):** ${f3.prior_art_refs.map((r3) => `\`${r3}\``).join(", ")}`);
       out.push("");
     }
     let stepNo = 1;
-    for (const s of f.steps ?? []) {
-      out.push(`- [ ] **Step ${stepNo} (${s.kind}):** ${s.text}`);
-      if (s.run)
-        out.push(`  - Run: \`${s.run}\``);
-      if (s.expect)
-        out.push(`  - Expected: ${s.expect}`);
+    for (const s2 of f3.steps ?? []) {
+      out.push(`- [ ] **Step ${stepNo} (${s2.kind}):** ${s2.text}`);
+      if (s2.run)
+        out.push(`  - Run: \`${s2.run}\``);
+      if (s2.expect)
+        out.push(`  - Expected: ${s2.expect}`);
       stepNo++;
     }
     out.push("");
@@ -32713,8 +32976,8 @@ function truncateOnWordBoundary(text, maxChars) {
   const cutAt = lastSpace > Math.floor(limit / 2) ? lastSpace : limit;
   return text.slice(0, cutAt).trimEnd() + "...";
 }
-function clamp(n, lo, hi) {
-  return Math.max(lo, Math.min(hi, n));
+function clamp(n2, lo, hi) {
+  return Math.max(lo, Math.min(hi, n2));
 }
 function sanitizePreventionText(text) {
   let out = text;
@@ -32735,13 +32998,13 @@ function emitSkip(logger, taskId, solutionRef, reason) {
   });
 }
 async function extractPreventions(intentDraft, stateRoot, opts = {}) {
-  const root = resolveStateRoot(stateRoot);
+  const root3 = resolveStateRoot(stateRoot);
   const topN = clamp(opts.topN ?? DEFAULT_TOP_N, MIN_TOP_N, MAX_TOP_N);
   const maxChars = clamp(opts.maxCharsPerText ?? DEFAULT_MAX_CHARS, MIN_MAX_CHARS, MAX_MAX_CHARS);
   const keywords = extractKeywords(intentDraft ?? "");
   if (keywords.length === 0)
     return [];
-  const scans = await walkSolutionsCorpus(root, keywords);
+  const scans = await walkSolutionsCorpus(root3, keywords);
   const scored = [];
   for (const scan of scans) {
     const solutionRef = `${scan.category}/${scan.slug}`;
@@ -32779,11 +33042,11 @@ async function extractPreventions(intentDraft, stateRoot, opts = {}) {
     }
     scored.push({ scan, text: truncateOnWordBoundary(sanitized, maxChars) });
   }
-  scored.sort((a, b) => b.scan.hits - a.scan.hits);
-  return scored.slice(0, topN).map((s) => ({
-    solution_ref: `${s.scan.category}/${s.scan.slug}`,
-    category: s.scan.category,
-    prevention_text: s.text
+  scored.sort((a2, b2) => b2.scan.hits - a2.scan.hits);
+  return scored.slice(0, topN).map((s2) => ({
+    solution_ref: `${s2.scan.category}/${s2.scan.slug}`,
+    category: s2.scan.category,
+    prevention_text: s2.text
   }));
 }
 var DEFAULT_TOP_N = 3, DEFAULT_MAX_CHARS = 240, MIN_TOP_N = 1, MAX_TOP_N = 10, MIN_MAX_CHARS = 40, MAX_MAX_CHARS = 1000, INJECTION_PATTERNS;
@@ -33009,7 +33272,7 @@ function parsePluginSet(installedJson) {
   try {
     const data = JSON.parse(installedJson);
     const keys = Object.keys(data.plugins ?? {});
-    const has = (q) => keys.some((k) => k === q || k.startsWith(`${q}@`));
+    const has = (q2) => keys.some((k2) => k2 === q2 || k2.startsWith(`${q2}@`));
     return {
       superpowers: has("superpowers"),
       codeGraphMcp: has("code-graph-mcp"),
@@ -33023,13 +33286,13 @@ function parsePluginSet(installedJson) {
 function detectInstalledPlugins() {
   if (cached2)
     return cached2;
-  const path = process.env["SGC_PLUGIN_REGISTRY"] ?? resolve13(homedir(), ".claude/plugins/installed_plugins.json");
-  if (!existsSync13(path)) {
+  const path2 = process.env["SGC_PLUGIN_REGISTRY"] ?? resolve13(homedir(), ".claude/plugins/installed_plugins.json");
+  if (!existsSync13(path2)) {
     cached2 = { ...EMPTY_PLUGIN_SET };
     return cached2;
   }
   try {
-    cached2 = parsePluginSet(readFileSync15(path, "utf8"));
+    cached2 = parsePluginSet(readFileSync15(path2, "utf8"));
   } catch {
     cached2 = { ...EMPTY_PLUGIN_SET };
   }
@@ -33098,79 +33361,79 @@ var init_delegation = __esm(() => {
 });
 
 // src/dispatcher/fuse-plan.ts
-function normVerdict(v) {
-  return Object.prototype.hasOwnProperty.call(PLAN_VERDICT_RANK, v) ? v : "reject";
+function normVerdict(v2) {
+  return Object.prototype.hasOwnProperty.call(PLAN_VERDICT_RANK, v2) ? v2 : "reject";
 }
-function worstPlanVerdict(a, b) {
-  const na = normVerdict(a);
-  const nb = normVerdict(b);
+function worstPlanVerdict(a2, b2) {
+  const na = normVerdict(a2);
+  const nb = normVerdict(b2);
   return PLAN_VERDICT_RANK[na] >= PLAN_VERDICT_RANK[nb] ? na : nb;
 }
 function collectConcerns(input) {
   const out = [];
   if (input.ceo) {
-    for (const c of input.ceo.concerns)
-      out.push({ source: "ceo", text: c, severity: "medium", _key: c });
+    for (const c3 of input.ceo.concerns)
+      out.push({ source: "ceo", text: c3, severity: "medium", _key: c3 });
   }
-  for (const c of input.eng.concerns)
-    out.push({ source: "eng", text: c, severity: "medium", _key: c });
-  for (const r of input.eng.structural_risks) {
+  for (const c3 of input.eng.concerns)
+    out.push({ source: "eng", text: c3, severity: "medium", _key: c3 });
+  for (const r3 of input.eng.structural_risks) {
     out.push({
       source: "eng.structural_risk",
-      text: `${r.area}: ${r.risk} (mitigation: ${r.mitigation})`,
+      text: `${r3.area}: ${r3.risk} (mitigation: ${r3.mitigation})`,
       severity: "high",
-      _key: r.risk
+      _key: r3.risk
     });
   }
   if (input.adversarial) {
-    for (const m of input.adversarial.failure_modes) {
-      const text = `[${m.probability}/${m.impact}] ${m.scenario} — early signal: ${m.early_signal}`;
-      out.push({ source: "adversarial", text, severity: m.impact, _key: m.scenario });
+    for (const m2 of input.adversarial.failure_modes) {
+      const text = `[${m2.probability}/${m2.impact}] ${m2.scenario} — early signal: ${m2.early_signal}`;
+      out.push({ source: "adversarial", text, severity: m2.impact, _key: m2.scenario });
     }
   }
   return out;
 }
 function addFlaggedBy(existing, add, representative) {
-  const set = new Set([...existing ?? [], add]);
-  set.delete(representative);
-  return [...set];
+  const set2 = new Set([...existing ?? [], add]);
+  set2.delete(representative);
+  return [...set2];
 }
 function dedupeConcerns(concerns) {
   const kept = [];
-  for (const c of concerns) {
-    const cTokens = tokenize(c._key);
+  for (const c3 of concerns) {
+    const cTokens = tokenize(c3._key);
     let merged = false;
-    for (const k of kept) {
-      if (featureOverlap(cTokens, tokenize(k._key)) >= DEDUP_THRESHOLD) {
-        if (SEVERITY_RANK[c.severity] > SEVERITY_RANK[k.severity]) {
-          k.also_flagged_by = addFlaggedBy(k.also_flagged_by, k.source, c.source);
-          k.severity = c.severity;
-          k.text = c.text;
-          k.source = c.source;
+    for (const k2 of kept) {
+      if (featureOverlap(cTokens, tokenize(k2._key)) >= DEDUP_THRESHOLD) {
+        if (SEVERITY_RANK[c3.severity] > SEVERITY_RANK[k2.severity]) {
+          k2.also_flagged_by = addFlaggedBy(k2.also_flagged_by, k2.source, c3.source);
+          k2.severity = c3.severity;
+          k2.text = c3.text;
+          k2.source = c3.source;
         } else {
-          k.also_flagged_by = addFlaggedBy(k.also_flagged_by, c.source, k.source);
+          k2.also_flagged_by = addFlaggedBy(k2.also_flagged_by, c3.source, k2.source);
         }
         merged = true;
         break;
       }
     }
     if (!merged)
-      kept.push({ ...c });
+      kept.push({ ...c3 });
   }
   return kept.map(({ _key: _k, ...pub }) => pub);
 }
 function rankConcerns(concerns) {
-  return [...concerns].sort((a, b) => {
-    const sev = SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity];
+  return [...concerns].sort((a2, b2) => {
+    const sev = SEVERITY_RANK[b2.severity] - SEVERITY_RANK[a2.severity];
     if (sev !== 0)
       return sev;
-    return SOURCE_ORDER[a.source] - SOURCE_ORDER[b.source];
+    return SOURCE_ORDER[a2.source] - SOURCE_ORDER[b2.source];
   });
 }
 function hasHighHighFailure(adversarial) {
   if (!adversarial)
     return false;
-  return adversarial.failure_modes.some((m) => m.probability === "high" && m.impact === "high");
+  return adversarial.failure_modes.some((m2) => m2.probability === "high" && m2.impact === "high");
 }
 function fusePlan(input) {
   const ceoV = input.ceo?.verdict;
@@ -33192,22 +33455,22 @@ function fusePlan(input) {
   const ranked = rankConcerns(dedupeConcerns(collectConcerns(input)));
   return { fused_verdict: base, decision_basis: basis, ranked_concerns: ranked, conflicts };
 }
-function renderFusedSection(d) {
+function renderFusedSection(d2) {
   const lines = ["## Fused decision", ""];
-  lines.push(`**Verdict:** ${d.fused_verdict}`);
-  lines.push(`**Basis:** ${d.decision_basis}`);
+  lines.push(`**Verdict:** ${d2.fused_verdict}`);
+  lines.push(`**Basis:** ${d2.decision_basis}`);
   lines.push("");
-  if (d.conflicts.length > 0) {
+  if (d2.conflicts.length > 0) {
     lines.push("### Conflicts", "");
-    for (const c of d.conflicts)
-      lines.push(`- ${c}`);
+    for (const c3 of d2.conflicts)
+      lines.push(`- ${c3}`);
     lines.push("");
   }
-  if (d.ranked_concerns.length > 0) {
+  if (d2.ranked_concerns.length > 0) {
     lines.push("### Ranked concerns", "");
-    for (const c of d.ranked_concerns) {
-      const also = c.also_flagged_by?.length ? ` (also flagged by ${c.also_flagged_by.join(", ")})` : "";
-      lines.push(`- [${c.severity}] (${c.source}) ${c.text}${also}`);
+    for (const c3 of d2.ranked_concerns) {
+      const also = c3.also_flagged_by?.length ? ` (also flagged by ${c3.also_flagged_by.join(", ")})` : "";
+      lines.push(`- [${c3.severity}] (${c3.source}) ${c3.text}${also}`);
     }
     lines.push("");
   }
@@ -33240,33 +33503,33 @@ import {
   readFileSync as readFileSync16,
   writeFileSync as writeFileSync4
 } from "node:fs";
-import { mkdir as mkdir2 } from "node:fs/promises";
-import { spawn as nodeSpawn } from "node:child_process";
+import { mkdir as mkdir3 } from "node:fs/promises";
+import { spawn as nodeSpawn2 } from "node:child_process";
 import { resolve as resolve14 } from "node:path";
-function generateUlid2() {
+function generateUlid3() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
 function defaultIsAlive3(pid) {
   try {
     process.kill(pid, 0);
     return true;
-  } catch (e) {
-    if (e && typeof e === "object" && "code" in e) {
-      const code = e.code;
+  } catch (e2) {
+    if (e2 && typeof e2 === "object" && "code" in e2) {
+      const code = e2.code;
       if (code === "ESRCH")
         return false;
     }
     return true;
   }
 }
-function getSgcEntry() {
+function getSgcEntry2() {
   return process.argv[1] ?? "";
 }
-function defaultSpawnImpl(argv, opts) {
-  const [cmd, ...rest] = argv;
+function defaultSpawnImpl2(argv2, opts) {
+  const [cmd, ...rest] = argv2;
   if (!cmd)
     throw new Error("forkAsyncPlanJob: argv[0] missing");
-  const proc = nodeSpawn(cmd, rest, {
+  const proc = nodeSpawn2(cmd, rest, {
     stdio: ["ignore", opts.logFd, opts.logFd],
     detached: true,
     env: opts.env
@@ -33280,35 +33543,35 @@ function jobsDir2(stateRoot) {
 function jobPath2(stateRoot, jobId) {
   return resolve14(jobsDir2(stateRoot), `${jobId}.md`);
 }
-function forkLockPath(stateRoot) {
+function forkLockPath2(stateRoot) {
   return resolve14(jobsDir2(stateRoot), ".fork.lock");
 }
-function logPathFor(stateRoot, jobId) {
+function logPathFor2(stateRoot, jobId) {
   return resolve14(jobsDir2(stateRoot), `${jobId}.log`);
 }
-function doneSentinel(stateRoot, jobId) {
+function doneSentinel2(stateRoot, jobId) {
   return resolve14(jobsDir2(stateRoot), `${jobId}.done`);
 }
-function failedSentinel(stateRoot, jobId) {
+function failedSentinel2(stateRoot, jobId) {
   return resolve14(jobsDir2(stateRoot), `${jobId}.failed`);
 }
-function readJob2(path) {
+function readJob2(path2) {
   let text;
   try {
-    text = readFileSync16(path, "utf8");
+    text = readFileSync16(path2, "utf8");
   } catch (err) {
-    throw new PlanJobError2("MalformedJobFile", `plan-job file unreadable at ${path}: ${err.message}`, { path });
+    throw new PlanJobError2("MalformedJobFile", `plan-job file unreadable at ${path2}: ${err.message}`, { path: path2 });
   }
   try {
     const { data } = parseFrontmatter(text);
     return data;
   } catch (err) {
-    throw new PlanJobError2("MalformedJobFile", `plan-job file unparseable at ${path}: ${err.message}`, { path });
+    throw new PlanJobError2("MalformedJobFile", `plan-job file unparseable at ${path2}: ${err.message}`, { path: path2 });
   }
 }
-function writeJob2(path, job) {
+function writeJob2(path2, job) {
   const content = serializeFrontmatter(job, "");
-  writeAtomic(path, content);
+  writeAtomic(path2, content);
 }
 function listJobsRaw2(stateRoot) {
   const dir = jobsDir2(stateRoot);
@@ -33333,16 +33596,16 @@ function applyStaleProbe2(job, stateRoot, isAlive) {
   writeJob2(jobPath2(stateRoot, job.job_id), updated);
   return updated;
 }
-async function forkAsyncPlanJob(task, opts = {}) {
+async function forkAsyncPlanJob2(task, opts = {}) {
   const stateRoot = opts.stateRoot;
   const now = opts.now ?? Date.now;
-  const ulid = opts.ulid ?? generateUlid2;
+  const ulid = opts.ulid ?? generateUlid3;
   const isAlive = opts.isAlive ?? defaultIsAlive3;
-  const spawnImpl = opts.spawnImpl ?? defaultSpawnImpl;
-  await mkdir2(jobsDir2(stateRoot), { recursive: true });
+  const spawnImpl = opts.spawnImpl ?? defaultSpawnImpl2;
+  await mkdir3(jobsDir2(stateRoot), { recursive: true });
   let releaseLock;
   try {
-    releaseLock = acquireFileLock(forkLockPath(stateRoot), { isAlive });
+    releaseLock = acquireFileLock(forkLockPath2(stateRoot), { isAlive });
   } catch (err) {
     if (err instanceof LockHeldError) {
       throw new PlanJobError2("ConcurrentJobActive", `another plan fork is in progress (holder pid=${err.holderPid}). Retry once it completes.`, { active_pid: err.holderPid });
@@ -33350,12 +33613,12 @@ async function forkAsyncPlanJob(task, opts = {}) {
     throw err;
   }
   try {
-    return await claimAndFork(task, stateRoot, { now, ulid, isAlive, spawnImpl, extraEnv: opts.extraEnv });
+    return await claimAndFork2(task, stateRoot, { now, ulid, isAlive, spawnImpl, extraEnv: opts.extraEnv });
   } finally {
     releaseLock();
   }
 }
-async function claimAndFork(task, stateRoot, { now, ulid, isAlive, spawnImpl, extraEnv }) {
+async function claimAndFork2(task, stateRoot, { now, ulid, isAlive, spawnImpl, extraEnv }) {
   for (const prior of listJobsRaw2(stateRoot)) {
     if (prior.status === "running") {
       if (isAlive(prior.pid)) {
@@ -33368,24 +33631,24 @@ async function claimAndFork(task, stateRoot, { now, ulid, isAlive, spawnImpl, ex
     }
   }
   const job_id = ulid();
-  const log_path = logPathFor(stateRoot, job_id);
+  const log_path = logPathFor2(stateRoot, job_id);
   const job_path = jobPath2(stateRoot, job_id);
   const logFd = openSync2(log_path, "a", 420);
-  const env = {};
-  for (const k of Object.keys(process.env)) {
-    const v = process.env[k];
-    if (v !== undefined)
-      env[k] = v;
+  const env2 = {};
+  for (const k2 of Object.keys(process.env)) {
+    const v2 = process.env[k2];
+    if (v2 !== undefined)
+      env2[k2] = v2;
   }
-  env["SGC_PLAN_ASYNC_CHILD"] = job_id;
-  env["SGC_STATE_ROOT"] = resolveStateRoot(stateRoot);
+  env2["SGC_PLAN_ASYNC_CHILD"] = job_id;
+  env2["SGC_STATE_ROOT"] = resolveStateRoot(stateRoot);
   if (extraEnv) {
-    for (const [k, v] of Object.entries(extraEnv))
-      env[k] = v;
+    for (const [k2, v2] of Object.entries(extraEnv))
+      env2[k2] = v2;
   }
-  const argv = [process.execPath, getSgcEntry(), "plan", task];
+  const argv2 = [process.execPath, getSgcEntry2(), "plan", task];
   try {
-    const { pid } = spawnImpl(argv, { logFd, env });
+    const { pid } = spawnImpl(argv2, { logFd, env: env2 });
     const job = {
       job_id,
       task,
@@ -33406,15 +33669,15 @@ async function listJobs2(opts = {}) {
   const isAlive = opts.isAlive ?? defaultIsAlive3;
   const raw = listJobsRaw2(opts.stateRoot);
   const probed = raw.map((j) => applyStaleProbe2(j, opts.stateRoot, isAlive));
-  probed.sort((a, b) => b.started_at.localeCompare(a.started_at));
+  probed.sort((a2, b2) => b2.started_at.localeCompare(a2.started_at));
   return probed;
 }
-async function completePlanJob(jobId, completion, opts = {}) {
-  const path = jobPath2(opts.stateRoot, jobId);
-  if (!existsSync14(path)) {
+async function completePlanJob2(jobId, completion, opts = {}) {
+  const path2 = jobPath2(opts.stateRoot, jobId);
+  if (!existsSync14(path2)) {
     throw new PlanJobError2("JobNotFound", `plan-jobs/${jobId}.md not found`);
   }
-  const job = readJob2(path);
+  const job = readJob2(path2);
   const now = opts.now ?? Date.now;
   const updated = {
     ...job,
@@ -33427,8 +33690,8 @@ async function completePlanJob(jobId, completion, opts = {}) {
     updated.level = completion.level;
   if (completion.intentPath)
     updated.intent_path = completion.intentPath;
-  writeJob2(path, updated);
-  writeFileSync4(doneSentinel(opts.stateRoot, jobId), "", "utf8");
+  writeJob2(path2, updated);
+  writeFileSync4(doneSentinel2(opts.stateRoot, jobId), "", "utf8");
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot });
   logger.event({
     task_id: completion.taskId ?? null,
@@ -33444,21 +33707,21 @@ async function completePlanJob(jobId, completion, opts = {}) {
     }
   });
 }
-async function failPlanJob(jobId, error, opts = {}) {
-  const path = jobPath2(opts.stateRoot, jobId);
-  if (!existsSync14(path)) {
+async function failPlanJob2(jobId, error2, opts = {}) {
+  const path2 = jobPath2(opts.stateRoot, jobId);
+  if (!existsSync14(path2)) {
     throw new PlanJobError2("JobNotFound", `plan-jobs/${jobId}.md not found`);
   }
-  const job = readJob2(path);
+  const job = readJob2(path2);
   const now = opts.now ?? Date.now;
   const updated = {
     ...job,
     status: "failed",
     completed_at: new Date(now()).toISOString(),
-    error
+    error: error2
   };
-  writeJob2(path, updated);
-  writeFileSync4(failedSentinel(opts.stateRoot, jobId), "", "utf8");
+  writeJob2(path2, updated);
+  writeFileSync4(failedSentinel2(opts.stateRoot, jobId), "", "utf8");
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot });
   logger.event({
     task_id: null,
@@ -33466,10 +33729,10 @@ async function failPlanJob(jobId, error, opts = {}) {
     agent: "sgc.plan-async",
     event_type: "plan.async_failed",
     level: "error",
-    payload: { job_id: jobId, error }
+    payload: { job_id: jobId, error: error2 }
   });
 }
-function emitAsyncStart(jobId, task, logger, payload = {}) {
+function emitAsyncStart2(jobId, task, logger, payload = {}) {
   logger.event({
     task_id: null,
     spawn_id: null,
@@ -33497,6 +33760,13 @@ var init_plan_jobs2 = __esm(() => {
 });
 
 // src/commands/plan.ts
+var exports_plan = {};
+__export(exports_plan, {
+  runPlan: () => runPlan,
+  degradedEngOutput: () => degradedEngOutput,
+  degradedCeoOutput: () => degradedCeoOutput,
+  _readLineSyncForFutureInteractiveFlow: () => readLineSync
+});
 function generateTaskId() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
@@ -33504,22 +33774,22 @@ function nowIso() {
   return new Date().toISOString();
 }
 async function readLineSync() {
-  const stdin = process.stdin;
-  return new Promise((resolve) => {
-    stdin.resume();
-    stdin.setEncoding("utf8");
+  const stdin2 = process.stdin;
+  return new Promise((resolve15) => {
+    stdin2.resume();
+    stdin2.setEncoding("utf8");
     let buf = "";
     const onData = (chunk) => {
       buf += chunk;
       const nl = buf.indexOf(`
 `);
       if (nl !== -1) {
-        stdin.removeListener("data", onData);
-        stdin.pause();
-        resolve(buf.slice(0, nl).trim());
+        stdin2.removeListener("data", onData);
+        stdin2.pause();
+        resolve15(buf.slice(0, nl).trim());
       }
     };
-    stdin.on("data", onData);
+    stdin2.on("data", onData);
   });
 }
 async function defaultReadConfirmation() {
@@ -33540,11 +33810,11 @@ async function runPlan(taskDescription, opts = {}) {
       childOpts.autoConfirm = opts.autoConfirm;
     if (opts.forceNewTask !== undefined)
       childOpts.forceNewTask = opts.forceNewTask;
-    const fork = await forkAsyncPlanJob(taskDescription, {
+    const fork = await forkAsyncPlanJob2(taskDescription, {
       stateRoot: opts.stateRoot,
       extraEnv: { SGC_PLAN_CHILD_OPTS: JSON.stringify(childOpts) }
     });
-    emitAsyncStart(fork.job.job_id, taskDescription, parentLogger, {
+    emitAsyncStart2(fork.job.job_id, taskDescription, parentLogger, {
       pid: fork.job.pid,
       log_path: fork.job.log_path
     });
@@ -33574,14 +33844,14 @@ async function runPlan(taskDescription, opts = {}) {
     }
     try {
       const result = await runPlanCore(taskDescription, childMerged);
-      await completePlanJob(asyncChildJobId, {
+      await completePlanJob2(asyncChildJobId, {
         taskId: result.taskId,
         level: result.level,
         intentPath: result.intentPath
       }, { stateRoot: opts.stateRoot, logger: opts.logger });
       return result;
     } catch (err) {
-      await failPlanJob(asyncChildJobId, err instanceof Error ? err.message : String(err), { stateRoot: opts.stateRoot, logger: opts.logger });
+      await failPlanJob2(asyncChildJobId, err instanceof Error ? err.message : String(err), { stateRoot: opts.stateRoot, logger: opts.logger });
       throw err;
     }
   }
@@ -33622,16 +33892,16 @@ function degradedCeoOutput(err, logger, taskId) {
 }
 async function runPlanCore(taskDescription, opts = {}) {
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
-  const log = (m) => logger.say(m);
+  const log = (m2) => logger.say(m2);
   const stateRoot = opts.stateRoot;
   ensureSgcStructure(stateRoot);
   const existingHandoff = readHandoff(stateRoot);
   if (existingHandoff) {
-    const { handoff } = existingHandoff;
-    const isCompleted = handoff.to_session_hint === "next task" || handoff.summary?.includes("shipped") || handoff.summary?.includes("Ready for next task");
+    const { handoff: handoff2 } = existingHandoff;
+    const isCompleted = handoff2.to_session_hint === "next task" || handoff2.summary?.includes("shipped") || handoff2.summary?.includes("Ready for next task");
     if (!isCompleted && !opts.forceNewTask) {
-      log(`Active task detected in handoff: ${handoff.from_session}.
-` + `Summary: ${handoff.summary}
+      log(`Active task detected in handoff: ${handoff2.from_session}.
+` + `Summary: ${handoff2.summary}
 ` + `Pass --force-new-task to start a new task anyway.`);
       throw new Error(`active task in handoff.md — complete it or pass --force-new-task`);
     }
@@ -33641,7 +33911,7 @@ async function runPlanCore(taskDescription, opts = {}) {
   log(`task_id = ${taskId}`);
   const classRes = await spawn3("classifier.level", { user_request: taskDescription }, {
     stateRoot,
-    inlineStub: (i) => opts.classifierOverride ?? classifierLevel(i),
+    inlineStub: (i2) => opts.classifierOverride ?? classifierLevel(i2),
     logger,
     taskId
   });
@@ -33681,14 +33951,14 @@ async function runPlanCore(taskDescription, opts = {}) {
     const tasks = [
       (async () => {
         try {
-          return await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i) => plannerEng(i), logger, taskId });
+          return await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i2) => plannerEng(i2), logger, taskId });
         } catch (err) {
           return { output: degradedEngOutput(err, logger, taskId) };
         }
       })(),
       (async () => {
         try {
-          return await spawn3("planner.ceo", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i) => plannerCeo(i), logger, taskId });
+          return await spawn3("planner.ceo", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i2) => plannerCeo(i2), logger, taskId });
         } catch (err) {
           return { output: degradedCeoOutput(err, logger, taskId) };
         }
@@ -33704,13 +33974,13 @@ async function runPlanCore(taskDescription, opts = {}) {
           };
         }
         try {
-          const r = await spawn3("researcher.history", { intent_draft: taskDescription, candidates }, {
+          const r3 = await spawn3("researcher.history", { intent_draft: taskDescription, candidates }, {
             stateRoot,
-            inlineStub: (i) => researcherHistory(i, { stateRoot }),
+            inlineStub: (i2) => researcherHistory(i2, { stateRoot }),
             logger,
             taskId
           });
-          return { output: coerceLlmOutput(r.output, candidates) };
+          return { output: coerceLlmOutput(r3.output, candidates) };
         } catch (err) {
           return { output: handleCoerceFailure(err, logger, taskId) };
         }
@@ -33746,7 +34016,7 @@ async function runPlanCore(taskDescription, opts = {}) {
         };
         return spawn3("planner.adversarial", adversarialInput, {
           stateRoot,
-          inlineStub: (i) => opts.adversarialOverride ?? plannerAdversarial(i),
+          inlineStub: (i2) => opts.adversarialOverride ?? plannerAdversarial(i2),
           logger,
           taskId
         });
@@ -33835,21 +34105,21 @@ async function runPlanCore(taskDescription, opts = {}) {
     }
     log(`planner.eng verdict: ${plannerEngOut.verdict}`);
     if (plannerEngOut.concerns.length > 0) {
-      for (const c of plannerEngOut.concerns)
-        log(`  eng concern: ${c}`);
+      for (const c3 of plannerEngOut.concerns)
+        log(`  eng concern: ${c3}`);
     }
     log(`planner.ceo verdict: ${plannerCeoOut.verdict}`);
     if (plannerCeoOut.concerns.length > 0) {
-      for (const c of plannerCeoOut.concerns)
-        log(`  ceo concern: ${c}`);
+      for (const c3 of plannerCeoOut.concerns)
+        log(`  ceo concern: ${c3}`);
     }
     if (plannerCeoOut.rewrite_hints.length > 0) {
-      for (const h of plannerCeoOut.rewrite_hints)
-        log(`  ceo hint: ${h}`);
+      for (const h2 of plannerCeoOut.rewrite_hints)
+        log(`  ceo hint: ${h2}`);
     }
     log(`researcher.history: ${researcherOut.prior_art.length} prior art entries${researcherOut.warnings.length ? `, ${researcherOut.warnings.length} warning(s)` : ""}`);
-    for (const w of researcherOut.warnings)
-      log(`  research warning: ${w}`);
+    for (const w2 of researcherOut.warnings)
+      log(`  research warning: ${w2}`);
     if (adversarialOut) {
       log(`planner.adversarial: ${adversarialOut.failure_modes.length} failure mode(s)`);
       for (const fm of adversarialOut.failure_modes) {
@@ -33858,15 +34128,15 @@ async function runPlanCore(taskDescription, opts = {}) {
     }
   } else if (LEVEL_RANK[level] >= 1) {
     try {
-      const planRes = await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i) => plannerEng(i), logger, taskId });
+      const planRes = await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i2) => plannerEng(i2), logger, taskId });
       plannerEngOut = planRes.output;
     } catch (err) {
       plannerEngOut = degradedEngOutput(err, logger, taskId);
     }
     log(`planner.eng verdict: ${plannerEngOut.verdict}`);
     if (plannerEngOut.concerns.length > 0) {
-      for (const c of plannerEngOut.concerns)
-        log(`  concern: ${c}`);
+      for (const c3 of plannerEngOut.concerns)
+        log(`  concern: ${c3}`);
     }
   }
   if (level === "L3" && !opts.userSignature) {
@@ -33895,7 +34165,7 @@ async function runPlanCore(taskDescription, opts = {}) {
     };
     const decRes = await spawn3("planner.decompose", decomposeInput, {
       stateRoot,
-      inlineStub: (i) => plannerDecompose(i),
+      inlineStub: (i2) => plannerDecompose(i2),
       logger,
       taskId
     });
@@ -33929,7 +34199,7 @@ async function runPlanCore(taskDescription, opts = {}) {
     }
     log("confirmed — writing intent.md");
   }
-  let intentPath = "(skipped — L0)";
+  let intentPath2 = "(skipped — L0)";
   if (level !== "L0") {
     const intent = {
       task_id: taskId,
@@ -33951,7 +34221,7 @@ ${plannerEngOut.verdict}
 
 ` + (plannerEngOut.concerns.length ? `### Eng concerns
 
-${plannerEngOut.concerns.map((c) => `- ${c}`).join(`
+${plannerEngOut.concerns.map((c3) => `- ${c3}`).join(`
 `)}
 
 ` : "") : "") + (plannerCeoOut ? `## Planner.ceo verdict
@@ -33960,12 +34230,12 @@ ${plannerCeoOut.verdict}
 
 ` + (plannerCeoOut.concerns.length ? `### CEO concerns
 
-${plannerCeoOut.concerns.map((c) => `- ${c}`).join(`
+${plannerCeoOut.concerns.map((c3) => `- ${c3}`).join(`
 `)}
 
 ` : "") + (plannerCeoOut.rewrite_hints.length ? `### CEO rewrite hints
 
-${plannerCeoOut.rewrite_hints.map((h) => `- ${h}`).join(`
+${plannerCeoOut.rewrite_hints.map((h2) => `- ${h2}`).join(`
 `)}
 
 ` : "") : "") + (researcherOut ? `${PRIOR_ART_SENTINEL_BEGIN}
@@ -33984,7 +34254,7 @@ ${plannerCeoOut.rewrite_hints.map((h) => `- ${h}`).join(`
 
 `) + (researcherOut.warnings.length ? `### Research warnings
 
-${researcherOut.warnings.map((w) => `- ${w}`).join(`
+${researcherOut.warnings.map((w2) => `- ${w2}`).join(`
 `)}
 
 ` : "") + `${PRIOR_ART_SENTINEL_END}
@@ -33999,19 +34269,19 @@ ${researcherOut.warnings.map((w) => `- ${w}`).join(`
 ${PRE_MORTEM_SENTINEL_END}
 ` : "")
     };
-    intentPath = writeIntent(intent, stateRoot);
-    log(`wrote ${intentPath}`);
+    intentPath2 = writeIntent(intent, stateRoot);
+    log(`wrote ${intentPath2}`);
   } else {
     log(`L0 task: skipping intent.md per schema (decisions/ not written for L0)`);
   }
   if (decomposed && decomposed.tasks.length > 0) {
-    const features = decomposed.tasks.map((t) => ({
-      id: t.id,
-      title: t.title,
+    const features = decomposed.tasks.map((t2) => ({
+      id: t2.id,
+      title: t2.title,
       status: "pending",
-      files: t.files,
-      steps: t.steps,
-      ...t.prior_art_refs.length > 0 ? { prior_art_refs: t.prior_art_refs } : {}
+      files: t2.files,
+      steps: t2.steps,
+      ...t2.prior_art_refs.length > 0 ? { prior_art_refs: t2.prior_art_refs } : {}
     }));
     writeFeatureList({ features }, "Authored by `sgc plan` deep decomposition. Each task carries file-level scope + bite-sized TDD steps.\n", stateRoot);
     const slug = taskDescription.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "plan";
@@ -34047,7 +34317,7 @@ ${PRE_MORTEM_SENTINEL_END}
 `, stateRoot);
   log(``);
   log(`Plan complete. Run \`sgc work\` to begin execution.`);
-  return { taskId, level, intentPath };
+  return { taskId, level, intentPath: intentPath2 };
 }
 var init_plan = __esm(() => {
   init_spawn();
@@ -34069,21 +34339,25 @@ var init_plan = __esm(() => {
 });
 
 // src/commands/work.ts
+var exports_work = {};
+__export(exports_work, {
+  runWork: () => runWork
+});
 import { join as join4 } from "node:path";
 function isTrivialWaive(reason) {
-  const r = reason.trim().toLowerCase();
-  return r.length < WAIVE_MIN_CHARS || WAIVE_PLACEHOLDERS.has(r);
+  const r3 = reason.trim().toLowerCase();
+  return r3.length < WAIVE_MIN_CHARS || WAIVE_PLACEHOLDERS.has(r3);
 }
 function nowIso2() {
   return new Date().toISOString();
 }
 function nextActiveId(list) {
-  const done = new Set(list.features.filter((f) => f.status === "done").map((f) => f.id));
-  const depsMet = (f) => (f.depends_on ?? []).every((d) => done.has(d));
-  const inProgress = list.features.find((f) => f.status === "in_progress" && depsMet(f));
+  const done = new Set(list.features.filter((f3) => f3.status === "done").map((f3) => f3.id));
+  const depsMet = (f3) => (f3.depends_on ?? []).every((d2) => done.has(d2));
+  const inProgress = list.features.find((f3) => f3.status === "in_progress" && depsMet(f3));
   if (inProgress)
     return inProgress.id;
-  const pending = list.features.find((f) => f.status === "pending" && depsMet(f));
+  const pending = list.features.find((f3) => f3.status === "pending" && depsMet(f3));
   return pending ? pending.id : null;
 }
 function printList(log, list, activeId) {
@@ -34091,30 +34365,30 @@ function printList(log, list, activeId) {
     log('(feature list is empty — use `sgc work --add "<title>"` to add one)');
     return;
   }
-  for (const f of list.features) {
-    const marker = f.status === "done" ? "[x]" : f.id === activeId ? "[>]" : "[ ]";
-    const status = f.status === "done" ? "" : ` (${f.status})`;
+  for (const f3 of list.features) {
+    const marker = f3.status === "done" ? "[x]" : f3.id === activeId ? "[>]" : "[ ]";
+    const status = f3.status === "done" ? "" : ` (${f3.status})`;
     let meta = "";
-    if (f.files) {
-      const n = f.files.create.length + f.files.modify.length + f.files.test.length;
-      meta += ` — ${n} file${n === 1 ? "" : "s"}`;
+    if (f3.files) {
+      const n2 = f3.files.create.length + f3.files.modify.length + f3.files.test.length;
+      meta += ` — ${n2} file${n2 === 1 ? "" : "s"}`;
     }
-    if (f.steps && f.steps.length > 0) {
-      meta += `${f.files ? "," : " —"} ${f.steps.length} step${f.steps.length === 1 ? "" : "s"}`;
+    if (f3.steps && f3.steps.length > 0) {
+      meta += `${f3.files ? "," : " —"} ${f3.steps.length} step${f3.steps.length === 1 ? "" : "s"}`;
     }
-    log(`  ${marker} ${f.id}: ${f.title}${status}${meta}`);
+    log(`  ${marker} ${f3.id}: ${f3.title}${status}${meta}`);
   }
 }
 async function runWork(opts = {}) {
   if (opts.add || opts.done) {
-    const root = resolveStateRoot(opts.stateRoot);
-    return withFileLock(join4(root, ".work.lock"), () => runWorkUnlocked(opts));
+    const root3 = resolveStateRoot(opts.stateRoot);
+    return withFileLock(join4(root3, ".work.lock"), () => runWorkUnlocked(opts));
   }
   return runWorkUnlocked(opts);
 }
 async function runWorkUnlocked(opts = {}) {
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
-  const log = (m) => logger.say(m);
+  const log = (m2) => logger.say(m2);
   const stateRoot = opts.stateRoot;
   const ct = readCurrentTask(stateRoot);
   if (!ct) {
@@ -34137,7 +34411,7 @@ async function runWorkUnlocked(opts = {}) {
     log(`added feature ${nextId}: ${opts.add}`);
   }
   if (opts.done) {
-    const idx = list.features.findIndex((f) => f.id === opts.done);
+    const idx = list.features.findIndex((f3) => f3.id === opts.done);
     if (idx === -1) {
       throw new Error(`feature ${opts.done} not found in feature-list`);
     }
@@ -34193,7 +34467,7 @@ async function runWorkUnlocked(opts = {}) {
     }
   }
   const activeId = nextActiveId(list);
-  const allDone = list.features.length > 0 && list.features.every((f) => f.status === "done");
+  const allDone = list.features.length > 0 && list.features.every((f3) => f3.status === "done");
   writeCurrentTask({
     ...ct.task,
     active_feature: activeId ?? undefined,
@@ -34209,12 +34483,12 @@ async function runWorkUnlocked(opts = {}) {
       log(`All features done. Run \`sgc review\` for independent code review.`);
     }
   } else if (activeId) {
-    const active = list.features.find((f) => f.id === activeId);
-    log(`Active: ${activeId} — ${active.title}`);
+    const active2 = list.features.find((f3) => f3.id === activeId);
+    log(`Active: ${activeId} — ${active2.title}`);
     log(`When implemented, run: \`sgc work --done ${activeId}\``);
   }
-  const remaining = list.features.filter((f) => f.status !== "done");
-  const active = activeId ? list.features.find((f) => f.id === activeId) ?? null : null;
+  const remaining = list.features.filter((f3) => f3.status !== "done");
+  const active = activeId ? list.features.find((f3) => f3.id === activeId) ?? null : null;
   return { remaining, active, allDone };
 }
 var WAIVE_MIN_CHARS = 6, WAIVE_PLACEHOLDERS;
@@ -34280,8 +34554,8 @@ function buildPattern(terms, flags = "i") {
   if (terms.length === 0) {
     throw new Error("buildPattern needs at least one term — an empty alternation matches everything");
   }
-  const bounded = terms.filter((t) => t.wordBounded).map((t) => t.re);
-  const free = terms.filter((t) => !t.wordBounded).map((t) => t.re);
+  const bounded = terms.filter((t2) => t2.wordBounded).map((t2) => t2.re);
+  const free = terms.filter((t2) => !t2.wordBounded).map((t2) => t2.re);
   const parts = [];
   if (bounded.length > 0)
     parts.push(`\\b(${bounded.join("|")})\\b`);
@@ -34290,13 +34564,13 @@ function buildPattern(terms, flags = "i") {
   return new RegExp(parts.join("|"), flags);
 }
 function displayList(terms) {
-  return terms.map((t) => t.display).join("|");
+  return terms.map((t2) => t2.display).join("|");
 }
 
 // src/dispatcher/agents/reviewer-specialists.ts
 function addedLines(diff) {
   return diff.split(`
-`).filter((l) => l.startsWith("+") && !l.startsWith("+++"));
+`).filter((l2) => l2.startsWith("+") && !l2.startsWith("+++"));
 }
 function reviewBy(def, input) {
   const findings = [];
@@ -34324,9 +34598,9 @@ function reviewerInfra(input) {
   return reviewBy(INFRA, input);
 }
 function matchSpecialists(diff) {
-  return DIFF_CONDITIONAL_SPECIALISTS.filter((s) => s.trigger.test(diff));
+  return DIFF_CONDITIONAL_SPECIALISTS.filter((s2) => s2.trigger.test(diff));
 }
-var SECURITY_TERMS, SECURITY, MIGRATION_TERMS, MIGRATION, PERFORMANCE_TERMS, PERFORMANCE, INFRA_TERMS, INFRA, PERFORMANCE_TRIGGER_ONLY, unbound = (ts) => ts.map((t) => ({ ...t, wordBounded: false })), DIFF_CONDITIONAL_SPECIALISTS;
+var SECURITY_TERMS, SECURITY, MIGRATION_TERMS, MIGRATION, PERFORMANCE_TERMS, PERFORMANCE, INFRA_TERMS, INFRA, PERFORMANCE_TRIGGER_ONLY, unbound = (ts) => ts.map((t2) => ({ ...t2, wordBounded: false })), DIFF_CONDITIONAL_SPECIALISTS;
 var init_reviewer_specialists = __esm(() => {
   SECURITY_TERMS = [
     { display: "auth", re: "auth", wordBounded: false },
@@ -34440,7 +34714,7 @@ var init_reviewer_specialists = __esm(() => {
 // src/dispatcher/agents/reviewer-quality.ts
 function addedLines2(diff) {
   return (diff ?? "").split(`
-`).filter((l) => l.startsWith("+") && !l.startsWith("+++"));
+`).filter((l2) => l2.startsWith("+") && !l2.startsWith("+++"));
 }
 function changedFilePaths(diff) {
   const paths = [];
@@ -34454,8 +34728,8 @@ function changedFilePaths(diff) {
   }
   return paths;
 }
-function isTestPath(path) {
-  return /(^|\/)(tests?|spec|__tests__)(\/|$)/i.test(path) || /\.(test|spec)\./i.test(path) || /_test\./i.test(path);
+function isTestPath(path2) {
+  return /(^|\/)(tests?|spec|__tests__)(\/|$)/i.test(path2) || /\.(test|spec)\./i.test(path2) || /_test\./i.test(path2);
 }
 function reviewerTests(input) {
   const paths = changedFilePaths(input.diff ?? "");
@@ -34505,6 +34779,12 @@ var init_reviewer_quality = __esm(() => {
 });
 
 // src/commands/review.ts
+var exports_review = {};
+__export(exports_review, {
+  worstVerdict: () => worstVerdict,
+  runReview: () => runReview,
+  captureDiff: () => captureDiff
+});
 function generateReportId() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
@@ -34512,11 +34792,11 @@ function nowIso3() {
   return new Date().toISOString();
 }
 function captureDiff(base, cwd, maxBytes) {
-  const r = spawnCaptureSync(["git", "diff", base], { cwd, maxBuffer: maxBytes });
-  if (r.exitCode === 0)
-    return r.stdout;
-  if (r.exitCode === -1) {
-    throw new Error(`git diff capture failed (base=${base}) — the diff was not captured, ` + `so review cannot run against it: ${r.stderr.slice(0, 200)}`);
+  const r3 = spawnCaptureSync(["git", "diff", base], { cwd, maxBuffer: maxBytes });
+  if (r3.exitCode === 0)
+    return r3.stdout;
+  if (r3.exitCode === -1) {
+    throw new Error(`git diff capture failed (base=${base}) — the diff was not captured, ` + `so review cannot run against it: ${r3.stderr.slice(0, 200)}`);
   }
   return "";
 }
@@ -34535,13 +34815,13 @@ function stripSentinelBlock(body, begin, end, legacyHeadingRe) {
     const cutEnd = beginIdx + (next?.index ?? tail.length);
     return body.slice(0, beginIdx) + body.slice(cutEnd);
   }
-  const m = legacyHeadingRe.exec(body);
-  if (!m)
+  const m2 = legacyHeadingRe.exec(body);
+  if (!m2)
     return body;
-  const afterHeading = body.slice(m.index + m[0].length);
+  const afterHeading = body.slice(m2.index + m2[0].length);
   const nextHeading = /^## /m.exec(afterHeading);
-  const sectionEnd = m.index + m[0].length + (nextHeading?.index ?? afterHeading.length);
-  return body.slice(0, m.index) + body.slice(sectionEnd);
+  const sectionEnd = m2.index + m2[0].length + (nextHeading?.index ?? afterHeading.length);
+  return body.slice(0, m2.index) + body.slice(sectionEnd);
 }
 function stripBackChannelSections(body) {
   let stripped = body;
@@ -34550,11 +34830,11 @@ function stripBackChannelSections(body) {
   return stripped;
 }
 function worstVerdict(verdicts) {
-  return verdicts.reduce((acc, v) => VERDICT_ORDER[v] > VERDICT_ORDER[acc] ? v : acc, "pass");
+  return verdicts.reduce((acc, v2) => VERDICT_ORDER[v2] > VERDICT_ORDER[acc] ? v2 : acc, "pass");
 }
 async function runReview(opts = {}) {
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
-  const log = (m) => logger.say(m);
+  const log = (m2) => logger.say(m2);
   const stateRoot = opts.stateRoot;
   const ct = readCurrentTask(stateRoot);
   if (!ct)
@@ -34569,9 +34849,9 @@ async function runReview(opts = {}) {
   const intent = readIntent(taskId, stateRoot);
   const intentForReviewer = stripBackChannelSections(intent.body ?? "");
   const diff = opts.diffOverride ?? captureDiff(opts.base ?? "HEAD");
-  const r = await spawn3("reviewer.correctness", { diff, intent: intentForReviewer }, {
+  const r3 = await spawn3("reviewer.correctness", { diff, intent: intentForReviewer }, {
     stateRoot,
-    inlineStub: (i) => reviewerCorrectness(i),
+    inlineStub: (i2) => reviewerCorrectness(i2),
     logger,
     taskId
   });
@@ -34581,16 +34861,16 @@ async function runReview(opts = {}) {
     stage: "code",
     reviewer_id: "reviewer.correctness",
     reviewer_version: "0.1",
-    verdict: r.output.verdict,
-    severity: r.output.severity,
-    findings: r.output.findings,
+    verdict: r3.output.verdict,
+    severity: r3.output.severity,
+    findings: r3.output.findings,
     created_at: nowIso3(),
-    engine: r.mode
+    engine: r3.mode
   };
   const reportPath = appendReview(correctnessReport, "", stateRoot, opts.appendAs);
   log(`reviewer.correctness: ${correctnessReport.verdict} (severity: ${correctnessReport.severity}, ${correctnessReport.findings.length} finding(s))`);
-  for (const f of correctnessReport.findings.slice(0, 5)) {
-    log(`  - ${f.description}`);
+  for (const f3 of correctnessReport.findings.slice(0, 5)) {
+    log(`  - ${f3.description}`);
   }
   if (correctnessReport.findings.length > 5) {
     log(`  ... ${correctnessReport.findings.length - 5} more findings (see ${reportPath})`);
@@ -34598,7 +34878,7 @@ async function runReview(opts = {}) {
   const isL2Plus = level === "L2" || level === "L3";
   const clusterReports = [];
   async function runClusterReviewer(name, agent) {
-    const res = await spawn3(name, { diff, intent: intentForReviewer }, { stateRoot, inlineStub: (i) => agent(i), logger, taskId });
+    const res = await spawn3(name, { diff, intent: intentForReviewer }, { stateRoot, inlineStub: (i2) => agent(i2), logger, taskId });
     const report = {
       report_id: generateReportId(),
       task_id: taskId,
@@ -34611,12 +34891,12 @@ async function runReview(opts = {}) {
       created_at: nowIso3(),
       engine: res.mode
     };
-    const path = appendReview(report, "", stateRoot, opts.appendAs);
+    const path2 = appendReview(report, "", stateRoot, opts.appendAs);
     clusterReports.push({
       reviewerId: name,
       verdict: res.output.verdict,
       severity: res.output.severity,
-      reportPath: path,
+      reportPath: path2,
       findingsCount: res.output.findings.length
     });
     log(`${name}: ${res.output.verdict} (severity: ${res.output.severity}, ${res.output.findings.length} finding(s))`);
@@ -34630,39 +34910,39 @@ async function runReview(opts = {}) {
     const matched = matchSpecialists(diff);
     if (matched.length > 0) {
       const specialistMode = process.env["SGC_REVIEW_SPECIALIST_LLM"] === "0" ? "inline" : undefined;
-      const specResults = await Promise.all(matched.map((s) => spawn3(s.name, { diff, intent: intentForReviewer }, {
+      const specResults = await Promise.all(matched.map((s2) => spawn3(s2.name, { diff, intent: intentForReviewer }, {
         stateRoot,
-        inlineStub: (i) => s.agent(i),
+        inlineStub: (i2) => s2.agent(i2),
         ...specialistMode ? { mode: specialistMode } : {},
         logger,
         taskId
       })));
-      for (let i = 0;i < matched.length; i++) {
-        const s = matched[i];
-        const out = specResults[i].output;
+      for (let i2 = 0;i2 < matched.length; i2++) {
+        const s2 = matched[i2];
+        const out = specResults[i2].output;
         const report = {
           report_id: generateReportId(),
           task_id: taskId,
           stage: "code",
-          reviewer_id: s.name,
+          reviewer_id: s2.name,
           reviewer_version: "0.1",
           verdict: out.verdict,
           severity: out.severity,
           findings: out.findings,
           created_at: nowIso3(),
-          engine: specResults[i].mode
+          engine: specResults[i2].mode
         };
-        const path = appendReview(report, "", stateRoot, opts.appendAs);
+        const path2 = appendReview(report, "", stateRoot, opts.appendAs);
         specialistReports.push({
-          reviewerId: s.name,
+          reviewerId: s2.name,
           verdict: out.verdict,
           severity: out.severity,
-          reportPath: path,
+          reportPath: path2,
           findingsCount: out.findings.length
         });
-        log(`${s.name}: ${out.verdict} (severity: ${out.severity}, ${out.findings.length} finding(s))`);
-        for (const f of out.findings.slice(0, 3)) {
-          log(`  - ${f.description}`);
+        log(`${s2.name}: ${out.verdict} (severity: ${out.severity}, ${out.findings.length} finding(s))`);
+        for (const f3 of out.findings.slice(0, 3)) {
+          log(`  - ${f3.description}`);
         }
       }
     }
@@ -34670,8 +34950,8 @@ async function runReview(opts = {}) {
   log(`wrote ${reportPath}${specialistReports.length > 0 ? ` (+${specialistReports.length} specialists)` : ""}`);
   const aggregateVerdict = worstVerdict([
     correctnessReport.verdict,
-    ...clusterReports.map((s) => s.verdict),
-    ...specialistReports.map((s) => s.verdict)
+    ...clusterReports.map((s2) => s2.verdict),
+    ...specialistReports.map((s2) => s2.verdict)
   ]);
   return { taskId, verdict: aggregateVerdict, reportPath, specialistReports: [...clusterReports, ...specialistReports] };
 }
@@ -34734,30 +35014,30 @@ async function qaBrowser(input, opts = {}) {
 
 // src/dispatcher/agents/playwright-runner.ts
 import { join as join5 } from "node:path";
-function firstLine(s) {
-  return (s.split(`
-`).find((l) => l.trim().length > 0) ?? "").trim();
+function firstLine(s2) {
+  return (s2.split(`
+`).find((l2) => l2.trim().length > 0) ?? "").trim();
 }
 function safeLabel(label) {
   return label.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "") || "target";
 }
-function joinUrl(base, path) {
+function joinUrl(base, path2) {
   try {
-    return new URL(path, base).toString();
+    return new URL(path2, base).toString();
   } catch {
-    return base.replace(/\/+$/, "") + "/" + path.replace(/^\/+/, "");
+    return base.replace(/\/+$/, "") + "/" + path2.replace(/^\/+/, "");
   }
 }
 function planTargets(input) {
   const targets = [{ label: "(target)", url: input.target_url }];
   const prose = [];
-  for (const f of input.user_flows) {
-    if (/^https?:\/\//i.test(f))
-      targets.push({ label: f, url: f });
-    else if (f.startsWith("/"))
-      targets.push({ label: f, url: joinUrl(input.target_url, f) });
+  for (const f3 of input.user_flows) {
+    if (/^https?:\/\//i.test(f3))
+      targets.push({ label: f3, url: f3 });
+    else if (f3.startsWith("/"))
+      targets.push({ label: f3, url: joinUrl(input.target_url, f3) });
     else
-      prose.push(f);
+      prose.push(f3);
   }
   return { targets, prose };
 }
@@ -34780,7 +35060,7 @@ function makeBrowseRunner(opts) {
     let session;
     try {
       session = await launch();
-    } catch (e) {
+    } catch (e2) {
       return {
         verdict: "concern",
         evidence_refs: [],
@@ -34788,7 +35068,7 @@ function makeBrowseRunner(opts) {
           {
             flow: "(all)",
             step: "launch",
-            observed: `browser unavailable: ${firstLine(e?.message ?? String(e))}`
+            observed: `browser unavailable: ${firstLine(e2?.message ?? String(e2))}`
           }
         ]
       };
@@ -34798,27 +35078,27 @@ function makeBrowseRunner(opts) {
     const failed_flows = [];
     let navOk = 0;
     try {
-      for (let i = 0;i < targets.length; i++) {
-        const t = targets[i];
-        const shot = join5(screenshotDir, `qa-${i}-${safeLabel(t.label)}.png`);
-        const r = await session.smoke(t.url, shot);
-        if (r.screenshot)
-          evidence_refs.push(r.screenshot);
-        if (!r.navOk) {
+      for (let i2 = 0;i2 < targets.length; i2++) {
+        const t2 = targets[i2];
+        const shot = join5(screenshotDir, `qa-${i2}-${safeLabel(t2.label)}.png`);
+        const r3 = await session.smoke(t2.url, shot);
+        if (r3.screenshot)
+          evidence_refs.push(r3.screenshot);
+        if (!r3.navOk) {
           failed_flows.push({
-            flow: t.label,
+            flow: t2.label,
             step: "goto",
-            observed: `navigation failed: ${firstLine(r.navError ?? "unknown")}`
+            observed: `navigation failed: ${firstLine(r3.navError ?? "unknown")}`
           });
           continue;
         }
         navOk++;
-        for (const e of r.consoleErrors) {
-          failed_flows.push({ flow: t.label, step: "console", observed: e });
+        for (const e2 of r3.consoleErrors) {
+          failed_flows.push({ flow: t2.label, step: "console", observed: e2 });
         }
-        if (!r.screenshot) {
+        if (!r3.screenshot) {
           failed_flows.push({
-            flow: t.label,
+            flow: t2.label,
             step: "screenshot",
             observed: "screenshot capture failed (evidence omitted)"
           });
@@ -34829,19 +35109,19 @@ function makeBrowseRunner(opts) {
         await session.close();
       } catch {}
     }
-    const notes = prose.map((f) => ({
-      flow: f,
+    const notes = prose.map((f3) => ({
+      flow: f3,
       step: "note",
       observed: "recorded as label; not individually navigated (no path/URL)"
     }));
-    const realFailures = failed_flows.filter((f) => f.step === "goto" || f.step === "console");
+    const realFailures = failed_flows.filter((f3) => f3.step === "goto" || f3.step === "console");
     const verdict = navOk === 0 || realFailures.length > 0 ? "fail" : "pass";
     return { verdict, evidence_refs, failed_flows: [...failed_flows, ...notes] };
   };
 }
-async function launchPlaywrightSession(env = process.env) {
+async function launchPlaywrightSession(env2 = process.env) {
   const pw = await import("playwright");
-  const channel = env["SGC_QA_BROWSER"] === "chrome" ? "chrome" : undefined;
+  const channel = env2["SGC_QA_BROWSER"] === "chrome" ? "chrome" : undefined;
   const browser = await pw.chromium.launch({
     headless: true,
     chromiumSandbox: false,
@@ -34852,10 +35132,10 @@ async function launchPlaywrightSession(env = process.env) {
     async smoke(url, screenshotPath) {
       const page = await context.newPage();
       const consoleErrors = [];
-      page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
-      page.on("console", (m) => {
-        if (m.type() === "error")
-          consoleErrors.push(`console.error: ${m.text()}`);
+      page.on("pageerror", (e2) => consoleErrors.push(`pageerror: ${e2.message}`));
+      page.on("console", (m2) => {
+        if (m2.type() === "error")
+          consoleErrors.push(`console.error: ${m2.text()}`);
       });
       let navOk = true;
       let navError;
@@ -34865,9 +35145,9 @@ async function launchPlaywrightSession(env = process.env) {
           navOk = false;
           navError = `HTTP ${resp.status()}`;
         }
-      } catch (e) {
+      } catch (e2) {
         navOk = false;
-        navError = e?.message ?? String(e);
+        navError = e2?.message ?? String(e2);
       }
       await page.waitForTimeout(150);
       let screenshot;
@@ -34892,6 +35172,11 @@ async function launchPlaywrightSession(env = process.env) {
 var init_playwright_runner = () => {};
 
 // src/commands/qa.ts
+var exports_qa = {};
+__export(exports_qa, {
+  runQa: () => runQa,
+  qaScreenshotDir: () => qaScreenshotDir
+});
 import { mkdirSync as mkdirSync6 } from "node:fs";
 import { join as join6 } from "node:path";
 function qaScreenshotDir(stateRoot, taskId) {
@@ -34903,16 +35188,16 @@ function generateReportId2() {
 function nowIso4() {
   return new Date().toISOString();
 }
-function verdictToSeverity(v) {
-  if (v === "pass")
+function verdictToSeverity(v2) {
+  if (v2 === "pass")
     return "none";
-  if (v === "concern")
+  if (v2 === "concern")
     return "low";
   return "high";
 }
 async function runQa(opts = {}) {
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
-  const log = (m) => logger.say(m);
+  const log = (m2) => logger.say(m2);
   const stateRoot = opts.stateRoot;
   const ct = readCurrentTask(stateRoot);
   if (!ct)
@@ -34927,33 +35212,33 @@ async function runQa(opts = {}) {
     mkdirSync6(shotDir, { recursive: true });
     browseRunner = makeBrowseRunner({ launch: launchPlaywrightSession, screenshotDir: shotDir });
   }
-  const r = await spawn3("qa.browser", { target_url: target, user_flows: flows }, {
+  const r3 = await spawn3("qa.browser", { target_url: target, user_flows: flows }, {
     stateRoot,
-    inlineStub: (i) => qaBrowser(i, browseRunner ? { browseRunner } : {}),
+    inlineStub: (i2) => qaBrowser(i2, browseRunner ? { browseRunner } : {}),
     logger,
     taskId
   });
-  const realFlows = r.output.failed_flows.filter((f) => f.step !== "note");
+  const realFlows = r3.output.failed_flows.filter((f3) => f3.step !== "note");
   const report = {
     report_id: generateReportId2(),
     task_id: taskId,
     stage: "qa",
     reviewer_id: "qa.browser",
     reviewer_version: "0.1",
-    verdict: r.output.verdict,
-    severity: verdictToSeverity(r.output.verdict),
-    findings: realFlows.map((f) => ({
-      location: f.flow,
-      description: `Step '${f.step}' failed: ${f.observed}`
+    verdict: r3.output.verdict,
+    severity: verdictToSeverity(r3.output.verdict),
+    findings: realFlows.map((f3) => ({
+      location: f3.flow,
+      description: `Step '${f3.step}' failed: ${f3.observed}`
     })),
-    evidence_refs: r.output.evidence_refs,
+    evidence_refs: r3.output.evidence_refs,
     created_at: nowIso4(),
-    engine: r.mode
+    engine: r3.mode
   };
   const reportPath = appendReview(report, "", stateRoot);
-  log(`qa.browser: ${report.verdict} (severity: ${report.severity}, ${realFlows.length} failed flow(s), ${r.output.evidence_refs.length} evidence ref(s))`);
-  for (const f of r.output.failed_flows.slice(0, 5)) {
-    log(`  - [${f.flow}] ${f.step}: ${f.observed}`);
+  log(`qa.browser: ${report.verdict} (severity: ${report.severity}, ${realFlows.length} failed flow(s), ${r3.output.evidence_refs.length} evidence ref(s))`);
+  for (const f3 of r3.output.failed_flows.slice(0, 5)) {
+    log(`  - [${f3.flow}] ${f3.step}: ${f3.observed}`);
   }
   log(`wrote ${reportPath}`);
   return { taskId, verdict: report.verdict, reportPath };
@@ -34966,18 +35251,18 @@ var init_qa = __esm(() => {
 });
 
 // src/dispatcher/gh-runner.ts
-function extractPrUrl(stdout) {
-  const lines = stdout.trim().split(`
-`).map((l) => l.trim());
-  for (let i = lines.length - 1;i >= 0; i--) {
-    if (lines[i].startsWith("http"))
-      return lines[i];
+function extractPrUrl(stdout2) {
+  const lines = stdout2.trim().split(`
+`).map((l2) => l2.trim());
+  for (let i2 = lines.length - 1;i2 >= 0; i2--) {
+    if (lines[i2].startsWith("http"))
+      return lines[i2];
   }
   return null;
 }
 async function gitOutput(args) {
-  const { stdout, stderr, exitCode } = await spawnCapture(["git", ...args]);
-  return { stdout: stdout.trim(), stderr: stderr.trim(), code: exitCode };
+  const { stdout: stdout2, stderr, exitCode } = await spawnCapture(["git", ...args]);
+  return { stdout: stdout2.trim(), stderr: stderr.trim(), code: exitCode };
 }
 var GhRunnerError, UpstreamCheckError, defaultUpstreamCheck = async () => {
   const inside = await gitOutput(["rev-parse", "--is-inside-work-tree"]);
@@ -35015,16 +35300,16 @@ var init_gh_runner = __esm(() => {
   };
   defaultGhRunner = {
     async createPr({ title, body, draft }) {
-      const argv = ["gh", "pr", "create", "--title", title, "--body", body];
+      const argv2 = ["gh", "pr", "create", "--title", title, "--body", body];
       if (draft)
-        argv.push("--draft");
-      const { stdout, stderr, exitCode } = await spawnCapture(argv);
+        argv2.push("--draft");
+      const { stdout: stdout2, stderr, exitCode } = await spawnCapture(argv2);
       if (exitCode !== 0) {
         throw new GhRunnerError(`gh pr create failed (exit ${exitCode}): ${stderr.slice(0, 300)}`, stderr, exitCode);
       }
-      const url = extractPrUrl(stdout);
+      const url = extractPrUrl(stdout2);
       if (!url) {
-        throw new GhRunnerError(`gh pr create returned no URL. stdout: ${stdout.slice(0, 300)}`);
+        throw new GhRunnerError(`gh pr create returned no URL. stdout: ${stdout2.slice(0, 300)}`);
       }
       return { url };
     }
@@ -35054,7 +35339,7 @@ function janitorCompound(input) {
       reason_human: "ship was reverted; no durable knowledge to extract"
     };
   }
-  const hasSevere = input.reviewer_flags.some((f) => SEVERE.has(f.severity));
+  const hasSevere = input.reviewer_flags.some((f3) => SEVERE.has(f3.severity));
   if (hasSevere) {
     return {
       decision: "compound",
@@ -35063,7 +35348,7 @@ function janitorCompound(input) {
     };
   }
   if ((input.level === "L2" || input.level === "L3") && input.outcome === "success") {
-    const novel = input.reviewer_flags.some((f) => f.novel);
+    const novel = input.reviewer_flags.some((f3) => f3.novel);
     const tinyDiff = typeof input.diff_lines === "number" && input.diff_lines > 0 && input.diff_lines < MIN_REUSABLE_DIFF_LINES;
     if (tinyDiff && !novel) {
       return {
@@ -35078,7 +35363,7 @@ function janitorCompound(input) {
       reason_human: `${input.level} shipped successfully; multi-file/cross-context work is worth indexing`
     };
   }
-  if (input.reviewer_flags.some((f) => f.novel)) {
+  if (input.reviewer_flags.some((f3) => f3.novel)) {
     return {
       decision: "compound",
       reason_code: "reviewer_flagged_novel",
@@ -35106,19 +35391,19 @@ function compoundContextHeuristic(input) {
       break;
     }
   }
-  const tags = TAG_CANDIDATES.filter((c) => new RegExp(`\\b${c}\\b`, "i").test(text));
+  const tags = TAG_CANDIDATES.filter((c3) => new RegExp(`\\b${c3}\\b`, "i").test(text));
   const problem_summary = input.intent.slice(0, 400).trim() || "(no intent text)";
   const symptoms = input.ship_outcome === "success" ? ["the change shipped without reverting"] : ["behavior documented in intent"];
   return { category, tags, problem_summary, symptoms };
 }
 function compoundSolutionHeuristic(input) {
   const wdw = [];
-  for (const r of input.reviews) {
-    if (r.verdict === "fail" || r.verdict === "concern") {
-      for (const f of r.findings.slice(0, 2)) {
+  for (const r3 of input.reviews) {
+    if (r3.verdict === "fail" || r3.verdict === "concern") {
+      for (const f3 of r3.findings.slice(0, 2)) {
         wdw.push({
-          approach: f.description.slice(0, 120),
-          reason_failed: `flagged by ${r.reviewer_id} (${r.verdict})`
+          approach: f3.description.slice(0, 120),
+          reason_failed: `flagged by ${r3.reviewer_id} (${r3.verdict})`
         });
       }
     }
@@ -35138,14 +35423,14 @@ function compoundRelatedHeuristic(input) {
     ref: `${best.match.category}/${best.match.slug}`,
     similarity: best.similarity
   } : null;
-  const related_entries = input.existing_solutions.map((s) => ({
-    ref: `${s.category}/${s.slug}`,
+  const related_entries = input.existing_solutions.map((s2) => ({
+    ref: `${s2.category}/${s2.slug}`,
     sim: similarity(candidate, {
-      signature: s.entry.signature,
-      tags: s.entry.tags,
-      problem: s.entry.problem
+      signature: s2.entry.signature,
+      tags: s2.entry.tags,
+      problem: s2.entry.problem
     })
-  })).filter((r) => r.sim > 0.3 && r.sim < DEDUP_THRESHOLD).sort((a, b) => b.sim - a.sim).slice(0, 5).map((r) => r.ref);
+  })).filter((r3) => r3.sim > 0.3 && r3.sim < DEDUP_THRESHOLD).sort((a2, b2) => b2.sim - a2.sim).slice(0, 5).map((r3) => r3.ref);
   return {
     duplicate_match,
     related_entries,
@@ -35211,7 +35496,7 @@ import { resolve as resolve15 } from "node:path";
 function nowIso5() {
   return new Date().toISOString();
 }
-function generateUlid3() {
+function generateUlid4() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
 function shortSha(sha) {
@@ -35219,15 +35504,15 @@ function shortSha(sha) {
 }
 function extractStepSummary(body) {
   const re = /## \$GITHUB_STEP_SUMMARY excerpt\n\n([\s\S]*?)\n+## Next steps/;
-  const m = re.exec(body);
-  return m?.[1]?.trim() ?? "";
+  const m2 = re.exec(body);
+  return m2?.[1]?.trim() ?? "";
 }
 async function promoteShipFailure(opts) {
   const stateRoot = opts.stateRoot;
-  const root = resolveStateRoot(stateRoot);
-  const shipFailurePath = resolve15(root, "ship-failures", `${opts.slug}.md`);
+  const root3 = resolveStateRoot(stateRoot);
+  const shipFailurePath = resolve15(root3, "ship-failures", `${opts.slug}.md`);
   if (!existsSync15(shipFailurePath)) {
-    throw new PromoteError("MissingShipFailure", `ship-failures/${opts.slug}.md does not exist under ${root}. ` + `Run \`ls ${root}/ship-failures/\` to see available slugs.`, { slug: opts.slug, stateRoot: root });
+    throw new PromoteError("MissingShipFailure", `ship-failures/${opts.slug}.md does not exist under ${root3}. ` + `Run \`ls ${root3}/ship-failures/\` to see available slugs.`, { slug: opts.slug, stateRoot: root3 });
   }
   const raw = readFileSync17(shipFailurePath, "utf8");
   const parsed = parseFrontmatter(raw);
@@ -35246,7 +35531,7 @@ ${fm.workflow_name}`;
   const logger = opts.logger ?? createLogger({ stateRoot });
   const ctxRes = await spawn3("compound.context", { task_id: "(promote)", intent: intentText }, {
     stateRoot,
-    inlineStub: (i) => compoundContext(i),
+    inlineStub: (i2) => compoundContext(i2),
     logger
   });
   const context = ctxRes.output;
@@ -35254,7 +35539,7 @@ ${fm.workflow_name}`;
   const existing = listSolutions(stateRoot);
   const relRes = await spawn3("compound.related", { context, signature, existing_solutions: existing }, {
     stateRoot,
-    inlineStub: (i) => compoundRelated(i),
+    inlineStub: (i2) => compoundRelated(i2),
     logger
   });
   const related = relRes.output;
@@ -35268,7 +35553,7 @@ ${fm.workflow_name}`;
   const taskId = current?.task.task_id ?? `SHIP-FAILURE-${shortSha(fm.commit_sha)}`;
   const now = nowIso5();
   const entry = {
-    id: generateUlid3(),
+    id: generateUlid4(),
     signature,
     category: context.category,
     problem: context.problem_summary,
@@ -35306,10 +35591,10 @@ ${fm.workflow_name}`;
 }
 async function promoteRedGreen(opts) {
   const stateRoot = opts.stateRoot;
-  const root = resolveStateRoot(stateRoot);
-  const capturePath = resolve15(root, "red-green", `${opts.slug}.md`);
+  const root3 = resolveStateRoot(stateRoot);
+  const capturePath = resolve15(root3, "red-green", `${opts.slug}.md`);
   if (!existsSync15(capturePath)) {
-    throw new PromoteError("MissingRedGreen", `red-green/${opts.slug}.md does not exist under ${root}. ` + `Run \`ls ${root}/red-green/\` to see available slugs.`, { slug: opts.slug, stateRoot: root });
+    throw new PromoteError("MissingRedGreen", `red-green/${opts.slug}.md does not exist under ${root3}. ` + `Run \`ls ${root3}/red-green/\` to see available slugs.`, { slug: opts.slug, stateRoot: root3 });
   }
   const raw = readFileSync17(capturePath, "utf8");
   const parsed = parseFrontmatter(raw);
@@ -35327,7 +35612,7 @@ ${fm.prior_red}`;
   const logger = opts.logger ?? createLogger({ stateRoot });
   const ctxRes = await spawn3("compound.context", { task_id: fm.task_id, intent: intentText }, {
     stateRoot,
-    inlineStub: (i) => compoundContext(i),
+    inlineStub: (i2) => compoundContext(i2),
     logger
   });
   const context = ctxRes.output;
@@ -35335,7 +35620,7 @@ ${fm.prior_red}`;
   const existing = listSolutions(stateRoot);
   const relRes = await spawn3("compound.related", { context, signature, existing_solutions: existing }, {
     stateRoot,
-    inlineStub: (i) => compoundRelated(i),
+    inlineStub: (i2) => compoundRelated(i2),
     logger
   });
   const related = relRes.output;
@@ -35347,7 +35632,7 @@ ${fm.prior_red}`;
   }
   const now = nowIso5();
   const entry = {
-    id: generateUlid3(),
+    id: generateUlid4(),
     signature,
     category: context.category,
     problem: context.problem_summary,
@@ -35406,7 +35691,7 @@ import { resolve as resolve16 } from "node:path";
 function nowIso6() {
   return new Date().toISOString();
 }
-function generateUlid4() {
+function generateUlid5() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
 function shortSha2(sha) {
@@ -35414,15 +35699,15 @@ function shortSha2(sha) {
 }
 function extractPhaseOutput(body) {
   const re = /## Phase output excerpt\n\n([\s\S]*?)\n+## Next steps/;
-  const m = re.exec(body);
-  return m?.[1]?.trim() ?? "";
+  const m2 = re.exec(body);
+  return m2?.[1]?.trim() ?? "";
 }
 async function promoteCanaryFailure(opts) {
   const stateRoot = opts.stateRoot;
-  const root = resolveStateRoot(stateRoot);
-  const canaryPath = resolve16(root, "canaries", `${opts.slug}.md`);
+  const root3 = resolveStateRoot(stateRoot);
+  const canaryPath = resolve16(root3, "canaries", `${opts.slug}.md`);
   if (!existsSync16(canaryPath)) {
-    throw new PromoteCanaryError("MissingCanaryFailure", `canaries/${opts.slug}.md does not exist under ${root}. ` + `Run \`ls ${root}/canaries/\` to see available slugs.`, { slug: opts.slug, stateRoot: root });
+    throw new PromoteCanaryError("MissingCanaryFailure", `canaries/${opts.slug}.md does not exist under ${root3}. ` + `Run \`ls ${root3}/canaries/\` to see available slugs.`, { slug: opts.slug, stateRoot: root3 });
   }
   const raw = readFileSync18(canaryPath, "utf8");
   const parsed = parseFrontmatter(raw);
@@ -35441,7 +35726,7 @@ ${fm.package_name} ${fm.failed_phase}`;
   const logger = opts.logger ?? createLogger({ stateRoot });
   const ctxRes = await spawn3("compound.context", { task_id: "(promote)", intent: intentText }, {
     stateRoot,
-    inlineStub: (i) => compoundContext(i),
+    inlineStub: (i2) => compoundContext(i2),
     logger
   });
   const context = ctxRes.output;
@@ -35449,7 +35734,7 @@ ${fm.package_name} ${fm.failed_phase}`;
   const existing = listSolutions(stateRoot);
   const relRes = await spawn3("compound.related", { context, signature, existing_solutions: existing }, {
     stateRoot,
-    inlineStub: (i) => compoundRelated(i),
+    inlineStub: (i2) => compoundRelated(i2),
     logger
   });
   const related = relRes.output;
@@ -35463,7 +35748,7 @@ ${fm.package_name} ${fm.failed_phase}`;
   const taskId = current?.task.task_id ?? `CANARY-${shortSha2(fm.commit_sha)}-${fm.failed_phase}`;
   const now = nowIso6();
   const entry = {
-    id: generateUlid4(),
+    id: generateUlid5(),
     signature,
     category: context.category,
     problem: context.problem_summary,
@@ -35526,7 +35811,7 @@ import { existsSync as existsSync17 } from "node:fs";
 function nowIso7() {
   return new Date().toISOString();
 }
-function generateUlid5() {
+function generateUlid6() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
 function slugify(text) {
@@ -35534,7 +35819,7 @@ function slugify(text) {
 }
 async function runCompound(opts = {}) {
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
-  const log = (m) => logger.say(m);
+  const log = (m2) => logger.say(m2);
   const stateRoot = opts.stateRoot;
   const ct = readCurrentTask(stateRoot);
   if (!ct)
@@ -35550,10 +35835,10 @@ ${intent.motivation}`;
   } else {
     intentText = `${ct.task.task_id} (L0 task; no intent.md)`;
   }
-  const reviews = listReviewsForStage(taskId, "code", stateRoot);
+  const reviews2 = listReviewsForStage(taskId, "code", stateRoot);
   const ctxRes = await spawn3("compound.context", { task_id: taskId, intent: intentText }, {
     stateRoot,
-    inlineStub: (i) => compoundContext(i),
+    inlineStub: (i2) => compoundContext(i2),
     logger,
     taskId
   });
@@ -35562,18 +35847,18 @@ ${intent.motivation}`;
   const existing = listSolutions(stateRoot);
   const relRes = await spawn3("compound.related", { context, signature, existing_solutions: existing }, {
     stateRoot,
-    inlineStub: (i) => compoundRelated(i),
+    inlineStub: (i2) => compoundRelated(i2),
     logger,
     taskId
   });
   const related = relRes.output;
   if (related.duplicate_match && !opts.force) {
     const [catRaw, slugRaw] = related.duplicate_match.ref.split("/");
-    const existingFile = existing.find((s) => s.category === catRaw && s.slug === slugRaw);
+    const existingFile = existing.find((s2) => s2.category === catRaw && s2.slug === slugRaw);
     if (!existingFile) {
       throw new Error(`compound.related returned ref ${related.duplicate_match.ref} but entry not on disk`);
     }
-    const stamp = {
+    const stamp2 = {
       compound_related_spawn_id: relRes.spawnId,
       threshold_met_or_forced: true,
       reason: "update_existing_dedup"
@@ -35582,7 +35867,7 @@ ${intent.motivation}`;
       ...existingFile.entry,
       source_task_ids: [...existingFile.entry.source_task_ids, taskId],
       last_updated: nowIso7()
-    }, existingFile.slug, stamp, "", stateRoot);
+    }, existingFile.slug, stamp2, "", stateRoot);
     log(`compound: action=update_existing ref=${related.duplicate_match.ref} similarity=${related.duplicate_match.similarity.toFixed(3)}`);
     return {
       taskId,
@@ -35593,9 +35878,9 @@ ${intent.motivation}`;
     };
   }
   const [solRes, prevRes] = await Promise.all([
-    spawn3("compound.solution", { context, reviews }, {
+    spawn3("compound.solution", { context, reviews: reviews2 }, {
       stateRoot,
-      inlineStub: (i) => compoundSolution(i),
+      inlineStub: (i2) => compoundSolution(i2),
       logger,
       taskId
     }),
@@ -35611,7 +35896,7 @@ ${intent.motivation}`;
   ]);
   const now = nowIso7();
   const entry = {
-    id: generateUlid5(),
+    id: generateUlid6(),
     signature,
     category: context.category,
     problem: context.problem_summary,
@@ -35653,6 +35938,10 @@ var init_compound2 = __esm(() => {
 });
 
 // src/commands/ship.ts
+var exports_ship = {};
+__export(exports_ship, {
+  runShip: () => runShip
+});
 import { createHash as createHash3 } from "node:crypto";
 import { execSync } from "node:child_process";
 import { existsSync as existsSync18 } from "node:fs";
@@ -35669,9 +35958,9 @@ function gitDiffLineCount(cwd) {
     let total = 0;
     for (const line of out.split(`
 `)) {
-      const m = line.match(/^(\d+)\t(\d+)\t/);
-      if (m)
-        total += Number(m[1]) + Number(m[2]);
+      const m2 = line.match(/^(\d+)\t(\d+)\t/);
+      if (m2)
+        total += Number(m2[1]) + Number(m2[2]);
     }
     return total;
   } catch {
@@ -35679,27 +35968,27 @@ function gitDiffLineCount(cwd) {
   }
 }
 async function readLineFromStdin() {
-  const stdin = process.stdin;
-  return new Promise((resolve) => {
-    stdin.resume();
-    stdin.setEncoding("utf8");
+  const stdin2 = process.stdin;
+  return new Promise((resolve17) => {
+    stdin2.resume();
+    stdin2.setEncoding("utf8");
     let buf = "";
     const onData = (chunk) => {
       buf += chunk;
       const nl = buf.indexOf(`
 `);
       if (nl !== -1) {
-        stdin.removeListener("data", onData);
-        stdin.pause();
-        resolve(buf.slice(0, nl).trim());
+        stdin2.removeListener("data", onData);
+        stdin2.pause();
+        resolve17(buf.slice(0, nl).trim());
       }
     };
-    stdin.on("data", onData);
+    stdin2.on("data", onData);
   });
 }
 async function runShip(opts = {}) {
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
-  const log = (m) => logger.say(m);
+  const log = (m2) => logger.say(m2);
   const stateRoot = opts.stateRoot;
   const ct = readCurrentTask(stateRoot);
   if (!ct)
@@ -35714,9 +36003,9 @@ async function runShip(opts = {}) {
     throw new Error("no feature-list — was the plan complete?");
   if (fl.list.features.length === 0)
     throw new Error("feature-list is empty; nothing to ship");
-  const remaining = fl.list.features.filter((f) => f.status !== "done");
+  const remaining = fl.list.features.filter((f3) => f3.status !== "done");
   if (remaining.length > 0) {
-    throw new Error(`${remaining.length} feature(s) not done: ${remaining.map((f) => f.id).join(", ")}`);
+    throw new Error(`${remaining.length} feature(s) not done: ${remaining.map((f3) => f3.id).join(", ")}`);
   }
   if (level !== "L0") {
     if (!existsSync18(intentPath(taskId, stateRoot))) {
@@ -35727,7 +36016,7 @@ async function runShip(opts = {}) {
   if (level !== "L0" && codeReviews.length === 0) {
     throw new Error(`no code reviews for ${taskId} — run \`sgc review\` first`);
   }
-  const failedWithoutOverride = codeReviews.filter((r) => r.verdict === "fail" && (!r.override || (r.override.reason ?? "").length < 40 || (r.override.by ?? "").trim().length === 0));
+  const failedWithoutOverride = codeReviews.filter((r3) => r3.verdict === "fail" && (!r3.override || (r3.override.reason ?? "").length < 40 || (r3.override.by ?? "").trim().length === 0));
   if (failedWithoutOverride.length > 0) {
     throw new Error(`${failedWithoutOverride.length} review(s) with verdict=fail need an override with reason ≥40 chars (Invariant §5)`);
   }
@@ -35737,11 +36026,11 @@ async function runShip(opts = {}) {
     if (qaReports.length === 0) {
       throw new Error(`${level} ship requires qa evidence — run \`sgc qa <target> --flows ...\` first`);
     }
-    const failedQaWithoutOverride = qaReports.filter((r) => r.verdict === "fail" && (!r.override || (r.override.reason ?? "").length < 40 || (r.override.by ?? "").trim().length === 0));
+    const failedQaWithoutOverride = qaReports.filter((r3) => r3.verdict === "fail" && (!r3.override || (r3.override.reason ?? "").length < 40 || (r3.override.by ?? "").trim().length === 0));
     if (failedQaWithoutOverride.length > 0) {
       throw new Error(`${failedQaWithoutOverride.length} qa report(s) with verdict=fail need an override with reason ≥40 chars (Invariant §5)`);
     }
-    const degraded = codeReviews.length > 0 && !codeReviews.some((r) => r.engine !== undefined && !isHeuristicMode(r.engine));
+    const degraded = codeReviews.length > 0 && !codeReviews.some((r3) => r3.engine !== undefined && !isHeuristicMode(r3.engine));
     if (degraded) {
       const by = (opts.acceptedBy ?? "").trim();
       const reason = (opts.acceptDegradedReview ?? "").trim();
@@ -35761,9 +36050,9 @@ async function runShip(opts = {}) {
   }
   if (opts.createPr && level !== "L0") {
     const check = opts.upstreamCheck ?? defaultUpstreamCheck;
-    const u = await check();
-    if (u.upstream === null) {
-      throw new Error(`current branch '${u.branch}' has no upstream — run \`git push -u origin ${u.branch}\` before \`sgc ship --pr\`. ship.md NOT written.`);
+    const u3 = await check();
+    if (u3.upstream === null) {
+      throw new Error(`current branch '${u3.branch}' has no upstream — run \`git push -u origin ${u3.branch}\` before \`sgc ship --pr\`. ship.md NOT written.`);
     }
   }
   if (level === "L3") {
@@ -35790,7 +36079,7 @@ async function runShip(opts = {}) {
       outcome: "success",
       deviations: [],
       residuals: [],
-      linked_reviews: codeReviews.map((r) => r.report_id),
+      linked_reviews: codeReviews.map((r3) => r3.report_id),
       ...degradedAcceptance ? { degraded_review_acceptance: degradedAcceptance } : {}
     };
     shipFilePath = writeShip(ship, "", stateRoot);
@@ -35827,9 +36116,9 @@ async function runShip(opts = {}) {
         const res = await runner.createPr({ title, body });
         prUrl = res.url;
         log(`PR: ${prUrl}`);
-      } catch (e) {
-        log(`PR creation failed: ${e.message}`);
-        throw e;
+      } catch (e2) {
+        log(`PR creation failed: ${e2.message}`);
+        throw e2;
       }
     }
   }
@@ -35862,8 +36151,8 @@ async function runShip(opts = {}) {
       task_id: taskId,
       level,
       outcome: "success",
-      reviewer_flags: codeReviews.map((r) => ({
-        severity: r.severity,
+      reviewer_flags: codeReviews.map((r3) => ({
+        severity: r3.severity,
         novel: undefined
       })),
       force: opts.forceCompound ?? false,
@@ -35871,7 +36160,7 @@ async function runShip(opts = {}) {
     };
     const jRes = await spawn3("janitor.compound", janitorInput, {
       stateRoot,
-      inlineStub: (i) => janitorCompound(i),
+      inlineStub: (i2) => janitorCompound(i2),
       logger,
       taskId
     });
@@ -35890,15 +36179,15 @@ async function runShip(opts = {}) {
     log(`  logged to: ${decisionPath}`);
     if (janitorDecision.decision === "compound" || janitorDecision.decision === "update_existing") {
       try {
-        const c = await runCompound({
+        const c3 = await runCompound({
           stateRoot,
           force: opts.forceCompound,
           log: () => {}
         });
-        compoundAction = c.action;
-        log(`compound: action=${c.action}${c.duplicateRef ? ` ref=${c.duplicateRef}` : ""}`);
-      } catch (e) {
-        log(`compound failed: ${e.message}`);
+        compoundAction = c3.action;
+        log(`compound: action=${c3.action}${c3.duplicateRef ? ` ref=${c3.duplicateRef}` : ""}`);
+      } catch (e2) {
+        log(`compound failed: ${e2.message}`);
       }
     }
   }
@@ -35925,11 +36214,18 @@ var init_ship = __esm(() => {
 });
 
 // src/commands/compound.ts
+var exports_compound = {};
+__export(exports_compound, {
+  runRedGreenPromote: () => runRedGreenPromote,
+  runCompoundPromote: () => runCompoundPromote,
+  runCompound: () => runCompound2,
+  runCanaryPromote: () => runCanaryPromote
+});
 import { existsSync as existsSync19 } from "node:fs";
 function nowIso9() {
   return new Date().toISOString();
 }
-function generateUlid6() {
+function generateUlid7() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
 function slugify2(text) {
@@ -35937,7 +36233,7 @@ function slugify2(text) {
 }
 async function runCompound2(opts = {}) {
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
-  const log = (m) => logger.say(m);
+  const log = (m2) => logger.say(m2);
   const stateRoot = opts.stateRoot;
   const ct = readCurrentTask(stateRoot);
   if (!ct)
@@ -35953,10 +36249,10 @@ ${intent.motivation}`;
   } else {
     intentText = `${ct.task.task_id} (L0 task; no intent.md)`;
   }
-  const reviews = listReviewsForStage(taskId, "code", stateRoot);
+  const reviews2 = listReviewsForStage(taskId, "code", stateRoot);
   const ctxRes = await spawn3("compound.context", { task_id: taskId, intent: intentText }, {
     stateRoot,
-    inlineStub: (i) => compoundContext(i),
+    inlineStub: (i2) => compoundContext(i2),
     logger,
     taskId
   });
@@ -35965,18 +36261,18 @@ ${intent.motivation}`;
   const existing = listSolutions(stateRoot);
   const relRes = await spawn3("compound.related", { context, signature, existing_solutions: existing }, {
     stateRoot,
-    inlineStub: (i) => compoundRelated(i),
+    inlineStub: (i2) => compoundRelated(i2),
     logger,
     taskId
   });
   const related = relRes.output;
   if (related.duplicate_match && !opts.force) {
     const [catRaw, slugRaw] = related.duplicate_match.ref.split("/");
-    const existingFile = existing.find((s) => s.category === catRaw && s.slug === slugRaw);
+    const existingFile = existing.find((s2) => s2.category === catRaw && s2.slug === slugRaw);
     if (!existingFile) {
       throw new Error(`compound.related returned ref ${related.duplicate_match.ref} but entry not on disk`);
     }
-    const stamp = {
+    const stamp2 = {
       compound_related_spawn_id: relRes.spawnId,
       threshold_met_or_forced: true,
       reason: "update_existing_dedup"
@@ -35985,7 +36281,7 @@ ${intent.motivation}`;
       ...existingFile.entry,
       source_task_ids: [...existingFile.entry.source_task_ids, taskId],
       last_updated: nowIso9()
-    }, existingFile.slug, stamp, "", stateRoot);
+    }, existingFile.slug, stamp2, "", stateRoot);
     log(`compound: action=update_existing ref=${related.duplicate_match.ref} similarity=${related.duplicate_match.similarity.toFixed(3)}`);
     return {
       taskId,
@@ -35996,9 +36292,9 @@ ${intent.motivation}`;
     };
   }
   const [solRes, prevRes] = await Promise.all([
-    spawn3("compound.solution", { context, reviews }, {
+    spawn3("compound.solution", { context, reviews: reviews2 }, {
       stateRoot,
-      inlineStub: (i) => compoundSolution(i),
+      inlineStub: (i2) => compoundSolution(i2),
       logger,
       taskId
     }),
@@ -36014,7 +36310,7 @@ ${intent.motivation}`;
   ]);
   const now = nowIso9();
   const entry = {
-    id: generateUlid6(),
+    id: generateUlid7(),
     signature,
     category: context.category,
     problem: context.problem_summary,
@@ -36065,6 +36361,46 @@ var init_compound3 = __esm(() => {
 });
 
 // src/dispatcher/state.ts
+var exports_state = {};
+__export(exports_state, {
+  writeSolutionLocked: () => writeSolutionLocked,
+  writeSolution: () => writeSolution,
+  writeShip: () => writeShip,
+  writeRedGreenCapture: () => writeRedGreenCapture,
+  writePlanDoc: () => writePlanDoc,
+  writeJanitorDecision: () => writeJanitorDecision,
+  writeIntent: () => writeIntent,
+  writeHandoff: () => writeHandoff,
+  writeFeatureList: () => writeFeatureList,
+  writeCurrentTask: () => writeCurrentTask,
+  writeAtomic: () => writeAtomic,
+  wordCount: () => wordCount,
+  solutionPath: () => solutionPath,
+  solutionLockPath: () => solutionLockPath,
+  shipPath: () => shipPath,
+  serializeFrontmatter: () => serializeFrontmatter,
+  reviewPath: () => reviewPath,
+  resolveStateRoot: () => resolveStateRoot,
+  readSolution: () => readSolution,
+  readShip: () => readShip,
+  readReview: () => readReview,
+  readJanitorDecision: () => readJanitorDecision,
+  readIntent: () => readIntent,
+  readHandoff: () => readHandoff,
+  readFeatureList: () => readFeatureList,
+  readCurrentTask: () => readCurrentTask,
+  parseFrontmatter: () => parseFrontmatter,
+  listSolutions: () => listSolutions,
+  listReviewsForStage: () => listReviewsForStage,
+  janitorDecisionPath: () => janitorDecisionPath,
+  intentPath: () => intentPath,
+  hasQaEvidence: () => hasQaEvidence,
+  ensureSgcStructure: () => ensureSgcStructure,
+  deleteSolution: () => deleteSolution,
+  appendReview: () => appendReview,
+  StateError: () => StateError,
+  RED_GREEN_PLACEHOLDER: () => RED_GREEN_PLACEHOLDER
+});
 var init_state2 = __esm(() => {
   init_atomic();
   init_decisions();
@@ -36074,6 +36410,10 @@ var init_state2 = __esm(() => {
 });
 
 // src/commands/tail.ts
+var exports_tail = {};
+__export(exports_tail, {
+  runTail: () => runTail
+});
 import { closeSync as closeSync3, existsSync as existsSync20, openSync as openSync3, readSync, statSync as statSync4 } from "node:fs";
 import { resolve as resolve17 } from "node:path";
 function globMatch(pattern, value) {
@@ -36082,20 +36422,20 @@ function globMatch(pattern, value) {
   const re = new RegExp("^" + pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*") + "$");
   return re.test(value);
 }
-function matchFilters(e, opts) {
-  if (opts.task && e.task_id !== opts.task)
+function matchFilters(e2, opts) {
+  if (opts.task && e2.task_id !== opts.task)
     return false;
-  if (opts.agent && !globMatch(opts.agent, e.agent))
+  if (opts.agent && !globMatch(opts.agent, e2.agent))
     return false;
-  if (opts.eventType && !e.event_type.includes(opts.eventType))
+  if (opts.eventType && !e2.event_type.includes(opts.eventType))
     return false;
-  if (opts.since && e.ts < opts.since)
+  if (opts.since && e2.ts < opts.since)
     return false;
   return true;
 }
 function eventsPath(stateRoot) {
-  const root = stateRoot ?? process.env["SGC_STATE_ROOT"] ?? ".sgc";
-  return resolve17(root, "progress/events.ndjson");
+  const root3 = stateRoot ?? process.env["SGC_STATE_ROOT"] ?? ".sgc";
+  return resolve17(root3, "progress/events.ndjson");
 }
 function parseLine(line) {
   try {
@@ -36125,22 +36465,22 @@ function briefPayload(eventType, payload) {
     }
   }
 }
-function formatHuman(e) {
-  const time = e.ts.slice(11, 23);
-  const spawnHead = (e.spawn_id ?? "").split("-")[0].slice(0, 12).padEnd(12, " ");
-  const agent = (e.agent ?? "").padEnd(18);
-  const brief = briefPayload(e.event_type, e.payload);
-  return `${time}  ${e.level.padEnd(5)}  ${e.event_type.padEnd(18)}  ${spawnHead}  ${agent}  ${brief}`;
+function formatHuman(e2) {
+  const time = e2.ts.slice(11, 23);
+  const spawnHead = (e2.spawn_id ?? "").split("-")[0].slice(0, 12).padEnd(12, " ");
+  const agent = (e2.agent ?? "").padEnd(18);
+  const brief = briefPayload(e2.event_type, e2.payload);
+  return `${time}  ${e2.level.padEnd(5)}  ${e2.event_type.padEnd(18)}  ${spawnHead}  ${agent}  ${brief}`;
 }
 async function runTail(opts = {}) {
-  const say = opts.log ?? ((m) => console.log(m));
-  const path = eventsPath(opts.stateRoot);
+  const say = opts.log ?? ((m2) => console.log(m2));
+  const path2 = eventsPath(opts.stateRoot);
   let offset = 0;
   let lastSize = 0;
   let initialDrainDone = false;
   const emitFromBuffer = (buf, applyLimit) => {
     const lines = buf.split(`
-`).filter((l) => l.length > 0);
+`).filter((l2) => l2.length > 0);
     const matched = [];
     for (const line of lines) {
       const rec = parseLine(line);
@@ -36158,20 +36498,20 @@ async function runTail(opts = {}) {
     } else {
       out = matched;
     }
-    for (const m of out)
-      say(m);
+    for (const m2 of out)
+      say(m2);
   };
   const readNew = () => {
-    if (!existsSync20(path))
+    if (!existsSync20(path2))
       return;
-    const sz = statSync4(path).size;
+    const sz = statSync4(path2).size;
     if (sz < lastSize) {
       offset = 0;
     }
     lastSize = sz;
     if (sz <= offset)
       return;
-    const fd = openSync3(path, "r");
+    const fd = openSync3(path2, "r");
     try {
       const buf = Buffer.alloc(sz - offset);
       readSync(fd, buf, 0, buf.length, offset);
@@ -36204,6 +36544,10 @@ async function runTail(opts = {}) {
 var init_tail = () => {};
 
 // src/commands/agent-loop.ts
+var exports_agent_loop = {};
+__export(exports_agent_loop, {
+  runAgentLoop: () => runAgentLoop
+});
 import { existsSync as existsSync21, readFileSync as readFileSync19 } from "node:fs";
 function stateRoot(custom) {
   return custom ?? process.env["SGC_STATE_ROOT"] ?? ".sgc";
@@ -36217,24 +36561,24 @@ async function readAllStdin() {
 }
 async function runAgentLoop(opts = {}) {
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
-  const log = (m) => logger.say(m);
-  const root = stateRoot(opts.stateRoot);
+  const log = (m2) => logger.say(m2);
+  const root3 = stateRoot(opts.stateRoot);
   if (opts.list) {
-    const all = listAllSpawns(root);
+    const all = listAllSpawns(root3);
     if (all.length === 0) {
-      log(`no spawns under ${root}/progress/agent-prompts/`);
+      log(`no spawns under ${root3}/progress/agent-prompts/`);
       return { action: "list" };
     }
-    const pending = all.filter((s) => !s.hasResult).length;
-    log(`${all.length} spawn(s) (${pending} pending):`);
-    for (const s of all) {
-      const marker = s.hasResult ? "[x]" : "[ ]";
-      log(`  ${marker} ${s.spawnId}`);
+    const pending2 = all.filter((s2) => !s2.hasResult).length;
+    log(`${all.length} spawn(s) (${pending2} pending):`);
+    for (const s2 of all) {
+      const marker = s2.hasResult ? "[x]" : "[ ]";
+      log(`  ${marker} ${s2.spawnId}`);
     }
     return { action: "list" };
   }
   if (opts.show) {
-    const pp = promptPath(opts.show, root);
+    const pp = promptPath(opts.show, root3);
     if (!existsSync21(pp)) {
       throw new Error(`prompt file not found: ${pp}`);
     }
@@ -36247,8 +36591,8 @@ async function runAgentLoop(opts = {}) {
     if (!manifest) {
       throw new Error(`unknown agent '${agentName}' (from spawn_id ${opts.submit})`);
     }
-    const pp = promptPath(opts.submit, root);
-    const rp = resultPath(opts.submit, root);
+    const pp = promptPath(opts.submit, root3);
+    const rp = resultPath(opts.submit, root3);
     if (!existsSync21(pp)) {
       throw new Error(`no prompt file for ${opts.submit}; maybe typo, or the spawn was never requested`);
     }
@@ -36262,7 +36606,7 @@ async function runAgentLoop(opts = {}) {
       throw new Error("submitted YAML must parse to an object");
     }
     validateOutputShape(manifest, parsed);
-    const leak = scanOutputForLeak(agentName, parsed, getFingerprintsCached(root));
+    const leak = scanOutputForLeak(agentName, parsed, getFingerprintsCached(root3));
     if (leak.hit) {
       logger.event({
         task_id: null,
@@ -36272,13 +36616,13 @@ async function runAgentLoop(opts = {}) {
         level: "error",
         payload: { reason: "invariant_1_output_leak", match_count: leak.count }
       });
-      throw new Error(`Invariant §1 violation (output leak): submitted result for ${agentName} contains ${leak.count} line(s) matching solutions/ content. ` + `Sample(s): ${leak.samples.map((s) => `"${s}"`).join(", ")}. ` + `Reviewers and qa agents must stay amnesiac to past solutions — see sgc-invariants.md §1.`);
+      throw new Error(`Invariant §1 violation (output leak): submitted result for ${agentName} contains ${leak.count} line(s) matching solutions/ content. ` + `Sample(s): ${leak.samples.map((s2) => `"${s2}"`).join(", ")}. ` + `Reviewers and qa agents must stay amnesiac to past solutions — see sgc-invariants.md §1.`);
     }
     writeAtomic(rp, serializeFrontmatter(parsed, ""));
     log(`wrote ${rp}`);
     return { action: "submit", submittedTo: rp };
   }
-  const pending = listPendingSpawns(root);
+  const pending = listPendingSpawns(root3);
   if (pending.length === 0) {
     log(`no pending spawns; dispatcher has nothing to process`);
     return { action: "interactive" };
@@ -36350,7 +36694,7 @@ function severityOf(id) {
   }
 }
 function spawnCaveat(agentId) {
-  const spec = DIFF_CONDITIONAL_SPECIALISTS.find((s) => s.name === agentId);
+  const spec = DIFF_CONDITIONAL_SPECIALISTS.find((s2) => s2.name === agentId);
   if (!spec)
     return "";
   const extra = spec.triggerOnly.length > 0 ? ` It also spawns on ${displayList(spec.triggerOnly)}, which the matcher never reports on.` : "";
@@ -36360,16 +36704,16 @@ function deriveCliFact(agentId) {
   if (!DERIVED_AGENT_IDS.includes(agentId)) {
     throw new Error(`${agentId} is not in the derived set — see DERIVED_AGENT_IDS`);
   }
-  const m = getSubagentManifest(agentId);
-  if (!m)
+  const m2 = getSubagentManifest(agentId);
+  if (!m2)
     throw new Error(`${agentId} has no manifest entry`);
-  if (m.status === "slot-only" || m.status === "manual-only") {
+  if (m2.status === "slot-only" || m2.status === "manual-only") {
     const why = agentId === "janitor.archive" ? "there is no archive command and no janitor-archive module" : "this id is not wired into the CLI";
-    return `${CLI_FACT_MARKER} ${why} (manifest status: ${m.status}), so \`sgc review\` never produces a result for it — Claude Code dispatch is the only executor.`;
+    return `${CLI_FACT_MARKER} ${why} (manifest status: ${m2.status}), so \`sgc review\` never produces a result for it — Claude Code dispatch is the only executor.`;
   }
-  if (m.prompt_path) {
+  if (m2.prompt_path) {
     const fb = agentId === "reviewer.tests" ? `${TESTS_MECHANISM} that only asks whether source files changed without any test file changing, at ${severityOf(agentId)} severity` : `a keyword matcher (${fallbackTerms(agentId)}) at ${severityOf(agentId)} severity`;
-    return `${CLI_FACT_MARKER} ${NO_BODY} — with an API key it runs ${m.prompt_path}; without one it falls back to ${fb}.${spawnCaveat(agentId)}`;
+    return `${CLI_FACT_MARKER} ${NO_BODY} — with an API key it runs ${m2.prompt_path}; without one it falls back to ${fb}.${spawnCaveat(agentId)}`;
   }
   if (agentId === "reviewer.maintainability") {
     return `${CLI_FACT_MARKER} ${NO_BODY} — there, reviewer.maintainability is a heuristic matcher over added lines: longer than ${MAX_LINE} characters, or carrying a suppression marker (${displayList(MAINT_MARKER_TERMS)}, matched case-sensitively), at ${severityOf(agentId)} severity. That is the whole of it: no function length, no file size, no naming, coupling or design analysis.`;
@@ -36396,57 +36740,57 @@ var init_agent_facts = __esm(() => {
 
 // src/dispatcher/loop.ts
 import { existsSync as existsSync22, readdirSync as readdirSync7, readFileSync as readFileSync20 } from "node:fs";
-import { mkdir as mkdir3 } from "node:fs/promises";
+import { mkdir as mkdir4 } from "node:fs/promises";
 import { resolve as resolve18 } from "node:path";
-function generateUlid7() {
+function generateUlid8() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
 }
-function loopRunsDir(stateRoot) {
-  return resolve18(resolveStateRoot(stateRoot), "loop-runs");
+function loopRunsDir(stateRoot2) {
+  return resolve18(resolveStateRoot(stateRoot2), "loop-runs");
 }
-function runPath(stateRoot, runId) {
-  return resolve18(loopRunsDir(stateRoot), `${runId}.md`);
+function runPath(stateRoot2, runId) {
+  return resolve18(loopRunsDir(stateRoot2), `${runId}.md`);
 }
-function loopClaimLockPath(stateRoot) {
-  return resolve18(loopRunsDir(stateRoot), ".claim.lock");
+function loopClaimLockPath(stateRoot2) {
+  return resolve18(loopRunsDir(stateRoot2), ".claim.lock");
 }
-function runExecLockPath(stateRoot, runId) {
-  return resolve18(loopRunsDir(stateRoot), `.${runId}.exec.lock`);
+function runExecLockPath(stateRoot2, runId) {
+  return resolve18(loopRunsDir(stateRoot2), `.${runId}.exec.lock`);
 }
-function readRun(path) {
-  const text = readFileSync20(path, "utf8");
+function readRun(path2) {
+  const text = readFileSync20(path2, "utf8");
   try {
     const { data } = parseFrontmatter(text);
     return data;
   } catch (err) {
-    throw new LoopError("MalformedRunFile", `failed to parse ${path}: ${String(err)}`);
+    throw new LoopError("MalformedRunFile", `failed to parse ${path2}: ${String(err)}`);
   }
 }
-function writeRun(path, run) {
+function writeRun(path2, run) {
   const content = serializeFrontmatter(run, "");
-  writeAtomic(path, content);
+  writeAtomic(path2, content);
 }
 function freshSteps() {
   return STEPS.map((step) => ({ step, status: "pending" }));
 }
 function findStep(run, name) {
-  const entry = run.steps.find((s) => s.step === name);
+  const entry = run.steps.find((s2) => s2.step === name);
   if (!entry) {
     throw new LoopError("MalformedRunFile", `run ${run.run_id} missing step entry for "${name}"`);
   }
   return entry;
 }
 async function runLoop(task, opts) {
-  const stateRoot = opts.stateRoot;
+  const stateRoot2 = opts.stateRoot;
   const now = opts.now ?? Date.now;
-  const ulid = opts.ulid ?? generateUlid7;
-  await mkdir3(loopRunsDir(stateRoot), { recursive: true });
+  const ulid = opts.ulid ?? generateUlid8;
+  await mkdir4(loopRunsDir(stateRoot2), { recursive: true });
   let run;
   let runFilePath;
   if (opts.resume) {
-    runFilePath = runPath(stateRoot, opts.resume);
+    runFilePath = runPath(stateRoot2, opts.resume);
     if (!existsSync22(runFilePath)) {
-      throw new LoopError("RunNotFound", `loop-runs/${opts.resume}.md does not exist under ${resolveStateRoot(stateRoot)}`, { run_id: opts.resume });
+      throw new LoopError("RunNotFound", `loop-runs/${opts.resume}.md does not exist under ${resolveStateRoot(stateRoot2)}`, { run_id: opts.resume });
     }
     run = readRun(runFilePath);
   } else {
@@ -36455,7 +36799,7 @@ async function runLoop(task, opts) {
     }
     let releaseClaimLock;
     try {
-      releaseClaimLock = acquireFileLock(loopClaimLockPath(stateRoot));
+      releaseClaimLock = acquireFileLock(loopClaimLockPath(stateRoot2));
     } catch (err) {
       if (err instanceof LockHeldError) {
         throw new LoopError("ConcurrentRunActive", `another loop start is in progress (holder pid=${err.holderPid}). Retry once it completes.`, { active_pid: err.holderPid });
@@ -36463,7 +36807,7 @@ async function runLoop(task, opts) {
       throw err;
     }
     try {
-      for (const prior of listRunsRaw(stateRoot)) {
+      for (const prior of listRunsRaw(stateRoot2)) {
         if (prior.status === "running" || prior.status === "paused" || prior.status === "failed") {
           const sameTask = prior.task === task;
           const detail = sameTask ? `another loop run for task "${task}" is ${prior.status} (run_id=${prior.run_id}). Continue with: sgc loop --resume ${prior.run_id} (or delete the run file to start over).` : `a different loop run is ${prior.status} (run_id=${prior.run_id}, task="${prior.task}"). Finish it with: sgc loop --resume ${prior.run_id} (or delete the run file) before starting a new loop.`;
@@ -36484,14 +36828,14 @@ async function runLoop(task, opts) {
         status: "running",
         steps: freshSteps()
       };
-      runFilePath = runPath(stateRoot, run_id);
+      runFilePath = runPath(stateRoot2, run_id);
       writeRun(runFilePath, run);
     } finally {
       releaseClaimLock();
     }
   }
   let releaseExecLock;
-  const execLockPath = runExecLockPath(stateRoot, run.run_id);
+  const execLockPath = runExecLockPath(stateRoot2, run.run_id);
   try {
     releaseExecLock = acquireFileLock(execLockPath);
   } catch (err) {
@@ -36594,8 +36938,8 @@ async function runLoop(task, opts) {
     releaseExecLock();
   }
 }
-function listRunsRaw(stateRoot) {
-  const dir = loopRunsDir(stateRoot);
+function listRunsRaw(stateRoot2) {
+  const dir = loopRunsDir(stateRoot2);
   if (!existsSync22(dir))
     return [];
   const out = [];
@@ -36610,15 +36954,15 @@ function listRunsRaw(stateRoot) {
 }
 async function listLoopRuns(opts = {}) {
   const out = listRunsRaw(opts.stateRoot);
-  out.sort((a, b) => b.started_at.localeCompare(a.started_at));
+  out.sort((a2, b2) => b2.started_at.localeCompare(a2.started_at));
   return out;
 }
 async function showLoopRun(runId, opts = {}) {
-  const path = runPath(opts.stateRoot, runId);
-  if (!existsSync22(path)) {
+  const path2 = runPath(opts.stateRoot, runId);
+  if (!existsSync22(path2)) {
     throw new LoopError("RunNotFound", `loop-runs/${runId}.md not found under ${resolveStateRoot(opts.stateRoot)}`, { run_id: runId });
   }
-  return readRun(path);
+  return readRun(path2);
 }
 var STEPS, MANUAL_GATES, LoopError;
 var init_loop = __esm(() => {
@@ -36722,7 +37066,7 @@ function computeStandardization(invariantYaml) {
   const doc = load(invariantYaml);
   const entries = Object.values(doc?.invariants ?? {});
   return {
-    machine_enforced: entries.filter((e) => e != null && e.machine_enforced === true && Array.isArray(e.tests) && e.tests.length > 0).length,
+    machine_enforced: entries.filter((e2) => e2 != null && e2.machine_enforced === true && Array.isArray(e2.tests) && e2.tests.length > 0).length,
     total: entries.length
   };
 }
@@ -36730,13 +37074,13 @@ function computeIntelligence(capabilitiesYaml) {
   const spec = loadSpec(capabilitiesYaml);
   const subs = Object.values(spec.subagents ?? {});
   return {
-    llm_invokable: subs.filter((m) => typeof m.prompt_path === "string" && m.prompt_path.length > 0).length,
+    llm_invokable: subs.filter((m2) => typeof m2.prompt_path === "string" && m2.prompt_path.length > 0).length,
     total_subagents: subs.length
   };
 }
 function computeAutomation() {
-  const loopAuto = STEPS.filter((s) => !MANUAL_GATES.has(s)).length;
-  const ceAuto = CE_ARC_STAGES.filter((s) => !CE_ARC_HUMAN_GATES.has(s)).length;
+  const loopAuto = STEPS.filter((s2) => !MANUAL_GATES.has(s2)).length;
+  const ceAuto = CE_ARC_STAGES.filter((s2) => !CE_ARC_HUMAN_GATES.has(s2)).length;
   return {
     automated_steps: loopAuto + ceAuto,
     total_steps: STEPS.length + CE_ARC_STAGES.length
@@ -36750,17 +37094,17 @@ function computeFromInputs(inputs) {
     efficiency: { install_steps: 1, runtime_node: inputs.runtimeNode, bundle_bytes: inputs.bundleBytes }
   };
 }
-function computeMetricsLive(root) {
-  const pkg = JSON.parse(readFileSync21(resolve19(root, "package.json"), "utf8"));
+function computeMetricsLive(root3) {
+  const pkg = JSON.parse(readFileSync21(resolve19(root3, "package.json"), "utf8"));
   let bundleBytes = 0;
   try {
-    bundleBytes = statSync5(resolve19(root, "plugins/sgc/bin/sgc.mjs")).size;
+    bundleBytes = statSync5(resolve19(root3, "plugins/sgc/bin/sgc.mjs")).size;
   } catch {
     bundleBytes = 0;
   }
   return computeFromInputs({
-    invariantYaml: readFileSync21(resolve19(root, "contracts/invariant-enforcement.yaml"), "utf8"),
-    capabilitiesYaml: readFileSync21(resolve19(root, "contracts/sgc-capabilities.yaml"), "utf8"),
+    invariantYaml: readFileSync21(resolve19(root3, "contracts/invariant-enforcement.yaml"), "utf8"),
+    capabilitiesYaml: readFileSync21(resolve19(root3, "contracts/sgc-capabilities.yaml"), "utf8"),
     runtimeNode: pkg.engines?.node ?? "unknown",
     bundleBytes
   });
@@ -36786,32 +37130,32 @@ function computeRuntimeMetrics() {
     bundleBytes
   });
 }
-function serializeBaseline(m) {
-  const s = m.standardization;
-  const i = m.intelligence;
-  const a = m.automation;
-  const e = m.efficiency;
+function serializeBaseline(m2) {
+  const s2 = m2.standardization;
+  const i2 = m2.intelligence;
+  const a2 = m2.automation;
+  const e2 = m2.efficiency;
   return BASELINE_BANNER + `schema_version: "1"
-` + `standardization: { machine_enforced: ${s.machine_enforced}, total: ${s.total} }
-` + `intelligence: { llm_invokable: ${i.llm_invokable}, total_subagents: ${i.total_subagents} }
-` + `automation: { automated_steps: ${a.automated_steps}, total_steps: ${a.total_steps} }
-` + `efficiency: { install_steps: ${e.install_steps}, runtime_node: "${e.runtime_node}", bundle_bytes: ${e.bundle_bytes} }
+` + `standardization: { machine_enforced: ${s2.machine_enforced}, total: ${s2.total} }
+` + `intelligence: { llm_invokable: ${i2.llm_invokable}, total_subagents: ${i2.total_subagents} }
+` + `automation: { automated_steps: ${a2.automated_steps}, total_steps: ${a2.total_steps} }
+` + `efficiency: { install_steps: ${e2.install_steps}, runtime_node: "${e2.runtime_node}", bundle_bytes: ${e2.bundle_bytes} }
 `;
 }
 function parseBaseline(text) {
-  const d = load(text);
+  const d2 = load(text);
   return {
-    standardization: d.standardization,
-    intelligence: d.intelligence,
-    automation: d.automation,
-    efficiency: d.efficiency
+    standardization: d2.standardization,
+    intelligence: d2.intelligence,
+    automation: d2.automation,
+    efficiency: d2.efficiency
   };
 }
 function diffMetrics(live, baseline) {
   const out = [];
-  const cmp = (label, x, y) => {
-    if (x !== y)
-      out.push(`${label}: live=${x} baseline=${y}`);
+  const cmp = (label, x2, y3) => {
+    if (x2 !== y3)
+      out.push(`${label}: live=${x2} baseline=${y3}`);
   };
   cmp("standardization.machine_enforced", live.standardization.machine_enforced, baseline.standardization.machine_enforced);
   cmp("standardization.total", live.standardization.total, baseline.standardization.total);
@@ -36824,18 +37168,18 @@ function diffMetrics(live, baseline) {
   return out;
 }
 function humanGates() {
-  return [...MANUAL_GATES, ...[...CE_ARC_HUMAN_GATES].map((g) => `compound-${g}`)];
+  return [...MANUAL_GATES, ...[...CE_ARC_HUMAN_GATES].map((g3) => `compound-${g3}`)];
 }
-function formatScorecard(m) {
-  const kb = Math.round(m.efficiency.bundle_bytes / 1024);
+function formatScorecard(m2) {
+  const kb = Math.round(m2.efficiency.bundle_bytes / 1024);
   const gates = humanGates();
   return [
     "sgc four-化 scorecard",
     "",
-    `  规范化 standardization  ${m.standardization.machine_enforced}/${m.standardization.total} machine-enforced invariants`,
-    `  智能化 intelligence     ${m.intelligence.llm_invokable}/${m.intelligence.total_subagents} LLM-invokable subagents (capacity, not quality)`,
-    `  自动化 automation       ${m.automation.automated_steps}/${m.automation.total_steps} automated lifecycle stages (${gates.length} human gates: ${gates.join(", ")})`,
-    `  高效化 efficiency       ${m.efficiency.install_steps} install step · node ${m.efficiency.runtime_node} · ~${kb} KB bundle`
+    `  规范化 standardization  ${m2.standardization.machine_enforced}/${m2.standardization.total} machine-enforced invariants`,
+    `  智能化 intelligence     ${m2.intelligence.llm_invokable}/${m2.intelligence.total_subagents} LLM-invokable subagents (capacity, not quality)`,
+    `  自动化 automation       ${m2.automation.automated_steps}/${m2.automation.total_steps} automated lifecycle stages (${gates.length} human gates: ${gates.join(", ")})`,
+    `  高效化 efficiency       ${m2.efficiency.install_steps} install step · node ${m2.efficiency.runtime_node} · ~${kb} KB bundle`
   ].join(`
 `);
 }
@@ -36856,35 +37200,50 @@ var init_metrics = __esm(() => {
 });
 
 // src/commands/doctor.ts
+var exports_doctor = {};
+__export(exports_doctor, {
+  statusHeaderFreshness: () => statusHeaderFreshness,
+  runDoctor: () => runDoctor,
+  rewriteCliFact: () => rewriteCliFact,
+  readmeScorecardDrift: () => readmeScorecardDrift,
+  readAgentMdFiles: () => readAgentMdFiles,
+  extractCliSubcommands: () => extractCliSubcommands,
+  cliFactDrift: () => cliFactDrift,
+  ciPinnedBunVersion: () => ciPinnedBunVersion,
+  bundleStaleSeverity: () => bundleStaleSeverity,
+  bundleParityCheck: () => bundleParityCheck,
+  bundleExecBitOk: () => bundleExecBitOk,
+  agentMetadataDrift: () => agentMetadataDrift
+});
 import { createHash as createHash4 } from "node:crypto";
 import { existsSync as existsSync23, mkdtempSync, readdirSync as readdirSync8, readFileSync as readFileSync22, rmSync, statSync as statSync6, writeFileSync as writeFileSync7 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname as dirname6, resolve as resolve20 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
-function extractCliSubcommands(src) {
+function extractCliSubcommands(src2) {
   const marker = "subCommands: {";
-  const start = src.indexOf(marker);
+  const start = src2.indexOf(marker);
   if (start === -1)
     return [];
-  const rest = src.slice(start + marker.length);
+  const rest = src2.slice(start + marker.length);
   const end = rest.indexOf(`
   }`);
   const block = end === -1 ? rest : rest.slice(0, end);
   const names = [];
   const re = /["']?([a-z][a-z0-9-]*)["']?\s*:\s*\(\)\s*=>/g;
-  let m;
-  while ((m = re.exec(block)) !== null)
-    names.push(m[1]);
+  let m2;
+  while ((m2 = re.exec(block)) !== null)
+    names.push(m2[1]);
   return names;
 }
 function statusHeaderFreshness(claudeMd, pkgVersion) {
-  const h = /##\s+Implementation Status\s*\(v(\d+)\.(\d+)\.(\d+)/.exec(claudeMd);
+  const h2 = /##\s+Implementation Status\s*\(v(\d+)\.(\d+)\.(\d+)/.exec(claudeMd);
   const p = /^(\d+)\.(\d+)\.(\d+)/.exec(pkgVersion);
-  if (!h)
+  if (!h2)
     return { severity: "warn", msg: 'no "## Implementation Status (vX.Y.Z" header in CLAUDE.md' };
   if (!p)
     return { severity: "warn", msg: `unparseable package.json version: ${pkgVersion}` };
-  const hMaj = Number(h[1]), hMin = Number(h[2]), hPat = Number(h[3]);
+  const hMaj = Number(h2[1]), hMin = Number(h2[2]), hPat = Number(h2[3]);
   const pMaj = Number(p[1]), pMin = Number(p[2]), pPat = Number(p[3]);
   const behind = hMaj < pMaj || hMaj === pMaj && (hMin < pMin || hMin === pMin && hPat < pPat);
   const hVer = `${hMaj}.${hMin}.${hPat}`;
@@ -36911,47 +37270,47 @@ function readmeScorecardDrift(readme, live) {
   ];
   const drifts = [];
   for (const [label, num, den] of expected) {
-    const m = readme.match(new RegExp(`${label}\\s+(\\d+)\\s*/\\s*(\\d+)`));
-    if (!m) {
+    const m2 = readme.match(new RegExp(`${label}\\s+(\\d+)\\s*/\\s*(\\d+)`));
+    if (!m2) {
       drifts.push(`${label}: no "${label} <n>/<d>" found in README (expected ${num}/${den})`);
       continue;
     }
-    if (Number(m[1]) !== num || Number(m[2]) !== den) {
-      drifts.push(`${label}: README says ${m[1]}/${m[2]}, live metrics say ${num}/${den}`);
+    if (Number(m2[1]) !== num || Number(m2[2]) !== den) {
+      drifts.push(`${label}: README says ${m2[1]}/${m2[2]}, live metrics say ${num}/${den}`);
     }
   }
   return drifts;
 }
 function agentMetadataDrift(files, lookup, manifestIds = []) {
   const drifts = [];
-  for (const f of files) {
-    const entry = lookup(f.id);
+  for (const f3 of files) {
+    const entry = lookup(f3.id);
     if (!entry) {
-      drifts.push(`${f.id}: ${f.file} has no manifest entry (orphan registry file)`);
+      drifts.push(`${f3.id}: ${f3.file} has no manifest entry (orphan registry file)`);
       continue;
     }
     let desc;
     try {
-      desc = readFrontmatterDescription(f.text).toLowerCase();
+      desc = readFrontmatterDescription(f3.text).toLowerCase();
     } catch (err) {
-      drifts.push(`${f.id}: ${f.file} frontmatter does not parse (${String(err).slice(0, 80)})`);
+      drifts.push(`${f3.id}: ${f3.file} frontmatter does not parse (${String(err).slice(0, 80)})`);
       continue;
     }
     const cliNeverRuns = entry.status === "slot-only" || entry.status === "manual-only";
     const heuristic = !entry.prompt_path;
     if (cliNeverRuns) {
       if (!/(not implemented|slot-only|manual-only|never dispatched|not wired|never runs)/.test(desc)) {
-        drifts.push(`${f.id}: manifest says status slot-only (never dispatched) but ${f.file} advertises it as working`);
+        drifts.push(`${f3.id}: manifest says status slot-only (never dispatched) but ${f3.file} advertises it as working`);
       } else if (/dispatched by/.test(desc)) {
-        drifts.push(`${f.id}: ${f.file} is slot-only yet still says "dispatched by" — a disclaimer elsewhere does not undo it`);
+        drifts.push(`${f3.id}: ${f3.file} is slot-only yet still says "dispatched by" — a disclaimer elsewhere does not undo it`);
       }
       continue;
     }
     if (heuristic && !/(heuristic|keyword match|deterministic|not llm-backed|rule-based|not implemented)/.test(desc)) {
-      drifts.push(`${f.id}: manifest says prompt_path null (not LLM-backed) but ${f.file} does not disclose it`);
+      drifts.push(`${f3.id}: manifest says prompt_path null (not LLM-backed) but ${f3.file} does not disclose it`);
     }
   }
-  const present = new Set(files.map((f) => f.id));
+  const present = new Set(files.map((f3) => f3.id));
   for (const id of manifestIds) {
     if (present.has(id) || REGISTRY_EXEMPT_IDS.has(id))
       continue;
@@ -36961,29 +37320,29 @@ function agentMetadataDrift(files, lookup, manifestIds = []) {
 }
 function cliFactDrift(files) {
   const drifts = [];
-  for (const f of files) {
-    if (!DERIVED_AGENT_IDS.includes(f.id))
+  for (const f3 of files) {
+    if (!DERIVED_AGENT_IDS.includes(f3.id))
       continue;
     let desc;
     try {
-      desc = readFrontmatterDescription(f.text);
+      desc = readFrontmatterDescription(f3.text);
     } catch (err) {
-      drifts.push(`${f.id}: ${f.file} frontmatter does not parse (${String(err).slice(0, 80)})`);
+      drifts.push(`${f3.id}: ${f3.file} frontmatter does not parse (${String(err).slice(0, 80)})`);
       continue;
     }
     const at = desc.indexOf(CLI_FACT_MARKER);
     if (at < 0) {
-      drifts.push(`${f.id}: ${f.file} has no \`${CLI_FACT_MARKER}\` clause — run \`sgc doctor --write-descriptions\``);
+      drifts.push(`${f3.id}: ${f3.file} has no \`${CLI_FACT_MARKER}\` clause — run \`sgc doctor --write-descriptions\``);
       continue;
     }
     if (at === 0) {
-      drifts.push(`${f.id}: ${f.file} opens with the CLI fact — the capability sentence must come first. ` + `This field's only consumer is Claude Code's dispatch decision; leading with a disclaimer suppresses it.`);
+      drifts.push(`${f3.id}: ${f3.file} opens with the CLI fact — the capability sentence must come first. ` + `This field's only consumer is Claude Code's dispatch decision; leading with a disclaimer suppresses it.`);
       continue;
     }
     const actual = desc.slice(at);
-    const expected = deriveCliFact(f.id);
+    const expected = deriveCliFact(f3.id);
     if (actual !== expected) {
-      drifts.push(`${f.id}: ${f.file} CLI-fact clause is stale.
+      drifts.push(`${f3.id}: ${f3.file} CLI-fact clause is stale.
     expected: ${expected}
     actual:   ${actual}
 ` + `    fix: sgc doctor --write-descriptions`);
@@ -36992,10 +37351,10 @@ function cliFactDrift(files) {
   return drifts;
 }
 function rewriteCliFact(text, id) {
-  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
-  if (!m)
+  const m2 = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
+  if (!m2)
     throw new Error(`${id}: no frontmatter block`);
-  const parsed = load(m[1]);
+  const parsed = load(m2[1]);
   const desc = typeof parsed["description"] === "string" ? parsed["description"] : "";
   const at = desc.indexOf(CLI_FACT_MARKER);
   const capability = (at < 0 ? desc : desc.slice(0, at)).trimEnd();
@@ -37004,7 +37363,7 @@ function rewriteCliFact(text, id) {
   return `---
 ${front.trimEnd()}
 ---
-${text.slice(m[0].length)}`;
+${text.slice(m2[0].length)}`;
 }
 function readFrontmatterDescription(text) {
   const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1];
@@ -37013,11 +37372,11 @@ function readFrontmatterDescription(text) {
   const parsed = load(block);
   if (typeof parsed !== "object" || parsed === null)
     throw new Error("frontmatter is not a mapping");
-  const d = parsed["description"];
-  return typeof d === "string" ? d : "";
+  const d2 = parsed["description"];
+  return typeof d2 === "string" ? d2 : "";
 }
-function readAgentMdFiles(root) {
-  const dir = resolve20(root, "plugins", "sgc", "agents");
+function readAgentMdFiles(root3) {
+  const dir = resolve20(root3, "plugins", "sgc", "agents");
   if (!existsSync23(dir))
     return [];
   const out = [];
@@ -37025,21 +37384,21 @@ function readAgentMdFiles(root) {
     const gdir = resolve20(dir, group);
     if (!statSync6(gdir).isDirectory())
       continue;
-    for (const f of readdirSync8(gdir)) {
-      if (!f.endsWith(".md"))
+    for (const f3 of readdirSync8(gdir)) {
+      if (!f3.endsWith(".md"))
         continue;
       out.push({
-        id: `${group}.${f.slice(0, -3)}`,
-        file: `plugins/sgc/agents/${group}/${f}`,
-        text: readFileSync22(resolve20(gdir, f), "utf8")
+        id: `${group}.${f3.slice(0, -3)}`,
+        file: `plugins/sgc/agents/${group}/${f3}`,
+        text: readFileSync22(resolve20(gdir, f3), "utf8")
       });
     }
   }
   return out;
 }
 function ciPinnedBunVersion(workflowYaml) {
-  const m = workflowYaml.match(/bun-version:\s*["']?([0-9]+\.[0-9]+\.[0-9]+)["']?/);
-  return m?.[1] ?? null;
+  const m2 = workflowYaml.match(/bun-version:\s*["']?([0-9]+\.[0-9]+\.[0-9]+)["']?/);
+  return m2?.[1] ?? null;
 }
 function bundleStaleSeverity(localBun, ciBun) {
   if (localBun && ciBun && localBun !== ciBun) {
@@ -37053,32 +37412,32 @@ function bundleStaleSeverity(localBun, ciBun) {
     msg: "  ✗ committed bundle STALE — run `npm run build:cli` and commit"
   };
 }
-async function bundleParityCheck(root) {
-  const srcEntry = resolve20(root, "src", "sgc.ts");
-  const committed = resolve20(root, "plugins", "sgc", "bin", "sgc.mjs");
-  const buildScript = resolve20(root, "scripts", "build-cli.mjs");
+async function bundleParityCheck(root3) {
+  const srcEntry = resolve20(root3, "src", "sgc.ts");
+  const committed = resolve20(root3, "plugins", "sgc", "bin", "sgc.mjs");
+  const buildScript = resolve20(root3, "scripts", "build-cli.mjs");
   if (!existsSync23(srcEntry) || !existsSync23(committed) || !existsSync23(buildScript)) {
     return { severity: "ok", msg: "  ⓘ bundle-hash parity skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" };
   }
   const tmp = mkdtempSync(resolve20(tmpdir(), "sgc-bundle-"));
   const out = resolve20(tmp, "sgc.mjs");
   try {
-    const r = await spawnCapture(["node", buildScript, "--outfile", out], { cwd: root });
-    if (r.exitCode !== 0)
-      return { severity: "warn", msg: `  ⚠ bundle-hash parity: rebuild failed (${r.stderr.slice(0, 120)})` };
+    const r3 = await spawnCapture(["node", buildScript, "--outfile", out], { cwd: root3 });
+    if (r3.exitCode !== 0)
+      return { severity: "warn", msg: `  ⚠ bundle-hash parity: rebuild failed (${r3.stderr.slice(0, 120)})` };
     const sha = (buf) => createHash4("sha256").update(buf).digest("hex");
-    const strip = (b) => Buffer.from(b.toString("utf8").replace(/^#![^\n]*\n/, ""));
-    const a = sha(strip(readFileSync22(out)));
-    const b = sha(strip(readFileSync22(committed)));
-    if (a !== b) {
-      const localBun = (await spawnCapture(["bun", "--version"], { cwd: root })).stdout.trim() || null;
+    const strip2 = (b3) => Buffer.from(b3.toString("utf8").replace(/^#![^\n]*\n/, ""));
+    const a2 = sha(strip2(readFileSync22(out)));
+    const b2 = sha(strip2(readFileSync22(committed)));
+    if (a2 !== b2) {
+      const localBun = (await spawnCapture(["bun", "--version"], { cwd: root3 })).stdout.trim() || null;
       let ciBun = null;
       try {
-        ciBun = ciPinnedBunVersion(readFileSync22(resolve20(root, ".github/workflows/test.yml"), "utf8"));
+        ciBun = ciPinnedBunVersion(readFileSync22(resolve20(root3, ".github/workflows/test.yml"), "utf8"));
       } catch {}
       return bundleStaleSeverity(localBun, ciBun);
     }
-    const ls = await spawnCapture(["git", "ls-files", "--stage", "plugins/sgc/bin/sgc.mjs"], { cwd: root });
+    const ls = await spawnCapture(["git", "ls-files", "--stage", "plugins/sgc/bin/sgc.mjs"], { cwd: root3 });
     const execOk = ls.exitCode === 0 ? bundleExecBitOk(ls.stdout) : null;
     if (execOk === false) {
       return {
@@ -37093,16 +37452,16 @@ async function bundleParityCheck(root) {
 }
 function checkManifestPromptPath(ctx) {
   const rows = [];
-  for (const [name, m] of ctx.manifests) {
-    if (m.prompt_path == null)
+  for (const [name, m2] of ctx.manifests) {
+    if (m2.prompt_path == null)
       continue;
-    const present = EMBEDDED_PROMPTS[m.prompt_path] !== undefined;
+    const present = EMBEDDED_PROMPTS[m2.prompt_path] !== undefined;
     if (present) {
-      rows.push({ severity: "ok", msg: `  ✓ ${name} → ${m.prompt_path}` });
+      rows.push({ severity: "ok", msg: `  ✓ ${name} → ${m2.prompt_path}` });
     } else {
       rows.push({
         severity: "fail",
-        msg: `  ✗ ${name} → ${m.prompt_path} (NOT EMBEDDED)`
+        msg: `  ✗ ${name} → ${m2.prompt_path} (NOT EMBEDDED)`
       });
     }
   }
@@ -37111,9 +37470,9 @@ function checkManifestPromptPath(ctx) {
 function checkPromptsReferenced(ctx) {
   const rows = [];
   const declaredPrompts = new Set;
-  for (const [, m] of ctx.manifests) {
-    if (m.prompt_path)
-      declaredPrompts.add(m.prompt_path);
+  for (const [, m2] of ctx.manifests) {
+    if (m2.prompt_path)
+      declaredPrompts.add(m2.prompt_path);
   }
   for (const rel of listEmbeddedPromptKeys().sort()) {
     if (declaredPrompts.has(rel)) {
@@ -37129,10 +37488,10 @@ function checkPromptsReferenced(ctx) {
 }
 function checkSlotOnly(ctx) {
   const rows = [];
-  for (const [name, m] of ctx.manifests) {
-    if (m.status !== "slot-only")
+  for (const [name, m2] of ctx.manifests) {
+    if (m2.status !== "slot-only")
       continue;
-    if (m.prompt_path == null) {
+    if (m2.prompt_path == null) {
       rows.push({
         severity: "ok",
         msg: `  ✓ ${name} (slot-only, no prompt_path)`
@@ -37140,7 +37499,7 @@ function checkSlotOnly(ctx) {
     } else {
       rows.push({
         severity: "fail",
-        msg: `  ✗ ${name} (slot-only but declares prompt_path: ${m.prompt_path})`
+        msg: `  ✗ ${name} (slot-only but declares prompt_path: ${m2.prompt_path})`
       });
     }
   }
@@ -37181,15 +37540,15 @@ function checkPackageFiles(ctx) {
       try {
         const pkg = JSON.parse(readFileSync22(pkgPath, "utf8"));
         files = Array.isArray(pkg.files) ? pkg.files : [];
-      } catch (e) {
+      } catch (e2) {
         rows.push({
           severity: "fail",
-          msg: `  ✗ package.json parse error: ${e.message.slice(0, 80)}`
+          msg: `  ✗ package.json parse error: ${e2.message.slice(0, 80)}`
         });
         files = [];
       }
-      const leaks = files.filter((f) => {
-        const norm = f.replace(/^\.?\//, "");
+      const leaks = files.filter((f3) => {
+        const norm = f3.replace(/^\.?\//, "");
         if (!norm.startsWith("plugins"))
           return false;
         const last = norm.split("/").at(-1) ?? "";
@@ -37232,18 +37591,18 @@ function checkInvariantEnforcementCoverage(ctx) {
     try {
       const doc = load(readFileSync22(iePath, "utf8"));
       inv = doc?.invariants && typeof doc.invariants === "object" ? doc.invariants : {};
-    } catch (e) {
+    } catch (e2) {
       rows.push({
         severity: "fail",
-        msg: `  ✗ invariant-enforcement.yaml parse error: ${e.message.slice(0, 80)}`
+        msg: `  ✗ invariant-enforcement.yaml parse error: ${e2.message.slice(0, 80)}`
       });
       inv = null;
     }
     if (inv) {
       const missingSections = [];
-      for (let n = 1;n <= 13; n++)
-        if (inv[String(n)] == null)
-          missingSections.push(`§${n}`);
+      for (let n2 = 1;n2 <= 13; n2++)
+        if (inv[String(n2)] == null)
+          missingSections.push(`§${n2}`);
       if (missingSections.length) {
         rows.push({
           severity: "fail",
@@ -37251,29 +37610,29 @@ function checkInvariantEnforcementCoverage(ctx) {
         });
       }
       let machineCount = 0;
-      for (let n = 1;n <= 13; n++) {
-        const e = inv[String(n)];
-        if (e == null)
+      for (let n2 = 1;n2 <= 13; n2++) {
+        const e2 = inv[String(n2)];
+        if (e2 == null)
           continue;
-        const title = typeof e["title"] === "string" ? e["title"].slice(0, 32) : "";
-        if (e["machine_enforced"] === true) {
+        const title = typeof e2["title"] === "string" ? e2["title"].slice(0, 32) : "";
+        if (e2["machine_enforced"] === true) {
           machineCount++;
-          const tests = Array.isArray(e["tests"]) ? e["tests"] : [];
+          const tests = Array.isArray(e2["tests"]) ? e2["tests"] : [];
           if (tests.length === 0) {
-            rows.push({ severity: "fail", msg: `  ✗ §${n} machine_enforced but lists no tests` });
+            rows.push({ severity: "fail", msg: `  ✗ §${n2} machine_enforced but lists no tests` });
           } else {
-            const missingTests = tests.filter((t) => !existsSync23(resolve20(ctx.root, t)));
+            const missingTests = tests.filter((t2) => !existsSync23(resolve20(ctx.root, t2)));
             if (missingTests.length) {
               rows.push({
                 severity: "fail",
-                msg: `  ✗ §${n} cites missing test file(s): ${missingTests.join(", ")}`
+                msg: `  ✗ §${n2} cites missing test file(s): ${missingTests.join(", ")}`
               });
             } else {
-              rows.push({ severity: "ok", msg: `  ✓ §${n} ${title} (${tests.length} test file(s))` });
+              rows.push({ severity: "ok", msg: `  ✓ §${n2} ${title} (${tests.length} test file(s))` });
             }
           }
         } else {
-          rows.push({ severity: "ok", msg: `  ✓ §${n} ${title} (procedural)` });
+          rows.push({ severity: "ok", msg: `  ✓ §${n2} ${title} (procedural)` });
         }
       }
       rows.push({ severity: "ok", msg: `  · machine-enforced invariants: ${machineCount}/13` });
@@ -37296,7 +37655,7 @@ function checkSlashParity(ctx) {
       });
     } else {
       const cliNames = extractCliSubcommands(readFileSync22(sgcSrcPath, "utf8"));
-      const slashNames = new Set(readdirSync8(commandsDir).filter((f) => f.endsWith(".md")).map((f) => f.slice(0, -3)));
+      const slashNames = new Set(readdirSync8(commandsDir).filter((f3) => f3.endsWith(".md")).map((f3) => f3.slice(0, -3)));
       if (cliNames.length === 0) {
         rows.push({ severity: "warn", msg: "  ⚠ could not parse subCommands block in src/sgc.ts" });
       }
@@ -37348,11 +37707,11 @@ function checkInvariantSourceParity(ctx) {
       try {
         const doc = load(readFileSync22(iePath, "utf8"));
         if (doc?.invariants)
-          for (const k of Object.keys(doc.invariants))
-            yamlNums.add(Number(k));
+          for (const k2 of Object.keys(doc.invariants))
+            yamlNums.add(Number(k2));
       } catch {}
-      const onlyMd = [...mdNums].filter((n) => !yamlNums.has(n)).sort((a, b) => a - b);
-      const onlyYaml = [...yamlNums].filter((n) => !mdNums.has(n)).sort((a, b) => a - b);
+      const onlyMd = [...mdNums].filter((n2) => !yamlNums.has(n2)).sort((a2, b2) => a2 - b2);
+      const onlyYaml = [...yamlNums].filter((n2) => !mdNums.has(n2)).sort((a2, b2) => a2 - b2);
       if (mdNums.size > 0 && onlyMd.length === 0 && onlyYaml.length === 0) {
         rows.push({
           severity: "ok",
@@ -37386,12 +37745,12 @@ function checkMetricsBaseline(ctx) {
       if (drifts.length === 0) {
         rows.push({ severity: "ok", msg: "  ✓ metrics baseline in sync (live == baseline; bundle_bytes excluded)" });
       } else {
-        for (const d of drifts)
-          rows.push({ severity: "fail", msg: `  ✗ metrics drift — ${d}` });
+        for (const d2 of drifts)
+          rows.push({ severity: "fail", msg: `  ✗ metrics drift — ${d2}` });
         rows.push({ severity: "fail", msg: "  ✗ regenerate: `sgc metrics --write-baseline`" });
       }
-    } catch (e) {
-      rows.push({ severity: "fail", msg: `  ✗ metrics baseline check error: ${e.message.slice(0, 80)}` });
+    } catch (e2) {
+      rows.push({ severity: "fail", msg: `  ✗ metrics baseline check error: ${e2.message.slice(0, 80)}` });
     }
   }
   return rows;
@@ -37407,12 +37766,12 @@ function checkAgentRegistry(ctx) {
       if (drifts.length === 0) {
         rows.push({ severity: "ok", msg: `  ✓ ${files.length} agent descriptions wired to manifest (disclosure checked, not accuracy)` });
       } else {
-        for (const d of drifts)
-          rows.push({ severity: "fail", msg: `  ✗ agent metadata drift — ${d}` });
+        for (const d2 of drifts)
+          rows.push({ severity: "fail", msg: `  ✗ agent metadata drift — ${d2}` });
       }
     }
-  } catch (e) {
-    rows.push({ severity: "fail", msg: `  ✗ agent registry check error: ${e.message.slice(0, 80)}` });
+  } catch (e2) {
+    rows.push({ severity: "fail", msg: `  ✗ agent registry check error: ${e2.message.slice(0, 80)}` });
   }
   return rows;
 }
@@ -37426,7 +37785,7 @@ function checkCliFactDerivation(ctx) {
       if (files.length === 0) {
         rows.push({ severity: "ok", msg: "  ⓘ CLI-fact derivation skipped (no plugins/sgc/agents/ — npm channel)" });
       } else {
-        const present = new Set(files.map((f) => f.id));
+        const present = new Set(files.map((f3) => f3.id));
         const missingIds = DERIVED_AGENT_IDS.filter((id) => !present.has(id));
         for (const id of missingIds) {
           rows.push({
@@ -37436,15 +37795,15 @@ function checkCliFactDerivation(ctx) {
         }
         const factDrifts = cliFactDrift(files);
         if (factDrifts.length === 0 && missingIds.length === 0) {
-          const checked = files.filter((f) => DERIVED_AGENT_IDS.includes(f.id)).length;
+          const checked = files.filter((f3) => DERIVED_AGENT_IDS.includes(f3.id)).length;
           rows.push({ severity: "ok", msg: `  ✓ ${checked} agent CLI-fact clauses match the code` });
         } else {
-          for (const d of factDrifts)
-            rows.push({ severity: "fail", msg: `  ✗ ${d}` });
+          for (const d2 of factDrifts)
+            rows.push({ severity: "fail", msg: `  ✗ ${d2}` });
         }
       }
-    } catch (e) {
-      rows.push({ severity: "fail", msg: `  ✗ CLI-fact check error: ${e.message.slice(0, 80)}` });
+    } catch (e2) {
+      rows.push({ severity: "fail", msg: `  ✗ CLI-fact check error: ${e2.message.slice(0, 80)}` });
     }
   }
   return rows;
@@ -37463,12 +37822,12 @@ function checkReadmeScorecard(ctx) {
         if (drifts.length === 0) {
           rows.push({ severity: "ok", msg: "  ✓ README scorecard matches live metrics" });
         } else {
-          for (const d of drifts)
-            rows.push({ severity: "fail", msg: `  ✗ README scorecard drift — ${d}` });
+          for (const d2 of drifts)
+            rows.push({ severity: "fail", msg: `  ✗ README scorecard drift — ${d2}` });
           rows.push({ severity: "fail", msg: "  ✗ fix README.md to match `sgc metrics` output" });
         }
-      } catch (e) {
-        rows.push({ severity: "fail", msg: `  ✗ README scorecard check error: ${e.message.slice(0, 80)}` });
+      } catch (e2) {
+        rows.push({ severity: "fail", msg: `  ✗ README scorecard check error: ${e2.message.slice(0, 80)}` });
       }
     }
   }
@@ -37486,18 +37845,18 @@ function checkStatusHeaderFreshness(ctx) {
     } else {
       try {
         const pkgVer = JSON.parse(readFileSync22(pkgPath, "utf8")).version ?? "";
-        const r = statusHeaderFreshness(readFileSync22(claudeMdPath, "utf8"), pkgVer);
-        rows.push({ severity: r.severity, msg: `  ${r.severity === "ok" ? "✓" : "⚠"} ${r.msg}` });
-      } catch (e) {
-        rows.push({ severity: "warn", msg: `  ⚠ CLAUDE.md freshness check error: ${e.message.slice(0, 80)}` });
+        const r3 = statusHeaderFreshness(readFileSync22(claudeMdPath, "utf8"), pkgVer);
+        rows.push({ severity: r3.severity, msg: `  ${r3.severity === "ok" ? "✓" : "⚠"} ${r3.msg}` });
+      } catch (e2) {
+        rows.push({ severity: "warn", msg: `  ⚠ CLAUDE.md freshness check error: ${e2.message.slice(0, 80)}` });
       }
     }
   }
   return rows;
 }
 async function runDoctor(opts = {}) {
-  const log = opts.log ?? ((m) => console.log(m));
-  const root = opts.repoRoot ?? repoRoot;
+  const log = opts.log ?? ((m2) => console.log(m2));
+  const root3 = opts.repoRoot ?? repoRoot;
   const rows = [];
   const emit = (row) => {
     rows.push(row);
@@ -37505,41 +37864,41 @@ async function runDoctor(opts = {}) {
   };
   const caps = getCapabilities();
   const manifests = Object.entries(caps.subagents);
-  const hasSource = existsSync23(resolve20(root, "src", "sgc.ts"));
+  const hasSource = existsSync23(resolve20(root3, "src", "sgc.ts"));
   if (opts.writeDescriptions) {
     try {
       const written = [];
-      for (const f of readAgentMdFiles(root)) {
-        if (!DERIVED_AGENT_IDS.includes(f.id))
+      for (const f3 of readAgentMdFiles(root3)) {
+        if (!DERIVED_AGENT_IDS.includes(f3.id))
           continue;
-        const next = rewriteCliFact(f.text, f.id);
-        if (next !== f.text) {
-          writeFileSync7(resolve20(root, f.file), next, "utf8");
-          written.push(f.id);
+        const next = rewriteCliFact(f3.text, f3.id);
+        if (next !== f3.text) {
+          writeFileSync7(resolve20(root3, f3.file), next, "utf8");
+          written.push(f3.id);
         }
       }
       log(written.length > 0 ? `wrote CLI-fact clause for: ${written.join(", ")}` : "all CLI-fact clauses already match the code");
-    } catch (e) {
-      log(`✗ --write-descriptions failed: ${e.message.slice(0, 120)}`);
+    } catch (e2) {
+      log(`✗ --write-descriptions failed: ${e2.message.slice(0, 120)}`);
     }
   }
   const ctx = {
-    root,
+    root: root3,
     hasSource,
     manifests,
-    iePath: resolve20(root, "contracts/invariant-enforcement.yaml")
+    iePath: resolve20(root3, "contracts/invariant-enforcement.yaml")
   };
-  for (let i = 0;i < CHECKS.length; i++) {
-    const check = CHECKS[i];
-    if (i > 0)
+  for (let i2 = 0;i2 < CHECKS.length; i2++) {
+    const check = CHECKS[i2];
+    if (i2 > 0)
       log("");
     log(check.header);
     for (const row of await check.run(ctx))
       emit(row);
   }
-  const ok = rows.filter((r) => r.severity === "ok").length;
-  const warn = rows.filter((r) => r.severity === "warn").length;
-  const fail = rows.filter((r) => r.severity === "fail").length;
+  const ok = rows.filter((r3) => r3.severity === "ok").length;
+  const warn = rows.filter((r3) => r3.severity === "warn").length;
+  const fail = rows.filter((r3) => r3.severity === "fail").length;
   log("");
   log(`=== Summary ===`);
   log(`${ok} OK · ${warn} warn · ${fail} fail`);
@@ -37575,7 +37934,7 @@ var init_doctor = __esm(() => {
 });
 
 // src/dispatcher/reflect.ts
-import { readFile as readFile3, readdir as readdir3, mkdir as mkdir4, writeFile as writeFile2 } from "node:fs/promises";
+import { readFile as readFile3, readdir as readdir3, mkdir as mkdir5, writeFile as writeFile2 } from "node:fs/promises";
 import { resolve as resolve21 } from "node:path";
 function slicePreMortem(raw) {
   const idx = raw.indexOf(PRE_MORTEM_HEADER);
@@ -37610,8 +37969,8 @@ function detectDiscussion(preMortem, solutionRef, preventionText, earlySignals) 
   for (const signal of earlySignals) {
     const signalTokens = tokenize(signal);
     let overlap = 0;
-    for (const t of previewTokens) {
-      if (signalTokens.has(t))
+    for (const t2 of previewTokens) {
+      if (signalTokens.has(t2))
         overlap++;
     }
     if (overlap >= MIN_SIGNAL_OVERLAP) {
@@ -37623,9 +37982,9 @@ function detectDiscussion(preMortem, solutionRef, preventionText, earlySignals) 
   }
   return { discussed: false, evidence: null };
 }
-async function auditDecision(taskId, stateRoot, _opts = {}) {
-  const root = resolveStateRoot(stateRoot);
-  const decisionPath = resolve21(root, "decisions", taskId, "intent.md");
+async function auditDecision(taskId, stateRoot2, _opts = {}) {
+  const root3 = resolveStateRoot(stateRoot2);
+  const decisionPath = resolve21(root3, "decisions", taskId, "intent.md");
   let raw;
   try {
     raw = await readFile3(decisionPath, "utf8");
@@ -37644,7 +38003,7 @@ ${frontmatter.title ?? ""}`;
   if (keywords.length === 0) {
     return { task_id: taskId, decision_path: decisionPath, candidates: [] };
   }
-  const scans = await walkSolutionsCorpus(root, keywords);
+  const scans = await walkSolutionsCorpus(root3, keywords);
   const preMortem = slicePreMortem(raw);
   const earlySignals = extractEarlySignals(preMortem);
   const candidates = [];
@@ -37671,16 +38030,16 @@ ${frontmatter.title ?? ""}`;
       surfaced_count: Array.isArray(solutionFrontmatter.surfaced_in) ? solutionFrontmatter.surfaced_in.length : 0
     });
   }
-  candidates.sort((a, b) => {
-    if (a.discussed !== b.discussed)
-      return a.discussed ? 1 : -1;
-    return b.keyword_overlap - a.keyword_overlap;
+  candidates.sort((a2, b2) => {
+    if (a2.discussed !== b2.discussed)
+      return a2.discussed ? 1 : -1;
+    return b2.keyword_overlap - a2.keyword_overlap;
   });
   return { task_id: taskId, decision_path: decisionPath, candidates };
 }
-async function auditAllDecisions(stateRoot, opts = {}) {
-  const root = resolveStateRoot(stateRoot);
-  const decisionsDir = resolve21(root, "decisions");
+async function auditAllDecisions(stateRoot2, opts = {}) {
+  const root3 = resolveStateRoot(stateRoot2);
+  const decisionsDir = resolve21(root3, "decisions");
   let entries;
   try {
     entries = await readdir3(decisionsDir, { withFileTypes: true });
@@ -37695,10 +38054,10 @@ async function auditAllDecisions(stateRoot, opts = {}) {
   for (const entry of entries) {
     if (!entry.isDirectory())
       continue;
-    const intentPath = resolve21(decisionsDir, entry.name, "intent.md");
+    const intentPath2 = resolve21(decisionsDir, entry.name, "intent.md");
     let raw;
     try {
-      raw = await readFile3(intentPath, "utf8");
+      raw = await readFile3(intentPath2, "utf8");
     } catch {
       continue;
     }
@@ -37713,10 +38072,10 @@ async function auditAllDecisions(stateRoot, opts = {}) {
       continue;
     pending.push({ taskId: entry.name, createdAtMs });
   }
-  pending.sort((a, b) => b.createdAtMs - a.createdAtMs);
+  pending.sort((a2, b2) => b2.createdAtMs - a2.createdAtMs);
   const reports = [];
   for (const p of pending) {
-    reports.push(await auditDecision(p.taskId, root));
+    reports.push(await auditDecision(p.taskId, root3));
   }
   return reports;
 }
@@ -37734,27 +38093,27 @@ function formatReport(report) {
   lines.push(`Matched preventions: ${report.candidates.length}`);
   lines.push("Legend: overlap=recall match · applied=cited by an L3 pre-mortem · surfaced=L2 meaningful surfacing · [discussed]=engaged in this pre-mortem");
   lines.push("Caveat: `applied` counts refs the pre-mortem echoed from its own input (it was given them) — salience, not proof of prevention.");
-  for (const c of report.candidates) {
-    const tag = c.discussed ? "[discussed]" : "[silent]    ";
-    lines.push(`  - ${tag} ${c.solution_ref} (overlap: ${c.keyword_overlap}, applied: ${c.applied_count}, surfaced: ${c.surfaced_count})`);
-    if (c.discussed && c.discussed_evidence) {
-      lines.push(`    evidence: ${c.discussed_evidence}`);
+  for (const c3 of report.candidates) {
+    const tag = c3.discussed ? "[discussed]" : "[silent]    ";
+    lines.push(`  - ${tag} ${c3.solution_ref} (overlap: ${c3.keyword_overlap}, applied: ${c3.applied_count}, surfaced: ${c3.surfaced_count})`);
+    if (c3.discussed && c3.discussed_evidence) {
+      lines.push(`    evidence: ${c3.discussed_evidence}`);
     }
-    if (!c.discussed && c.prevention_text) {
-      const preview = c.prevention_text.split(/[.!?]/)[0]?.trim().slice(0, 80) ?? "";
+    if (!c3.discussed && c3.prevention_text) {
+      const preview = c3.prevention_text.split(/[.!?]/)[0]?.trim().slice(0, 80) ?? "";
       lines.push(`    prevention: ${preview}`);
     }
   }
   return lines.join(`
 `);
 }
-async function writeReflectionFile(report, stateRoot) {
-  const root = resolveStateRoot(stateRoot);
-  const dir = resolve21(root, "reflections");
-  await mkdir4(dir, { recursive: true });
-  const path = resolve21(dir, `${report.task_id}.md`);
-  await writeFile2(path, formatReport(report), "utf8");
-  return path;
+async function writeReflectionFile(report, stateRoot2) {
+  const root3 = resolveStateRoot(stateRoot2);
+  const dir = resolve21(root3, "reflections");
+  await mkdir5(dir, { recursive: true });
+  const path2 = resolve21(dir, `${report.task_id}.md`);
+  await writeFile2(path2, formatReport(report), "utf8");
+  return path2;
 }
 var MIN_SIGNAL_OVERLAP = 3, PRE_MORTEM_HEADER = "## Pre-mortem", EARLY_SIGNAL_PREFIX = "Early signal:";
 var init_reflect = __esm(() => {
@@ -37764,6 +38123,10 @@ var init_reflect = __esm(() => {
 });
 
 // src/commands/reflect.ts
+var exports_reflect = {};
+__export(exports_reflect, {
+  runReflect: () => runReflect
+});
 async function runReflect(opts = {}) {
   let reports;
   if (opts.task) {
@@ -37783,9 +38146,9 @@ async function runReflect(opts = {}) {
     }
   }
   if (opts.save) {
-    for (const r of reports) {
-      const path = await writeReflectionFile(r);
-      console.error(`saved: ${path}`);
+    for (const r3 of reports) {
+      const path2 = await writeReflectionFile(r3);
+      console.error(`saved: ${path2}`);
     }
   }
 }
@@ -37794,21 +38157,25 @@ var init_reflect2 = __esm(() => {
 });
 
 // src/commands/metrics.ts
+var exports_metrics = {};
+__export(exports_metrics, {
+  runMetrics: () => runMetrics
+});
 import { mkdirSync as mkdirSync7, writeFileSync as writeFileSync8 } from "node:fs";
 import { dirname as dirname7, resolve as resolve22 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 async function runMetrics(opts = {}) {
-  const root = opts.repoRoot ?? defaultRoot;
+  const root3 = opts.repoRoot ?? defaultRoot;
   if (opts.writeBaseline) {
-    const live = computeMetricsLive(root);
-    const path = resolve22(root, "metrics", "metrics-baseline.yaml");
-    mkdirSync7(dirname7(path), { recursive: true });
-    writeFileSync8(path, serializeBaseline(live), "utf8");
-    console.error(`wrote: ${path}`);
+    const live = computeMetricsLive(root3);
+    const path2 = resolve22(root3, "metrics", "metrics-baseline.yaml");
+    mkdirSync7(dirname7(path2), { recursive: true });
+    writeFileSync8(path2, serializeBaseline(live), "utf8");
+    console.error(`wrote: ${path2}`);
     return;
   }
-  const m = opts.repoRoot ? computeMetricsLive(root) : computeRuntimeMetrics();
-  console.log(opts.json ? JSON.stringify(m, null, 2) : formatScorecard(m));
+  const m2 = opts.repoRoot ? computeMetricsLive(root3) : computeRuntimeMetrics();
+  console.log(opts.json ? JSON.stringify(m2, null, 2) : formatScorecard(m2));
 }
 var moduleDir3, defaultRoot;
 var init_metrics2 = __esm(() => {
@@ -37818,10 +38185,10 @@ var init_metrics2 = __esm(() => {
 });
 
 // src/dispatcher/ship-failure.ts
-import { mkdir as mkdir5, stat as stat2, writeFile as writeFile3 } from "node:fs/promises";
+import { mkdir as mkdir6, stat as stat2, writeFile as writeFile3 } from "node:fs/promises";
 import { resolve as resolve23 } from "node:path";
-function clamp2(n, lo, hi) {
-  return Math.max(lo, Math.min(hi, n));
+function clamp2(n2, lo, hi) {
+  return Math.max(lo, Math.min(hi, n2));
 }
 function shortSha3(sha) {
   return sha.slice(0, 7);
@@ -37833,12 +38200,12 @@ async function defaultRunCommand(args) {
   return spawnCapture(args);
 }
 async function defaultSleep2(ms) {
-  await new Promise((r) => setTimeout(r, ms));
+  await new Promise((r3) => setTimeout(r3, ms));
 }
 async function watchPublishWorkflow(opts = {}) {
-  const runCommand = opts.runCommand ?? defaultRunCommand;
+  const runCommand2 = opts.runCommand ?? defaultRunCommand;
   const now = opts.now ?? Date.now;
-  const sleep = opts.sleep ?? defaultSleep2;
+  const sleep2 = opts.sleep ?? defaultSleep2;
   const intervalSec = clamp2(opts.intervalSec ?? DEFAULT_INTERVAL_SEC, MIN_INTERVAL_SEC, MAX_INTERVAL_SEC);
   const timeoutSec = clamp2(opts.timeoutSec ?? DEFAULT_TIMEOUT_SEC, MIN_TIMEOUT_SEC, MAX_TIMEOUT_SEC);
   const workflowName = opts.workflowName ?? "publish-npm";
@@ -37863,11 +38230,11 @@ async function watchPublishWorkflow(opts = {}) {
       "--json",
       "databaseId,status,conclusion,name,headSha,headBranch,url"
     ];
-    const res = await runCommand(args);
+    const res = await runCommand2(args);
     if (res.exitCode === 0 && res.stdout.trim().length > 0) {
       try {
         const rows = JSON.parse(res.stdout);
-        const matched = expectedSha ? rows.find((r) => r.headSha.startsWith(expectedSha)) : rows[0];
+        const matched = expectedSha ? rows.find((r3) => r3.headSha.startsWith(expectedSha)) : rows[0];
         if (matched) {
           runId = String(matched.databaseId);
           cachedRun = {
@@ -37881,14 +38248,14 @@ async function watchPublishWorkflow(opts = {}) {
             if (matched.conclusion === "success") {
               return { status: "success", run: cachedRun };
             }
-            const excerpt = await fetchFailingLog(runCommand, runId);
+            const excerpt = await fetchFailingLog(runCommand2, runId);
             return { status: "failure", run: cachedRun, summaryExcerpt: excerpt };
           }
           break;
         }
       } catch {}
     }
-    await sleep(intervalMs);
+    await sleep2(intervalMs);
   }
   while (true) {
     if (remaining() <= 0)
@@ -37901,7 +38268,7 @@ async function watchPublishWorkflow(opts = {}) {
       "--json",
       "databaseId,status,conclusion,name,headSha,headBranch,url"
     ];
-    const res = await runCommand(args);
+    const res = await runCommand2(args);
     if (res.exitCode === 0 && res.stdout.trim().length > 0) {
       try {
         const row = JSON.parse(res.stdout);
@@ -37916,16 +38283,16 @@ async function watchPublishWorkflow(opts = {}) {
           if (row.conclusion === "success") {
             return { status: "success", run: cachedRun };
           }
-          const excerpt = await fetchFailingLog(runCommand, runId);
+          const excerpt = await fetchFailingLog(runCommand2, runId);
           return { status: "failure", run: cachedRun, summaryExcerpt: excerpt };
         }
       } catch {}
     }
-    await sleep(intervalMs);
+    await sleep2(intervalMs);
   }
 }
-async function fetchFailingLog(runCommand, runId) {
-  const res = await runCommand(["gh", "run", "view", runId, "--log-failed"]);
+async function fetchFailingLog(runCommand2, runId) {
+  const res = await runCommand2(["gh", "run", "view", runId, "--log-failed"]);
   if (res.exitCode !== 0 || res.stdout.trim().length === 0)
     return "";
   return res.stdout;
@@ -37959,16 +38326,16 @@ function renderBody(failure) {
   ].join(`
 `);
 }
-async function captureShipFailure(failure, stateRoot, opts = {}) {
+async function captureShipFailure(failure, stateRoot2, opts = {}) {
   const now = opts.now ?? Date.now;
-  const root = resolveStateRoot(stateRoot);
-  const dir = resolve23(root, "ship-failures");
-  await mkdir5(dir, { recursive: true });
+  const root3 = resolveStateRoot(stateRoot2);
+  const dir = resolve23(root3, "ship-failures");
+  await mkdir6(dir, { recursive: true });
   const slug = `${todayUtcDate(now)}-${shortSha3(failure.commitSha)}`;
-  const path = resolve23(dir, `${slug}.md`);
+  const path2 = resolve23(dir, `${slug}.md`);
   try {
-    await stat2(path);
-    return { action: "deduped", path };
+    await stat2(path2);
+    return { action: "deduped", path: path2 };
   } catch {}
   const preventionSeed = `TODO: operator-fill; captured failure of ${failure.workflowName} ` + `at ${shortSha3(failure.commitSha)}. Convert via \`sgc compound\`.`;
   const frontmatter = {
@@ -37983,8 +38350,8 @@ async function captureShipFailure(failure, stateRoot, opts = {}) {
     prevention_seed: preventionSeed
   };
   const content = serializeFrontmatter(frontmatter, renderBody(failure));
-  await writeFile3(path, content, "utf8");
-  return { action: "captured", path };
+  await writeFile3(path2, content, "utf8");
+  return { action: "captured", path: path2 };
 }
 var DEFAULT_INTERVAL_SEC = 15, DEFAULT_TIMEOUT_SEC = 600, MIN_INTERVAL_SEC = 5, MAX_INTERVAL_SEC = 60, MIN_TIMEOUT_SEC = 60, MAX_TIMEOUT_SEC = 1800, SUMMARY_MAX_CHARS = 2000, TRUNCATION_SENTINEL = "...", EMPTY_SUMMARY_FALLBACK = "(empty — workflow did not write $GITHUB_STEP_SUMMARY)";
 var init_ship_failure = __esm(() => {
@@ -37993,11 +38360,15 @@ var init_ship_failure = __esm(() => {
 });
 
 // src/commands/watch-ci-failure.ts
+var exports_watch_ci_failure = {};
+__export(exports_watch_ci_failure, {
+  runWatchCiFailure: () => runWatchCiFailure
+});
 async function gitOutput2(args) {
-  const { stdout, exitCode } = await spawnCapture(["git", ...args]);
+  const { stdout: stdout2, exitCode } = await spawnCapture(["git", ...args]);
   if (exitCode !== 0)
     return null;
-  const trimmed = stdout.trim();
+  const trimmed = stdout2.trim();
   return trimmed.length > 0 ? trimmed : null;
 }
 async function runWatchCiFailure(opts = {}) {
@@ -38027,8 +38398,8 @@ async function runWatchCiFailure(opts = {}) {
     return;
   }
   if (result.status === "timeout") {
-    const t = opts.timeoutSec ?? "default";
-    console.error(`[PARTIAL: watch timed out after ${t}s; CI still in progress; no capture written]`);
+    const t2 = opts.timeoutSec ?? "default";
+    console.error(`[PARTIAL: watch timed out after ${t2}s; CI still in progress; no capture written]`);
     return;
   }
   if (!result.run) {
@@ -38056,11 +38427,11 @@ var init_watch_ci_failure = __esm(() => {
 });
 
 // src/dispatcher/canary.ts
-import { mkdir as mkdir6, mkdtemp, rm, stat as stat3, writeFile as writeFile4 } from "node:fs/promises";
+import { mkdir as mkdir7, mkdtemp, rm, stat as stat3, writeFile as writeFile4 } from "node:fs/promises";
 import { tmpdir as osTmpdir } from "node:os";
 import { join as join7, resolve as resolve24 } from "node:path";
-function clamp3(n, lo, hi) {
-  return Math.max(lo, Math.min(hi, n));
+function clamp3(n2, lo, hi) {
+  return Math.max(lo, Math.min(hi, n2));
 }
 function shortSha4(sha) {
   return sha.slice(0, 7);
@@ -38068,20 +38439,20 @@ function shortSha4(sha) {
 function todayUtcDate2(now) {
   return new Date(now()).toISOString().slice(0, 10);
 }
-function truncate(s, max) {
-  return s.length > max ? s.slice(0, max) + TRUNCATION_SENTINEL2 : s;
+function truncate(s2, max) {
+  return s2.length > max ? s2.slice(0, max) + TRUNCATION_SENTINEL2 : s2;
 }
 function isSafeUrl(url) {
   try {
-    const u = new URL(url);
-    return u.protocol === "http:" || u.protocol === "https:";
+    const u3 = new URL(url);
+    return u3.protocol === "http:" || u3.protocol === "https:";
   } catch {
     return false;
   }
 }
 async function defaultNpmView(pkg) {
-  const { stdout } = await spawnCapture(["npm", "view", pkg, "dist-tags.latest", "--json"]);
-  return stdout;
+  const { stdout: stdout2 } = await spawnCapture(["npm", "view", pkg, "dist-tags.latest", "--json"]);
+  return stdout2;
 }
 function deriveBinName(pkg) {
   if (pkg.startsWith("@")) {
@@ -38107,8 +38478,8 @@ async function defaultNpxSmoke(pkg, ver, bin) {
     }
     const binName = bin ?? deriveBinName(pkg);
     const binPath = resolve24(dir, "node_modules", ".bin", binName);
-    const { stdout, stderr, exitCode } = await spawnCapture([binPath, "--version"]);
-    return { stdout, stderr, exitCode };
+    const { stdout: stdout2, stderr, exitCode } = await spawnCapture([binPath, "--version"]);
+    return { stdout: stdout2, stderr, exitCode };
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -38125,7 +38496,7 @@ async function defaultHttpFetch(url) {
   }
 }
 async function defaultSleep3(ms) {
-  await new Promise((r) => setTimeout(r, ms));
+  await new Promise((r3) => setTimeout(r3, ms));
 }
 async function runCanaryChecks(opts) {
   const phases = opts.phases ?? DEFAULT_PHASES;
@@ -38133,7 +38504,7 @@ async function runCanaryChecks(opts) {
   const npxSmoke = opts.npxSmoke ?? defaultNpxSmoke;
   const httpFetch = opts.httpFetch ?? defaultHttpFetch;
   const now = opts.now ?? Date.now;
-  const sleep = opts.sleep ?? defaultSleep3;
+  const sleep2 = opts.sleep ?? defaultSleep3;
   const intervalSec = clamp3(opts.intervalSec ?? DEFAULT_INTERVAL_SEC2, MIN_INTERVAL_SEC2, MAX_INTERVAL_SEC2);
   const timeoutSec = clamp3(opts.timeoutSec ?? DEFAULT_TIMEOUT_SEC2, MIN_TIMEOUT_SEC2, MAX_TIMEOUT_SEC2);
   const intervalMs = intervalSec * 1000;
@@ -38163,7 +38534,7 @@ async function runCanaryChecks(opts) {
             break;
           }
         } catch {}
-        await sleep(intervalMs);
+        await sleep2(intervalMs);
       }
     } else if (phase === "smoke_install") {
       const res = await npxSmoke(opts.packageName, opts.expectedVersion, opts.binName);
@@ -38179,7 +38550,7 @@ async function runCanaryChecks(opts) {
       }
     } else if (phase === "health_url") {
       const url = opts.healthUrl;
-      const regex = opts.healthRegex ? new RegExp(opts.healthRegex) : null;
+      const regex2 = opts.healthRegex ? new RegExp(opts.healthRegex) : null;
       let lastResult = null;
       let lastError = null;
       let ok = false;
@@ -38188,7 +38559,7 @@ async function runCanaryChecks(opts) {
           const res = await httpFetch(url);
           lastResult = res;
           if (res.status >= 200 && res.status < 300) {
-            if (!regex || regex.test(res.body)) {
+            if (!regex2 || regex2.test(res.body)) {
               ok = true;
               break;
             }
@@ -38200,7 +38571,7 @@ async function runCanaryChecks(opts) {
           lastError = `fetch error: ${err instanceof Error ? err.message : String(err)}`;
         }
         if (attempt < HEALTH_RETRY_COUNT - 1) {
-          await sleep(HEALTH_RETRY_INTERVAL_SEC * 1000);
+          await sleep2(HEALTH_RETRY_INTERVAL_SEC * 1000);
         }
       }
       if (!ok) {
@@ -38239,16 +38610,16 @@ function renderBody2(failure) {
   ].join(`
 `);
 }
-async function captureCanaryFailure(failure, stateRoot, opts = {}) {
+async function captureCanaryFailure(failure, stateRoot2, opts = {}) {
   const now = opts.now ?? Date.now;
-  const root = resolveStateRoot(stateRoot);
-  const dir = resolve24(root, "canaries");
-  await mkdir6(dir, { recursive: true });
+  const root3 = resolveStateRoot(stateRoot2);
+  const dir = resolve24(root3, "canaries");
+  await mkdir7(dir, { recursive: true });
   const slug = `${todayUtcDate2(now)}-${shortSha4(failure.commitSha)}-${failure.failedPhase}`;
-  const path = resolve24(dir, `${slug}.md`);
+  const path2 = resolve24(dir, `${slug}.md`);
   try {
-    await stat3(path);
-    return { action: "deduped", path };
+    await stat3(path2);
+    return { action: "deduped", path: path2 };
   } catch {}
   const regressionSeed = `TODO: operator-fill; canary failed at ${failure.failedPhase} ` + `for ${failure.packageName}@${failure.expectedVersion} on ${shortSha4(failure.commitSha)}. ` + `Convert via \`sgc compound --from-canary ${slug}\` (pending GS-1.1).`;
   const frontmatter = {
@@ -38263,8 +38634,8 @@ async function captureCanaryFailure(failure, stateRoot, opts = {}) {
     regression_seed: regressionSeed
   };
   const content = serializeFrontmatter(frontmatter, renderBody2(failure));
-  await writeFile4(path, content, "utf8");
-  return { action: "captured", path };
+  await writeFile4(path2, content, "utf8");
+  return { action: "captured", path: path2 };
 }
 var DEFAULT_INTERVAL_SEC2 = 15, DEFAULT_TIMEOUT_SEC2 = 300, MIN_INTERVAL_SEC2 = 5, MAX_INTERVAL_SEC2 = 60, MIN_TIMEOUT_SEC2 = 60, MAX_TIMEOUT_SEC2 = 1800, PHASE_OUTPUT_MAX_CHARS = 2000, TRUNCATION_SENTINEL2 = "...", DEFAULT_PHASES, HEALTH_RETRY_COUNT = 3, HEALTH_RETRY_INTERVAL_SEC = 5, HEALTH_FETCH_TIMEOUT_MS = 1e4, UnsafeUrlScheme;
 var init_canary = __esm(() => {
@@ -38281,13 +38652,19 @@ var init_canary = __esm(() => {
 });
 
 // src/commands/canary.ts
+var exports_canary = {};
+__export(exports_canary, {
+  runCanary: () => runCanary,
+  parsePhases: () => parsePhases,
+  VALID_PHASES: () => VALID_PHASES
+});
 import { readFile as readFile4 } from "node:fs/promises";
 import { resolve as resolve25 } from "node:path";
 async function gitOutput3(args) {
-  const { stdout, exitCode } = await spawnCapture(["git", ...args]);
+  const { stdout: stdout2, exitCode } = await spawnCapture(["git", ...args]);
   if (exitCode !== 0)
     return null;
-  const trimmed = stdout.trim();
+  const trimmed = stdout2.trim();
   return trimmed.length > 0 ? trimmed : null;
 }
 async function readPackageJson() {
@@ -38301,8 +38678,8 @@ async function readPackageJson() {
 function parsePhases(csv) {
   if (!csv)
     return DEFAULT_PHASES;
-  const tokens = csv.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
-  const invalid = tokens.filter((t) => !VALID_PHASES.includes(t));
+  const tokens = csv.split(",").map((s2) => s2.trim()).filter((s2) => s2.length > 0);
+  const invalid = tokens.filter((t2) => !VALID_PHASES.includes(t2));
   if (invalid.length > 0) {
     throw new Error(`unknown canary phase(s): ${invalid.join(", ")}; valid: ${VALID_PHASES.join(", ")}`);
   }
@@ -38342,8 +38719,8 @@ async function runCanary(opts = {}) {
     return;
   }
   if (result.status === "timeout") {
-    const t = opts.timeoutSec ?? "default";
-    console.error(`[PARTIAL: canary timed out after ${t}s; ${packageName}@${expectedVersion} not yet propagated to npm; no capture written]`);
+    const t2 = opts.timeoutSec ?? "default";
+    console.error(`[PARTIAL: canary timed out after ${t2}s; ${packageName}@${expectedVersion} not yet propagated to npm; no capture written]`);
     return;
   }
   if (!result.failedPhase) {
@@ -38383,33 +38760,33 @@ var init_canary2 = __esm(() => {
 import { existsSync as existsSync24 } from "node:fs";
 import * as fs from "node:fs/promises";
 import { join as join8 } from "node:path";
-import { spawn as nodeSpawn2 } from "node:child_process";
-function kebabize(s) {
-  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+import { spawn as nodeSpawn3 } from "node:child_process";
+function kebabize(s2) {
+  return s2.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 function timestampFallback(now) {
   const iso = now.toISOString();
   return `${iso.slice(0, 10)}-${iso.slice(11, 16).replace(":", "")}-handoff`;
 }
-async function deriveSlug(stateRoot, now) {
+async function deriveSlug(stateRoot2, now) {
   const dateStr = now.toISOString().slice(0, 10);
-  const decisionsDir = join8(stateRoot, "decisions");
+  const decisionsDir = join8(stateRoot2, "decisions");
   if (!existsSync24(decisionsDir))
     return timestampFallback(now);
   const entries = await fs.readdir(decisionsDir, { withFileTypes: true });
   const intents = [];
-  for (const e of entries) {
-    if (!e.isDirectory())
+  for (const e2 of entries) {
+    if (!e2.isDirectory())
       continue;
-    const intentPath = join8(decisionsDir, e.name, "intent.md");
+    const intentPath2 = join8(decisionsDir, e2.name, "intent.md");
     try {
-      const stat = await fs.stat(intentPath);
-      intents.push({ path: intentPath, mtime: stat.mtimeMs, id: e.name });
+      const stat5 = await fs.stat(intentPath2);
+      intents.push({ path: intentPath2, mtime: stat5.mtimeMs, id: e2.name });
     } catch {}
   }
   if (intents.length === 0)
     return timestampFallback(now);
-  intents.sort((a, b) => b.mtime - a.mtime || a.id.localeCompare(b.id));
+  intents.sort((a2, b2) => b2.mtime - a2.mtime || a2.id.localeCompare(b2.id));
   const newest = intents[0];
   try {
     const text = await fs.readFile(newest.path, "utf-8");
@@ -38427,7 +38804,7 @@ async function deriveSlug(stateRoot, now) {
   }
 }
 function inferVerifyCommand(snapshot) {
-  const pausedLoop = snapshot.loop_runs.find((r) => r.status === "paused");
+  const pausedLoop = snapshot.loop_runs.find((r3) => r3.status === "paused");
   if (pausedLoop) {
     return {
       source: "loop-run",
@@ -38456,25 +38833,25 @@ function inferVerifyCommand(snapshot) {
     context: "no in-flight loop/plan/spawn detected — operator-fill"
   };
 }
-async function gatherActiveIntent(stateRoot) {
-  const decisionsDir = join8(stateRoot, "decisions");
+async function gatherActiveIntent(stateRoot2) {
+  const decisionsDir = join8(stateRoot2, "decisions");
   if (!existsSync24(decisionsDir))
     return;
   try {
     const entries = await fs.readdir(decisionsDir, { withFileTypes: true });
     const refs = [];
-    for (const e of entries) {
-      if (!e.isDirectory())
+    for (const e2 of entries) {
+      if (!e2.isDirectory())
         continue;
-      const p = join8(decisionsDir, e.name, "intent.md");
+      const p = join8(decisionsDir, e2.name, "intent.md");
       try {
-        const stat = await fs.stat(p);
-        refs.push({ path: p, mtime: stat.mtimeMs, id: e.name });
+        const stat5 = await fs.stat(p);
+        refs.push({ path: p, mtime: stat5.mtimeMs, id: e2.name });
       } catch {}
     }
     if (refs.length === 0)
       return;
-    refs.sort((a, b) => b.mtime - a.mtime || a.id.localeCompare(b.id));
+    refs.sort((a2, b2) => b2.mtime - a2.mtime || a2.id.localeCompare(b2.id));
     const newest = refs[0];
     const text = await fs.readFile(newest.path, "utf-8");
     const fm = parseFrontmatter(text).data;
@@ -38492,9 +38869,9 @@ async function gatherActiveIntent(stateRoot) {
     return;
   }
 }
-async function gatherPlanJobs(stateRoot) {
+async function gatherPlanJobs(stateRoot2) {
   try {
-    const jobs = await listJobs2({ stateRoot });
+    const jobs = await listJobs2({ stateRoot: stateRoot2 });
     return jobs.filter((j) => j.status !== "done").map((j) => ({
       job_id: j.job_id,
       status: j.status,
@@ -38506,15 +38883,15 @@ async function gatherPlanJobs(stateRoot) {
     return [];
   }
 }
-async function gatherLoopRuns(stateRoot) {
+async function gatherLoopRuns(stateRoot2) {
   try {
-    const runs = await listLoopRuns({ stateRoot });
-    return runs.filter((r) => r.status !== "complete").map((r) => ({
-      run_id: r.run_id,
-      status: r.status,
-      current_step: String(r.current_step),
-      task: r.task.slice(0, TASK_EXCERPT_MAX),
-      started_at: r.started_at
+    const runs = await listLoopRuns({ stateRoot: stateRoot2 });
+    return runs.filter((r3) => r3.status !== "complete").map((r3) => ({
+      run_id: r3.run_id,
+      status: r3.status,
+      current_step: String(r3.current_step),
+      task: r3.task.slice(0, TASK_EXCERPT_MAX),
+      started_at: r3.started_at
     }));
   } catch {
     return [];
@@ -38545,21 +38922,21 @@ async function scanCaptureDir(dir, kind, seedField) {
     return [];
   }
 }
-async function gatherUnpromotedCaptures(stateRoot) {
+async function gatherUnpromotedCaptures(stateRoot2) {
   const [ships, canaries] = await Promise.all([
-    scanCaptureDir(join8(stateRoot, "ship-failures"), "ship-failure", "prevention_seed"),
-    scanCaptureDir(join8(stateRoot, "canaries"), "canary", "regression_seed")
+    scanCaptureDir(join8(stateRoot2, "ship-failures"), "ship-failure", "prevention_seed"),
+    scanCaptureDir(join8(stateRoot2, "canaries"), "canary", "regression_seed")
   ]);
   return [...ships, ...canaries];
 }
-async function gatherUnclosedSpawns(stateRoot, tailLines) {
-  const eventsPath = join8(stateRoot, "progress", "events.ndjson");
-  if (!existsSync24(eventsPath))
+async function gatherUnclosedSpawns(stateRoot2, tailLines) {
+  const eventsPath2 = join8(stateRoot2, "progress", "events.ndjson");
+  if (!existsSync24(eventsPath2))
     return [];
   try {
-    const text = await fs.readFile(eventsPath, "utf-8");
+    const text = await fs.readFile(eventsPath2, "utf-8");
     const allLines = text.split(`
-`).filter((l) => l.length > 0);
+`).filter((l2) => l2.length > 0);
     const lines = allLines.slice(-tailLines);
     const starts = new Map;
     const endedIds = new Set;
@@ -38585,28 +38962,28 @@ async function gatherUnclosedSpawns(stateRoot, tailLines) {
       }
     }
     const unclosed = [];
-    for (const [id, s] of starts) {
+    for (const [id, s2] of starts) {
       if (!endedIds.has(id)) {
-        unclosed.push({ spawn_id: id, agent: s.agent, start_ts: s.ts });
+        unclosed.push({ spawn_id: id, agent: s2.agent, start_ts: s2.ts });
       }
     }
-    unclosed.sort((a, b) => b.start_ts.localeCompare(a.start_ts));
+    unclosed.sort((a2, b2) => b2.start_ts.localeCompare(a2.start_ts));
     return unclosed;
   } catch {
     return [];
   }
 }
 async function runGit(args, cwd = process.cwd()) {
-  return new Promise((resolve, reject) => {
-    const child = nodeSpawn2("git", args, { cwd });
-    let stdout = "";
+  return new Promise((resolve26, reject) => {
+    const child = nodeSpawn3("git", args, { cwd });
+    let stdout2 = "";
     let stderr = "";
-    child.stdout?.on("data", (d) => stdout += d.toString());
-    child.stderr?.on("data", (d) => stderr += d.toString());
+    child.stdout?.on("data", (d2) => stdout2 += d2.toString());
+    child.stderr?.on("data", (d2) => stderr += d2.toString());
     child.on("error", (err) => reject(err));
     child.on("close", (code) => {
       if (code === 0)
-        resolve(stdout);
+        resolve26(stdout2);
       else
         reject(new Error(`git ${args.join(" ")} exited ${code}: ${stderr}`));
     });
@@ -38620,22 +38997,22 @@ function defaultGitProbe(cwd = process.cwd()) {
       let behind;
       try {
         const counts = (await runGit(["rev-list", "--left-right", "--count", "@{upstream}...HEAD"], cwd)).trim();
-        const [b, a] = counts.split(/\s+/).map(Number);
-        if (!Number.isNaN(a) && !Number.isNaN(b)) {
-          ahead = a;
-          behind = b;
+        const [b2, a2] = counts.split(/\s+/).map(Number);
+        if (!Number.isNaN(a2) && !Number.isNaN(b2)) {
+          ahead = a2;
+          behind = b2;
         }
       } catch {}
       return { branch, ahead, behind };
     },
     async statusPorcelain() {
       const text = await runGit(["status", "--porcelain=v1"], cwd);
-      return text.split(/\r?\n/).filter((l) => l.length > 0).slice(0, 10);
+      return text.split(/\r?\n/).filter((l2) => l2.length > 0).slice(0, 10);
     },
-    async recentCommits(n) {
-      const text = await runGit(["log", `-${n}`, "--pretty=format:%h\t%s"], cwd);
-      return text.split(/\r?\n/).filter((l) => l.length > 0).map((l) => {
-        const [sha, ...rest] = l.split("\t");
+    async recentCommits(n2) {
+      const text = await runGit(["log", `-${n2}`, "--pretty=format:%h\t%s"], cwd);
+      return text.split(/\r?\n/).filter((l2) => l2.length > 0).map((l2) => {
+        const [sha, ...rest] = l2.split("\t");
         return { sha: sha ?? "", subject: rest.join("\t").slice(0, 80) };
       });
     }
@@ -38659,9 +39036,9 @@ async function gatherRecentCommits(probe) {
     return [];
   }
 }
-async function gatherHandoffState(stateRoot, repoRoot, opts) {
+async function gatherHandoffState(stateRoot2, repoRoot2, opts) {
   const now = opts?.now ?? new Date;
-  const probe = opts?.git ?? defaultGitProbe(repoRoot);
+  const probe = opts?.git ?? defaultGitProbe(repoRoot2);
   const sgcVersion = opts?.sgcVersion ?? "unknown";
   const [
     slug,
@@ -38673,19 +39050,19 @@ async function gatherHandoffState(stateRoot, repoRoot, opts) {
     git,
     recentCommits
   ] = await Promise.all([
-    deriveSlug(stateRoot, now),
-    gatherActiveIntent(stateRoot),
-    gatherPlanJobs(stateRoot),
-    gatherLoopRuns(stateRoot),
-    gatherUnpromotedCaptures(stateRoot),
-    gatherUnclosedSpawns(stateRoot, EVENTS_TAIL_LINES),
+    deriveSlug(stateRoot2, now),
+    gatherActiveIntent(stateRoot2),
+    gatherPlanJobs(stateRoot2),
+    gatherLoopRuns(stateRoot2),
+    gatherUnpromotedCaptures(stateRoot2),
+    gatherUnclosedSpawns(stateRoot2, EVENTS_TAIL_LINES),
     gatherGit(probe),
     gatherRecentCommits(probe)
   ]);
   const partial = {
     slug,
     generated_at: now.toISOString(),
-    cwd: repoRoot,
+    cwd: repoRoot2,
     sgc_version: sgcVersion,
     active_intent: activeIntent,
     verify_command: { source: "todo" },
@@ -38747,8 +39124,8 @@ function renderHandoffMarkdown(snap) {
   if (snap.loop_runs.length === 0) {
     lines.push("- (none)");
   } else {
-    for (const r of snap.loop_runs.slice(0, 5)) {
-      lines.push(`- \`${r.run_id}\` ${r.status} at step:${r.current_step} — "${r.task}"`);
+    for (const r3 of snap.loop_runs.slice(0, 5)) {
+      lines.push(`- \`${r3.run_id}\` ${r3.status} at step:${r3.current_step} — "${r3.task}"`);
     }
   }
   lines.push("");
@@ -38756,9 +39133,9 @@ function renderHandoffMarkdown(snap) {
   if (snap.unpromoted_captures.length === 0) {
     lines.push("- (none)");
   } else {
-    for (const c of snap.unpromoted_captures.slice(0, 5)) {
-      const excerpt = c.seed_excerpt ?? "(no seed)";
-      lines.push(`- ${c.kind} \`${c.slug}\` — "${excerpt}"`);
+    for (const c3 of snap.unpromoted_captures.slice(0, 5)) {
+      const excerpt = c3.seed_excerpt ?? "(no seed)";
+      lines.push(`- ${c3.kind} \`${c3.slug}\` — "${excerpt}"`);
     }
   }
   lines.push("");
@@ -38767,8 +39144,8 @@ function renderHandoffMarkdown(snap) {
   lines.push(`branch: ${snap.git.branch}${aheadStr}`);
   if (snap.git.changes.length > 0) {
     lines.push("```");
-    for (const c of snap.git.changes)
-      lines.push(c);
+    for (const c3 of snap.git.changes)
+      lines.push(c3);
     lines.push("```");
   } else {
     lines.push("(clean)");
@@ -38778,16 +39155,16 @@ function renderHandoffMarkdown(snap) {
   if (snap.recent_commits.length === 0) {
     lines.push("- (none)");
   } else {
-    for (const c of snap.recent_commits.slice(0, 3)) {
-      lines.push(`- \`${c.sha}\` ${c.subject}`);
+    for (const c3 of snap.recent_commits.slice(0, 3)) {
+      lines.push(`- \`${c3.sha}\` ${c3.subject}`);
     }
   }
   lines.push("");
   return lines.join(`
 `);
 }
-async function writeHandoffMarkdown(repoRoot, slug, content) {
-  const tasksDir = join8(repoRoot, "tasks");
+async function writeHandoffMarkdown(repoRoot2, slug, content) {
+  const tasksDir = join8(repoRoot2, "tasks");
   await fs.mkdir(tasksDir, { recursive: true });
   const target = join8(tasksDir, `${slug}-paused.md`);
   const tmp = join8(tasksDir, `.${slug}-paused.md.tmp.${process.pid}.${Date.now()}`);
@@ -38803,33 +39180,37 @@ var init_handoff = __esm(() => {
 });
 
 // src/commands/handoff.ts
+var exports_handoff = {};
+__export(exports_handoff, {
+  runHandoff: () => runHandoff
+});
 import { existsSync as existsSync25 } from "node:fs";
 import * as fs2 from "node:fs/promises";
 import { join as join9 } from "node:path";
 async function runHandoff(opts) {
-  const repoRoot = opts.repoRoot ?? process.cwd();
-  const stateRoot = resolveStateRoot(opts.stateRoot);
-  const stdout = opts.stdoutWrite ?? ((s) => process.stdout.write(s));
-  const stderr = opts.stderrWrite ?? ((s) => process.stderr.write(s));
+  const repoRoot2 = opts.repoRoot ?? process.cwd();
+  const stateRoot2 = resolveStateRoot(opts.stateRoot);
+  const stdout2 = opts.stdoutWrite ?? ((s2) => process.stdout.write(s2));
+  const stderr = opts.stderrWrite ?? ((s2) => process.stderr.write(s2));
   if (typeof opts.print === "string" && opts.print.length > 0) {
-    const target = join9(repoRoot, "tasks", `${opts.print}-paused.md`);
+    const target = join9(repoRoot2, "tasks", `${opts.print}-paused.md`);
     if (!existsSync25(target)) {
       stderr(`no paused.md for slug ${opts.print}
 `);
       return { exitCode: 1 };
     }
     const text = await fs2.readFile(target, "utf-8");
-    stdout(text);
+    stdout2(text);
     return { exitCode: 0 };
   }
   try {
-    const snap = await gatherHandoffState(stateRoot, repoRoot, {
+    const snap = await gatherHandoffState(stateRoot2, repoRoot2, {
       now: opts.now,
       git: opts.gitProbe,
       sgcVersion: opts.sgcVersion
     });
     const md = renderHandoffMarkdown(snap);
-    const writtenPath = await writeHandoffMarkdown(repoRoot, snap.slug, md);
+    const writtenPath = await writeHandoffMarkdown(repoRoot2, snap.slug, md);
     stderr(`paused: ${writtenPath}
 `);
     return { exitCode: 0, writtenPath };
@@ -38849,13 +39230,13 @@ var init_handoff2 = __esm(() => {
 import { readFile as readFile7 } from "node:fs/promises";
 import { resolve as resolve26 } from "node:path";
 async function deriveLandInputs(opts) {
-  const repoRoot = opts.repoRoot ?? process.cwd();
+  const repoRoot2 = opts.repoRoot ?? process.cwd();
   let pkgName = opts.package;
   let pkgVersion = opts.version;
   if (!pkgName || !pkgVersion) {
     let parsed = null;
     try {
-      const raw = await readFile7(resolve26(repoRoot, "package.json"), "utf8");
+      const raw = await readFile7(resolve26(repoRoot2, "package.json"), "utf8");
       parsed = JSON.parse(raw);
     } catch {
       parsed = null;
@@ -38866,10 +39247,10 @@ async function deriveLandInputs(opts) {
       pkgVersion = parsed?.version;
   }
   if (!pkgName) {
-    throw new LandError("cannot_derive_package", `cannot derive package name (no readable package.json at ${repoRoot}; pass --package <name>)`);
+    throw new LandError("cannot_derive_package", `cannot derive package name (no readable package.json at ${repoRoot2}; pass --package <name>)`);
   }
   if (!pkgVersion) {
-    throw new LandError("cannot_derive_version", `cannot derive version (no readable package.json at ${repoRoot}; pass --version <ver>)`);
+    throw new LandError("cannot_derive_version", `cannot derive version (no readable package.json at ${repoRoot2}; pass --version <ver>)`);
   }
   return { packageName: pkgName, version: pkgVersion };
 }
@@ -38884,31 +39265,31 @@ function emitLandEvent(logger, event_type, level, payload) {
   });
 }
 async function runLand(opts = {}) {
-  const repoRoot = opts.repoRoot ?? process.cwd();
-  const stateRoot = resolveStateRoot(opts.stateRoot ?? (opts.repoRoot ? resolve26(opts.repoRoot, ".sgc") : undefined));
-  const stdoutWrite = opts.stdoutWrite ?? ((c) => {
-    process.stdout.write(c);
+  const repoRoot2 = opts.repoRoot ?? process.cwd();
+  const stateRoot2 = resolveStateRoot(opts.stateRoot ?? (opts.repoRoot ? resolve26(opts.repoRoot, ".sgc") : undefined));
+  const stdoutWrite = opts.stdoutWrite ?? ((c3) => {
+    process.stdout.write(c3);
   });
-  const stderrWrite = opts.stderrWrite ?? ((c) => {
-    process.stderr.write(c);
+  const stderrWrite = opts.stderrWrite ?? ((c3) => {
+    process.stderr.write(c3);
   });
   const now = opts.now ?? (() => new Date);
-  const logger = opts.logger ?? createLogger({ stateRoot });
+  const logger = opts.logger ?? createLogger({ stateRoot: stateRoot2 });
   const steps = opts.steps ?? defaultStepRunners();
   let derived;
   try {
     derived = await deriveLandInputs({
-      repoRoot,
+      repoRoot: repoRoot2,
       package: opts.package,
       version: opts.version
     });
-  } catch (e) {
-    if (e instanceof LandError) {
-      stderrWrite(`land error: ${e.message}
+  } catch (e2) {
+    if (e2 instanceof LandError) {
+      stderrWrite(`land error: ${e2.message}
 `);
-      return { exitCode: 1, step: "arg-error", errorMessage: e.message };
+      return { exitCode: 1, step: "arg-error", errorMessage: e2.message };
     }
-    throw e;
+    throw e2;
   }
   const start = now();
   emitLandEvent(logger, "land.start", "info", {
@@ -38919,10 +39300,10 @@ async function runLand(opts = {}) {
 `);
   let watchResult;
   try {
-    watchResult = await steps.watchCiFailure({ logger, stateRoot });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    const errorClass = e instanceof Error ? e.constructor.name : "Unknown";
+    watchResult = await steps.watchCiFailure({ logger, stateRoot: stateRoot2 });
+  } catch (e2) {
+    const message = e2 instanceof Error ? e2.message : String(e2);
+    const errorClass = e2 instanceof Error ? e2.constructor.name : "Unknown";
     stderrWrite(`land error in watch-ci-failure: ${message}
 `);
     emitLandEvent(logger, "land.failed", "warn", {
@@ -38967,11 +39348,11 @@ async function runLand(opts = {}) {
       packageName: derived.packageName,
       expectedVersion: derived.version,
       logger,
-      stateRoot
+      stateRoot: stateRoot2
     });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    const errorClass = e instanceof Error ? e.constructor.name : "Unknown";
+  } catch (e2) {
+    const message = e2 instanceof Error ? e2.message : String(e2);
+    const errorClass = e2 instanceof Error ? e2.constructor.name : "Unknown";
     stderrWrite(`land error in canary: ${message}
 `);
     emitLandEvent(logger, "land.failed", "warn", {
@@ -39028,10 +39409,10 @@ async function runLand(opts = {}) {
   };
 }
 async function gitOutput4(args) {
-  const { stdout, exitCode } = await spawnCapture(["git", ...args]);
+  const { stdout: stdout2, exitCode } = await spawnCapture(["git", ...args]);
   if (exitCode !== 0)
     return null;
-  const trimmed = stdout.trim();
+  const trimmed = stdout2.trim();
   return trimmed.length > 0 ? trimmed : null;
 }
 function defaultStepRunners() {
@@ -39111,6 +39492,10 @@ var init_land = __esm(() => {
 });
 
 // src/commands/land.ts
+var exports_land = {};
+__export(exports_land, {
+  runLandCli: () => runLandCli
+});
 async function runLandCli(opts = {}) {
   const result = await runLand({
     package: opts.package,
@@ -39134,22 +39519,22 @@ function nowIso10() {
   return new Date().toISOString();
 }
 async function readLineSync2() {
-  const stdin = process.stdin;
-  return new Promise((resolve) => {
-    stdin.resume();
-    stdin.setEncoding("utf8");
+  const stdin2 = process.stdin;
+  return new Promise((resolve27) => {
+    stdin2.resume();
+    stdin2.setEncoding("utf8");
     let buf = "";
     const onData = (chunk) => {
       buf += chunk;
       const nl = buf.indexOf(`
 `);
       if (nl !== -1) {
-        stdin.removeListener("data", onData);
-        stdin.pause();
-        resolve(buf.slice(0, nl).trim());
+        stdin2.removeListener("data", onData);
+        stdin2.pause();
+        resolve27(buf.slice(0, nl).trim());
       }
     };
-    stdin.on("data", onData);
+    stdin2.on("data", onData);
   });
 }
 async function defaultReadConfirmation2() {
@@ -39170,11 +39555,11 @@ async function runPlan2(taskDescription, opts = {}) {
       childOpts.autoConfirm = opts.autoConfirm;
     if (opts.forceNewTask !== undefined)
       childOpts.forceNewTask = opts.forceNewTask;
-    const fork = await forkAsyncPlanJob(taskDescription, {
+    const fork = await forkAsyncPlanJob2(taskDescription, {
       stateRoot: opts.stateRoot,
       extraEnv: { SGC_PLAN_CHILD_OPTS: JSON.stringify(childOpts) }
     });
-    emitAsyncStart(fork.job.job_id, taskDescription, parentLogger, {
+    emitAsyncStart2(fork.job.job_id, taskDescription, parentLogger, {
       pid: fork.job.pid,
       log_path: fork.job.log_path
     });
@@ -39204,14 +39589,14 @@ async function runPlan2(taskDescription, opts = {}) {
     }
     try {
       const result = await runPlanCore2(taskDescription, childMerged);
-      await completePlanJob(asyncChildJobId, {
+      await completePlanJob2(asyncChildJobId, {
         taskId: result.taskId,
         level: result.level,
         intentPath: result.intentPath
       }, { stateRoot: opts.stateRoot, logger: opts.logger });
       return result;
     } catch (err) {
-      await failPlanJob(asyncChildJobId, err instanceof Error ? err.message : String(err), { stateRoot: opts.stateRoot, logger: opts.logger });
+      await failPlanJob2(asyncChildJobId, err instanceof Error ? err.message : String(err), { stateRoot: opts.stateRoot, logger: opts.logger });
       throw err;
     }
   }
@@ -39252,16 +39637,16 @@ function degradedCeoOutput2(err, logger, taskId) {
 }
 async function runPlanCore2(taskDescription, opts = {}) {
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
-  const log = (m) => logger.say(m);
-  const stateRoot = opts.stateRoot;
-  ensureSgcStructure(stateRoot);
-  const existingHandoff = readHandoff(stateRoot);
+  const log = (m2) => logger.say(m2);
+  const stateRoot2 = opts.stateRoot;
+  ensureSgcStructure(stateRoot2);
+  const existingHandoff = readHandoff(stateRoot2);
   if (existingHandoff) {
-    const { handoff } = existingHandoff;
-    const isCompleted = handoff.to_session_hint === "next task" || handoff.summary?.includes("shipped") || handoff.summary?.includes("Ready for next task");
+    const { handoff: handoff2 } = existingHandoff;
+    const isCompleted = handoff2.to_session_hint === "next task" || handoff2.summary?.includes("shipped") || handoff2.summary?.includes("Ready for next task");
     if (!isCompleted && !opts.forceNewTask) {
-      log(`Active task detected in handoff: ${handoff.from_session}.
-` + `Summary: ${handoff.summary}
+      log(`Active task detected in handoff: ${handoff2.from_session}.
+` + `Summary: ${handoff2.summary}
 ` + `Pass --force-new-task to start a new task anyway.`);
       throw new Error(`active task in handoff.md — complete it or pass --force-new-task`);
     }
@@ -39270,8 +39655,8 @@ async function runPlanCore2(taskDescription, opts = {}) {
   const createdAt = nowIso10();
   log(`task_id = ${taskId}`);
   const classRes = await spawn3("classifier.level", { user_request: taskDescription }, {
-    stateRoot,
-    inlineStub: (i) => opts.classifierOverride ?? classifierLevel(i),
+    stateRoot: stateRoot2,
+    inlineStub: (i2) => opts.classifierOverride ?? classifierLevel(i2),
     logger,
     taskId
   });
@@ -39311,20 +39696,20 @@ async function runPlanCore2(taskDescription, opts = {}) {
     const tasks = [
       (async () => {
         try {
-          return await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i) => plannerEng(i), logger, taskId });
+          return await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i2) => plannerEng(i2), logger, taskId });
         } catch (err) {
           return { output: degradedEngOutput2(err, logger, taskId) };
         }
       })(),
       (async () => {
         try {
-          return await spawn3("planner.ceo", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i) => plannerCeo(i), logger, taskId });
+          return await spawn3("planner.ceo", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i2) => plannerCeo(i2), logger, taskId });
         } catch (err) {
           return { output: degradedCeoOutput2(err, logger, taskId) };
         }
       })(),
       (async () => {
-        const candidates = await preFilterSolutions(taskDescription, stateRoot);
+        const candidates = await preFilterSolutions(taskDescription, stateRoot2);
         if (candidates.length === 0) {
           return {
             output: {
@@ -39334,13 +39719,13 @@ async function runPlanCore2(taskDescription, opts = {}) {
           };
         }
         try {
-          const r = await spawn3("researcher.history", { intent_draft: taskDescription, candidates }, {
-            stateRoot,
-            inlineStub: (i) => researcherHistory(i, { stateRoot }),
+          const r3 = await spawn3("researcher.history", { intent_draft: taskDescription, candidates }, {
+            stateRoot: stateRoot2,
+            inlineStub: (i2) => researcherHistory(i2, { stateRoot: stateRoot2 }),
             logger,
             taskId
           });
-          return { output: coerceLlmOutput(r.output, candidates) };
+          return { output: coerceLlmOutput(r3.output, candidates) };
         } catch (err) {
           return { output: handleCoerceFailure(err, logger, taskId) };
         }
@@ -39350,7 +39735,7 @@ async function runPlanCore2(taskDescription, opts = {}) {
       tasks.push((async () => {
         let priorPreventions = [];
         try {
-          priorPreventions = await extractPreventions(taskDescription, stateRoot, { logger, taskId });
+          priorPreventions = await extractPreventions(taskDescription, stateRoot2, { logger, taskId });
           capturedPriorPreventions = priorPreventions;
         } catch (err) {
           const errName = err instanceof Error ? err.name : "unknown";
@@ -39375,8 +39760,8 @@ async function runPlanCore2(taskDescription, opts = {}) {
           ...priorPreventions.length > 0 ? { prior_preventions: priorPreventions } : {}
         };
         return spawn3("planner.adversarial", adversarialInput, {
-          stateRoot,
-          inlineStub: (i) => opts.adversarialOverride ?? plannerAdversarial(i),
+          stateRoot: stateRoot2,
+          inlineStub: (i2) => opts.adversarialOverride ?? plannerAdversarial(i2),
           logger,
           taskId
         });
@@ -39392,7 +39777,7 @@ async function runPlanCore2(taskDescription, opts = {}) {
         try {
           const refs = extractAppliedSolutionRefs(adversarialOut.failure_modes, capturedPriorPreventions);
           if (refs.length > 0) {
-            const appliedResult = recordApplied(stateRoot, refs, taskId, { logger });
+            const appliedResult = recordApplied(stateRoot2, refs, taskId, { logger });
             logger.event({
               task_id: taskId,
               spawn_id: null,
@@ -39430,7 +39815,7 @@ async function runPlanCore2(taskDescription, opts = {}) {
     const surfacedRefs = selectSurfacedRefs(researcherOut.prior_art);
     if (surfacedRefs.length > 0) {
       try {
-        const surfacedResult = recordSurfaced(stateRoot, surfacedRefs, taskId, { logger });
+        const surfacedResult = recordSurfaced(stateRoot2, surfacedRefs, taskId, { logger });
         logger.event({
           task_id: taskId,
           spawn_id: null,
@@ -39465,21 +39850,21 @@ async function runPlanCore2(taskDescription, opts = {}) {
     }
     log(`planner.eng verdict: ${plannerEngOut.verdict}`);
     if (plannerEngOut.concerns.length > 0) {
-      for (const c of plannerEngOut.concerns)
-        log(`  eng concern: ${c}`);
+      for (const c3 of plannerEngOut.concerns)
+        log(`  eng concern: ${c3}`);
     }
     log(`planner.ceo verdict: ${plannerCeoOut.verdict}`);
     if (plannerCeoOut.concerns.length > 0) {
-      for (const c of plannerCeoOut.concerns)
-        log(`  ceo concern: ${c}`);
+      for (const c3 of plannerCeoOut.concerns)
+        log(`  ceo concern: ${c3}`);
     }
     if (plannerCeoOut.rewrite_hints.length > 0) {
-      for (const h of plannerCeoOut.rewrite_hints)
-        log(`  ceo hint: ${h}`);
+      for (const h2 of plannerCeoOut.rewrite_hints)
+        log(`  ceo hint: ${h2}`);
     }
     log(`researcher.history: ${researcherOut.prior_art.length} prior art entries${researcherOut.warnings.length ? `, ${researcherOut.warnings.length} warning(s)` : ""}`);
-    for (const w of researcherOut.warnings)
-      log(`  research warning: ${w}`);
+    for (const w2 of researcherOut.warnings)
+      log(`  research warning: ${w2}`);
     if (adversarialOut) {
       log(`planner.adversarial: ${adversarialOut.failure_modes.length} failure mode(s)`);
       for (const fm of adversarialOut.failure_modes) {
@@ -39488,15 +39873,15 @@ async function runPlanCore2(taskDescription, opts = {}) {
     }
   } else if (LEVEL_RANK[level] >= 1) {
     try {
-      const planRes = await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot, inlineStub: (i) => plannerEng(i), logger, taskId });
+      const planRes = await spawn3("planner.eng", { intent_draft: taskDescription }, { stateRoot: stateRoot2, inlineStub: (i2) => plannerEng(i2), logger, taskId });
       plannerEngOut = planRes.output;
     } catch (err) {
       plannerEngOut = degradedEngOutput2(err, logger, taskId);
     }
     log(`planner.eng verdict: ${plannerEngOut.verdict}`);
     if (plannerEngOut.concerns.length > 0) {
-      for (const c of plannerEngOut.concerns)
-        log(`  concern: ${c}`);
+      for (const c3 of plannerEngOut.concerns)
+        log(`  concern: ${c3}`);
     }
   }
   if (level === "L3" && !opts.userSignature) {
@@ -39524,8 +39909,8 @@ async function runPlanCore2(taskDescription, opts = {}) {
       ...capturedPriorPreventions.length > 0 ? { prior_preventions: capturedPriorPreventions } : {}
     };
     const decRes = await spawn3("planner.decompose", decomposeInput, {
-      stateRoot,
-      inlineStub: (i) => plannerDecompose(i),
+      stateRoot: stateRoot2,
+      inlineStub: (i2) => plannerDecompose(i2),
       logger,
       taskId
     });
@@ -39559,7 +39944,7 @@ async function runPlanCore2(taskDescription, opts = {}) {
     }
     log("confirmed — writing intent.md");
   }
-  let intentPath = "(skipped — L0)";
+  let intentPath2 = "(skipped — L0)";
   if (level !== "L0") {
     const intent = {
       task_id: taskId,
@@ -39581,7 +39966,7 @@ ${plannerEngOut.verdict}
 
 ` + (plannerEngOut.concerns.length ? `### Eng concerns
 
-${plannerEngOut.concerns.map((c) => `- ${c}`).join(`
+${plannerEngOut.concerns.map((c3) => `- ${c3}`).join(`
 `)}
 
 ` : "") : "") + (plannerCeoOut ? `## Planner.ceo verdict
@@ -39590,12 +39975,12 @@ ${plannerCeoOut.verdict}
 
 ` + (plannerCeoOut.concerns.length ? `### CEO concerns
 
-${plannerCeoOut.concerns.map((c) => `- ${c}`).join(`
+${plannerCeoOut.concerns.map((c3) => `- ${c3}`).join(`
 `)}
 
 ` : "") + (plannerCeoOut.rewrite_hints.length ? `### CEO rewrite hints
 
-${plannerCeoOut.rewrite_hints.map((h) => `- ${h}`).join(`
+${plannerCeoOut.rewrite_hints.map((h2) => `- ${h2}`).join(`
 `)}
 
 ` : "") : "") + (researcherOut ? `${PRIOR_ART_SENTINEL_BEGIN}
@@ -39614,7 +39999,7 @@ ${plannerCeoOut.rewrite_hints.map((h) => `- ${h}`).join(`
 
 `) + (researcherOut.warnings.length ? `### Research warnings
 
-${researcherOut.warnings.map((w) => `- ${w}`).join(`
+${researcherOut.warnings.map((w2) => `- ${w2}`).join(`
 `)}
 
 ` : "") + `${PRIOR_ART_SENTINEL_END}
@@ -39629,25 +40014,25 @@ ${researcherOut.warnings.map((w) => `- ${w}`).join(`
 ${PRE_MORTEM_SENTINEL_END}
 ` : "")
     };
-    intentPath = writeIntent(intent, stateRoot);
-    log(`wrote ${intentPath}`);
+    intentPath2 = writeIntent(intent, stateRoot2);
+    log(`wrote ${intentPath2}`);
   } else {
     log(`L0 task: skipping intent.md per schema (decisions/ not written for L0)`);
   }
   if (decomposed && decomposed.tasks.length > 0) {
-    const features = decomposed.tasks.map((t) => ({
-      id: t.id,
-      title: t.title,
+    const features = decomposed.tasks.map((t2) => ({
+      id: t2.id,
+      title: t2.title,
       status: "pending",
-      files: t.files,
-      steps: t.steps,
-      ...t.prior_art_refs.length > 0 ? { prior_art_refs: t.prior_art_refs } : {}
+      files: t2.files,
+      steps: t2.steps,
+      ...t2.prior_art_refs.length > 0 ? { prior_art_refs: t2.prior_art_refs } : {}
     }));
-    writeFeatureList({ features }, "Authored by `sgc plan` deep decomposition. Each task carries file-level scope + bite-sized TDD steps.\n", stateRoot);
+    writeFeatureList({ features }, "Authored by `sgc plan` deep decomposition. Each task carries file-level scope + bite-sized TDD steps.\n", stateRoot2);
     const slug = taskDescription.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "plan";
     const dateIso = createdAt.slice(0, 10);
     const md = renderPlanMarkdown({ features }, { title: taskDescription.slice(0, 120), level });
-    const docPath = writePlanDoc(slug, dateIso, md, stateRoot);
+    const docPath = writePlanDoc(slug, dateIso, md, stateRoot2);
     log(`wrote plan doc ${docPath}`);
   } else {
     writeFeatureList({
@@ -39658,7 +40043,7 @@ ${PRE_MORTEM_SENTINEL_END}
           status: "pending"
         }
       ]
-    }, "Refine this list during `sgc work`. The dispatcher does not infer fine-grained features in MVP.\n", stateRoot);
+    }, "Refine this list during `sgc work`. The dispatcher does not infer fine-grained features in MVP.\n", stateRoot2);
   }
   writeCurrentTask({
     task_id: taskId,
@@ -39666,7 +40051,7 @@ ${PRE_MORTEM_SENTINEL_END}
     active_feature: "f1",
     session_start: createdAt,
     last_activity: createdAt
-  }, "", stateRoot);
+  }, "", stateRoot2);
   const handoff = {
     from_session: taskId,
     to_session_hint: "sgc work",
@@ -39674,10 +40059,10 @@ ${PRE_MORTEM_SENTINEL_END}
     open_questions: []
   };
   writeHandoff(handoff, `Plan written for task ${taskId}. Level ${level}. Resume via 'sgc work'.
-`, stateRoot);
+`, stateRoot2);
   log(``);
   log(`Plan complete. Run \`sgc work\` to begin execution.`);
-  return { taskId, level, intentPath };
+  return { taskId, level, intentPath: intentPath2 };
 }
 var init_plan2 = __esm(() => {
   init_spawn();
@@ -39706,11 +40091,11 @@ function nowIso11() {
   return new Date().toISOString();
 }
 function captureDiff2(base, cwd, maxBytes) {
-  const r = spawnCaptureSync(["git", "diff", base], { cwd, maxBuffer: maxBytes });
-  if (r.exitCode === 0)
-    return r.stdout;
-  if (r.exitCode === -1) {
-    throw new Error(`git diff capture failed (base=${base}) — the diff was not captured, ` + `so review cannot run against it: ${r.stderr.slice(0, 200)}`);
+  const r3 = spawnCaptureSync(["git", "diff", base], { cwd, maxBuffer: maxBytes });
+  if (r3.exitCode === 0)
+    return r3.stdout;
+  if (r3.exitCode === -1) {
+    throw new Error(`git diff capture failed (base=${base}) — the diff was not captured, ` + `so review cannot run against it: ${r3.stderr.slice(0, 200)}`);
   }
   return "";
 }
@@ -39729,13 +40114,13 @@ function stripSentinelBlock2(body, begin, end, legacyHeadingRe) {
     const cutEnd = beginIdx + (next?.index ?? tail.length);
     return body.slice(0, beginIdx) + body.slice(cutEnd);
   }
-  const m = legacyHeadingRe.exec(body);
-  if (!m)
+  const m2 = legacyHeadingRe.exec(body);
+  if (!m2)
     return body;
-  const afterHeading = body.slice(m.index + m[0].length);
+  const afterHeading = body.slice(m2.index + m2[0].length);
   const nextHeading = /^## /m.exec(afterHeading);
-  const sectionEnd = m.index + m[0].length + (nextHeading?.index ?? afterHeading.length);
-  return body.slice(0, m.index) + body.slice(sectionEnd);
+  const sectionEnd = m2.index + m2[0].length + (nextHeading?.index ?? afterHeading.length);
+  return body.slice(0, m2.index) + body.slice(sectionEnd);
 }
 function stripBackChannelSections2(body) {
   let stripped = body;
@@ -39744,13 +40129,13 @@ function stripBackChannelSections2(body) {
   return stripped;
 }
 function worstVerdict2(verdicts) {
-  return verdicts.reduce((acc, v) => VERDICT_ORDER2[v] > VERDICT_ORDER2[acc] ? v : acc, "pass");
+  return verdicts.reduce((acc, v2) => VERDICT_ORDER2[v2] > VERDICT_ORDER2[acc] ? v2 : acc, "pass");
 }
 async function runReview2(opts = {}) {
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
-  const log = (m) => logger.say(m);
-  const stateRoot = opts.stateRoot;
-  const ct = readCurrentTask(stateRoot);
+  const log = (m2) => logger.say(m2);
+  const stateRoot2 = opts.stateRoot;
+  const ct = readCurrentTask(stateRoot2);
   if (!ct)
     throw new Error("no active task — run `sgc plan <task>` first");
   const taskId = ct.task.task_id;
@@ -39760,12 +40145,12 @@ async function runReview2(opts = {}) {
   }
   for (const hint of delegationHintsFor("review.cluster"))
     log(formatHint(hint));
-  const intent = readIntent(taskId, stateRoot);
+  const intent = readIntent(taskId, stateRoot2);
   const intentForReviewer = stripBackChannelSections2(intent.body ?? "");
   const diff = opts.diffOverride ?? captureDiff2(opts.base ?? "HEAD");
-  const r = await spawn3("reviewer.correctness", { diff, intent: intentForReviewer }, {
-    stateRoot,
-    inlineStub: (i) => reviewerCorrectness(i),
+  const r3 = await spawn3("reviewer.correctness", { diff, intent: intentForReviewer }, {
+    stateRoot: stateRoot2,
+    inlineStub: (i2) => reviewerCorrectness(i2),
     logger,
     taskId
   });
@@ -39775,16 +40160,16 @@ async function runReview2(opts = {}) {
     stage: "code",
     reviewer_id: "reviewer.correctness",
     reviewer_version: "0.1",
-    verdict: r.output.verdict,
-    severity: r.output.severity,
-    findings: r.output.findings,
+    verdict: r3.output.verdict,
+    severity: r3.output.severity,
+    findings: r3.output.findings,
     created_at: nowIso11(),
-    engine: r.mode
+    engine: r3.mode
   };
-  const reportPath = appendReview(correctnessReport, "", stateRoot, opts.appendAs);
+  const reportPath = appendReview(correctnessReport, "", stateRoot2, opts.appendAs);
   log(`reviewer.correctness: ${correctnessReport.verdict} (severity: ${correctnessReport.severity}, ${correctnessReport.findings.length} finding(s))`);
-  for (const f of correctnessReport.findings.slice(0, 5)) {
-    log(`  - ${f.description}`);
+  for (const f3 of correctnessReport.findings.slice(0, 5)) {
+    log(`  - ${f3.description}`);
   }
   if (correctnessReport.findings.length > 5) {
     log(`  ... ${correctnessReport.findings.length - 5} more findings (see ${reportPath})`);
@@ -39792,7 +40177,7 @@ async function runReview2(opts = {}) {
   const isL2Plus = level === "L2" || level === "L3";
   const clusterReports = [];
   async function runClusterReviewer(name, agent) {
-    const res = await spawn3(name, { diff, intent: intentForReviewer }, { stateRoot, inlineStub: (i) => agent(i), logger, taskId });
+    const res = await spawn3(name, { diff, intent: intentForReviewer }, { stateRoot: stateRoot2, inlineStub: (i2) => agent(i2), logger, taskId });
     const report = {
       report_id: generateReportId3(),
       task_id: taskId,
@@ -39805,12 +40190,12 @@ async function runReview2(opts = {}) {
       created_at: nowIso11(),
       engine: res.mode
     };
-    const path = appendReview(report, "", stateRoot, opts.appendAs);
+    const path2 = appendReview(report, "", stateRoot2, opts.appendAs);
     clusterReports.push({
       reviewerId: name,
       verdict: res.output.verdict,
       severity: res.output.severity,
-      reportPath: path,
+      reportPath: path2,
       findingsCount: res.output.findings.length
     });
     log(`${name}: ${res.output.verdict} (severity: ${res.output.severity}, ${res.output.findings.length} finding(s))`);
@@ -39824,39 +40209,39 @@ async function runReview2(opts = {}) {
     const matched = matchSpecialists(diff);
     if (matched.length > 0) {
       const specialistMode = process.env["SGC_REVIEW_SPECIALIST_LLM"] === "0" ? "inline" : undefined;
-      const specResults = await Promise.all(matched.map((s) => spawn3(s.name, { diff, intent: intentForReviewer }, {
-        stateRoot,
-        inlineStub: (i) => s.agent(i),
+      const specResults = await Promise.all(matched.map((s2) => spawn3(s2.name, { diff, intent: intentForReviewer }, {
+        stateRoot: stateRoot2,
+        inlineStub: (i2) => s2.agent(i2),
         ...specialistMode ? { mode: specialistMode } : {},
         logger,
         taskId
       })));
-      for (let i = 0;i < matched.length; i++) {
-        const s = matched[i];
-        const out = specResults[i].output;
+      for (let i2 = 0;i2 < matched.length; i2++) {
+        const s2 = matched[i2];
+        const out = specResults[i2].output;
         const report = {
           report_id: generateReportId3(),
           task_id: taskId,
           stage: "code",
-          reviewer_id: s.name,
+          reviewer_id: s2.name,
           reviewer_version: "0.1",
           verdict: out.verdict,
           severity: out.severity,
           findings: out.findings,
           created_at: nowIso11(),
-          engine: specResults[i].mode
+          engine: specResults[i2].mode
         };
-        const path = appendReview(report, "", stateRoot, opts.appendAs);
+        const path2 = appendReview(report, "", stateRoot2, opts.appendAs);
         specialistReports.push({
-          reviewerId: s.name,
+          reviewerId: s2.name,
           verdict: out.verdict,
           severity: out.severity,
-          reportPath: path,
+          reportPath: path2,
           findingsCount: out.findings.length
         });
-        log(`${s.name}: ${out.verdict} (severity: ${out.severity}, ${out.findings.length} finding(s))`);
-        for (const f of out.findings.slice(0, 3)) {
-          log(`  - ${f.description}`);
+        log(`${s2.name}: ${out.verdict} (severity: ${out.severity}, ${out.findings.length} finding(s))`);
+        for (const f3 of out.findings.slice(0, 3)) {
+          log(`  - ${f3.description}`);
         }
       }
     }
@@ -39864,8 +40249,8 @@ async function runReview2(opts = {}) {
   log(`wrote ${reportPath}${specialistReports.length > 0 ? ` (+${specialistReports.length} specialists)` : ""}`);
   const aggregateVerdict = worstVerdict2([
     correctnessReport.verdict,
-    ...clusterReports.map((s) => s.verdict),
-    ...specialistReports.map((s) => s.verdict)
+    ...clusterReports.map((s2) => s2.verdict),
+    ...specialistReports.map((s2) => s2.verdict)
   ]);
   return { taskId, verdict: aggregateVerdict, reportPath, specialistReports: [...clusterReports, ...specialistReports] };
 }
@@ -39885,8 +40270,8 @@ var init_review2 = __esm(() => {
 // src/commands/qa.ts
 import { mkdirSync as mkdirSync8 } from "node:fs";
 import { join as join10 } from "node:path";
-function qaScreenshotDir2(stateRoot, taskId) {
-  return join10(resolveStateRoot(stateRoot), "reviews", taskId, "qa");
+function qaScreenshotDir2(stateRoot2, taskId) {
+  return join10(resolveStateRoot(stateRoot2), "reviews", taskId, "qa");
 }
 function generateReportId4() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase();
@@ -39894,18 +40279,18 @@ function generateReportId4() {
 function nowIso12() {
   return new Date().toISOString();
 }
-function verdictToSeverity2(v) {
-  if (v === "pass")
+function verdictToSeverity2(v2) {
+  if (v2 === "pass")
     return "none";
-  if (v === "concern")
+  if (v2 === "concern")
     return "low";
   return "high";
 }
 async function runQa2(opts = {}) {
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
-  const log = (m) => logger.say(m);
-  const stateRoot = opts.stateRoot;
-  const ct = readCurrentTask(stateRoot);
+  const log = (m2) => logger.say(m2);
+  const stateRoot2 = opts.stateRoot;
+  const ct = readCurrentTask(stateRoot2);
   if (!ct)
     throw new Error("no active task — run `sgc plan <task>` first");
   const taskId = ct.task.task_id;
@@ -39914,37 +40299,37 @@ async function runQa2(opts = {}) {
   const optIn = opts.browse === true || process.env["SGC_QA_REAL"] === "1";
   let browseRunner = opts.browseRunner;
   if (!browseRunner && optIn) {
-    const shotDir = qaScreenshotDir2(stateRoot, String(taskId));
+    const shotDir = qaScreenshotDir2(stateRoot2, String(taskId));
     mkdirSync8(shotDir, { recursive: true });
     browseRunner = makeBrowseRunner({ launch: launchPlaywrightSession, screenshotDir: shotDir });
   }
-  const r = await spawn3("qa.browser", { target_url: target, user_flows: flows }, {
-    stateRoot,
-    inlineStub: (i) => qaBrowser(i, browseRunner ? { browseRunner } : {}),
+  const r3 = await spawn3("qa.browser", { target_url: target, user_flows: flows }, {
+    stateRoot: stateRoot2,
+    inlineStub: (i2) => qaBrowser(i2, browseRunner ? { browseRunner } : {}),
     logger,
     taskId
   });
-  const realFlows = r.output.failed_flows.filter((f) => f.step !== "note");
+  const realFlows = r3.output.failed_flows.filter((f3) => f3.step !== "note");
   const report = {
     report_id: generateReportId4(),
     task_id: taskId,
     stage: "qa",
     reviewer_id: "qa.browser",
     reviewer_version: "0.1",
-    verdict: r.output.verdict,
-    severity: verdictToSeverity2(r.output.verdict),
-    findings: realFlows.map((f) => ({
-      location: f.flow,
-      description: `Step '${f.step}' failed: ${f.observed}`
+    verdict: r3.output.verdict,
+    severity: verdictToSeverity2(r3.output.verdict),
+    findings: realFlows.map((f3) => ({
+      location: f3.flow,
+      description: `Step '${f3.step}' failed: ${f3.observed}`
     })),
-    evidence_refs: r.output.evidence_refs,
+    evidence_refs: r3.output.evidence_refs,
     created_at: nowIso12(),
-    engine: r.mode
+    engine: r3.mode
   };
-  const reportPath = appendReview(report, "", stateRoot);
-  log(`qa.browser: ${report.verdict} (severity: ${report.severity}, ${realFlows.length} failed flow(s), ${r.output.evidence_refs.length} evidence ref(s))`);
-  for (const f of r.output.failed_flows.slice(0, 5)) {
-    log(`  - [${f.flow}] ${f.step}: ${f.observed}`);
+  const reportPath = appendReview(report, "", stateRoot2);
+  log(`qa.browser: ${report.verdict} (severity: ${report.severity}, ${realFlows.length} failed flow(s), ${r3.output.evidence_refs.length} evidence ref(s))`);
+  for (const f3 of r3.output.failed_flows.slice(0, 5)) {
+    log(`  - [${f3.flow}] ${f3.step}: ${f3.observed}`);
   }
   log(`wrote ${reportPath}`);
   return { taskId, verdict: report.verdict, reportPath };
@@ -39957,6 +40342,11 @@ var init_qa2 = __esm(() => {
 });
 
 // src/commands/loop.ts
+var exports_loop = {};
+__export(exports_loop, {
+  runLoopCommand: () => runLoopCommand,
+  defaultStepRunners: () => defaultStepRunners2
+});
 function renderRunSummary(run) {
   return [
     `run_id:          ${run.run_id}`,
@@ -39971,13 +40361,13 @@ function renderRunSummary(run) {
     run.error ? `error:           ${run.error}` : null,
     "",
     "steps:",
-    ...run.steps.map((s) => `  ${s.step.padEnd(9)} ${s.status.padEnd(11)} ${s.completed_at ?? s.started_at ?? ""}`)
-  ].filter((l) => l !== null).join(`
+    ...run.steps.map((s2) => `  ${s2.step.padEnd(9)} ${s2.status.padEnd(11)} ${s2.completed_at ?? s2.started_at ?? ""}`)
+  ].filter((l2) => l2 !== null).join(`
 `);
 }
-function renderTerminalHint(r) {
-  const id = r.run.run_id;
-  switch (r.terminal_reason) {
+function renderTerminalHint(r3) {
+  const id = r3.run.run_id;
+  switch (r3.terminal_reason) {
     case "paused_work":
       return `
 next: implement the change, then \`sgc loop --resume ${id}\` to continue.`;
@@ -39986,10 +40376,10 @@ next: implement the change, then \`sgc loop --resume ${id}\` to continue.`;
 next: run \`sgc qa <url> --flows <a,b>\` (or set SGC_QA_REAL=1 / --browse for a real-browser smoke), then \`sgc loop --resume ${id}\` to continue.`;
     case "paused_ship":
       return `
-next: run \`sgc ship${r.run.level === "L3" ? " --signed-by <id>" : ""}\`, then \`sgc loop --resume ${id}\` to continue.`;
+next: run \`sgc ship${r3.run.level === "L3" ? " --signed-by <id>" : ""}\`, then \`sgc loop --resume ${id}\` to continue.`;
     case "failed":
       return `
-next: fix the underlying issue, then \`sgc loop --resume ${id}\` to retry the failed step (${r.run.failed_step}).`;
+next: fix the underlying issue, then \`sgc loop --resume ${id}\` to retry the failed step (${r3.run.failed_step}).`;
     case "complete":
       return `
 run complete. All 6 steps done.`;
@@ -39999,7 +40389,7 @@ function defaultStepRunners2() {
   return {
     plan: async (state, opts) => {
       try {
-        const r = await runPlan2(state.task, {
+        const r3 = await runPlan2(state.task, {
           stateRoot: opts.stateRoot,
           motivation: opts.motivation,
           userSignature: opts.userSignature,
@@ -40013,21 +40403,21 @@ function defaultStepRunners2() {
           }
         });
         return {
-          task_id: r.taskId,
-          level: r.level,
-          intent_path: r.intentPath
+          task_id: r3.taskId,
+          level: r3.level,
+          intent_path: r3.intentPath
         };
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+      } catch (e2) {
+        const msg = e2 instanceof Error ? e2.message : String(e2);
         const existing = /active task/i.test(msg) ? readCurrentTask(opts.stateRoot) : null;
         if (!existing)
-          throw e;
-        const t = existing.task;
-        console.error(`loop: adopting active task ${t.task_id} (level ${t.level}) — already planned, not re-planning`);
+          throw e2;
+        const t2 = existing.task;
+        console.error(`loop: adopting active task ${t2.task_id} (level ${t2.level}) — already planned, not re-planning`);
         return {
-          task_id: t.task_id,
-          level: String(t.level),
-          intent_path: t.level === "L0" ? "(L0 — no intent.md)" : intentPath(t.task_id, opts.stateRoot)
+          task_id: t2.task_id,
+          level: String(t2.level),
+          intent_path: t2.level === "L0" ? "(L0 — no intent.md)" : intentPath(t2.task_id, opts.stateRoot)
         };
       }
     },
@@ -40050,8 +40440,8 @@ async function runLoopCommand(cliOpts) {
 `);
       return;
     }
-    for (const r of runs) {
-      process.stdout.write(`${r.run_id}  ${r.status.padEnd(8)}  step=${r.current_step.padEnd(9)}  started=${r.started_at}  task=${r.task}
+    for (const r3 of runs) {
+      process.stdout.write(`${r3.run_id}  ${r3.status.padEnd(8)}  step=${r3.current_step.padEnd(9)}  started=${r3.started_at}  task=${r3.task}
 `);
     }
     return;
@@ -40099,28 +40489,40 @@ var init_loop2 = __esm(() => {
 });
 
 // src/commands/cso.ts
+var exports_cso = {};
+__export(exports_cso, {
+  scanSecrets: () => scanSecrets,
+  runCso: () => runCso,
+  parseNpmAudit: () => parseNpmAudit,
+  parseBunAudit: () => parseBunAudit,
+  parseAuditErrorEnvelope: () => parseAuditErrorEnvelope,
+  ensureCsoDir: () => ensureCsoDir,
+  detectAnomalies: () => detectAnomalies,
+  auditDependencies: () => auditDependencies,
+  aggregateVerdict: () => aggregateVerdict
+});
 import { execSync as execSync2 } from "node:child_process";
 import { existsSync as existsSync26, mkdirSync as mkdirSync9, readFileSync as readFileSync23, statSync as statSync7 } from "node:fs";
 import { resolve as resolve27 } from "node:path";
 function isoStamp() {
-  const d = new Date;
-  const iso = d.toISOString();
+  const d2 = new Date;
+  const iso = d2.toISOString();
   return { date: iso.slice(0, 10), time: iso.slice(11, 16).replace(":", ""), iso };
 }
-function rankVerdict(v) {
-  return v === "fail" ? 2 : v === "warn" ? 1 : 0;
+function rankVerdict(v2) {
+  return v2 === "fail" ? 2 : v2 === "warn" ? 1 : 0;
 }
 function aggregateVerdict(checks) {
   let worst = "pass";
-  for (const c of checks) {
-    if (rankVerdict(c.verdict) > rankVerdict(worst))
-      worst = c.verdict;
+  for (const c3 of checks) {
+    if (rankVerdict(c3.verdict) > rankVerdict(worst))
+      worst = c3.verdict;
   }
   return worst;
 }
-function ensureCsoDir(stateRoot) {
-  const root = resolveStateRoot(stateRoot);
-  const dir = resolve27(root, "cso");
+function ensureCsoDir(stateRoot2) {
+  const root3 = resolveStateRoot(stateRoot2);
+  const dir = resolve27(root3, "cso");
   mkdirSync9(dir, { recursive: true });
   return dir;
 }
@@ -40130,22 +40532,22 @@ function renderReportBody(report) {
   lines.push("");
   lines.push(`Generated: ${report.generated_at}`);
   lines.push("");
-  for (const c of report.checks) {
-    lines.push(`## ${c.name} — ${c.verdict}`);
+  for (const c3 of report.checks) {
+    lines.push(`## ${c3.name} — ${c3.verdict}`);
     lines.push("");
-    if (c.findings.length > 0) {
+    if (c3.findings.length > 0) {
       lines.push("### Findings");
-      for (const f of c.findings)
-        lines.push(`- ${f}`);
+      for (const f3 of c3.findings)
+        lines.push(`- ${f3}`);
       lines.push("");
     }
-    if (c.warnings.length > 0) {
+    if (c3.warnings.length > 0) {
       lines.push("### Warnings");
-      for (const w of c.warnings)
-        lines.push(`- ${w}`);
+      for (const w2 of c3.warnings)
+        lines.push(`- ${w2}`);
       lines.push("");
     }
-    if (c.findings.length === 0 && c.warnings.length === 0) {
+    if (c3.findings.length === 0 && c3.warnings.length === 0) {
       lines.push("_(no findings)_");
       lines.push("");
     }
@@ -40167,12 +40569,12 @@ function isExcludedPath(rel) {
     return true;
   return false;
 }
-function listScanFiles(repoRoot) {
+function listScanFiles(repoRoot2) {
   const warnings = [];
   let raw = "";
   try {
     raw = execSync2("git ls-files --cached --modified --others --exclude-standard", {
-      cwd: repoRoot,
+      cwd: repoRoot2,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"]
     });
@@ -40181,34 +40583,34 @@ function listScanFiles(repoRoot) {
     warnings.push(`git ls-files failed: ${msg.slice(0, 120)}; secret-scan skipped`);
     return { files: [], warnings };
   }
-  const files = raw.split(/\r?\n/).map((s) => s.trim()).filter((s) => s.length > 0).filter((p) => !isExcludedPath(p));
+  const files = raw.split(/\r?\n/).map((s2) => s2.trim()).filter((s2) => s2.length > 0).filter((p) => !isExcludedPath(p));
   return { files, warnings };
 }
 function maxScanBytes() {
   const raw = process.env.SGC_CSO_MAX_SCAN_BYTES;
   if (!raw)
     return DEFAULT_MAX_SCAN_BYTES;
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_SCAN_BYTES;
+  const n2 = Number.parseInt(raw, 10);
+  return Number.isFinite(n2) && n2 > 0 ? n2 : DEFAULT_MAX_SCAN_BYTES;
 }
-function scanSecrets(repoRoot) {
-  const { files, warnings } = listScanFiles(repoRoot);
+function scanSecrets(repoRoot2) {
+  const { files, warnings } = listScanFiles(repoRoot2);
   const findings = [];
   const capBytes = maxScanBytes();
   for (const rel of files) {
-    const abs = resolve27(repoRoot, rel);
+    const abs = resolve27(repoRoot2, rel);
     if (!existsSync26(abs))
       continue;
-    let stat;
+    let stat5;
     try {
-      stat = statSync7(abs);
+      stat5 = statSync7(abs);
     } catch {
       continue;
     }
-    if (!stat.isFile())
+    if (!stat5.isFile())
       continue;
-    if (stat.size > capBytes) {
-      warnings.push(`${rel}: ${stat.size} bytes exceeds ${capBytes} scan cap, skipped`);
+    if (stat5.size > capBytes) {
+      warnings.push(`${rel}: ${stat5.size} bytes exceeds ${capBytes} scan cap, skipped`);
       continue;
     }
     let content;
@@ -40219,10 +40621,10 @@ function scanSecrets(repoRoot) {
     }
     const inDocs = isDocPath(rel);
     for (const { name, re, commonInDocs } of SECRET_PATTERNS) {
-      const m = re.exec(content);
-      if (!m)
+      const m2 = re.exec(content);
+      if (!m2)
         continue;
-      const line = content.slice(0, m.index).split(/\r?\n/).length;
+      const line = content.slice(0, m2.index).split(/\r?\n/).length;
       if (commonInDocs && inDocs) {
         warnings.push(`${rel}:${line} matches ${name} — documentation, treated as an example; confirm it is not live`);
         continue;
@@ -40233,47 +40635,47 @@ function scanSecrets(repoRoot) {
   const verdict = findings.length > 0 ? "fail" : warnings.length > 0 ? "warn" : "pass";
   return { name: "secret-scan", verdict, findings, warnings };
 }
-function tryAudit(repoRoot, cmd) {
+function tryAudit(repoRoot2, cmd) {
   try {
-    const stdout = execSync2(cmd, {
-      cwd: repoRoot,
+    const stdout2 = execSync2(cmd, {
+      cwd: repoRoot2,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 60000
     });
-    return { tool: cmd.split(/\s+/)[0], cmd, stdout, exitCode: 0 };
+    return { tool: cmd.split(/\s+/)[0], cmd, stdout: stdout2, exitCode: 0 };
   } catch (err) {
-    const e = err;
-    if (e.stdout) {
-      const stdout = typeof e.stdout === "string" ? e.stdout : e.stdout.toString("utf8");
-      if (stdout.trim().length > 0) {
-        return { tool: cmd.split(/\s+/)[0], cmd, stdout, exitCode: e.status ?? 1 };
+    const e2 = err;
+    if (e2.stdout) {
+      const stdout2 = typeof e2.stdout === "string" ? e2.stdout : e2.stdout.toString("utf8");
+      if (stdout2.trim().length > 0) {
+        return { tool: cmd.split(/\s+/)[0], cmd, stdout: stdout2, exitCode: e2.status ?? 1 };
       }
     }
     return null;
   }
 }
-function parseNpmAudit(stdout) {
+function parseNpmAudit(stdout2) {
   try {
-    const j = JSON.parse(stdout);
-    const v = j.metadata?.vulnerabilities;
-    if (!v)
+    const j = JSON.parse(stdout2);
+    const v2 = j.metadata?.vulnerabilities;
+    if (!v2)
       return null;
     return {
-      critical: v.critical ?? 0,
-      high: v.high ?? 0,
-      moderate: v.moderate ?? 0,
-      low: v.low ?? 0,
-      total: v.total ?? (v.critical ?? 0) + (v.high ?? 0) + (v.moderate ?? 0) + (v.low ?? 0)
+      critical: v2.critical ?? 0,
+      high: v2.high ?? 0,
+      moderate: v2.moderate ?? 0,
+      low: v2.low ?? 0,
+      total: v2.total ?? (v2.critical ?? 0) + (v2.high ?? 0) + (v2.moderate ?? 0) + (v2.low ?? 0)
     };
   } catch {
     return null;
   }
 }
-function parseBunAudit(stdout) {
+function parseBunAudit(stdout2) {
   let j;
   try {
-    j = JSON.parse(stdout);
+    j = JSON.parse(stdout2);
   } catch {
     return null;
   }
@@ -40287,10 +40689,10 @@ function parseBunAudit(stdout) {
     if (!Array.isArray(advisories))
       return null;
     sawAdvisoryArray = true;
-    for (const a of advisories) {
-      if (typeof a !== "object" || a === null)
+    for (const a2 of advisories) {
+      if (typeof a2 !== "object" || a2 === null)
         continue;
-      const sev = a["severity"];
+      const sev = a2["severity"];
       if (sev === "critical")
         counts.critical++;
       else if (sev === "high")
@@ -40306,37 +40708,37 @@ function parseBunAudit(stdout) {
     return null;
   return counts;
 }
-function parseAuditErrorEnvelope(stdout) {
+function parseAuditErrorEnvelope(stdout2) {
   let j;
   try {
-    j = JSON.parse(stdout);
+    j = JSON.parse(stdout2);
   } catch {
     return null;
   }
   if (typeof j !== "object" || j === null)
     return null;
-  const e = j.error;
-  if (typeof e !== "object" || e === null)
+  const e2 = j.error;
+  if (typeof e2 !== "object" || e2 === null)
     return null;
-  const code = e.code;
-  const summary = e.summary;
+  const code = e2.code;
+  const summary = e2.summary;
   return {
     code: typeof code === "string" ? code : "unknown",
     summary: typeof summary === "string" ? summary : ""
   };
 }
-function parseAuditByTool(tool, stdout) {
+function parseAuditByTool(tool, stdout2) {
   if (tool === "bun")
-    return parseBunAudit(stdout) ?? parseNpmAudit(stdout);
-  return parseNpmAudit(stdout) ?? parseBunAudit(stdout);
+    return parseBunAudit(stdout2) ?? parseNpmAudit(stdout2);
+  return parseNpmAudit(stdout2) ?? parseBunAudit(stdout2);
 }
-function auditDependencies(repoRoot) {
+function auditDependencies(repoRoot2) {
   const findings = [];
   const warnings = [];
   const attempts = ["bun audit --json", "npm audit --json"];
   let result = null;
   for (const cmd of attempts) {
-    result = tryAudit(repoRoot, cmd);
+    result = tryAudit(repoRoot2, cmd);
     if (result)
       break;
   }
@@ -40366,20 +40768,20 @@ function auditDependencies(repoRoot) {
   const verdict = findings.length > 0 ? "fail" : warnings.length > 0 ? "warn" : "pass";
   return { name: "dependency-audit", verdict, findings, warnings };
 }
-function readEventsTail2(eventsPath) {
+function readEventsTail2(eventsPath2) {
   const warnings = [];
-  if (!existsSync26(eventsPath)) {
-    warnings.push(`events.ndjson not found at ${eventsPath}; anomaly check skipped`);
+  if (!existsSync26(eventsPath2)) {
+    warnings.push(`events.ndjson not found at ${eventsPath2}; anomaly check skipped`);
     return { lines: [], warnings };
   }
   let raw;
   try {
-    const st = statSync7(eventsPath);
+    const st = statSync7(eventsPath2);
     if (st.size === 0) {
       warnings.push("events.ndjson is empty; anomaly check skipped");
       return { lines: [], warnings };
     }
-    raw = readFileSync23(eventsPath, "utf8");
+    raw = readFileSync23(eventsPath2, "utf8");
     if (raw.length > ANOMALY_TAIL_BYTES) {
       const tail = raw.slice(-ANOMALY_TAIL_BYTES);
       const firstNl = tail.indexOf(`
@@ -40391,7 +40793,7 @@ function readEventsTail2(eventsPath) {
     warnings.push(`failed to read events.ndjson: ${msg.slice(0, 120)}; anomaly check skipped`);
     return { lines: [], warnings };
   }
-  const lines = raw.split(/\r?\n/).filter((s) => s.length > 0);
+  const lines = raw.split(/\r?\n/).filter((s2) => s2.length > 0);
   return { lines, warnings };
 }
 function parseEventLine(line) {
@@ -40409,33 +40811,33 @@ function parseEventLine(line) {
     return null;
   }
 }
-function detectAnomalies(stateRoot) {
-  const root = resolveStateRoot(stateRoot);
-  const eventsPath = resolve27(root, "progress/events.ndjson");
+function detectAnomalies(stateRoot2) {
+  const root3 = resolveStateRoot(stateRoot2);
+  const eventsPath2 = resolve27(root3, "progress/events.ndjson");
   const findings = [];
-  const { lines, warnings } = readEventsTail2(eventsPath);
+  const { lines, warnings } = readEventsTail2(eventsPath2);
   if (lines.length === 0) {
     return { name: "events-anomaly", verdict: "warn", findings, warnings };
   }
-  const openSpawns = new Map;
+  const openSpawns2 = new Map;
   let malformed = 0;
   for (const line of lines) {
-    const e = parseEventLine(line);
-    if (!e) {
+    const e2 = parseEventLine(line);
+    if (!e2) {
       malformed++;
       continue;
     }
-    if (e.event_type === "spawn.start" && e.spawn_id) {
-      openSpawns.set(e.spawn_id, e);
-    } else if (e.event_type === "spawn.end" && e.spawn_id) {
-      openSpawns.delete(e.spawn_id);
+    if (e2.event_type === "spawn.start" && e2.spawn_id) {
+      openSpawns2.set(e2.spawn_id, e2);
+    } else if (e2.event_type === "spawn.end" && e2.spawn_id) {
+      openSpawns2.delete(e2.spawn_id);
     }
   }
   if (malformed > 0) {
     warnings.push(`${malformed} malformed event line(s) skipped`);
   }
-  for (const [spawnId, e] of openSpawns) {
-    findings.push(`unpaired spawn.start: ${spawnId} (ts=${e.ts}, task_id=${e.task_id ?? "null"})`);
+  for (const [spawnId, e2] of openSpawns2) {
+    findings.push(`unpaired spawn.start: ${spawnId} (ts=${e2.ts}, task_id=${e2.task_id ?? "null"})`);
   }
   if (findings.length > 20) {
     const overflow = findings.length - 20;
@@ -40447,11 +40849,11 @@ function detectAnomalies(stateRoot) {
 }
 async function runCso(opts = {}) {
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot, say: opts.log });
-  const log = (m) => logger.say(m);
+  const log = (m2) => logger.say(m2);
   const dir = ensureCsoDir(opts.stateRoot);
-  const repoRoot = opts.repoRoot ?? process.cwd();
-  const secretsCheck = scanSecrets(repoRoot);
-  const depsCheck = auditDependencies(repoRoot);
+  const repoRoot2 = opts.repoRoot ?? process.cwd();
+  const secretsCheck = scanSecrets(repoRoot2);
+  const depsCheck = auditDependencies(repoRoot2);
   const anomalyCheck = detectAnomalies(opts.stateRoot);
   const stamp = isoStamp();
   const checks = [secretsCheck, depsCheck, anomalyCheck];
@@ -40468,8 +40870,8 @@ async function runCso(opts = {}) {
   writeAtomic(lastReportPath, JSON.stringify(report, null, 2) + `
 `);
   log(`cso verdict: ${report.verdict}`);
-  for (const c of checks) {
-    log(`  ${c.name}: ${c.verdict} (${c.findings.length} finding(s), ${c.warnings.length} warning(s))`);
+  for (const c3 of checks) {
+    log(`  ${c3.name}: ${c3.verdict} (${c3.findings.length} finding(s), ${c3.warnings.length} warning(s))`);
   }
   log(`report: ${mdPath}`);
   return { report, reportPath: mdPath, lastReportPath };
@@ -41211,39 +41613,39 @@ function box(text, _opts = {}) {
 
 // node_modules/consola/dist/index.mjs
 var r2 = Object.create(null);
-var i = (e) => globalThis.process?.env || import.meta.env || globalThis.Deno?.env.toObject() || globalThis.__env__ || (e ? r2 : globalThis);
-var o2 = new Proxy(r2, { get(e, s) {
+var i = (e2) => globalThis.process?.env || import.meta.env || globalThis.Deno?.env.toObject() || globalThis.__env__ || (e2 ? r2 : globalThis);
+var o2 = new Proxy(r2, { get(e2, s) {
   return i()[s] ?? r2[s];
-}, has(e, s) {
+}, has(e2, s) {
   const E = i();
   return s in E || s in r2;
-}, set(e, s, E) {
-  const B = i(true);
-  return B[s] = E, true;
-}, deleteProperty(e, s) {
+}, set(e2, s, E) {
+  const B2 = i(true);
+  return B2[s] = E, true;
+}, deleteProperty(e2, s) {
   if (!s)
     return false;
   const E = i(true);
   return delete E[s], true;
 }, ownKeys() {
-  const e = i(true);
-  return Object.keys(e);
+  const e2 = i(true);
+  return Object.keys(e2);
 } });
 var t = typeof process < "u" && process.env && "development" || "";
 var f2 = [["APPVEYOR"], ["AWS_AMPLIFY", "AWS_APP_ID", { ci: true }], ["AZURE_PIPELINES", "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI"], ["AZURE_STATIC", "INPUT_AZURE_STATIC_WEB_APPS_API_TOKEN"], ["APPCIRCLE", "AC_APPCIRCLE"], ["BAMBOO", "bamboo_planKey"], ["BITBUCKET", "BITBUCKET_COMMIT"], ["BITRISE", "BITRISE_IO"], ["BUDDY", "BUDDY_WORKSPACE_ID"], ["BUILDKITE"], ["CIRCLE", "CIRCLECI"], ["CIRRUS", "CIRRUS_CI"], ["CLOUDFLARE_PAGES", "CF_PAGES", { ci: true }], ["CODEBUILD", "CODEBUILD_BUILD_ARN"], ["CODEFRESH", "CF_BUILD_ID"], ["DRONE"], ["DRONE", "DRONE_BUILD_EVENT"], ["DSARI"], ["GITHUB_ACTIONS"], ["GITLAB", "GITLAB_CI"], ["GITLAB", "CI_MERGE_REQUEST_ID"], ["GOCD", "GO_PIPELINE_LABEL"], ["LAYERCI"], ["HUDSON", "HUDSON_URL"], ["JENKINS", "JENKINS_URL"], ["MAGNUM"], ["NETLIFY"], ["NETLIFY", "NETLIFY_LOCAL", { ci: false }], ["NEVERCODE"], ["RENDER"], ["SAIL", "SAILCI"], ["SEMAPHORE"], ["SCREWDRIVER"], ["SHIPPABLE"], ["SOLANO", "TDDIUM"], ["STRIDER"], ["TEAMCITY", "TEAMCITY_VERSION"], ["TRAVIS"], ["VERCEL", "NOW_BUILDER"], ["VERCEL", "VERCEL", { ci: false }], ["VERCEL", "VERCEL_ENV", { ci: false }], ["APPCENTER", "APPCENTER_BUILD_ID"], ["CODESANDBOX", "CODESANDBOX_SSE", { ci: false }], ["CODESANDBOX", "CODESANDBOX_HOST", { ci: false }], ["STACKBLITZ"], ["STORMKIT"], ["CLEAVR"], ["ZEABUR"], ["CODESPHERE", "CODESPHERE_APP_ID", { ci: true }], ["RAILWAY", "RAILWAY_PROJECT_ID"], ["RAILWAY", "RAILWAY_SERVICE_ID"], ["DENO-DEPLOY", "DENO_DEPLOYMENT_ID"], ["FIREBASE_APP_HOSTING", "FIREBASE_APP_HOSTING", { ci: true }]];
 function b() {
   if (globalThis.process?.env)
-    for (const e of f2) {
-      const s = e[1] || e[0];
+    for (const e2 of f2) {
+      const s = e2[1] || e2[0];
       if (globalThis.process?.env[s])
-        return { name: e[0].toLowerCase(), ...e[2] };
+        return { name: e2[0].toLowerCase(), ...e2[2] };
     }
   return globalThis.process?.env?.SHELL === "/bin/jsh" && globalThis.process?.versions?.webcontainer ? { name: "stackblitz", ci: false } : { name: "", ci: false };
 }
 var l = b();
 l.name;
-function n(e) {
-  return e ? e !== "false" : false;
+function n(e2) {
+  return e2 ? e2 !== "false" : false;
 }
 var I2 = globalThis.process?.platform || "";
 var T2 = n(o2.CI) || l.ci !== false;
@@ -41257,11 +41659,11 @@ var C2 = (globalThis.process?.versions?.node || "").replace(/^v/, "") || null;
 Number(C2?.split(".")[0]);
 var y2 = globalThis.process || Object.create(null);
 var _2 = { versions: {} };
-new Proxy(y2, { get(e, s) {
+new Proxy(y2, { get(e2, s) {
   if (s === "env")
     return o2;
-  if (s in e)
-    return e[s];
+  if (s in e2)
+    return e2[s];
   if (s in _2)
     return _2[s];
 } });
@@ -41274,9 +41676,9 @@ var u2 = !!globalThis.EdgeRuntime;
 var N2 = globalThis.navigator?.userAgent === "Cloudflare-Workers";
 var F2 = [[S2, "netlify"], [u2, "edge-light"], [N2, "workerd"], [L2, "fastly"], [D, "deno"], [O2, "bun"], [c2, "node"]];
 function G2() {
-  const e = F2.find((s) => s[0]);
-  if (e)
-    return { name: e[1] };
+  const e2 = F2.find((s) => s[0]);
+  if (e2)
+    return { name: e2[1] };
 }
 var P2 = G2();
 P2?.name;
@@ -41295,14 +41697,14 @@ function stripAnsi2(string) {
   }
   return string.replace(regex, "");
 }
-function isAmbiguous(x) {
-  return x === 161 || x === 164 || x === 167 || x === 168 || x === 170 || x === 173 || x === 174 || x >= 176 && x <= 180 || x >= 182 && x <= 186 || x >= 188 && x <= 191 || x === 198 || x === 208 || x === 215 || x === 216 || x >= 222 && x <= 225 || x === 230 || x >= 232 && x <= 234 || x === 236 || x === 237 || x === 240 || x === 242 || x === 243 || x >= 247 && x <= 250 || x === 252 || x === 254 || x === 257 || x === 273 || x === 275 || x === 283 || x === 294 || x === 295 || x === 299 || x >= 305 && x <= 307 || x === 312 || x >= 319 && x <= 322 || x === 324 || x >= 328 && x <= 331 || x === 333 || x === 338 || x === 339 || x === 358 || x === 359 || x === 363 || x === 462 || x === 464 || x === 466 || x === 468 || x === 470 || x === 472 || x === 474 || x === 476 || x === 593 || x === 609 || x === 708 || x === 711 || x >= 713 && x <= 715 || x === 717 || x === 720 || x >= 728 && x <= 731 || x === 733 || x === 735 || x >= 768 && x <= 879 || x >= 913 && x <= 929 || x >= 931 && x <= 937 || x >= 945 && x <= 961 || x >= 963 && x <= 969 || x === 1025 || x >= 1040 && x <= 1103 || x === 1105 || x === 8208 || x >= 8211 && x <= 8214 || x === 8216 || x === 8217 || x === 8220 || x === 8221 || x >= 8224 && x <= 8226 || x >= 8228 && x <= 8231 || x === 8240 || x === 8242 || x === 8243 || x === 8245 || x === 8251 || x === 8254 || x === 8308 || x === 8319 || x >= 8321 && x <= 8324 || x === 8364 || x === 8451 || x === 8453 || x === 8457 || x === 8467 || x === 8470 || x === 8481 || x === 8482 || x === 8486 || x === 8491 || x === 8531 || x === 8532 || x >= 8539 && x <= 8542 || x >= 8544 && x <= 8555 || x >= 8560 && x <= 8569 || x === 8585 || x >= 8592 && x <= 8601 || x === 8632 || x === 8633 || x === 8658 || x === 8660 || x === 8679 || x === 8704 || x === 8706 || x === 8707 || x === 8711 || x === 8712 || x === 8715 || x === 8719 || x === 8721 || x === 8725 || x === 8730 || x >= 8733 && x <= 8736 || x === 8739 || x === 8741 || x >= 8743 && x <= 8748 || x === 8750 || x >= 8756 && x <= 8759 || x === 8764 || x === 8765 || x === 8776 || x === 8780 || x === 8786 || x === 8800 || x === 8801 || x >= 8804 && x <= 8807 || x === 8810 || x === 8811 || x === 8814 || x === 8815 || x === 8834 || x === 8835 || x === 8838 || x === 8839 || x === 8853 || x === 8857 || x === 8869 || x === 8895 || x === 8978 || x >= 9312 && x <= 9449 || x >= 9451 && x <= 9547 || x >= 9552 && x <= 9587 || x >= 9600 && x <= 9615 || x >= 9618 && x <= 9621 || x === 9632 || x === 9633 || x >= 9635 && x <= 9641 || x === 9650 || x === 9651 || x === 9654 || x === 9655 || x === 9660 || x === 9661 || x === 9664 || x === 9665 || x >= 9670 && x <= 9672 || x === 9675 || x >= 9678 && x <= 9681 || x >= 9698 && x <= 9701 || x === 9711 || x === 9733 || x === 9734 || x === 9737 || x === 9742 || x === 9743 || x === 9756 || x === 9758 || x === 9792 || x === 9794 || x === 9824 || x === 9825 || x >= 9827 && x <= 9829 || x >= 9831 && x <= 9834 || x === 9836 || x === 9837 || x === 9839 || x === 9886 || x === 9887 || x === 9919 || x >= 9926 && x <= 9933 || x >= 9935 && x <= 9939 || x >= 9941 && x <= 9953 || x === 9955 || x === 9960 || x === 9961 || x >= 9963 && x <= 9969 || x === 9972 || x >= 9974 && x <= 9977 || x === 9979 || x === 9980 || x === 9982 || x === 9983 || x === 10045 || x >= 10102 && x <= 10111 || x >= 11094 && x <= 11097 || x >= 12872 && x <= 12879 || x >= 57344 && x <= 63743 || x >= 65024 && x <= 65039 || x === 65533 || x >= 127232 && x <= 127242 || x >= 127248 && x <= 127277 || x >= 127280 && x <= 127337 || x >= 127344 && x <= 127373 || x === 127375 || x === 127376 || x >= 127387 && x <= 127404 || x >= 917760 && x <= 917999 || x >= 983040 && x <= 1048573 || x >= 1048576 && x <= 1114109;
+function isAmbiguous(x2) {
+  return x2 === 161 || x2 === 164 || x2 === 167 || x2 === 168 || x2 === 170 || x2 === 173 || x2 === 174 || x2 >= 176 && x2 <= 180 || x2 >= 182 && x2 <= 186 || x2 >= 188 && x2 <= 191 || x2 === 198 || x2 === 208 || x2 === 215 || x2 === 216 || x2 >= 222 && x2 <= 225 || x2 === 230 || x2 >= 232 && x2 <= 234 || x2 === 236 || x2 === 237 || x2 === 240 || x2 === 242 || x2 === 243 || x2 >= 247 && x2 <= 250 || x2 === 252 || x2 === 254 || x2 === 257 || x2 === 273 || x2 === 275 || x2 === 283 || x2 === 294 || x2 === 295 || x2 === 299 || x2 >= 305 && x2 <= 307 || x2 === 312 || x2 >= 319 && x2 <= 322 || x2 === 324 || x2 >= 328 && x2 <= 331 || x2 === 333 || x2 === 338 || x2 === 339 || x2 === 358 || x2 === 359 || x2 === 363 || x2 === 462 || x2 === 464 || x2 === 466 || x2 === 468 || x2 === 470 || x2 === 472 || x2 === 474 || x2 === 476 || x2 === 593 || x2 === 609 || x2 === 708 || x2 === 711 || x2 >= 713 && x2 <= 715 || x2 === 717 || x2 === 720 || x2 >= 728 && x2 <= 731 || x2 === 733 || x2 === 735 || x2 >= 768 && x2 <= 879 || x2 >= 913 && x2 <= 929 || x2 >= 931 && x2 <= 937 || x2 >= 945 && x2 <= 961 || x2 >= 963 && x2 <= 969 || x2 === 1025 || x2 >= 1040 && x2 <= 1103 || x2 === 1105 || x2 === 8208 || x2 >= 8211 && x2 <= 8214 || x2 === 8216 || x2 === 8217 || x2 === 8220 || x2 === 8221 || x2 >= 8224 && x2 <= 8226 || x2 >= 8228 && x2 <= 8231 || x2 === 8240 || x2 === 8242 || x2 === 8243 || x2 === 8245 || x2 === 8251 || x2 === 8254 || x2 === 8308 || x2 === 8319 || x2 >= 8321 && x2 <= 8324 || x2 === 8364 || x2 === 8451 || x2 === 8453 || x2 === 8457 || x2 === 8467 || x2 === 8470 || x2 === 8481 || x2 === 8482 || x2 === 8486 || x2 === 8491 || x2 === 8531 || x2 === 8532 || x2 >= 8539 && x2 <= 8542 || x2 >= 8544 && x2 <= 8555 || x2 >= 8560 && x2 <= 8569 || x2 === 8585 || x2 >= 8592 && x2 <= 8601 || x2 === 8632 || x2 === 8633 || x2 === 8658 || x2 === 8660 || x2 === 8679 || x2 === 8704 || x2 === 8706 || x2 === 8707 || x2 === 8711 || x2 === 8712 || x2 === 8715 || x2 === 8719 || x2 === 8721 || x2 === 8725 || x2 === 8730 || x2 >= 8733 && x2 <= 8736 || x2 === 8739 || x2 === 8741 || x2 >= 8743 && x2 <= 8748 || x2 === 8750 || x2 >= 8756 && x2 <= 8759 || x2 === 8764 || x2 === 8765 || x2 === 8776 || x2 === 8780 || x2 === 8786 || x2 === 8800 || x2 === 8801 || x2 >= 8804 && x2 <= 8807 || x2 === 8810 || x2 === 8811 || x2 === 8814 || x2 === 8815 || x2 === 8834 || x2 === 8835 || x2 === 8838 || x2 === 8839 || x2 === 8853 || x2 === 8857 || x2 === 8869 || x2 === 8895 || x2 === 8978 || x2 >= 9312 && x2 <= 9449 || x2 >= 9451 && x2 <= 9547 || x2 >= 9552 && x2 <= 9587 || x2 >= 9600 && x2 <= 9615 || x2 >= 9618 && x2 <= 9621 || x2 === 9632 || x2 === 9633 || x2 >= 9635 && x2 <= 9641 || x2 === 9650 || x2 === 9651 || x2 === 9654 || x2 === 9655 || x2 === 9660 || x2 === 9661 || x2 === 9664 || x2 === 9665 || x2 >= 9670 && x2 <= 9672 || x2 === 9675 || x2 >= 9678 && x2 <= 9681 || x2 >= 9698 && x2 <= 9701 || x2 === 9711 || x2 === 9733 || x2 === 9734 || x2 === 9737 || x2 === 9742 || x2 === 9743 || x2 === 9756 || x2 === 9758 || x2 === 9792 || x2 === 9794 || x2 === 9824 || x2 === 9825 || x2 >= 9827 && x2 <= 9829 || x2 >= 9831 && x2 <= 9834 || x2 === 9836 || x2 === 9837 || x2 === 9839 || x2 === 9886 || x2 === 9887 || x2 === 9919 || x2 >= 9926 && x2 <= 9933 || x2 >= 9935 && x2 <= 9939 || x2 >= 9941 && x2 <= 9953 || x2 === 9955 || x2 === 9960 || x2 === 9961 || x2 >= 9963 && x2 <= 9969 || x2 === 9972 || x2 >= 9974 && x2 <= 9977 || x2 === 9979 || x2 === 9980 || x2 === 9982 || x2 === 9983 || x2 === 10045 || x2 >= 10102 && x2 <= 10111 || x2 >= 11094 && x2 <= 11097 || x2 >= 12872 && x2 <= 12879 || x2 >= 57344 && x2 <= 63743 || x2 >= 65024 && x2 <= 65039 || x2 === 65533 || x2 >= 127232 && x2 <= 127242 || x2 >= 127248 && x2 <= 127277 || x2 >= 127280 && x2 <= 127337 || x2 >= 127344 && x2 <= 127373 || x2 === 127375 || x2 === 127376 || x2 >= 127387 && x2 <= 127404 || x2 >= 917760 && x2 <= 917999 || x2 >= 983040 && x2 <= 1048573 || x2 >= 1048576 && x2 <= 1114109;
 }
-function isFullWidth(x) {
-  return x === 12288 || x >= 65281 && x <= 65376 || x >= 65504 && x <= 65510;
+function isFullWidth(x2) {
+  return x2 === 12288 || x2 >= 65281 && x2 <= 65376 || x2 >= 65504 && x2 <= 65510;
 }
-function isWide(x) {
-  return x >= 4352 && x <= 4447 || x === 8986 || x === 8987 || x === 9001 || x === 9002 || x >= 9193 && x <= 9196 || x === 9200 || x === 9203 || x === 9725 || x === 9726 || x === 9748 || x === 9749 || x >= 9776 && x <= 9783 || x >= 9800 && x <= 9811 || x === 9855 || x >= 9866 && x <= 9871 || x === 9875 || x === 9889 || x === 9898 || x === 9899 || x === 9917 || x === 9918 || x === 9924 || x === 9925 || x === 9934 || x === 9940 || x === 9962 || x === 9970 || x === 9971 || x === 9973 || x === 9978 || x === 9981 || x === 9989 || x === 9994 || x === 9995 || x === 10024 || x === 10060 || x === 10062 || x >= 10067 && x <= 10069 || x === 10071 || x >= 10133 && x <= 10135 || x === 10160 || x === 10175 || x === 11035 || x === 11036 || x === 11088 || x === 11093 || x >= 11904 && x <= 11929 || x >= 11931 && x <= 12019 || x >= 12032 && x <= 12245 || x >= 12272 && x <= 12287 || x >= 12289 && x <= 12350 || x >= 12353 && x <= 12438 || x >= 12441 && x <= 12543 || x >= 12549 && x <= 12591 || x >= 12593 && x <= 12686 || x >= 12688 && x <= 12773 || x >= 12783 && x <= 12830 || x >= 12832 && x <= 12871 || x >= 12880 && x <= 42124 || x >= 42128 && x <= 42182 || x >= 43360 && x <= 43388 || x >= 44032 && x <= 55203 || x >= 63744 && x <= 64255 || x >= 65040 && x <= 65049 || x >= 65072 && x <= 65106 || x >= 65108 && x <= 65126 || x >= 65128 && x <= 65131 || x >= 94176 && x <= 94180 || x === 94192 || x === 94193 || x >= 94208 && x <= 100343 || x >= 100352 && x <= 101589 || x >= 101631 && x <= 101640 || x >= 110576 && x <= 110579 || x >= 110581 && x <= 110587 || x === 110589 || x === 110590 || x >= 110592 && x <= 110882 || x === 110898 || x >= 110928 && x <= 110930 || x === 110933 || x >= 110948 && x <= 110951 || x >= 110960 && x <= 111355 || x >= 119552 && x <= 119638 || x >= 119648 && x <= 119670 || x === 126980 || x === 127183 || x === 127374 || x >= 127377 && x <= 127386 || x >= 127488 && x <= 127490 || x >= 127504 && x <= 127547 || x >= 127552 && x <= 127560 || x === 127568 || x === 127569 || x >= 127584 && x <= 127589 || x >= 127744 && x <= 127776 || x >= 127789 && x <= 127797 || x >= 127799 && x <= 127868 || x >= 127870 && x <= 127891 || x >= 127904 && x <= 127946 || x >= 127951 && x <= 127955 || x >= 127968 && x <= 127984 || x === 127988 || x >= 127992 && x <= 128062 || x === 128064 || x >= 128066 && x <= 128252 || x >= 128255 && x <= 128317 || x >= 128331 && x <= 128334 || x >= 128336 && x <= 128359 || x === 128378 || x === 128405 || x === 128406 || x === 128420 || x >= 128507 && x <= 128591 || x >= 128640 && x <= 128709 || x === 128716 || x >= 128720 && x <= 128722 || x >= 128725 && x <= 128727 || x >= 128732 && x <= 128735 || x === 128747 || x === 128748 || x >= 128756 && x <= 128764 || x >= 128992 && x <= 129003 || x === 129008 || x >= 129292 && x <= 129338 || x >= 129340 && x <= 129349 || x >= 129351 && x <= 129535 || x >= 129648 && x <= 129660 || x >= 129664 && x <= 129673 || x >= 129679 && x <= 129734 || x >= 129742 && x <= 129756 || x >= 129759 && x <= 129769 || x >= 129776 && x <= 129784 || x >= 131072 && x <= 196605 || x >= 196608 && x <= 262141;
+function isWide(x2) {
+  return x2 >= 4352 && x2 <= 4447 || x2 === 8986 || x2 === 8987 || x2 === 9001 || x2 === 9002 || x2 >= 9193 && x2 <= 9196 || x2 === 9200 || x2 === 9203 || x2 === 9725 || x2 === 9726 || x2 === 9748 || x2 === 9749 || x2 >= 9776 && x2 <= 9783 || x2 >= 9800 && x2 <= 9811 || x2 === 9855 || x2 >= 9866 && x2 <= 9871 || x2 === 9875 || x2 === 9889 || x2 === 9898 || x2 === 9899 || x2 === 9917 || x2 === 9918 || x2 === 9924 || x2 === 9925 || x2 === 9934 || x2 === 9940 || x2 === 9962 || x2 === 9970 || x2 === 9971 || x2 === 9973 || x2 === 9978 || x2 === 9981 || x2 === 9989 || x2 === 9994 || x2 === 9995 || x2 === 10024 || x2 === 10060 || x2 === 10062 || x2 >= 10067 && x2 <= 10069 || x2 === 10071 || x2 >= 10133 && x2 <= 10135 || x2 === 10160 || x2 === 10175 || x2 === 11035 || x2 === 11036 || x2 === 11088 || x2 === 11093 || x2 >= 11904 && x2 <= 11929 || x2 >= 11931 && x2 <= 12019 || x2 >= 12032 && x2 <= 12245 || x2 >= 12272 && x2 <= 12287 || x2 >= 12289 && x2 <= 12350 || x2 >= 12353 && x2 <= 12438 || x2 >= 12441 && x2 <= 12543 || x2 >= 12549 && x2 <= 12591 || x2 >= 12593 && x2 <= 12686 || x2 >= 12688 && x2 <= 12773 || x2 >= 12783 && x2 <= 12830 || x2 >= 12832 && x2 <= 12871 || x2 >= 12880 && x2 <= 42124 || x2 >= 42128 && x2 <= 42182 || x2 >= 43360 && x2 <= 43388 || x2 >= 44032 && x2 <= 55203 || x2 >= 63744 && x2 <= 64255 || x2 >= 65040 && x2 <= 65049 || x2 >= 65072 && x2 <= 65106 || x2 >= 65108 && x2 <= 65126 || x2 >= 65128 && x2 <= 65131 || x2 >= 94176 && x2 <= 94180 || x2 === 94192 || x2 === 94193 || x2 >= 94208 && x2 <= 100343 || x2 >= 100352 && x2 <= 101589 || x2 >= 101631 && x2 <= 101640 || x2 >= 110576 && x2 <= 110579 || x2 >= 110581 && x2 <= 110587 || x2 === 110589 || x2 === 110590 || x2 >= 110592 && x2 <= 110882 || x2 === 110898 || x2 >= 110928 && x2 <= 110930 || x2 === 110933 || x2 >= 110948 && x2 <= 110951 || x2 >= 110960 && x2 <= 111355 || x2 >= 119552 && x2 <= 119638 || x2 >= 119648 && x2 <= 119670 || x2 === 126980 || x2 === 127183 || x2 === 127374 || x2 >= 127377 && x2 <= 127386 || x2 >= 127488 && x2 <= 127490 || x2 >= 127504 && x2 <= 127547 || x2 >= 127552 && x2 <= 127560 || x2 === 127568 || x2 === 127569 || x2 >= 127584 && x2 <= 127589 || x2 >= 127744 && x2 <= 127776 || x2 >= 127789 && x2 <= 127797 || x2 >= 127799 && x2 <= 127868 || x2 >= 127870 && x2 <= 127891 || x2 >= 127904 && x2 <= 127946 || x2 >= 127951 && x2 <= 127955 || x2 >= 127968 && x2 <= 127984 || x2 === 127988 || x2 >= 127992 && x2 <= 128062 || x2 === 128064 || x2 >= 128066 && x2 <= 128252 || x2 >= 128255 && x2 <= 128317 || x2 >= 128331 && x2 <= 128334 || x2 >= 128336 && x2 <= 128359 || x2 === 128378 || x2 === 128405 || x2 === 128406 || x2 === 128420 || x2 >= 128507 && x2 <= 128591 || x2 >= 128640 && x2 <= 128709 || x2 === 128716 || x2 >= 128720 && x2 <= 128722 || x2 >= 128725 && x2 <= 128727 || x2 >= 128732 && x2 <= 128735 || x2 === 128747 || x2 === 128748 || x2 >= 128756 && x2 <= 128764 || x2 >= 128992 && x2 <= 129003 || x2 === 129008 || x2 >= 129292 && x2 <= 129338 || x2 >= 129340 && x2 <= 129349 || x2 >= 129351 && x2 <= 129535 || x2 >= 129648 && x2 <= 129660 || x2 >= 129664 && x2 <= 129673 || x2 >= 129679 && x2 <= 129734 || x2 >= 129742 && x2 <= 129756 || x2 >= 129759 && x2 <= 129769 || x2 >= 129776 && x2 <= 129784 || x2 >= 131072 && x2 <= 196605 || x2 >= 196608 && x2 <= 262141;
 }
 function validate(codePoint) {
   if (!Number.isSafeInteger(codePoint)) {
@@ -41366,12 +41768,12 @@ function stringWidth$1(string, options = {}) {
   return width;
 }
 function isUnicodeSupported() {
-  const { env } = g$1;
-  const { TERM, TERM_PROGRAM } = env;
+  const { env: env2 } = g$1;
+  const { TERM, TERM_PROGRAM } = env2;
   if (g$1.platform !== "win32") {
     return TERM !== "linux";
   }
-  return Boolean(env.WT_SESSION) || Boolean(env.TERMINUS_SUBLIME) || env.ConEmuTask === "{cmd::Cmder}" || TERM_PROGRAM === "Terminus-Sublime" || TERM_PROGRAM === "vscode" || TERM === "xterm-256color" || TERM === "alacritty" || TERM === "rxvt-unicode" || TERM === "rxvt-unicode-256color" || env.TERMINAL_EMULATOR === "JetBrains-JediTerm";
+  return Boolean(env2.WT_SESSION) || Boolean(env2.TERMINUS_SUBLIME) || env2.ConEmuTask === "{cmd::Cmder}" || TERM_PROGRAM === "Terminus-Sublime" || TERM_PROGRAM === "vscode" || TERM === "xterm-256color" || TERM === "alacritty" || TERM === "rxvt-unicode" || TERM === "rxvt-unicode-256color" || env2.TERMINAL_EMULATOR === "JetBrains-JediTerm";
 }
 var TYPE_COLOR_MAP = {
   info: "cyan",
@@ -41385,7 +41787,7 @@ var LEVEL_COLOR_MAP = {
   1: "yellow"
 };
 var unicode = isUnicodeSupported();
-var s = (c, fallback) => unicode ? c : fallback;
+var s = (c3, fallback) => unicode ? c3 : fallback;
 var TYPE_ICONS = {
   error: s("✖", "×"),
   fatal: s("✖", "×"),
@@ -41411,7 +41813,7 @@ class FancyReporter extends BasicReporter {
   formatStack(stack, message, opts) {
     const indent = "  ".repeat((opts?.errorLevel || 0) + 1);
     return `
-${indent}` + parseStack(stack, message).map((line) => "  " + line.replace(/^at +/, (m) => colors.gray(m)).replace(/\((.+)\)/, (_, m) => `(${colors.cyan(m)})`)).join(`
+${indent}` + parseStack(stack, message).map((line) => "  " + line.replace(/^at +/, (m2) => colors.gray(m2)).replace(/\((.+)\)/, (_3, m2) => `(${colors.cyan(m2)})`)).join(`
 ${indent}`);
   }
   formatType(logObj, isBadge, opts) {
@@ -41456,7 +41858,7 @@ ${indent}`);
   }
 }
 function characterFormat(str) {
-  return str.replace(/`([^`]+)`/gm, (_, m) => colors.cyan(m)).replace(/\s+_([^_]+)_\s+/gm, (_, m) => ` ${colors.underline(m)} `);
+  return str.replace(/`([^`]+)`/gm, (_3, m2) => colors.cyan(m2)).replace(/\s+_([^_]+)_\s+/gm, (_3, m2) => ` ${colors.underline(m2)} `);
 }
 function getColor2(color = "white") {
   return colors[color] || colors.white;
@@ -41474,7 +41876,7 @@ function createConsola2(options = {}) {
     defaults: { level },
     stdout: process.stdout,
     stderr: process.stderr,
-    prompt: (...args) => Promise.resolve().then(() => (init_prompt(), {})).then((m) => prompt(...args)),
+    prompt: (...args) => Promise.resolve().then(() => (init_prompt(), exports_prompt)).then((m2) => m2.prompt(...args)),
     reporters: options.reporters || [
       options.fancy ?? !(T2 || R2) ? new FancyReporter : new BasicReporter
     ],
@@ -41502,11 +41904,11 @@ function toArray(val) {
 function formatLineColumns(lines, linePrefix = "") {
   const maxLengh = [];
   for (const line of lines) {
-    for (const [i, element] of line.entries()) {
-      maxLengh[i] = Math.max(maxLengh[i] || 0, element.length);
+    for (const [i2, element] of line.entries()) {
+      maxLengh[i2] = Math.max(maxLengh[i2] || 0, element.length);
     }
   }
-  return lines.map((l) => l.map((c, i) => linePrefix + c[i === 0 ? "padStart" : "padEnd"](maxLengh[i])).join("  ")).join(`
+  return lines.map((l2) => l2.map((c3, i2) => linePrefix + c3[i2 === 0 ? "padStart" : "padEnd"](maxLengh[i2])).join("  ")).join(`
 `);
 }
 function resolveValue(input) {
@@ -41587,19 +41989,19 @@ function toArr(any) {
   return any == undefined ? [] : Array.isArray(any) ? any : [any];
 }
 function toVal(out, key, val, opts) {
-  let x;
+  let x2;
   const old = out[key];
-  const nxt = ~opts.string.indexOf(key) ? val == undefined || val === true ? "" : String(val) : typeof val === "boolean" ? val : ~opts.boolean.indexOf(key) ? val === "false" ? false : val === "true" || (out._.push((x = +val, x * 0 === 0) ? x : val), !!val) : (x = +val, x * 0 === 0) ? x : val;
+  const nxt = ~opts.string.indexOf(key) ? val == undefined || val === true ? "" : String(val) : typeof val === "boolean" ? val : ~opts.boolean.indexOf(key) ? val === "false" ? false : val === "true" || (out._.push((x2 = +val, x2 * 0 === 0) ? x2 : val), !!val) : (x2 = +val, x2 * 0 === 0) ? x2 : val;
   out[key] = old == undefined ? nxt : Array.isArray(old) ? old.concat(nxt) : [old, nxt];
 }
 function parseRawArgs(args = [], opts = {}) {
-  let k;
+  let k2;
   let arr;
   let arg;
   let name;
   let val;
   const out = { _: [] };
-  let i = 0;
+  let i2 = 0;
   let j = 0;
   let idx = 0;
   const len = args.length;
@@ -41610,42 +42012,42 @@ function parseRawArgs(args = [], opts = {}) {
   opts.string = toArr(opts.string);
   opts.boolean = toArr(opts.boolean);
   if (alibi) {
-    for (k in opts.alias) {
-      arr = opts.alias[k] = toArr(opts.alias[k]);
-      for (i = 0;i < arr.length; i++) {
-        (opts.alias[arr[i]] = arr.concat(k)).splice(i, 1);
+    for (k2 in opts.alias) {
+      arr = opts.alias[k2] = toArr(opts.alias[k2]);
+      for (i2 = 0;i2 < arr.length; i2++) {
+        (opts.alias[arr[i2]] = arr.concat(k2)).splice(i2, 1);
       }
     }
   }
-  for (i = opts.boolean.length;i-- > 0; ) {
-    arr = opts.alias[opts.boolean[i]] || [];
+  for (i2 = opts.boolean.length;i2-- > 0; ) {
+    arr = opts.alias[opts.boolean[i2]] || [];
     for (j = arr.length;j-- > 0; ) {
       opts.boolean.push(arr[j]);
     }
   }
-  for (i = opts.string.length;i-- > 0; ) {
-    arr = opts.alias[opts.string[i]] || [];
+  for (i2 = opts.string.length;i2-- > 0; ) {
+    arr = opts.alias[opts.string[i2]] || [];
     for (j = arr.length;j-- > 0; ) {
       opts.string.push(arr[j]);
     }
   }
   if (defaults) {
-    for (k in opts.default) {
-      name = typeof opts.default[k];
-      arr = opts.alias[k] = opts.alias[k] || [];
+    for (k2 in opts.default) {
+      name = typeof opts.default[k2];
+      arr = opts.alias[k2] = opts.alias[k2] || [];
       if (opts[name] !== undefined) {
-        opts[name].push(k);
-        for (i = 0;i < arr.length; i++) {
-          opts[name].push(arr[i]);
+        opts[name].push(k2);
+        for (i2 = 0;i2 < arr.length; i2++) {
+          opts[name].push(arr[i2]);
         }
       }
     }
   }
   const keys = strict ? Object.keys(opts.alias) : [];
-  for (i = 0;i < len; i++) {
-    arg = args[i];
+  for (i2 = 0;i2 < len; i2++) {
+    arg = args[i2];
     if (arg === "--") {
-      out._ = out._.concat(args.slice(++i));
+      out._ = out._.concat(args.slice(++i2));
       break;
     }
     for (j = 0;j < arg.length; j++) {
@@ -41668,7 +42070,7 @@ function parseRawArgs(args = [], opts = {}) {
         }
       }
       name = arg.substring(j, idx);
-      val = arg.slice(Math.max(0, ++idx)) || i + 1 === len || ("" + args[i + 1]).charCodeAt(0) === 45 || args[++i];
+      val = arg.slice(Math.max(0, ++idx)) || i2 + 1 === len || ("" + args[i2 + 1]).charCodeAt(0) === 45 || args[++i2];
       arr = j === 2 ? [name] : name;
       for (idx = 0;idx < arr.length; idx++) {
         name = arr[idx];
@@ -41680,17 +42082,17 @@ function parseRawArgs(args = [], opts = {}) {
     }
   }
   if (defaults) {
-    for (k in opts.default) {
-      if (out[k] === undefined) {
-        out[k] = opts.default[k];
+    for (k2 in opts.default) {
+      if (out[k2] === undefined) {
+        out[k2] = opts.default[k2];
       }
     }
   }
   if (alibi) {
-    for (k in out) {
-      arr = opts.alias[k] || [];
+    for (k2 in out) {
+      arr = opts.alias[k2] || [];
       while (arr.length > 0) {
-        out[arr.shift()] = out[k];
+        out[arr.shift()] = out[k2];
       }
     }
   }
@@ -41843,9 +42245,9 @@ async function renderUsage(cmd, parent) {
     } else {
       const isRequired = arg.required === true && arg.default === undefined;
       const argStr = (arg.type === "boolean" && arg.default === true ? [
-        ...(arg.alias || []).map((a) => `--no-${a}`),
+        ...(arg.alias || []).map((a2) => `--no-${a2}`),
         `--no-${arg.name}`
-      ].join(", ") : [...(arg.alias || []).map((a) => `-${a}`), `--${arg.name}`].join(", ")) + (arg.type === "string" && (arg.valueHint || arg.default) ? `=${arg.valueHint ? `<${arg.valueHint}>` : `"${arg.default || ""}"`}` : "");
+      ].join(", ") : [...(arg.alias || []).map((a2) => `-${a2}`), `--${arg.name}`].join(", ")) + (arg.type === "string" && (arg.valueHint || arg.default) ? `=${arg.valueHint ? `<${arg.valueHint}>` : `"${arg.default || ""}"`}` : "");
       argLines.push([
         "`" + argStr + (isRequired ? " (required)" : "") + "`",
         arg.description || ""
@@ -41886,7 +42288,7 @@ async function renderUsage(cmd, parent) {
     usageLines.push(formatLineColumns(commandsLines, "  "));
     usageLines.push("", `Use \`${commandName} <command> --help\` for more information about a command.`);
   }
-  return usageLines.filter((l) => typeof l === "string").join(`
+  return usageLines.filter((l2) => typeof l2 === "string").join(`
 `);
 }
 async function runMain(cmd, opts = {}) {
@@ -42049,11 +42451,11 @@ var debugCommand = defineCommand2({
     const subcommand = args.subcommand;
     let result;
     if (args.runs === true) {
-      await Promise.resolve().then(() => init_debug());
-      result = await runDebugList({ stateRoot });
+      const { runDebugList: runDebugList2 } = await Promise.resolve().then(() => (init_debug(), exports_debug));
+      result = await runDebugList2({ stateRoot });
     } else if (typeof args.status === "string" && args.status.length > 0) {
-      await Promise.resolve().then(() => init_debug());
-      result = await runDebugStatus({ id: args.status, stateRoot });
+      const { runDebugStatus: runDebugStatus2 } = await Promise.resolve().then(() => (init_debug(), exports_debug));
+      result = await runDebugStatus2({ id: args.status, stateRoot });
     } else if (subcommand === "start") {
       const symptom = args.symptom ?? "";
       if (symptom.length === 0) {
@@ -42061,16 +42463,16 @@ var debugCommand = defineCommand2({
 `);
         process.exit(1);
       }
-      await Promise.resolve().then(() => init_debug());
-      result = await runDebugStart({ symptom, stateRoot, repoRoot });
+      const { runDebugStart: runDebugStart2 } = await Promise.resolve().then(() => (init_debug(), exports_debug));
+      result = await runDebugStart2({ symptom, stateRoot, repoRoot });
     } else if (subcommand === "close") {
       let id = args.id ?? "";
       const rootCause = args["root-cause"] ?? "";
       const fixCommit = args["fix-commit"] ?? "";
       const verifyCommand = args["verify-command"] ?? "";
-      await Promise.resolve().then(() => init_debug());
+      const { findSoleInProgressInvestigation: findSoleInProgressInvestigation2, runDebugClose: runDebugClose2 } = await Promise.resolve().then(() => (init_debug(), exports_debug));
       if (id.length === 0) {
-        id = await findSoleInProgressInvestigation(stateRoot) ?? "";
+        id = await findSoleInProgressInvestigation2(stateRoot) ?? "";
       }
       if (id.length === 0 || rootCause.length === 0 || fixCommit.length === 0 || verifyCommand.length === 0) {
         process.stderr.write(`usage: sgc debug close [--id <id>] --root-cause "<text>" --fix-commit <sha> --verify-command "<cmd>"
@@ -42078,7 +42480,7 @@ var debugCommand = defineCommand2({
 `);
         process.exit(1);
       }
-      result = await runDebugClose({ id, rootCause, fixCommit, verifyCommand, stateRoot });
+      result = await runDebugClose2({ id, rootCause, fixCommit, verifyCommand, stateRoot });
     } else {
       process.stderr.write(`usage: sgc debug start "<symptom>" | close --id <id> --root-cause "<text>" --fix-commit <sha> --verify-command "<cmd>" | --runs | --status <id>
 `);
@@ -42103,8 +42505,8 @@ var discover = defineCommand({
     }
   },
   async run({ args }) {
-    await Promise.resolve().then(() => init_discover());
-    await runDiscover({
+    const { runDiscover: runDiscover2 } = await Promise.resolve().then(() => (init_discover(), exports_discover));
+    await runDiscover2({
       topic: args.topic,
       ...args.template ? { template: args.template } : {}
     });
@@ -42174,8 +42576,8 @@ var plan = defineCommand({
     const showStatusId = args.status;
     const showLog = args.log;
     if (showJobsFlag) {
-      await Promise.resolve().then(() => init_plan_jobs());
-      const jobs = await listJobs();
+      const { listJobs: listJobs3 } = await Promise.resolve().then(() => (init_plan_jobs(), exports_plan_jobs));
+      const jobs = await listJobs3();
       if (jobs.length === 0) {
         process.stderr.write(`no plan jobs found.
 `);
@@ -42188,11 +42590,11 @@ var plan = defineCommand({
       return;
     }
     if (showStatusId !== undefined && showStatusId.length > 0) {
-      await Promise.resolve().then(() => init_plan_jobs());
-      const r = await showJob(showStatusId, {
+      const { showJob: showJob2 } = await Promise.resolve().then(() => (init_plan_jobs(), exports_plan_jobs));
+      const r3 = await showJob2(showStatusId, {
         logTailLines: showLog ? Number.MAX_SAFE_INTEGER : 100
       });
-      const j = r.job;
+      const j = r3.job;
       process.stdout.write(`job_id:       ${j.job_id}
 `);
       process.stdout.write(`task:         ${j.task}
@@ -42223,7 +42625,7 @@ var plan = defineCommand({
       process.stdout.write(`
 --- log${showLog ? "" : " (tail 100)"} ---
 `);
-      process.stdout.write(r.logTail);
+      process.stdout.write(r3.logTail);
       return;
     }
     const task = args.task;
@@ -42232,7 +42634,7 @@ var plan = defineCommand({
 `);
       process.exit(1);
     }
-    await Promise.resolve().then(() => init_plan());
+    const { runPlan: runPlan3 } = await Promise.resolve().then(() => (init_plan(), exports_plan));
     const force = args.level;
     if (force !== undefined && !LEVELS2.includes(force)) {
       process.stderr.write(`error: --level must be one of L0|L1|L2|L3 (got '${force}')
@@ -42241,7 +42643,7 @@ var plan = defineCommand({
     }
     const signedBy = args["signed-by"];
     const userSignature = signedBy ? { signed_at: new Date().toISOString(), signer_id: signedBy } : undefined;
-    await runPlan(task, {
+    await runPlan3(task, {
       forceLevel: force,
       userSignature,
       motivation: args.motivation,
@@ -42292,8 +42694,8 @@ var work = defineCommand({
     }
   },
   async run({ args }) {
-    await Promise.resolve().then(() => init_work());
-    await runWork({
+    const { runWork: runWork2 } = await Promise.resolve().then(() => (init_work(), exports_work));
+    await runWork2({
       add: args.add,
       done: args.done,
       verifyCommand: args["verify-command"],
@@ -42319,8 +42721,8 @@ var review = defineCommand({
     }
   },
   async run({ args }) {
-    await Promise.resolve().then(() => init_review());
-    await runReview({
+    const { runReview: runReview3 } = await Promise.resolve().then(() => (init_review(), exports_review));
+    await runReview3({
       base: args.base,
       appendAs: args["append-as"]
     });
@@ -42349,10 +42751,10 @@ var qa = defineCommand({
     }
   },
   async run({ args }) {
-    await Promise.resolve().then(() => init_qa());
-    const result = await runQa({
+    const { runQa: runQa3 } = await Promise.resolve().then(() => (init_qa(), exports_qa));
+    const result = await runQa3({
       target: args.target,
-      flows: args.flows ? String(args.flows).split(",").map((s) => s.trim()).filter(Boolean) : undefined,
+      flows: args.flows ? String(args.flows).split(",").map((s2) => s2.trim()).filter(Boolean) : undefined,
       browse: args.browse === true
     });
     if (result.verdict === "fail")
@@ -42407,8 +42809,8 @@ var ship = defineCommand({
     }
   },
   async run({ args }) {
-    await Promise.resolve().then(() => init_ship());
-    await runShip({
+    const { runShip: runShip2 } = await Promise.resolve().then(() => (init_ship(), exports_ship));
+    await runShip2({
       autoConfirm: args.auto,
       createPr: args.pr,
       prTitle: args["pr-title"],
@@ -42460,8 +42862,8 @@ var compound = defineCommand({
   async run({ args }) {
     const fromCanary = args["from-canary"];
     if (fromCanary !== undefined && fromCanary.length > 0) {
-      await Promise.resolve().then(() => init_compound3());
-      const result = await runCanaryPromote({
+      const { runCanaryPromote: runCanaryPromote2 } = await Promise.resolve().then(() => (init_compound3(), exports_compound));
+      const result = await runCanaryPromote2({
         slug: fromCanary,
         force: args.force,
         solutionSlug: args["solution-slug"]
@@ -42472,8 +42874,8 @@ var compound = defineCommand({
     }
     const fromRedGreen = args["from-red-green"];
     if (fromRedGreen !== undefined && fromRedGreen.length > 0) {
-      await Promise.resolve().then(() => init_compound3());
-      const result = await runRedGreenPromote({
+      const { runRedGreenPromote: runRedGreenPromote2 } = await Promise.resolve().then(() => (init_compound3(), exports_compound));
+      const result = await runRedGreenPromote2({
         slug: fromRedGreen,
         force: args.force,
         solutionSlug: args["solution-slug"]
@@ -42484,8 +42886,8 @@ var compound = defineCommand({
     }
     const fromShipFailure = args["from-ship-failure"];
     if (fromShipFailure !== undefined && fromShipFailure.length > 0) {
-      await Promise.resolve().then(() => init_compound3());
-      const result = await runCompoundPromote({
+      const { runCompoundPromote: runCompoundPromote2 } = await Promise.resolve().then(() => (init_compound3(), exports_compound));
+      const result = await runCompoundPromote2({
         slug: fromShipFailure,
         force: args.force,
         solutionSlug: args["solution-slug"]
@@ -42494,8 +42896,8 @@ var compound = defineCommand({
 `);
       return;
     }
-    await Promise.resolve().then(() => init_compound3());
-    await runCompound2({
+    const { runCompound: runCompound3 } = await Promise.resolve().then(() => (init_compound3(), exports_compound));
+    await runCompound3({
       force: args.force,
       slug: args.slug
     });
@@ -42507,16 +42909,16 @@ var status = defineCommand({
     description: "Show current task state, decisions history, and knowledge stats"
   },
   async run() {
-    await Promise.resolve().then(() => init_state2());
-    const stateRoot = process.env["SGC_STATE_ROOT"] ?? ".sgc";
-    if (!existsSync27(stateRoot)) {
-      console.log(`No .sgc/ state directory at ${stateRoot}.`);
+    const { readCurrentTask: readCurrentTask2 } = await Promise.resolve().then(() => (init_state2(), exports_state));
+    const stateRoot2 = process.env["SGC_STATE_ROOT"] ?? ".sgc";
+    if (!existsSync27(stateRoot2)) {
+      console.log(`No .sgc/ state directory at ${stateRoot2}.`);
       console.log(`Run 'sgc plan <task>' to start your first task.`);
       return;
     }
-    const ct = readCurrentTask(stateRoot);
+    const ct = readCurrentTask2(stateRoot2);
     if (!ct) {
-      console.log(`State directory exists at ${stateRoot} but no active task.`);
+      console.log(`State directory exists at ${stateRoot2} but no active task.`);
       console.log(`Run 'sgc plan <task>' to begin one.`);
       return;
     }
@@ -42527,10 +42929,10 @@ var status = defineCommand({
       ["session_start", ct.task.session_start],
       ["last_activity", ct.task.last_activity]
     ];
-    const labelW = Math.max(...rows.map(([k]) => k.length));
-    console.log(`Active task (state root: ${stateRoot}):`);
-    for (const [k, v] of rows) {
-      console.log(`  ${k.padEnd(labelW)}  ${v}`);
+    const labelW = Math.max(...rows.map(([k2]) => k2.length));
+    console.log(`Active task (state root: ${stateRoot2}):`);
+    for (const [k2, v2] of rows) {
+      console.log(`  ${k2.padEnd(labelW)}  ${v2}`);
     }
   }
 });
@@ -42569,15 +42971,15 @@ var tail = defineCommand({
     }
   },
   async run({ args }) {
-    await Promise.resolve().then(() => init_tail());
+    const { runTail: runTail2 } = await Promise.resolve().then(() => (init_tail(), exports_tail));
     const limitRaw = args.limit;
     let limit;
     if (limitRaw !== undefined) {
-      const n = Number.parseInt(limitRaw, 10);
-      if (!Number.isFinite(n) || n < 0) {
+      const n2 = Number.parseInt(limitRaw, 10);
+      if (!Number.isFinite(n2) || n2 < 0) {
         throw new Error(`--limit must be a non-negative integer; got ${limitRaw}`);
       }
-      limit = n;
+      limit = n2;
     }
     const sinceRaw = args.since;
     let since;
@@ -42588,7 +42990,7 @@ var tail = defineCommand({
       }
       since = new Date(ms).toISOString();
     }
-    await runTail({
+    await runTail2({
       task: args.task,
       agent: args.agent,
       eventType: args["event-type"],
@@ -42627,8 +43029,8 @@ var agentLoop = defineCommand({
     }
   },
   async run({ args }) {
-    await Promise.resolve().then(() => init_agent_loop());
-    await runAgentLoop({
+    const { runAgentLoop: runAgentLoop2 } = await Promise.resolve().then(() => (init_agent_loop(), exports_agent_loop));
+    await runAgentLoop2({
       list: args.list,
       show: args.show,
       submit: args.submit,
@@ -42649,8 +43051,8 @@ var doctor = defineCommand({
     }
   },
   async run({ args }) {
-    await Promise.resolve().then(() => init_doctor());
-    const report = await runDoctor({ writeDescriptions: args["write-descriptions"] });
+    const { runDoctor: runDoctor2 } = await Promise.resolve().then(() => (init_doctor(), exports_doctor));
+    const report = await runDoctor2({ writeDescriptions: args["write-descriptions"] });
     if (report.fail > 0)
       process.exit(1);
   }
@@ -42683,8 +43085,8 @@ var reflect = defineCommand({
     }
   },
   async run({ args }) {
-    await Promise.resolve().then(() => init_reflect2());
-    await runReflect({
+    const { runReflect: runReflect2 } = await Promise.resolve().then(() => (init_reflect2(), exports_reflect));
+    await runReflect2({
       task: args.task,
       since: args.since,
       save: args.save,
@@ -42710,8 +43112,8 @@ var metrics = defineCommand({
     }
   },
   async run({ args }) {
-    await Promise.resolve().then(() => init_metrics2());
-    await runMetrics({
+    const { runMetrics: runMetrics2 } = await Promise.resolve().then(() => (init_metrics2(), exports_metrics));
+    await runMetrics2({
       json: args.json,
       writeBaseline: args["write-baseline"]
     });
@@ -42750,18 +43152,18 @@ var watchCiFailure = defineCommand({
     }
   },
   async run({ args }) {
-    await Promise.resolve().then(() => init_watch_ci_failure());
+    const { runWatchCiFailure: runWatchCiFailure2 } = await Promise.resolve().then(() => (init_watch_ci_failure(), exports_watch_ci_failure));
     const parseSec = (key) => {
-      const v = args[key];
-      if (v === undefined)
+      const v2 = args[key];
+      if (v2 === undefined)
         return;
-      const n = Number.parseInt(v, 10);
-      if (!Number.isFinite(n) || n < 1) {
-        throw new Error(`--${key} must be a positive integer; got ${v}`);
+      const n2 = Number.parseInt(v2, 10);
+      if (!Number.isFinite(n2) || n2 < 1) {
+        throw new Error(`--${key} must be a positive integer; got ${v2}`);
       }
-      return n;
+      return n2;
     };
-    await runWatchCiFailure({
+    await runWatchCiFailure2({
       workflow: args.workflow,
       branch: args.branch,
       runId: args["run-id"],
@@ -42818,21 +43220,21 @@ var canary = defineCommand({
     }
   },
   async run({ args }) {
-    await Promise.resolve().then(() => init_canary2());
+    const { parsePhases: parsePhases2, runCanary: runCanary2 } = await Promise.resolve().then(() => (init_canary2(), exports_canary));
     const parseSec = (key) => {
-      const v = args[key];
-      if (v === undefined)
+      const v2 = args[key];
+      if (v2 === undefined)
         return;
-      const n = Number.parseInt(v, 10);
-      if (!Number.isFinite(n) || n < 1) {
-        throw new Error(`--${key} must be a positive integer; got ${v}`);
+      const n2 = Number.parseInt(v2, 10);
+      if (!Number.isFinite(n2) || n2 < 1) {
+        throw new Error(`--${key} must be a positive integer; got ${v2}`);
       }
-      return n;
+      return n2;
     };
-    await runCanary({
+    await runCanary2({
       packageName: args.package,
       expectedVersion: args.version,
-      phases: parsePhases(args.phases),
+      phases: parsePhases2(args.phases),
       healthUrl: args["health-url"],
       healthRegex: args["health-regex"],
       binName: args.bin,
@@ -42859,8 +43261,8 @@ var handoff = defineCommand({
     }
   },
   async run({ args }) {
-    await Promise.resolve().then(() => init_handoff2());
-    const result = await runHandoff({
+    const { runHandoff: runHandoff2 } = await Promise.resolve().then(() => (init_handoff2(), exports_handoff));
+    const result = await runHandoff2({
       auto: args.auto,
       print: args.print,
       sgcVersion: package_default.version
@@ -42884,8 +43286,8 @@ var land = defineCommand({
     }
   },
   async run({ args }) {
-    await Promise.resolve().then(() => init_land2());
-    const result = await runLandCli({
+    const { runLandCli: runLandCli2 } = await Promise.resolve().then(() => (init_land2(), exports_land));
+    const result = await runLandCli2({
       package: args.package,
       version: args.version
     });
@@ -42935,8 +43337,8 @@ var loop = defineCommand({
     }
   },
   async run({ args }) {
-    await Promise.resolve().then(() => init_loop2());
-    await runLoopCommand({
+    const { runLoopCommand: runLoopCommand2 } = await Promise.resolve().then(() => (init_loop2(), exports_loop));
+    await runLoopCommand2({
       task: args.task,
       resume: args.resume,
       runs: args.runs,
@@ -42953,8 +43355,8 @@ var cso = defineCommand({
     description: "GS-5: pre-ship security review \u2014 secret scan + dep audit + events.ndjson anomaly detection. Writes append-only report under .sgc/cso/. Exit 1 on fail, 0 on pass/warn."
   },
   async run() {
-    await Promise.resolve().then(() => init_cso());
-    const { report } = await runCso();
+    const { runCso: runCso2 } = await Promise.resolve().then(() => (init_cso(), exports_cso));
+    const { report } = await runCso2();
     if (report.verdict === "fail")
       process.exit(1);
   }
@@ -42994,9 +43396,9 @@ var wantsVersion = rawArgs.length === 1 && rawArgs[0] === "--version";
 if (wantsHelp || wantsVersion) {
   runMain(main);
 } else {
-  runCommand(main, { rawArgs }).catch(async (error) => {
-    const err = error;
-    const message = err?.message ?? String(error);
+  runCommand(main, { rawArgs }).catch(async (error2) => {
+    const err = error2;
+    const message = err?.message ?? String(error2);
     if (err?.name === "CLIError")
       await showUsage(main);
     process.stderr.write(`

@@ -29,7 +29,8 @@
 
 ## 决策与进展
 - CHANGELOG 不加 Unreleased 段（本项目没有这个惯例），本次改动的说明在发版时写进那个版本的条目。CHANGELOG v1.3.0 附近那条 "Requires `NPM_TOKEN` secret" 是历史记录，不改。
-- 发版时若 publish 报 401 / 403 / 404：先核对 npmjs.com 上填的值（Organization or user `sdsrss`、Repository `sgc`、Workflow filename `publish.yml`、Environment 留空）和 `id-token: write`，不要把 token 加回来。
+- 发版时若 publish 报 401 / 403 / 404：先核对 npmjs.com 上填的值（Organization or user `sdsrss`、Repository `sgc`、Workflow filename `publish.yml`、Environment name 留空、Allowed actions 勾选 `npm publish`）和 `id-token: write`，不要把 token 加回来。
+- 更正（2026-11-01）：第一轮只列了 5 个字段，漏了 "Allowed actions"。npm 文档写明 2026-09-03 之后新建的配置默认只允许 `npm stage publish`，本 workflow 直接 `npm publish`，必须勾选。
 - `_npmUser` 验证通过之前，不删 `NPM_TOKEN` secret；验证通过后问用户，用户同意了再执行 `gh secret delete NPM_TOKEN`。
 
 ## 验证记录

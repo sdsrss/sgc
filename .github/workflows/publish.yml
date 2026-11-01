@@ -10,11 +10,14 @@ name: publish-npm
 #   Organization or user: sdsrss
 #   Repository:           sgc
 #   Workflow filename:    publish.yml
-#   Environment:          (empty; the publish job sets no `environment:`)
-# Renaming this file, moving `npm publish` into another workflow, or giving
-# the job an `environment:` breaks that match and the publish fails
-# (401/403/404). Fix the npmjs.com values or the permission; do not add a
-# token back.
+#   Environment name:     (empty; the publish job sets no `environment:`)
+#   Allowed actions:      tick `npm publish`. A configuration created after
+#                         2026-09-03 allows only `npm stage publish` unless
+#                         told otherwise, and this workflow publishes directly.
+# Renaming this file, moving `npm publish` into another workflow, giving the
+# job an `environment:`, or leaving `npm publish` unticked breaks that match
+# and the publish fails (401/403/404). Fix the npmjs.com values or the
+# permission; do not add a token back.
 #
 # Why no NODE_AUTH_TOKEN / NPM_TOKEN at any level (step, job, workflow): npm
 # 11 tries OIDC first and, if that fails, quietly falls back to a token in

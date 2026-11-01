@@ -1,5 +1,63 @@
 # Changelog
 
+## v2.0.0 — 2026-11-01 — Node 22.19+, and a proxy that works on every Node it supports
+
+### Migration (breaking): sgc 2 requires Node >= 22.19.0
+
+Node 18 (end of life 2025-04-30) and Node 20 (end of life 2026-04-30) are no
+longer maintained upstream. 22 is the oldest maintained LTS (to 2027-04-30),
+and Claude Code's own npm package already requires Node >= 22.0.0. 22.19.0 is
+the exact version CI tests as the floor.
+
+- **Check:** `node --version`. On an older Node, sgc 2 still starts (measured on
+  18.20.8 and 20.20.2), but prints one line on stderr saying the version is
+  below the supported range and untested.
+- **To stay on Node 18 / 20, stay on sgc 1.x** (v1.38.5 is the last 1.x):
+  - npm: `npm i -g @sdsrs/sgc@1`
+  - Claude Code plugin: the plugin-bundled CLI takes precedence over a global
+    npm install, so the npm pin alone does not move plugin users back. Run
+    `/plugin marketplace remove sgc`, then `/plugin marketplace add
+    sdsrss/sgc#v1.38.5`, then `/plugin install sgc@sgc` (removing a marketplace
+    uninstalls its plugins; the last step reinstalls the 1.x one).
+
+### Changes
+
+- **Proxy support on Node 26 (fixes v1.38.x).** sgc handed an npm-undici
+  `ProxyAgent` to Node's built-in fetch, which carries its own undici; when
+  the two disagree on the dispatcher handler API the request fails. Measured
+  through a real proxy, v1.38.x's undici 6 failed on Node 26 ("invalid onError
+  method"), so with `HTTP(S)_PROXY` set, OpenRouter calls and canary health
+  checks could not go out there. Proxied requests now use undici's own fetch,
+  which worked on every combination tried (undici 6/7/8 × Node 22.19/24.22/
+  26.8). Unproxied requests still use the built-in fetch, unchanged.
+- **undici 6 → 7** (`^7.30.1`; 6.x is supported only to 2027-04-30, 7.x to
+  2028-04-30). undici 8 was measured and not taken: its bundle is 2,220,899
+  bytes against 1,944,054 with 7.
+- **CI:** the consumer job now runs on Node 22.19.0, 24 and 26, and adds
+  `tests/e2e/proxy-canary.test.sh`, which runs the committed bundle's canary
+  health check through a fake CONNECT proxy under Node (bun's fetch cannot
+  reproduce this bug). `tests/e2e/npm-isolated-install.test.sh` packs the
+  committed bundle instead of rebuilding it with whatever bun was on PATH.
+  `sgc doctor` warns, instead of reporting ✓, when the bundle matches only a
+  rebuild by a bun other than CI's pinned one. The publish build job no longer
+  leaves its checkout token in `.git/config`.
+- **Real-LLM evals left push CI.** test.yml's LLM smoke never ran (no key
+  configured, all 8 tests skipped) and was pinned to `anthropic/claude-sonnet-4`,
+  which Anthropic retired on 2026-06-15. `.github/workflows/llm-eval.yml` runs
+  weekly and on demand against the runtime default model, and fails when its
+  key is missing or any test skips.
+- **Default models unchanged** (`anthropic/claude-opus-4.7` via OpenRouter,
+  `claude-opus-4-6` via the Anthropic SDK). Measured on 2026-11-01, 5 runs × 8
+  smoke tests each: opus-4.7 37/40, opus-4.6 40/40, opus-5.5 35/40, sonnet-5.5
+  30/40. The opus results' 95% intervals overlap, so there was no basis for
+  changing the default; most failures were researcher.history's 30-word reason
+  cap and reference match, not runtime errors.
+
+Full suite 1618 → 1631 pass / 38 skip / 0 fail (+13 new tests); `tsc --noEmit`
+0; `npm audit --omit=dev` 0; bundle 1,707,646 → 1,944,054 bytes (+13.8%,
+undici 7); `sgc doctor` 71 OK / 0 warn / 0 fail; both e2e scripts pass on Node
+22.19.0, 24.22.0 and 26.8.1.
+
 ## v1.38.5 — 2026-11-01 — the publish credential, out of reach of everything but `npm publish`
 
 A release-pipeline and dependency release. sgc's own behavior is unchanged.

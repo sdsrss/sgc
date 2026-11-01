@@ -43231,7 +43231,7 @@ var package_default2;
 var init_package = __esm(() => {
   package_default2 = {
     name: "@sdsrs/sgc",
-    version: "1.38.5",
+    version: "2.0.0",
     description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
     type: "module",
     bin: {
@@ -48578,7 +48578,7 @@ import { existsSync as existsSync27 } from "fs";
 // package.json
 var package_default = {
   name: "@sdsrs/sgc",
-  version: "1.38.5",
+  version: "2.0.0",
   description: "All-in-one engineering workflow & knowledge engine for Claude Code: L0-L3 task classification, 13 runtime invariants, code review, browser QA, security review, and a deduplicated knowledge base that compounds across tasks. Self-contained — one-command install, Node-only, no other plugins required.",
   type: "module",
   bin: {
@@ -48662,7 +48662,7 @@ function nodeFloorNotice(nodeVersion, enginesNode) {
   const found = parseVersion(nodeVersion);
   if (!floor || !found || !below(found, floor))
     return null;
-  return `[sgc] Node ${nodeVersion} is below sgc's supported range (node ${enginesNode}). ` + `It may still run, but this version is untested. ` + `Upgrade Node, or stay on sgc 1.x (supports Node >=18.17): npm i -g @sdsrs/sgc@1`;
+  return `[sgc] Node ${nodeVersion} is below sgc's supported range (node ${enginesNode}). ` + `It may still run, but this version is untested. ` + `Upgrade Node, or stay on sgc 1.x (Node >=18.17): npm i -g @sdsrs/sgc@1; ` + `plugin: /plugin marketplace remove sgc, then /plugin marketplace add sdsrss/sgc#v1.38.5`;
 }
 
 // node_modules/citty/dist/index.mjs

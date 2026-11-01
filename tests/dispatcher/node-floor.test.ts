@@ -25,6 +25,9 @@ describe("nodeFloorNotice", () => {
     expect(msg).toContain("v20.20.2")
     expect(msg).toContain(">=22.19.0")
     expect(msg).toContain("@sdsrs/sgc@1")
+    // the plugin-bundled CLI wins over a global npm install, so the plugin
+    // channel needs its own way back
+    expect(msg).toContain("sdsrss/sgc#v1.38.5")
     expect(msg).not.toContain("\n")
   })
 

@@ -1,5 +1,5 @@
 # npm 发布改用 trusted publishing（GitHub Actions OIDC）
-状态：进行中
+状态：已完成（发布已验证；删除 NPM_TOKEN secret 等用户决定）
 
 ## 背景与目标
 `@sdsrs/sgc` 原来由 `.github/workflows/publish.yml` 用仓库 secret `NPM_TOKEN`（经 `NODE_AUTH_TOKEN`）发布。改成 npm trusted publishing：npm CLI 用 GitHub Actions 的 OIDC token 换一个短期发布凭据，仓库里不再需要长期 token。
@@ -14,7 +14,7 @@
 - [x] AC1：publish.yml 的非注释行不出现 `NPM_TOKEN` / `NODE_AUTH_TOKEN` — 验证：`grep -v '^\s*#' .github/workflows/publish.yml | grep -nE 'NPM_TOKEN|NODE_AUTH_TOKEN'` 无输出（改之前有输出）
 - [x] AC2：发布 job 用 Node 24、带 `id-token: write`，`npm publish` 失败时没有任何分支能让 job 变绿 — 验证：读 publish.yml
 - [x] AC3：publish.yml 是合法 YAML，现有测试和 typecheck 通过 — 验证：js-yaml 解析；`npm run typecheck`；`SGC_FORCE_INLINE=1 bun test tests/dispatcher tests/eval`
-- [ ] AC4（发版时）：`npm view @sdsrs/sgc@<版本> _npmUser` 显示 `GitHub Actions <npm-oidc-no-reply@github.com>`，不是用户的账号名。job 变绿不算数。
+- [x] AC4（发版时）：`npm view @sdsrs/sgc@<版本> _npmUser` 显示 `GitHub Actions <npm-oidc-no-reply@github.com>`，不是用户的账号名。job 变绿不算数。
 
 ## 方案
 - 发布入口只有一个：publish.yml 的 `Publish to npm` step（直接 `npm publish`，不是 workflow_call 可复用 workflow，没有 pnpm/yarn/changesets/semantic-release/第三方 publish action）。所以 npmjs.com 上的 workflow filename 填 `publish.yml`。
@@ -26,7 +26,7 @@
 ## 计划
 - [x] S1：改 publish.yml（去 token、改注释） — 覆盖 AC1 AC2 — 执行：主会话
 - [x] S2：校验 + 本地提交 — 覆盖 AC3 — 执行：主会话
-- [ ] S3：用户说发版时：bump 版本 + CHANGELOG → push → tag → 等 publish 跑完 → AC4 → 问用户是否 `gh secret delete NPM_TOKEN`
+- [x] S3（除最后一步"问用户是否删 secret"外）：用户说发版时：bump 版本 + CHANGELOG → push → tag → 等 publish 跑完 → AC4 → 问用户是否 `gh secret delete NPM_TOKEN`
 
 ## 决策与进展
 - CHANGELOG 不加 Unreleased 段（本项目没有这个惯例），本次改动的说明在发版时写进那个版本的条目。CHANGELOG v1.3.0 附近那条 "Requires `NPM_TOKEN` secret" 是历史记录，不改。
@@ -45,4 +45,4 @@
 - 第二轮 job 拆分：临时结构检查（workflow 级无 id-token、只有一个 OIDC job 且只跑 download/setup-node/npm publish、action 全部钉 SHA、非注释行无 token）→ 改前失败 5 项，改后通过；actionlint 1.7.12 → 通过（exit 0）；本地 `npm publish ./dist/<tarball> --dry-run` → 读到 @sdsrs/sgc、5 个文件。
 - test.yml 在 59bdc4c、3118830 上 → 失败（bundle 一致性）：提交的 bundle 是本机 bun 1.4.2 构建（e2e 脚本里的 `npm run build:cli` 用了 PATH 上的 bun）。be09510 提交 bun 1.3.5 构建（blob c1f2084）后 → 通过（run 41331375589：1618 pass / 38 skip / 0 fail；LLM smoke 0 pass / 8 skip）。
 - 发版前审查（全新子代理，范围 7e309e4..3118830）：Critical 1 项（上面的 bundle，be09510 已修）；Medium：CHANGELOG 数字错（bundle 原大小应为 1694486，doctor 数字只在 bun 1.3.5 下成立）、`NPM_TOKEN` secret 仍在（按计划核对 `_npmUser` 后问用户）；Low：CHANGELOG / 注释夸大 publish job 的精简程度、setup-node 导出占位 `NODE_AUTH_TOKEN`、applied-tracker 第 57 行空格、本 spec 过时。前三类 Low 与 Medium 的数字已修，复审另起新子代理。
-- AC4 → 未运行（等用户确认 npmjs.com 配置后再打 tag）
+- AC4 → 通过：用户改好配置后 `gh run rerun 41334205586 --failed`（只重跑 publish job，复用第一次的 build 结果和 artifact）→ `+ @sdsrs/sgc@1.38.5`；`npm view @sdsrs/sgc@1.38.5 _npmUser` → `GitHub Actions <npm-oidc-no-reply@github.com>`（1.38.4 是 `sdsrs`）；`dist.shasum` d5c68b08… 与 CI tarball 一致；`dist-tags.latest` 1.38.5；provenance 为 SLSA v1；npm 上 tarball 里的 bundle blob c1f2084 与 tag 上的提交一致。这次 OIDC 发布没出现 E403 假阴性（只有一次样本）。GitHub Release v1.38.5 已建。

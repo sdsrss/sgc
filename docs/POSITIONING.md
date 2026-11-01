@@ -2,7 +2,7 @@
 
 ## Role: self-contained engineering super-plugin + knowledge engine
 
-sgc is a **self-contained engineering workflow + knowledge engine** for Claude Code. As of **v1.24.0** it installs in one command and runs **standalone** (Node ≥ 18, no `bun`) — it does **not require** `superpowers` (sp), `gstack` (gs), or any separate Compound-Engineering tooling. It owns the full plan → work → review → QA → ship → compound loop and has natively absorbed the best of all three: the **GS-N arc (7/7)** of gstack-style capabilities, **Tier-1 Superpowers** verification + systematic-debugging discipline, and the **Compound Engineering** capture → promote → reuse loop.
+sgc is a **self-contained engineering workflow + knowledge engine** for Claude Code. As of **v1.24.0** it installs in one command and runs **standalone** (no `bun`; Node ≥ 22.19 since v2.0.0, ≥ 18 before) — it does **not require** `superpowers` (sp), `gstack` (gs), or any separate Compound-Engineering tooling. It owns the full plan → work → review → QA → ship → compound loop and has natively absorbed the best of all three: the **GS-N arc (7/7)** of gstack-style capabilities, **Tier-1 Superpowers** verification + systematic-debugging discipline, and the **Compound Engineering** capture → promote → reuse loop.
 
 If sp/gs happen to be installed, sgc can *optionally* hand the deepest work to them as a richer path — but that is **interop, not a dependency**.
 

@@ -1,4 +1,4 @@
-# v2.0.0：Node ≥ 22.19、undici 8、代理在任意 Node 版本可用，以及 LLM / 构建检查的修补
+# v2.0.0：Node ≥ 22.19、undici 7、代理在任意 Node 版本可用，以及 LLM / 构建检查的修补
 状态：进行中
 
 ## 背景与目标
@@ -48,7 +48,7 @@
 - [x] S2：doctor 遇到 bun 版本不一致时报 warn（RED → GREEN）
 - [x] S3：e2e 脚本不再重建 bundle（RED → GREEN）
 - [x] S4：proxy-fetch 改用 undici 自己的 fetch + 代理端到端测试（RED：v1.38.5 bundle 在 Node 26 上失败）
-- [x] S5：undici ^8 + engines `>=22.19.0` + CI Node 矩阵 + 文档和基线同步
+- [x] S5：undici ^7 + engines `>=22.19.0` + CI Node 矩阵 + 文档和基线同步
 - [x] S6：test.yml 删掉 LLM smoke；新增 llm-eval.yml；修正注释；`persist-credentials`
 - [x] S7：按实测结果决定默认模型
 - [ ] S8：CHANGELOG / 版本号 / 发版
@@ -57,15 +57,36 @@
 - 2026-11-01：sgc 原来的 `NPM_TOKEN` 是 token `75a719`（05-20 创建；secret 05-21 之后没再更新），已于 2026-08-04 被吊销，08-18 过期，不需要再操作。`github`（6b4487）和 `github2`（0000ef）是其他仓库在用的、可绕过 2FA 的写权限 token，2026-11-20 到期，不动。
 - LLM 实测在 scratchpad 的独立克隆里跑（HEAD 50e2f89），预算上限 $2.80。
 
-- 决策（2026-11-01）：用 undici ^7.30.1，不用 8。实测 bundle 大小：6 → 1,707,646，7 → 1,942,898，8 → 2,220,899 字节。7 维护到 2028-04-30，晚于下一次升下限的时间（2027-04-30 Node 22 停止维护，届时升到 24），而且配合 undici 自己的 fetch 在三个 Node 版本上都实测通过。`engines` 仍为 `>=22.19.0`，因为这是 CI 实际测试的下限。
+- 决策（2026-11-01）：用 undici ^7.30.1，不用 8。实测 bundle 大小：6 → 1,707,646，7 → 1,942,898，8 → 2,220,899 字节（这两个数是在较早的源码上测的；在最终源码 e3e10ab 上复测：7 → 1,944,072，8 → 2,222,073，结论不变）。7 维护到 2028-04-30，晚于下一次升下限的时间（2027-04-30 Node 22 停止维护，届时升到 24），而且配合 undici 自己的 fetch 在三个 Node 版本上都实测通过。`engines` 仍为 `>=22.19.0`，因为这是 CI 实际测试的下限。
 - 决策：不换默认模型。smoke（5 轮 × 8 个测试）：opus-4.7 37/40（95% 区间 80.1–97.4%），opus-4.6 40/40（91.2–100%），opus-5.5 35/40（73.9–94.5%），sonnet-5.5 30/40（59.8–85.8%）。三个 opus 的区间重叠，没有依据更换。失败全部是评测质量门（researcher.history 的 30 词上限和引用匹配、planner.eng 的禁用词、RT-4 门），没有一次是运行时错误。test.yml 注释所说的 opus-4.7 §9 未声明字段问题，在 6 轮运行里没有出现。
 - 决策：定时 workflow 每周只跑 planner-eng（在默认模型上 0/6 失败），因为 researcher.history 在默认模型上 5 轮里有 2 轮失败，整套 smoke 做每周红绿会大多是误报。手动触发可选 smoke 或 full。
 - 决策：旧 Node 只提示、不阻止运行（实测 18/20 上 bundle 仍能启动）。提示里同时给出插件渠道的退回路径（Claude Code 文档：marketplace add 接受 `#<ref>`），因为插件自带的 CLI 优先于全局 npm 安装，只给 npm 的退回命令对插件用户无效。
 - 遗留：doctor 的 README 分数行检查故意不解析"高效化"段，所以 README 里的 Node 版本说法没有任何检查；这次是手动同步的。
 
-- 范围扩展（不修就无法发版）：test.yml run 41341840174 在 192a3b9 上 bundle 一致性检查失败（`index e0ea140..c2c765e`）。原因：bun 把 undici 7 的 `__filename` 写成构建机器的绝对路径（本机 `/home/ai/dev/sgc/node_modules/undici/index.js`，CI `/home/runner/work/sgc/sgc/...`）；v1.38.5 的 bundle 里这种路径为 0 处。修法：`scripts/build-cli.mjs` 去掉 checkout 根路径前缀。undici 只用它判断堆栈里是否已包含该路径，单文件 bundle 里永远不会包含，所以对运行时没有影响。
+- 范围扩展（不修就无法发版）：test.yml run 41341840174 在 192a3b9 上 bundle 一致性检查失败（`index e0ea140..c2c765e`）。原因：bun 把 undici 7 的 `__filename` 写成构建机器的绝对路径（本机 `/home/ai/dev/sgc/node_modules/undici/index.js`，CI `/home/runner/work/sgc/sgc/...`）；v1.38.5 的 bundle 里这种路径为 0 处。修法：`scripts/build-cli.mjs` 去掉 checkout 根路径前缀。undici 只用它判断堆栈里是否已包含该路径，单文件 bundle 里永远不会包含，所以对运行时没有影响。（后经审查更正：只有错误信息本身含 `node_modules/undici/index.js` 时，相对路径才会让 undici 少追加堆栈帧，而 sgc 只在 `SGC_DEBUG` 下打印 err.stack。）
+
+- 发版前审查第一轮（新的子代理，范围 50e2f89..192a3b9）：
+  - C1：bundle 含构建路径，CI 一致性检查失败 → 已由 9a8e440 修复。
+  - H1：旧 Node 提示给插件用户的退回路径缺 `/plugin install sgc@sgc`（删除 marketplace 会卸载其下插件，照提示做完 sgc 就没了）→ e1573d3（先 RED）。
+  - M1：`plugins/sgc/CLAUDE.md:7`、`docs/POSITIONING.md:5` 仍写 Node ≥ 18 → 文档提交。
+  - L1：CHANGELOG 里 undici 8 的体积是在旧源码上测的 → 复测后改为 2,222,073。
+  - L2：仓库没有 `OPENROUTER_API_KEY` secret，llm-eval.yml 首次定时运行（2026-11-02 06:17 UTC）就会失败 → 这是设计如此，报告给用户。
+  - L3：本文件标题和 S5 仍写 undici 8 → 已改。
+- 增量审查（新的子代理，范围 9a8e440）：
+  - F1 Medium：去路径用的是不限定位置的全局替换，checkout 根目录很短（如挂载到 `/sgc`）时会删坏无关字符串（22 行）→ e3e10ab，只替换 `"<根目录>/node_modules/` 开头的字符串字面量（先 RED）。
+  - F4、F6：注释和 CHANGELOG 说法不准确 → e3e10ab 更正。
+  - F5：同 L1。
+  - F2、F3 Low，未修，记为遗留。F2：Windows 反斜杠路径、含制表符的路径、`--preserve-symlinks-main` 的情况下路径去不掉。F3：集成测试只查字面路径。CI 和发布只在 Linux 上构建；在这些情况下，最坏结果是本机 doctor 的一致性检查报 fail，不会发出错误的包。
 
 ## 验证记录
+- 审查修复（HEAD e3e10ab，bundle 2b0d440，1,944,072 字节）：
+  - node-floor 测试 RED（`install` 下标 -1）→ 7 pass。
+  - 去路径单元测试 RED（`sdsrssissues`、`pluginscommands`）→ 2 pass。
+  - bwrap 挂载到 `/sgc` 构建：旧脚本得到 c3d8b64（22 行不同），新脚本得到 2b0d440。
+  - 另一路径的克隆构建 → 2b0d440。
+  - `npm run test:all` → 1633 pass / 38 skip / 0 fail；tsc → 0；doctor → 71 OK / 0 warn / 0 fail。
+  - 两个端到端测试在 22.19.0 / 24.22.0 / 26.8.1 上都通过。
+  - Node 20.20.2 下 stderr 恰好一行，以 `then /plugin install sgc@sgc` 结尾。
 - 路径修复：`build-cli-paths.test.ts` RED（Received: true）→ 1 pass；在主仓库和 scratchpad 克隆里分别构建 → 同为 blob 4f0257f；全量测试 1632 pass / 38 skip / 0 fail；doctor 71 OK；两个端到端测试在 22.19.0 / 24.22.0 / 26.8.1 上都通过。
 - 本轮最终状态（版本号已改为 2.0.0，bundle e0ea140，1,944,054 字节）：`npm run typecheck` → 通过；`npm run test:all` → 通过：1631 pass / 38 skip / 0 fail（1669 个测试，148 个文件；改动前为 1618 pass）；`/tmp` 中新增的 `sgc-*` 为 0；`sgc doctor`（bun 1.3.5）→ 通过：71 OK / 0 warn / 0 fail；`npm audit --omit=dev` → 0。
 - 端到端测试：`proxy-canary` 和 `npm-isolated-install` 在 Node 22.19.0 / 24.22.0 / 26.8.1 上都通过；v1.38.5 的 bundle 在 26.8.1 上 proxy-canary 失败（exit 1，CONNECT 次数为 0）。

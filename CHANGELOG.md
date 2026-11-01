@@ -31,7 +31,7 @@ the exact version CI tests as the floor.
   which worked on every combination tried (undici 6/7/8 × Node 22.19/24.22/
   26.8). Unproxied requests still use the built-in fetch, unchanged.
 - **undici 6 → 7** (`^7.30.1`; 6.x is supported only to 2027-04-30, 7.x to
-  2028-04-30). undici 8 was measured and not taken: its bundle is 2,220,899
+  2028-04-30). undici 8 was measured and not taken: its bundle is 2,222,073
   bytes against 1,944,072 with 7.
 - **CI:** the consumer job now runs on Node 22.19.0, 24 and 26, and adds
   `tests/e2e/proxy-canary.test.sh`, which runs the committed bundle's canary

@@ -4,7 +4,7 @@ A single engineering workflow combining process discipline, real-world QA, and k
 
 ## Positioning
 
-sgc is a **self-contained engineering super-plugin + knowledge engine** for Claude Code — one-command install, runs standalone (Node ≥ 18, no bun), no other plugins required. See [docs/POSITIONING.md](../../docs/POSITIONING.md) for the full picture.
+sgc is a **self-contained engineering super-plugin + knowledge engine** for Claude Code — one-command install, runs standalone (Node ≥ 22.19, no bun), no other plugins required. See [docs/POSITIONING.md](../../docs/POSITIONING.md) for the full picture.
 
 - **sgc owns + runs natively**: L0-L3 classification, 13 invariants, `.sgc/` state layer, dedup, the compound knowledge loop, review, QA (`qa.browser`; Playwright real-browser opt-in via `--browse`/`SGC_QA_REAL=1`, stub by default — returns `concern`, never rubber-stamps), security review (cso), systematic debugging, ship + canary
 - **Optional interop** (richer path if sp/gs installed, never required): deepest plan authoring + full TDD discipline → sp; comprehensive review / browser / deploy → gs

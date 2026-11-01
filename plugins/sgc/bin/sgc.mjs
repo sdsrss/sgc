@@ -31510,7 +31510,16 @@ function makeDispatcher(fn) {
     }, handler);
   };
 }
-var Client, Dispatcher, Pool, BalancedPool, Agent, ProxyAgent, EnvHttpProxyAgent, RetryAgent, errors, util, InvalidArgumentError, api, buildConnector, MockClient, MockAgent, MockPool, mockErrors, RetryHandler, getGlobalDispatcher, setGlobalDispatcher, DecoratorHandler, RedirectHandler, createRedirectInterceptor, $ProxyAgent, $interceptors, $util, fetchImpl, $Headers, $Response, $Request, $FormData, $File, $FileReader, setGlobalOrigin, getGlobalOrigin, CacheStorage, kConstruct, $caches, deleteCookie, getCookies, getSetCookies, setCookie, parseMIMEType, serializeAMimeType, CloseEvent, ErrorEvent, MessageEvent, $WebSocket, $request, $stream, $pipeline, $connect, $upgrade, EventSource;
+var Client, Dispatcher, Pool, BalancedPool, Agent, ProxyAgent, EnvHttpProxyAgent, RetryAgent, errors, util, InvalidArgumentError, api, buildConnector, MockClient, MockAgent, MockPool, mockErrors, RetryHandler, getGlobalDispatcher, setGlobalDispatcher, DecoratorHandler, RedirectHandler, createRedirectInterceptor, $ProxyAgent, $interceptors, $util, fetchImpl, $fetch = async function fetch2(init2, options = undefined) {
+  try {
+    return await fetchImpl(init2, options);
+  } catch (err) {
+    if (err && typeof err === "object") {
+      Error.captureStackTrace(err);
+    }
+    throw err;
+  }
+}, $Headers, $Response, $Request, $FormData, $File, $FileReader, setGlobalOrigin, getGlobalOrigin, CacheStorage, kConstruct, $caches, deleteCookie, getCookies, getSetCookies, setCookie, parseMIMEType, serializeAMimeType, CloseEvent, ErrorEvent, MessageEvent, $WebSocket, $request, $stream, $pipeline, $connect, $upgrade, EventSource;
 var init_undici = __esm(() => {
   Client = require_client();
   Dispatcher = require_dispatcher();
@@ -31635,12 +31644,16 @@ function makeProxyAwareFetch(baseFetch, env2 = process.env) {
     if (shouldBypass(hostOf(input), noProxyEntries(env2)))
       return base(input, init2);
     const dispatcher = dispatcherFor(url);
-    return base(input, { ...init2, dispatcher });
+    const send = baseFetch ?? _internals.proxiedFetch;
+    return send(input, { ...init2, dispatcher });
   };
 }
-var cached, proxyAwareFetch;
+var _internals, cached, proxyAwareFetch;
 var init_proxy_fetch = __esm(() => {
   init_undici();
+  _internals = {
+    proxiedFetch: $fetch
+  };
   proxyAwareFetch = makeProxyAwareFetch();
 });
 

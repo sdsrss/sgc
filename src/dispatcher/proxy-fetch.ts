@@ -11,8 +11,25 @@
 // is not exempt (NO_PROXY / loopback), so the default (no-proxy) path is
 // byte-for-byte the prior globalThis.fetch behavior. Callers reach this via the
 // same `fetchFn` / `httpFetch` injection seams they already had.
+//
+// v2.0.0: a proxied request goes through undici's OWN fetch, not Node's
+// built-in one. Node's fetch carries its own undici, and a ProxyAgent from a
+// different undici only works when both agree on the dispatcher handler API.
+// Measured through a real proxy: undici 6.29.1 + Node 26's fetch failed
+// ("invalid onError method", which broke v1.38.5 there), undici 8.12.3 + Node
+// 22/24's fetch failed ("invalid onRequestStart method"), and undici's own
+// fetch with its ProxyAgent worked on all nine combinations of 6/7/8 × Node
+// 22.19/24.22/26.8. tests/e2e/proxy-canary.test.sh checks it under Node.
 
-import { ProxyAgent } from "undici"
+import { ProxyAgent, fetch as undiciFetch } from "undici"
+
+/**
+ * The fetch a proxied request is sent with. An object property rather than a
+ * direct call so the seam tests can observe the default path without a network.
+ */
+export const _internals: { proxiedFetch: typeof globalThis.fetch } = {
+  proxiedFetch: undiciFetch as unknown as typeof globalThis.fetch,
+}
 
 // Precedence: HTTPS_PROXY (upper/lower) then HTTP_PROXY (upper/lower). We route
 // all fetch through a single proxy — matching how curl/git pick one — rather
@@ -115,8 +132,8 @@ function dispatcherFor(url: string): ProxyAgent {
  * delegates to the base fetch with the init untouched (zero behavior change).
  * `baseFetch` and `env` are injectable so the env-gating and dispatcher wiring
  * can be unit-tested without a real proxy; when `baseFetch` is omitted the
- * global fetch is read at CALL time (so a test-stubbed globalThis.fetch, and
- * the seam callers that rely on it, are honored).
+ * global fetch is read at CALL time for unproxied requests, and proxied ones go
+ * through `_internals.proxiedFetch` (undici's own fetch; see the header).
  */
 export function makeProxyAwareFetch(
   baseFetch?: typeof globalThis.fetch,
@@ -128,9 +145,11 @@ export function makeProxyAwareFetch(
     if (!url) return base(input, init)
     if (shouldBypass(hostOf(input), noProxyEntries(env))) return base(input, init)
     const dispatcher = dispatcherFor(url)
-    // Node's global fetch accepts `dispatcher` on init (an undici extension the
-    // DOM RequestInit type does not model), hence the cast.
-    return base(input, { ...init, dispatcher } as RequestInit)
+    // `dispatcher` is an undici extension the DOM RequestInit type does not
+    // model, hence the cast. An injected baseFetch keeps receiving it (unit
+    // tests); the default goes to undici's own fetch, matched to its ProxyAgent.
+    const send = baseFetch ?? _internals.proxiedFetch
+    return send(input, { ...init, dispatcher } as RequestInit)
   }) as typeof globalThis.fetch
 }
 

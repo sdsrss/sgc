@@ -6,7 +6,7 @@
 
 import { test, expect } from "bun:test"
 import { ProxyAgent } from "undici"
-import { makeProxyAwareFetch } from "../../src/dispatcher/proxy-fetch"
+import { _internals, makeProxyAwareFetch } from "../../src/dispatcher/proxy-fetch"
 
 type FakeInit = (RequestInit & { dispatcher?: unknown }) | undefined
 
@@ -130,4 +130,56 @@ test("malformed proxy URL throws a message naming the env var", () => {
   // (before the async base fetch) — assert with the sync matcher.
   expect(() => pf("https://example.com")).toThrow(/proxy URL in HTTP\(S\)_PROXY/)
   expect(base.calls()).toBe(0) // never reached the base fetch
+})
+
+// ── v2.0.0: proxied requests use undici's own fetch ──────────────────────────
+// Passing an npm-undici ProxyAgent to Node's BUILT-IN fetch only works when the
+// two undici versions agree on the dispatcher handler API. Measured through a
+// real proxy: undici 6.29.1 fails on Node 26 ("invalid onError method"),
+// undici 8.12.3 fails on Node 22/24 ("invalid onRequestStart method"); undici's
+// own fetch + its ProxyAgent worked on all nine combinations. So the default
+// proxied path must not be globalThis.fetch. (bun's fetch is not Node's, so the
+// real cross-version check lives in tests/e2e/proxy-canary.test.sh.)
+
+test("default proxied path calls undici's fetch, not globalThis.fetch", async () => {
+  const origGlobal = globalThis.fetch
+  const origProxied = _internals.proxiedFetch
+  let globalCalls = 0
+  const proxied = spyFetch()
+  globalThis.fetch = (async () => {
+    globalCalls++
+    return new Response("global")
+  }) as unknown as typeof globalThis.fetch
+  _internals.proxiedFetch = proxied.fetch
+  try {
+    await makeProxyAwareFetch(undefined, env({ HTTPS_PROXY: "http://127.0.0.1:19989" }))("https://api.example.com/x")
+    expect(globalCalls).toBe(0)
+    expect(proxied.last()?.dispatcher).toBeInstanceOf(ProxyAgent)
+  } finally {
+    globalThis.fetch = origGlobal
+    _internals.proxiedFetch = origProxied
+  }
+})
+
+test("default unproxied path still calls globalThis.fetch with init untouched", async () => {
+  const origGlobal = globalThis.fetch
+  const origProxied = _internals.proxiedFetch
+  const global = spyFetch()
+  const proxied = spyFetch()
+  globalThis.fetch = global.fetch
+  _internals.proxiedFetch = proxied.fetch
+  try {
+    const init = { method: "POST" }
+    await makeProxyAwareFetch(undefined, env({}))("https://api.example.com/x", init)
+    expect(proxied.calls()).toBe(0)
+    expect(global.last()).toBe(init)
+  } finally {
+    globalThis.fetch = origGlobal
+    _internals.proxiedFetch = origProxied
+  }
+})
+
+test("the default proxied fetch is undici's own fetch", async () => {
+  const undici = await import("undici")
+  expect(_internals.proxiedFetch).toBe(undici.fetch as unknown as typeof globalThis.fetch)
 })

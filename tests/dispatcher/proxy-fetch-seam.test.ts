@@ -3,7 +3,7 @@
 // suites inject their own fetch and so never exercise the default — a regression
 // reverting either seam to globalThis.fetch would pass every other test while
 // silently killing proxy support. These drive the real default path with a
-// stubbed globalThis.fetch + HTTPS_PROXY and assert the outbound request carried
+// stubbed proxied fetch + HTTPS_PROXY and assert the outbound request carried
 // an undici dispatcher.
 
 import { test, expect } from "bun:test"
@@ -12,6 +12,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { ProxyAgent } from "undici"
 import { runOpenRouterAgent } from "../../src/dispatcher/openrouter-agent"
+import { _internals } from "../../src/dispatcher/proxy-fetch"
 import { runCanaryChecks } from "../../src/dispatcher/canary"
 import type { SubagentManifest } from "../../src/dispatcher/types"
 
@@ -28,14 +29,14 @@ function restoreEnv(key: string, prev: string | undefined): void {
 }
 
 test("openrouter agent defaults to proxyAwareFetch (dispatcher attached under HTTPS_PROXY)", async () => {
-  const origFetch = globalThis.fetch
+  const origFetch = _internals.proxiedFetch
   const prevKey = setEnv("OPENROUTER_API_KEY", "test-key")
   const prevProxy = setEnv("HTTPS_PROXY", "http://127.0.0.1:19990")
   const dir = mkdtempSync(join(tmpdir(), "sgc-proxyseam-or-"))
   const promptPath = join(dir, "prompt.md")
   writeFileSync(promptPath, "classify this request")
   let captured: CapturedInit
-  globalThis.fetch = (async (_u: unknown, init?: RequestInit) => {
+  _internals.proxiedFetch = (async (_u: unknown, init?: RequestInit) => {
     captured = init as CapturedInit
     // Abort before response parsing — we only need to observe the request init.
     throw new Error("__captured__")
@@ -48,7 +49,7 @@ test("openrouter agent defaults to proxyAwareFetch (dispatcher attached under HT
     ).catch(() => {})
     expect(captured?.dispatcher).toBeInstanceOf(ProxyAgent)
   } finally {
-    globalThis.fetch = origFetch
+    _internals.proxiedFetch = origFetch
     restoreEnv("OPENROUTER_API_KEY", prevKey)
     restoreEnv("HTTPS_PROXY", prevProxy)
     rmSync(dir, { recursive: true, force: true })
@@ -56,10 +57,10 @@ test("openrouter agent defaults to proxyAwareFetch (dispatcher attached under HT
 })
 
 test("canary health_url defaults to proxyAwareFetch (dispatcher attached under HTTPS_PROXY)", async () => {
-  const origFetch = globalThis.fetch
+  const origFetch = _internals.proxiedFetch
   const prevProxy = setEnv("HTTPS_PROXY", "http://127.0.0.1:19991")
   let captured: CapturedInit
-  globalThis.fetch = (async (_u: unknown, init?: RequestInit) => {
+  _internals.proxiedFetch = (async (_u: unknown, init?: RequestInit) => {
     captured = init as CapturedInit
     return new Response("ok", { status: 200 }) // 2xx → phase passes, no retry/sleep
   }) as unknown as typeof globalThis.fetch
@@ -74,7 +75,7 @@ test("canary health_url defaults to proxyAwareFetch (dispatcher attached under H
     })
     expect(captured?.dispatcher).toBeInstanceOf(ProxyAgent)
   } finally {
-    globalThis.fetch = origFetch
+    _internals.proxiedFetch = origFetch
     restoreEnv("HTTPS_PROXY", prevProxy)
   }
 })

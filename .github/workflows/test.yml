@@ -7,16 +7,22 @@ on:
     branches: [main]
 
 jobs:
-  # P2-12 (audit v1.31.8): the two install-surface promises had no CI behind
-  # them. package.json says `engines.node: >=18.17` and the README sells "one
-  # command, npx/global, node ≥ 18.17" — but every job ran Node 24 only, and
-  # tests/e2e/npm-isolated-install.test.sh existed while being wired into
-  # nothing. Both claims were asserted, never tested. This job tests them: it
-  # packs the real tarball, installs it into a clean tree, and drives the
-  # shipped bundle under the OLDEST Node we advertise.
-  npm-install-node18:
-    name: npm consumer install (node 18 — the floor we advertise)
+  # P2-12 (audit v1.31.8): the install-surface promises had no CI behind them.
+  # This job tests them: it packs the real tarball, installs it into a clean
+  # tree, and drives the shipped bundle under Node.
+  #
+  # v2.0.0: the floor is `engines.node: >=22.19.0` (the oldest Node LTS still
+  # maintained upstream), tested at exactly 22.19.0, plus the current 24 and 26
+  # lines. Several Node lines, not just the floor, because the proxy e2e guards
+  # a bug that depends on the Node version: v1.38.x's proxy support failed on
+  # Node 26 only, since Node's built-in fetch bundles its own undici.
+  npm-consumer:
+    name: npm consumer install + proxy (node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22.19.0", "24", "26"]
     env:
       # The bundle never launches a browser here; skip the ~100MB chromium
       # fetch (playwright is optional and lazily imported).
@@ -24,19 +30,24 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Setup Node 18 (engines floor)
+      - name: Setup Node ${{ matrix.node }}
         uses: actions/setup-node@v5
         with:
-          node-version: "18"
+          node-version: ${{ matrix.node }}
 
       - name: Install dependencies
         run: npm ci
 
       - name: Isolated npm-consumer install + run (e2e)
-        # Packs, installs into a temp tree, then runs `--version` and `doctor`
-        # off the installed bin — the exact path an `npm i -g @sdsrs/sgc` user
-        # takes. Fails loudly if the bundle needs anything Node 18 lacks.
+        # Packs the committed bundle, installs it into a temp tree, then runs
+        # `--version` and `doctor` off the installed bin — the exact path an
+        # `npm i -g @sdsrs/sgc` user takes.
         run: bash tests/e2e/npm-isolated-install.test.sh
+
+      - name: Proxy support through Node's runtime (e2e)
+        # Runs the committed bundle's canary health check through a fake
+        # CONNECT proxy; fails unless the request went through the proxy.
+        run: bash tests/e2e/proxy-canary.test.sh
 
   dispatcher-eval:
     name: dispatcher + eval

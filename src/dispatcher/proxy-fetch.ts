@@ -146,10 +146,13 @@ export function makeProxyAwareFetch(
     if (shouldBypass(hostOf(input), noProxyEntries(env))) return base(input, init)
     const dispatcher = dispatcherFor(url)
     // `dispatcher` is an undici extension the DOM RequestInit type does not
-    // model, hence the cast. An injected baseFetch keeps receiving it (unit
-    // tests); the default goes to undici's own fetch, matched to its ProxyAgent.
+    // model, hence the cast; via `unknown` because the npm undici's ProxyAgent
+    // type and the runtime's bundled undici-types are separate declarations
+    // (tests/e2e/proxy-canary.test.sh checks the runtime pairing for real).
+    // An injected baseFetch keeps receiving it (unit tests); the default goes
+    // to undici's own fetch, matched to its ProxyAgent.
     const send = baseFetch ?? _internals.proxiedFetch
-    return send(input, { ...init, dispatcher } as RequestInit)
+    return send(input, { ...init, dispatcher } as unknown as RequestInit)
   }) as typeof globalThis.fetch
 }
 

@@ -2,7 +2,7 @@
 //
 // sgc — self-contained engineering super-plugin CLI (citty).
 //
-// All-in-one, runs standalone (Node >= 18.17, no other plugins required); absorbs
+// All-in-one, runs standalone (Node >= 22.19, no other plugins required); absorbs
 // the plan / execute / review / QA / security / ship / compound-knowledge loop
 // natively. Installed plugins (sp / gs / code-graph) are optional richer paths,
 // surfaced as non-binding hints — never required (see dispatcher/delegation.ts).
@@ -19,6 +19,7 @@
 import { defineCommand, runCommand, runMain, showUsage } from "citty"
 import { existsSync } from "node:fs"
 import packageJson from "../package.json"
+import { nodeFloorNotice } from "./node-floor"
 import { debugCommand } from "./commands/debug"
 import { LEVELS } from "./dispatcher/types"
 
@@ -1012,6 +1013,13 @@ const main = defineCommand({
 // exits 0), but run commands ourselves so a thrown error surfaces as a single
 // clean `error: <message>` line on stderr. Set SGC_DEBUG=1 to restore the full
 // stack for diagnosis.
+// v2.0.0: off the supported Node floor → warn once, on stderr (see
+// node-floor.ts). bun is the dev runtime, not a Node version; skip it there.
+if (!process.versions.bun) {
+  const notice = nodeFloorNotice(process.version, packageJson.engines.node)
+  if (notice) process.stderr.write(notice + "\n")
+}
+
 const rawArgs = process.argv.slice(2)
 const wantsHelp = rawArgs.includes("--help") || rawArgs.includes("-h")
 const wantsVersion = rawArgs.length === 1 && rawArgs[0] === "--version"

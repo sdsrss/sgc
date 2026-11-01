@@ -3,22 +3,39 @@ name: publish-npm
 # Triggered by pushing a `v*` tag (e.g. `v1.3.0`). Tag must match the
 # version field in package.json — the publish step refuses if they differ.
 #
-# Prerequisites (one-time setup):
-#   1. npm account exists for @sdsrs scope (npmjs.com → create token →
-#      "Automation" type for CI use).
-#   2. Add the token as repo secret `NPM_TOKEN` (Settings → Secrets and
-#      variables → Actions → New repository secret).
-#   3. Bump package.json + plugins/sgc/.claude-plugin/plugin.json versions
-#      in lockstep.
+# Auth: npm trusted publishing (GitHub Actions OIDC). No npm token.
+# `npm publish` exchanges this run's OIDC token (hence `id-token: write`
+# below) for a short-lived publish credential. One-time setup on npmjs.com:
+# @sdsrs/sgc → Settings → Trusted publishing → GitHub Actions:
+#   Organization or user: sdsrss
+#   Repository:           sgc
+#   Workflow filename:    publish.yml
+#   Environment:          (empty; the publish job sets no `environment:`)
+# Renaming this file, moving `npm publish` into another workflow, or giving
+# the job an `environment:` breaks that match and the publish fails
+# (401/403/404). Fix the npmjs.com values or the permission; do not add a
+# token back.
+#
+# Why no NODE_AUTH_TOKEN / NPM_TOKEN at any level (step, job, workflow): npm
+# 11 tries OIDC first and, if that fails, quietly falls back to a token in
+# the environment. With a token present, a broken trust configuration still
+# publishes and the job stays green; without one, it fails here instead.
+#
+# Before tagging: bump package.json + plugins/sgc/.claude-plugin/plugin.json
+# versions in lockstep (the verify step below enforces it).
 #
 # Tag → publish flow:
 #   git tag v1.3.0
 #   git push origin v1.3.0           # fires this workflow
+# Then confirm the version went out through trusted publishing (a green job
+# alone does not show that):
+#   npm view @sdsrs/sgc@<version> _npmUser
+#   # expected: GitHub Actions <npm-oidc-no-reply@github.com>
 #
 # Provenance: the package is published with --provenance, which embeds a
 # signed attestation linking the published tarball to this exact GitHub
-# Actions run + commit SHA. npm requires id-token: write permission for
-# this; the workflow grants it explicitly.
+# Actions run + commit SHA. Under trusted publishing npm generates it
+# automatically; the flag is kept as an explicit statement of intent.
 
 on:
   push:
@@ -27,7 +44,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write  # required for npm publish --provenance
+  id-token: write  # trusted publishing (OIDC auth) + provenance; publish fails without it
 
 jobs:
   publish:
@@ -39,6 +56,8 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Setup Node (for npm publish + registry auth)
+        # Node 24, not 20/22: trusted publishing needs npm >= 11.5.1 and
+        # Node >= 22.14.0, and Node 20 and 22 bundle npm 10.
         uses: actions/setup-node@v5
         with:
           node-version: "24"
@@ -98,6 +117,5 @@ jobs:
         run: SGC_FORCE_INLINE=1 bun test tests/dispatcher tests/eval
 
       - name: Publish to npm
+        # No token env here on purpose; see "Auth" at the top of this file.
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -1,8 +1,8 @@
 // CE-6 (f7) applied-tracker — unit tests.
 // Spec: tasks/specs/ce-6-applied-in-tracker.md (r1).
 
-import { describe, expect, test } from "bun:test"
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
+import { afterAll, describe, expect, test } from "bun:test"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { resolve } from "node:path"
 import type { FailureMode } from "../../src/dispatcher/agents/planner-adversarial"
@@ -43,7 +43,18 @@ import type { PriorPrevention } from "../../src/dispatcher/preventions"
 import { parseFrontmatter } from "../../src/dispatcher/state"
 import type { SolutionEntry } from "../../src/dispatcher/types"
 
-const PP = (ref: string): PriorPrevention => ({
+// Per-test temp roots: recorded here, removed once this file's tests finish.
+const tmpRoots: string[] = []
+function tmpRoot(prefix: string): string {
+  const root = mkdtempSync(resolve(tmpdir(), prefix))
+  tmpRoots.push(root)
+  return root
+}
+afterAll(() => {
+  for (const root of tmpRoots) rmSync(root, { recursive: true, force: true })
+})
+
+const PP =(ref: string): PriorPrevention => ({
   solution_ref: ref,
   category: ref.split("/")[0]! as PriorPrevention["category"],
   prevention_text: "ignored by extractor",
@@ -183,7 +194,7 @@ function seedSolution(
 
 describe("recordSurfaced — CE-6 L2 surfacing tracker", () => {
   test("appends task_id to surfaced_in (separate from applied_in)", () => {
-    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-surf1-"))
+    const root = tmpRoot("sgc-ce6-surf1-")
     seedSolution(root, "other", "tier1-2026", { applied_in: ["TASK-L3-VALIDATED"] })
 
     const result = recordSurfaced(root, ["other/tier1-2026"], "TASK-L2-SURFACER")
@@ -197,7 +208,7 @@ describe("recordSurfaced — CE-6 L2 surfacing tracker", () => {
   })
 
   test("idempotent: re-surfacing the same task is a no-op", () => {
-    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-surf2-"))
+    const root = tmpRoot("sgc-ce6-surf2-")
     seedSolution(root, "runtime", "alpha-2026", { surfaced_in: ["TASK-PRIOR"] })
 
     const result = recordSurfaced(root, ["runtime/alpha-2026"], "TASK-PRIOR")
@@ -209,7 +220,7 @@ describe("recordSurfaced — CE-6 L2 surfacing tracker", () => {
   })
 
   test("appends to existing surfaced_in without dropping prior entries", () => {
-    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-surf3-"))
+    const root = tmpRoot("sgc-ce6-surf3-")
     seedSolution(root, "runtime", "alpha-2026", { surfaced_in: ["TASK-A"] })
 
     recordSurfaced(root, ["runtime/alpha-2026"], "TASK-B")
@@ -222,7 +233,7 @@ describe("recordSurfaced — CE-6 L2 surfacing tracker", () => {
 
 describe("recordApplied — happy path", () => {
   test("H1: two new refs both updated", () => {
-    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-h1-"))
+    const root = tmpRoot("sgc-ce6-h1-")
     seedSolution(root, "runtime", "alpha-2026")
     seedSolution(root, "other", "beta-2026")
 
@@ -251,7 +262,7 @@ describe("recordApplied — happy path", () => {
 
 describe("recordApplied — idempotent", () => {
   test("H2: re-recording same task_id is a no-op", () => {
-    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-h2-"))
+    const root = tmpRoot("sgc-ce6-h2-")
     seedSolution(root, "runtime", "alpha-2026", { applied_in: ["TASK-PRIOR"] })
 
     const result = recordApplied(root, ["runtime/alpha-2026"], "TASK-PRIOR")
@@ -266,7 +277,7 @@ describe("recordApplied — idempotent", () => {
   })
 
   test("H3: append to existing list when task_id differs", () => {
-    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-h3-"))
+    const root = tmpRoot("sgc-ce6-h3-")
     seedSolution(root, "runtime", "alpha-2026", { applied_in: ["TASK-PRIOR"] })
 
     const result = recordApplied(root, ["runtime/alpha-2026"], "TASK-NEW")
@@ -281,7 +292,7 @@ describe("recordApplied — idempotent", () => {
 
 describe("recordApplied — error paths", () => {
   test("H4: missing solution file → skipped_missing", () => {
-    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-h4-"))
+    const root = tmpRoot("sgc-ce6-h4-")
     // Note: do NOT seed; ref points to nonexistent file
     const result = recordApplied(root, ["runtime/never-existed"], "TASK-X")
 
@@ -290,7 +301,7 @@ describe("recordApplied — error paths", () => {
   })
 
   test("H5: malformed ref shape → skipped_malformed", () => {
-    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-h5-"))
+    const root = tmpRoot("sgc-ce6-h5-")
 
     const result = recordApplied(
       root,
@@ -310,7 +321,7 @@ describe("recordApplied — error paths", () => {
   })
 
   test("H6: malformed frontmatter → skipped_malformed", () => {
-    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-h6-"))
+    const root = tmpRoot("sgc-ce6-h6-")
     const dir = resolve(root, "solutions/runtime")
     mkdirSync(dir, { recursive: true })
     writeFileSync(
@@ -326,7 +337,7 @@ describe("recordApplied — error paths", () => {
   })
 
   test("H7: empty solution_refs array → all-empty result, no fs activity", () => {
-    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-h7-"))
+    const root = tmpRoot("sgc-ce6-h7-")
     const result = recordApplied(root, [], "TASK-X")
     expect(result).toEqual({
       updated: [],
@@ -341,7 +352,7 @@ describe("recordApplied — error paths", () => {
 
 describe("recordApplied — Invariant §3 metadata-only carve-out (CRITICAL)", () => {
   test("H8: NO solution-content field is mutated", () => {
-    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-h8-"))
+    const root = tmpRoot("sgc-ce6-h8-")
     const path = seedSolution(root, "runtime", "alpha-2026", {
       prevention: "exact-prevention-text-no-changes-allowed",
     })
@@ -387,7 +398,7 @@ describe("recordApplied — mtime-CAS concurrency", () => {
     // stress-repro lives in tests/perf/ as a future follow-up if
     // contention surfaces.
     // TODO: stress-repro for stale_skipped path → tests/perf/applied-tracker-concurrent.ts
-    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-h9-"))
+    const root = tmpRoot("sgc-ce6-h9-")
     seedSolution(root, "runtime", "alpha-2026")
     const result = recordApplied(root, ["runtime/alpha-2026"], "TASK-CONCURRENT")
     expect(result.updated).toEqual(["runtime/alpha-2026"])
@@ -396,7 +407,7 @@ describe("recordApplied — mtime-CAS concurrency", () => {
 
   test("H10: concurrent same-call multi-ref dedup-on-disk — second invocation appends without losing first", () => {
     // Sequential approximation of two plan jobs touching the same solution.
-    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-h10-"))
+    const root = tmpRoot("sgc-ce6-h10-")
     seedSolution(root, "runtime", "alpha-2026")
 
     const r1 = recordApplied(root, ["runtime/alpha-2026"], "TASK-A")

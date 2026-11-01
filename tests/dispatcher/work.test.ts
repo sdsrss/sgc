@@ -1,5 +1,5 @@
-import { test, expect } from "bun:test"
-import { mkdtempSync } from "node:fs"
+import { afterAll, test, expect } from "bun:test"
+import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { runWork } from "../../src/commands/work"
@@ -9,8 +9,19 @@ import {
   writeFeatureList,
 } from "../../src/dispatcher/state"
 
+// Per-test temp roots: recorded here, removed once this file's tests finish.
+const tmpRoots: string[] = []
+function tmpRoot(prefix: string): string {
+  const root = mkdtempSync(join(tmpdir(), prefix))
+  tmpRoots.push(root)
+  return root
+}
+afterAll(() => {
+  for (const root of tmpRoots) rmSync(root, { recursive: true, force: true })
+})
+
 test("printList shows file + step counts for decomposed tasks", async () => {
-  const root = mkdtempSync(join(tmpdir(), "sgc-work-deep-"))
+  const root = tmpRoot("sgc-work-deep-")
   ensureSgcStructure(root)
   writeCurrentTask({ task_id: "T1", level: "L2", active_feature: "f1", session_start: "x", last_activity: "x" }, "", root)
   writeFeatureList(
@@ -37,7 +48,7 @@ test("printList shows file + step counts for decomposed tasks", async () => {
 })
 
 test("nextActiveId skips a feature whose depends_on is unmet", async () => {
-  const root = mkdtempSync(join(tmpdir(), "sgc-work-dep-"))
+  const root = tmpRoot("sgc-work-dep-")
   ensureSgcStructure(root)
   writeCurrentTask({ task_id: "T2", level: "L2", active_feature: "f1", session_start: "x", last_activity: "x" }, "", root)
   writeFeatureList(

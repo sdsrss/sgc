@@ -1,6 +1,6 @@
 // CE-2 (task 94913CB45F9D4C3E906B3C2C8E#f3) — `sgc reflect` audit tests.
 
-import { describe, expect, it, test, beforeEach, afterEach } from "bun:test"
+import { describe, expect, it, test, beforeEach, afterEach, afterAll } from "bun:test"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -10,6 +10,17 @@ import {
   formatReport,
   writeReflectionFile,
 } from "../../src/dispatcher/reflect"
+
+// Per-test temp roots: recorded here, removed once this file's tests finish.
+const tmpRoots: string[] = []
+function tmpRoot(prefix: string): string {
+  const root = mkdtempSync(join(tmpdir(), prefix))
+  tmpRoots.push(root)
+  return root
+}
+afterAll(() => {
+  for (const root of tmpRoots) rmSync(root, { recursive: true, force: true })
+})
 
 let stateRoot: string
 
@@ -337,12 +348,11 @@ describe("formatReport + writeReflectionFile (CE-2 T5)", () => {
 
 describe("reflect — CE-6 applied_count surfacing", () => {
   test("CE6-R1: applied_count populated from solution frontmatter; stdout shows it", async () => {
-    const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs")
-    const { tmpdir } = await import("node:os")
+    const { mkdirSync, writeFileSync } = await import("node:fs")
     const { resolve } = await import("node:path")
     const { auditDecision, formatReport } = await import("../../src/dispatcher/reflect")
 
-    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-reflect-r1-"))
+    const root = tmpRoot("sgc-ce6-reflect-r1-")
     // Seed a solution with applied_in already populated
     const solDir = resolve(root, "solutions/runtime")
     mkdirSync(solDir, { recursive: true })
@@ -371,12 +381,11 @@ describe("reflect — CE-6 applied_count surfacing", () => {
   })
 
   test("CE6-R2: candidate without applied_in field → applied_count: 0", async () => {
-    const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs")
-    const { tmpdir } = await import("node:os")
+    const { mkdirSync, writeFileSync } = await import("node:fs")
     const { resolve } = await import("node:path")
     const { auditDecision } = await import("../../src/dispatcher/reflect")
 
-    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-reflect-r2-"))
+    const root = tmpRoot("sgc-ce6-reflect-r2-")
     const solDir = resolve(root, "solutions/runtime")
     mkdirSync(solDir, { recursive: true })
     writeFileSync(
@@ -398,12 +407,11 @@ describe("reflect — CE-6 applied_count surfacing", () => {
   })
 
   test("CE6-S1: surfaced_count populated from surfaced_in; stdout shows it independent of applied", async () => {
-    const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs")
-    const { tmpdir } = await import("node:os")
+    const { mkdirSync, writeFileSync } = await import("node:fs")
     const { resolve } = await import("node:path")
     const { auditDecision, formatReport } = await import("../../src/dispatcher/reflect")
 
-    const root = mkdtempSync(resolve(tmpdir(), "sgc-ce6-reflect-s1-"))
+    const root = tmpRoot("sgc-ce6-reflect-s1-")
     const solDir = resolve(root, "solutions/runtime")
     mkdirSync(solDir, { recursive: true })
     // applied_in empty (never L3-validated) but surfaced_in has two L2 surfacings.

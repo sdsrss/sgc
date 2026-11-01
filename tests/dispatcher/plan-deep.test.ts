@@ -1,5 +1,5 @@
-import { test, expect } from "bun:test"
-import { mkdtempSync, readFileSync, readdirSync } from "node:fs"
+import { afterAll, test, expect } from "bun:test"
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { runPlan } from "../../src/commands/plan"
@@ -11,10 +11,21 @@ import {
 import type { DedupStamp, SolutionEntry } from "../../src/dispatcher/types"
 import { seedRelatedSpawn } from "../fixtures/related-spawn"
 
+// Per-test temp roots: recorded here, removed once this file's tests finish.
+const tmpRoots: string[] = []
+function tmpRoot(prefix: string): string {
+  const root = mkdtempSync(join(tmpdir(), prefix))
+  tmpRoots.push(root)
+  return root
+}
+afterAll(() => {
+  for (const root of tmpRoots) rmSync(root, { recursive: true, force: true })
+})
+
 const MOTIV = "we need cursor pagination on the orders endpoint because offset paging is slow at scale and clients time out on large pages"
 
 test("L2 auto-decomposes into a feature with bite-sized steps", async () => {
-  const root = mkdtempSync(join(tmpdir(), "sgc-plan-deep-"))
+  const root = tmpRoot("sgc-plan-deep-")
   process.env["SGC_FORCE_INLINE"] = "1"
   await runPlan("add cursor pagination to GET /orders", { stateRoot: root, forceLevel: "L2", motivation: MOTIV })
   const fl = readFeatureList(root)!
@@ -25,7 +36,7 @@ test("L2 auto-decomposes into a feature with bite-sized steps", async () => {
 })
 
 test("L1 default keeps the single placeholder (no decomposition)", async () => {
-  const root = mkdtempSync(join(tmpdir(), "sgc-plan-l1-"))
+  const root = tmpRoot("sgc-plan-l1-")
   process.env["SGC_FORCE_INLINE"] = "1"
   await runPlan("fix a typo in the readme heading text now", { stateRoot: root, forceLevel: "L1", motivation: MOTIV })
   const fl = readFeatureList(root)!
@@ -33,7 +44,7 @@ test("L1 default keeps the single placeholder (no decomposition)", async () => {
 })
 
 test("L1 --deep decomposes", async () => {
-  const root = mkdtempSync(join(tmpdir(), "sgc-plan-l1-deep-"))
+  const root = tmpRoot("sgc-plan-l1-deep-")
   process.env["SGC_FORCE_INLINE"] = "1"
   // "extract" avoids L2 keywords (no refactor/API/auth); classifier returns L1.
   await runPlan("extract date formatting helpers into a shared util file", { stateRoot: root, forceLevel: "L1", motivation: MOTIV, deep: true })
@@ -42,7 +53,7 @@ test("L1 --deep decomposes", async () => {
 })
 
 test("deep plan writes a derived markdown doc", async () => {
-  const root = mkdtempSync(join(tmpdir(), "sgc-plan-md-"))
+  const root = tmpRoot("sgc-plan-md-")
   process.env["SGC_FORCE_INLINE"] = "1"
   await runPlan("add cursor pagination to GET /orders", { stateRoot: root, forceLevel: "L2", motivation: MOTIV })
   const dir = join(root, "docs", "superpowers", "plans")
@@ -89,7 +100,7 @@ function makePaginationSolution(): SolutionEntry {
 }
 
 test("deep plan carries prior_art_refs when a matching solution is seeded", async () => {
-  const root = mkdtempSync(join(tmpdir(), "sgc-plan-prior-"))
+  const root = tmpRoot("sgc-plan-prior-")
   ensureSgcStructure(root)
   process.env["SGC_FORCE_INLINE"] = "1"
 

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test"
 import {
   existsSync,
   mkdirSync,
@@ -29,6 +29,17 @@ import {
   writeShip,
 } from "../../src/dispatcher/state"
 import type { IntentDoc, ReviewReport, ShipDoc } from "../../src/dispatcher/types"
+
+// Per-test temp roots: recorded here, removed once this file's tests finish.
+const tmpRoots: string[] = []
+function tmpRoot(prefix: string): string {
+  const root = mkdtempSync(join(tmpdir(), prefix))
+  tmpRoots.push(root)
+  return root
+}
+afterAll(() => {
+  for (const root of tmpRoots) rmSync(root, { recursive: true, force: true })
+})
 
 let tmp: string
 
@@ -397,7 +408,7 @@ describe("writeAtomic (STAB-4: tmp cleanup + collision-safe naming)", () => {
 import type { FeatureList } from "../../src/dispatcher/types"
 
 test("feature-list round-trips files/steps/prior_art_refs", () => {
-  const root = mkdtempSync(join(tmpdir(), "sgc-state-deep-"))
+  const root = tmpRoot("sgc-state-deep-")
   ensureSgcStructure(root)
   const list: FeatureList = {
     features: [
@@ -426,7 +437,7 @@ test("feature-list round-trips files/steps/prior_art_refs", () => {
 })
 
 test("writePlanDoc writes under docs/superpowers/plans relative to base", () => {
-  const root = mkdtempSync(join(tmpdir(), "sgc-plandoc-"))
+  const root = tmpRoot("sgc-plandoc-")
   const p = writePlanDoc("native-deep-planning", "2026-06-03", "# Plan\n", root)
   expect(p).toContain("docs/superpowers/plans/2026-06-03-native-deep-planning.md")
   expect(existsSync(p)).toBe(true)

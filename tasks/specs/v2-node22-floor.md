@@ -1,5 +1,5 @@
 # v2.0.0：Node ≥ 22.19、undici 7、代理在任意 Node 版本可用，以及 LLM / 构建检查的修补
-状态：进行中
+状态：已发布（v2.0.0，2026-11-01）
 
 ## 背景与目标
 2026-11-01 用户批准了以下建议并要求执行：把 Node 下限升到上游仍在维护的最老 LTS（22），用 v2.0.0 发布；修两处既有缺口（e2e 脚本用 PATH 上的任意 bun 重建 bundle；本机 bun 与 CI 钉的版本不一致时，doctor 仍报 OK）；删掉已失效的 `anthropic/claude-sonnet-4` 校准钉；花约 $1–3 实测 LLM 模型；把 LLM eval 从 push CI 挪到定时 workflow；build job 的 checkout 关闭 `persist-credentials`。
@@ -36,7 +36,7 @@
 - [x] AC4：`engines.node` 为 `>=22.19.0`；README / 插件说明 / metrics 基线 / doctor 全部一致 — 验证：`sgc doctor` 0 fail，`sgc metrics`
 - [x] AC5：`npm audit --omit=dev` 0；全量测试通过；`tsc` 0
 - [x] AC6：push CI 里不再有真实 LLM 调用；定时 workflow 在缺少 key 时直接失败，不会静默跳过
-- [ ] AC7：v2.0.0 通过 OIDC 发布，`_npmUser` 为 GitHub Actions（这也是 "disallow tokens" 设置下的第一次发布）
+- [x] AC7：v2.0.0 通过 OIDC 发布，`_npmUser` 为 GitHub Actions（这也是 "disallow tokens" 设置下的第一次发布）
 
 ## 方案
 - proxy-fetch：`makeProxyAwareFetch(baseFetch?, env?, proxiedFetch?)`。命中代理时调用 `proxiedFetch`（默认是 undici 的 `fetch`），否则调用 `baseFetch ?? globalThis.fetch`。这个注入点保留可测性。
@@ -51,7 +51,7 @@
 - [x] S5：undici ^7 + engines `>=22.19.0` + CI Node 矩阵 + 文档和基线同步
 - [x] S6：test.yml 删掉 LLM smoke；新增 llm-eval.yml；修正注释；`persist-credentials`
 - [x] S7：按实测结果决定默认模型
-- [ ] S8：CHANGELOG / 版本号 / 发版
+- [x] S8：CHANGELOG / 版本号 / 发版
 
 ## 决策与进展
 - 2026-11-01：sgc 原来的 `NPM_TOKEN` 是 token `75a719`（05-20 创建；secret 05-21 之后没再更新），已于 2026-08-04 被吊销，08-18 过期，不需要再操作。`github`（6b4487）和 `github2`（0000ef）是其他仓库在用的、可绕过 2FA 的写权限 token，2026-11-20 到期，不动。
@@ -78,7 +78,29 @@
   - F5：同 L1。
   - F2、F3 Low，未修，记为遗留。F2：Windows 反斜杠路径、含制表符的路径、`--preserve-symlinks-main` 的情况下路径去不掉。F3：集成测试只查字面路径。CI 和发布只在 Linux 上构建；在这些情况下，最坏结果是本机 doctor 的一致性检查报 fail，不会发出错误的包。
 
+- 修复提交审查（新的子代理，范围 9a8e440..7936292）：
+  - 修复本身没有发现阻断问题。
+  - 4 条 Low 中，L3 已改：POSITIONING 原写 "1.x 为 ≥ 18"，实际 v1.38.3–v1.38.5 是 ≥ 18.17。
+  - 另外 3 条 Low 未修。改它们要么要重建 bundle、再开一轮审查，要么发出的包本来就不受影响：
+    - 去路径漏掉 checkout 位于 `/` 的情况；
+    - 去路径漏掉 bun 会转义的路径：含 `"`、制表符、换行、U+2028/2029/FEFF 的路径，以及 node_modules 是指向 checkout 外的符号链接；
+    - 旧 Node 提示里命令后紧跟逗号，连逗号一起复制会失败。
+
+    CI 只在 `/home/runner/work/sgc/sgc` 构建，一致性检查会拦下这些 bundle。
+- 本次范围外的发现（遗留，待用户决定）：`plugins/sgc/hooks/hooks.json` 的 `"hooks"` 是数组，Claude Code 要求是"事件 → 列表"的对象。
+  - Claude Code 2.1.316：`claude plugin validate plugins/sgc` → exit 1（HOOKS_SCHEMA_INVALID）；在隔离 HOME 里从本地仓库安装 → `Status: ✘ failed to load`。
+  - 该文件自 6475f6b 起没改过，v1.38.5 也一样。只影响插件渠道（读 main），不影响 npm 包。
+  - 修好后 SessionStart 注入会开始生效，属于对已发布插件默认行为的改变，需单独决定。
+
 ## 验证记录
+- 发布（AC7）：publish.yml run 41346408533，两个 job 都通过。
+  - `npm view @sdsrs/sgc@2.0.0 _npmUser` → `GitHub Actions <npm-oidc-no-reply@github.com>`。
+  - registry 上 shasum 8b99e118… = CI 日志里的 `npm notice shasum` = CI 产物 tarball 的 sha1。
+  - `dist-tags.latest` = 2.0.0；engines `>=22.19.0`。
+  - SLSA provenance v1：workflow `publish.yml`，ref `refs/tags/v2.0.0`，提交 79362923，run 41346408533 第 1 次运行。
+  - tarball 里的 bundle blob = 2b0d440 = tag 上提交的 blob，权限 755，不含 `/home/`。
+  - 从 registry 全局安装：Node 22.19.0 → `2.0.0`，stderr 0 行；Node 20.20.2 → `2.0.0`，stderr 1 行。
+  - GitHub Release v2.0.0 已创建，非草稿、非预发布。
 - 审查修复（HEAD e3e10ab，bundle 2b0d440，1,944,072 字节）：
   - node-floor 测试 RED（`install` 下标 -1）→ 7 pass。
   - 去路径单元测试 RED（`sdsrssissues`、`pluginscommands`）→ 2 pass。

@@ -1,5 +1,5 @@
 # npm 发布改用 trusted publishing（GitHub Actions OIDC）
-状态：已完成（发布已验证；删除 NPM_TOKEN secret 等用户决定）
+状态：已完成（发布已验证；仓库 secret `NPM_TOKEN` 已删除）
 
 ## 背景与目标
 `@sdsrs/sgc` 原来由 `.github/workflows/publish.yml` 用仓库 secret `NPM_TOKEN`（经 `NODE_AUTH_TOKEN`）发布。改成 npm trusted publishing：npm CLI 用 GitHub Actions 的 OIDC token 换一个短期发布凭据，仓库里不再需要长期 token。
@@ -34,6 +34,7 @@
 - 更正（2026-11-01）：第一轮只列了 5 个字段，漏了 "Allowed actions"。npm 文档写明 2026-09-03 之后新建的配置默认只允许 `npm stage publish`，本 workflow 直接 `npm publish`，必须勾选。
 - 进展（2026-11-01 18:02 UTC）：用户说"已配置"后，tag `v1.38.5`（指向 267ebdb）已 push。publish-npm run 41334205586：build job 全绿，publish job 的 `npm publish` 返回 E404（`PUT https://registry.npmjs.org/@sdsrs%2fsgc - Not found`）。provenance 已签名并写入 sigstore（logIndex 3634942331），说明 `id-token: write` 生效；OIDC 换发布凭据失败，npm 退回占位 token，于是 404。1.38.5 没有发布，latest 仍是 1.38.4。下一步：用户核对 npmjs.com 配置（`npm trust list @sdsrs/sgc` 需要浏览器 OTP，只能用户跑），重点看 Allowed actions 是否含 `npm publish`（CLI 里对应 `--allow-publish`，默认 false）。修好后执行 `gh run rerun 41334205586 --failed`（只重跑 publish job）；若它取不到上次的 artifact 或 outputs，就改为 `gh run rerun 41334205586` 整体重跑。不加回 token。
 - `_npmUser` 验证通过之前，不删 `NPM_TOKEN` secret；验证通过后问用户，用户同意了再执行 `gh secret delete NPM_TOKEN`。
+- 2026-11-01：用户同意后已执行 `gh secret delete NPM_TOKEN`；`gh secret list` 由 1 个（`NPM_TOKEN`）变为 0 个。仍由用户在 npmjs.com 完成：吊销该 token；`@sdsrs/sgc` 的 Publishing access 设为 "Require two-factor authentication and disallow tokens"。
 
 ## 验证记录
 - 改前：`grep -v '^\s*#' .github/workflows/publish.yml | grep -nE 'NPM_TOKEN|NODE_AUTH_TOKEN'` → 命中 1 行（`NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}`），确认会失败

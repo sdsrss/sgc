@@ -22,13 +22,16 @@ export class OpenRouterError extends Error {
 }
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-// Latest Anthropic Opus on OpenRouter as of the 1.2.x default bump (2026-05).
-// Calibration of CI-skip eval tests (researcher-history, planner-eng,
-// compound-context, reviewer-correctness, classifier) was done against
-// `anthropic/claude-sonnet-4`; if you need that calibration set
-// SGC_OPENROUTER_MODEL=anthropic/claude-sonnet-4. If your OpenRouter region
-// hasn't rolled out 4.7 yet, fall back to `anthropic/claude-opus-4.5` or
-// `anthropic/claude-sonnet-4.6` via the same env override.
+// Latest Anthropic Opus on OpenRouter as of the 1.2.x default bump (2026-05);
+// override with SGC_OPENROUTER_MODEL. The CI-skip eval tests were first
+// calibrated against `anthropic/claude-sonnet-4`, which Anthropic retired on
+// 2026-06-15 and OpenRouter no longer lists, so it is no longer a usable
+// override. Measured on 2026-11-01 (smoke = researcher-history + planner-eng,
+// 5 runs × 8 tests per model): opus-4.7 37/40, opus-4.6 40/40, opus-5.5
+// 35/40, sonnet-5.5 30/40. The opus intervals overlap, so this default stays;
+// most failures were researcher.history's 30-word reason cap and reference
+// match, not runtime errors. .github/workflows/llm-eval.yml re-checks the
+// default weekly.
 const DEFAULT_MODEL = "anthropic/claude-opus-4.7"
 const MAX_TOKENS_CAP = 8192
 

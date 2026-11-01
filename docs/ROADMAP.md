@@ -63,5 +63,6 @@ Operationalize each 化 as a metric with a baseline, and surface honestly (no ba
 ## Release reminders (every phase)
 
 - main-direct, no PR; bump `package.json` + `plugins/sgc/.claude-plugin/plugin.json` in **lockstep**; tag `v*` → `publish.yml` → npm.
+- npm auth is trusted publishing (GitHub Actions OIDC; no token). After the job goes green, `npm view @sdsrs/sgc@<ver> _npmUser` must read `GitHub Actions <npm-oidc-no-reply@github.com>` — a green job alone does not show the release went out that way. On 401/403/404, check the npmjs.com trusted-publisher values listed at the top of `publish.yml`; do not add a token back.
 - **If `src/` OR `package.json` changed, `npm run build:cli` + commit the rebuilt `plugins/sgc/bin/sgc.mjs`** (the bundle inlines both) — else the doctor/CI parity gate fails. Commit the bundle with mode `100755` (`git add --chmod=+x`).
 - `npm publish --provenance` can throw a false-negative E403 on a double-PUT — verify via `npm view @sdsrs/sgc@<ver> dist.shasum`, don't blindly re-run.

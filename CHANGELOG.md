@@ -1,5 +1,37 @@
 # Changelog
 
+## v1.38.5 — 2026-11-01 — the publish credential, out of reach of everything but `npm publish`
+
+A release-pipeline and dependency release. sgc's own behavior is unchanged.
+
+- **npm trusted publishing.** `publish.yml` no longer reads the `NPM_TOKEN`
+  secret. `npm publish` now authenticates through GitHub Actions OIDC against a
+  trusted-publisher configuration on npmjs.com. While a token sat in the
+  environment, npm 11 would quietly fall back to it whenever the OIDC exchange
+  failed, so a broken configuration would still have published with a green job.
+  Without one, it fails. A release is checked with
+  `npm view @sdsrs/sgc@<version> _npmUser`, which must read
+  `GitHub Actions <npm-oidc-no-reply@github.com>`.
+- **Only a minimal job can mint the token.** Any code in a job with
+  `id-token: write` can request an OIDC token, and once npmjs.com trusts the
+  workflow that token can be exchanged for a publish credential. The workflow is
+  now split. `build` runs install, typecheck, bundle parity, the
+  tag == package.json == plugin.json lock, the tests and `npm pack`, and has no
+  `id-token`. `publish` downloads that tarball and runs `npm publish` and nothing
+  else, so dependency install scripts, actions and test code never run where a
+  token can be requested. Every action is pinned to a commit SHA.
+- **Bundled dependency fixes.** undici 6.27.0 → 6.29.1 and js-yaml 4.3.0 → 4.3.2,
+  for 2 high-severity `npm audit` findings; the ranges move to `^6.29.1` /
+  `^4.3.2`. The bundle inlines both, so v1.38.4's bundle carried the vulnerable
+  copies. undici serves only `HTTP(S)_PROXY` support (`ProxyAgent`, no TLS
+  options); js-yaml parses model output and `.sgc` files. undici stays on 6.x for
+  the Node 18 floor.
+- **Test hygiene.** Five test files no longer leave 25 directories in the system
+  temp dir on every run.
+
+Full suite 1618 pass / 38 skip / 0 fail (unchanged); `tsc --noEmit` 0;
+`npm audit --omit=dev` 2 high → 0; bundle 1692976 → 1707646 bytes; `sgc doctor` 71 OK / 0 warn / 0 fail.
+
 ## v1.38.4 — 2026-07-16 — the proxy, but not to your own machine
 
 Follow-up to a code review of the C11 proxy work (v1.38.2). Three fixes:

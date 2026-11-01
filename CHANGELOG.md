@@ -32,7 +32,7 @@ the exact version CI tests as the floor.
   26.8). Unproxied requests still use the built-in fetch, unchanged.
 - **undici 6 → 7** (`^7.30.1`; 6.x is supported only to 2027-04-30, 7.x to
   2028-04-30). undici 8 was measured and not taken: its bundle is 2,220,899
-  bytes against 1,944,037 with 7.
+  bytes against 1,944,072 with 7.
 - **CI:** the consumer job now runs on Node 22.19.0, 24 and 26, and adds
   `tests/e2e/proxy-canary.test.sh`, which runs the committed bundle's canary
   health check through a fake CONNECT proxy under Node (bun's fetch cannot
@@ -57,7 +57,7 @@ the exact version CI tests as the floor.
   cap and reference match, not runtime errors.
 
 Full suite 1618 → 1632 pass / 38 skip / 0 fail (+14 new tests); `tsc --noEmit`
-0; `npm audit --omit=dev` 0; bundle 1,707,646 → 1,944,037 bytes (+13.8%,
+0; `npm audit --omit=dev` 0; bundle 1,707,646 → 1,944,072 bytes (+13.8%,
 undici 7); `sgc doctor` 71 OK / 0 warn / 0 fail; both e2e scripts pass on Node
 22.19.0, 24.22.0 and 26.8.1.
 

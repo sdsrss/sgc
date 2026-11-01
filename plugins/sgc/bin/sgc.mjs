@@ -48662,7 +48662,7 @@ function nodeFloorNotice(nodeVersion, enginesNode) {
   const found = parseVersion(nodeVersion);
   if (!floor || !found || !below(found, floor))
     return null;
-  return `[sgc] Node ${nodeVersion} is below sgc's supported range (node ${enginesNode}). ` + `It may still run, but this version is untested. ` + `Upgrade Node, or stay on sgc 1.x (Node >=18.17): npm i -g @sdsrs/sgc@1; ` + `plugin: /plugin marketplace remove sgc, then /plugin marketplace add sdsrss/sgc#v1.38.5`;
+  return `[sgc] Node ${nodeVersion} is below sgc's supported range (node ${enginesNode}). ` + `It may still run, but this version is untested. ` + `Upgrade Node, or stay on sgc 1.x (Node >=18.17): npm i -g @sdsrs/sgc@1; ` + `plugin: /plugin marketplace remove sgc, then /plugin marketplace add sdsrss/sgc#v1.38.5, ` + `then /plugin install sgc@sgc`;
 }
 
 // node_modules/citty/dist/index.mjs

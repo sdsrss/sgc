@@ -28,6 +28,14 @@ describe("nodeFloorNotice", () => {
     // the plugin-bundled CLI wins over a global npm install, so the plugin
     // channel needs its own way back
     expect(msg).toContain("sdsrss/sgc#v1.38.5")
+    // removing a marketplace uninstalls its plugins, so the way back must end
+    // with a reinstall, in this order
+    const remove = msg!.indexOf("/plugin marketplace remove sgc")
+    const add = msg!.indexOf("/plugin marketplace add sdsrss/sgc#v1.38.5")
+    const install = msg!.indexOf("/plugin install sgc@sgc")
+    expect(remove).toBeGreaterThan(-1)
+    expect(add).toBeGreaterThan(remove)
+    expect(install).toBeGreaterThan(add)
     expect(msg).not.toContain("\n")
   })
 

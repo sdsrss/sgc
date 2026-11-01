@@ -33,10 +33,13 @@ export function nodeFloorNotice(nodeVersion: string, enginesNode: string): strin
   // The plugin-bundled CLI wins over a global npm install (README), so the
   // npm pin alone does not move plugin users back; the plugin route re-adds
   // the marketplace at the last 1.x tag (Claude Code accepts `#<ref>` there).
+  // Removing a marketplace uninstalls its plugins, so the route ends with a
+  // reinstall.
   return (
     `[sgc] Node ${nodeVersion} is below sgc's supported range (node ${enginesNode}). ` +
     `It may still run, but this version is untested. ` +
     `Upgrade Node, or stay on sgc 1.x (Node >=18.17): npm i -g @sdsrs/sgc@1; ` +
-    `plugin: /plugin marketplace remove sgc, then /plugin marketplace add sdsrss/sgc#v1.38.5`
+    `plugin: /plugin marketplace remove sgc, then /plugin marketplace add sdsrss/sgc#v1.38.5, ` +
+    `then /plugin install sgc@sgc`
   )
 }

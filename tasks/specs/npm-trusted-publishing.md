@@ -32,6 +32,7 @@
 - CHANGELOG 不加 Unreleased 段（本项目没有这个惯例），本次改动的说明在发版时写进那个版本的条目。CHANGELOG v1.3.0 附近那条 "Requires `NPM_TOKEN` secret" 是历史记录，不改。
 - 发版时若 publish 报 401 / 403 / 404：先核对 npmjs.com 上填的值（Organization or user `sdsrss`、Repository `sgc`、Workflow filename `publish.yml`、Environment name 留空、Allowed actions 勾选 `npm publish`）和 `id-token: write`，不要把 token 加回来。
 - 更正（2026-11-01）：第一轮只列了 5 个字段，漏了 "Allowed actions"。npm 文档写明 2026-09-03 之后新建的配置默认只允许 `npm stage publish`，本 workflow 直接 `npm publish`，必须勾选。
+- 进展（2026-11-01 18:02 UTC）：用户说"已配置"后，tag `v1.38.5`（指向 267ebdb）已 push。publish-npm run 41334205586：build job 全绿，publish job 的 `npm publish` 返回 E404（`PUT https://registry.npmjs.org/@sdsrs%2fsgc - Not found`）。provenance 已签名并写入 sigstore（logIndex 3634942331），说明 `id-token: write` 生效；OIDC 换发布凭据失败，npm 退回占位 token，于是 404。1.38.5 没有发布，latest 仍是 1.38.4。下一步：用户核对 npmjs.com 配置（`npm trust list @sdsrs/sgc` 需要浏览器 OTP，只能用户跑），重点看 Allowed actions 是否含 `npm publish`（CLI 里对应 `--allow-publish`，默认 false）。修好后执行 `gh run rerun 41334205586 --failed`（只重跑 publish job）；若它取不到上次的 artifact 或 outputs，就改为 `gh run rerun 41334205586` 整体重跑。不加回 token。
 - `_npmUser` 验证通过之前，不删 `NPM_TOKEN` secret；验证通过后问用户，用户同意了再执行 `gh secret delete NPM_TOKEN`。
 
 ## 验证记录

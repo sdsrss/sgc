@@ -54,7 +54,7 @@ afterAll(() => {
   for (const root of tmpRoots) rmSync(root, { recursive: true, force: true })
 })
 
-const PP =(ref: string): PriorPrevention => ({
+const PP = (ref: string): PriorPrevention => ({
   solution_ref: ref,
   category: ref.split("/")[0]! as PriorPrevention["category"],
   prevention_text: "ignored by extractor",

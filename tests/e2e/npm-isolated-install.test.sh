@@ -2,7 +2,10 @@
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO"
-npm run build:cli
+# Packs the COMMITTED bundle, the file npm users get. No rebuild here: it used
+# whatever bun was on PATH and silently replaced the bundle in the working tree
+# (v1.38.5 committed a local-bun build that way). That the committed bundle
+# equals a CI-bun rebuild is test.yml's "Bundle parity" step's job.
 TARBALL="$(npm pack 2>/dev/null | tail -1)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK" "$REPO/$TARBALL"' EXIT

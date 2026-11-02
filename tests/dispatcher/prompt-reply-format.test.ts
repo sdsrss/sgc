@@ -16,12 +16,15 @@
 //    keys in backticks. This is the guarantee: a positive instruction, which
 //    no rewording elsewhere can slip past the way it slips past a list of
 //    banned words;
-// 3. not contradict that anywhere in the section. A list of conditional
+// 3. not contradict that anywhere in the section, the Always sentence
+//    included. A list of conditional
 //    words cannot be complete, so this part only catches the usual
 //    phrasings: on the key's own line, the comment lines just above it, and
 //    the lines below it up to the first non-comment line; and in any prose
 //    sentence that names the key (backticks, bold, quotes or a bare word),
-//    with soft-wrapped lines joined and "e.g." not ending a sentence.
+//    with soft-wrapped lines joined and "e.g." not ending a sentence; any
+//    comment line of the block that names the key; and, anywhere else in
+//    the prompt, a sentence that names the key in backticks.
 
 import { expect, test } from "bun:test"
 import { existsSync, readFileSync } from "node:fs"
@@ -44,6 +47,12 @@ const CONDITIONAL_RE = new RegExp(
     "when (?:present|applicable|relevant|needed)",
     "\\bonly\\b",
     "just for",
+    "no need",
+    "need not",
+    "(?:don't|do not|doesn't|does not) (?:have|need) to",
+    "not always",
+    "leav(?:e|ing) (?:\\S+ )?off",
+    "left off",
     "(?:may|can|could|might) be (?:absent|missing|empty or absent)",
   ].join("|"),
   "i",
@@ -77,6 +86,18 @@ function sentences(prose: string): string[] {
 for (const [name, m] of agents) {
   test(`${name}: every required output key is in the reply format, always included, never called optional`, () => {
     const lines = readFileSync(resolve(REPO, m.prompt_path!), "utf8").split("\n")
+    let outside = false
+    const wholeProse = sentences(
+      lines
+        .filter((l) => {
+          if (l.startsWith("```")) {
+            outside = !outside
+            return false
+          }
+          return !outside
+        })
+        .join("\n"),
+    )
     const head = lines.findIndex((l) => /^## (Reply format|Output)\b/.test(l))
     expect({ name, replySection: head !== -1 }).toEqual({ name, replySection: true })
     const nextHeading = lines.findIndex((l, i) => i > head && l.startsWith("## "))
@@ -117,10 +138,17 @@ for (const [name, m] of agents) {
       const near = own.join("\n")
       expect({ key, near, conditional: CONDITIONAL_RE.exec(near)?.[0] ?? null }).toEqual({ key, near, conditional: null })
 
-      // 3b. prose that names the key
+      // 3b. prose of the section that names the key, and any comment line in
+      // the block that does
       const mention = new RegExp(`(?<![\\w-])${escape(key)}(?![\\w-])`)
-      const contradicting = proseSentences.filter((s) => s !== always && mention.test(s) && CONDITIONAL_RE.test(s))
+      const comments = block.filter((l) => isComment(l) && mention.test(l))
+      const contradicting = [...proseSentences, ...comments].filter((s) => mention.test(s) && CONDITIONAL_RE.test(s))
       expect({ key, contradicting }).toEqual({ key, contradicting: [] })
+
+      // 3c. a sentence anywhere else in the prompt that names the key in backticks
+      const ticked = new RegExp(`\`${escape(key)}\``)
+      const elsewhere = wholeProse.filter((s) => ticked.test(s) && CONDITIONAL_RE.test(s))
+      expect({ key, elsewhere }).toEqual({ key, elsewhere: [] })
     }
   })
 }

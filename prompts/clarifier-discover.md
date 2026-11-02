@@ -159,6 +159,8 @@ acceptance_questions:
 suggested_next: 'sgc plan "<topic>" --motivation "<your consolidated answers as one paragraph, ≥20 words>"'
 ```
 
+Always include all seven top-level keys: `topic`, `goal_question`, `constraint_questions`, `scope_questions`, `edge_case_questions`, `acceptance_questions` and `suggested_next`.
+
 ## Input
 
 <input_yaml/>

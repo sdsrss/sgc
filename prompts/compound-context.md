@@ -131,6 +131,8 @@ symptoms:
   # 1-4 items; if none stated, single-element ["(symptom not stated in input)"]
 ```
 
+Always include all four top-level keys: `category`, `tags`, `problem_summary` and `symptoms`.
+
 ## Input
 
 <input_yaml/>

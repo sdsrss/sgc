@@ -98,6 +98,8 @@ prevention: |
   this failure shape, located in the relevant module type>
 ```
 
+Always include the top-level key `prevention`.
+
 ## Input
 
 <input_yaml/>

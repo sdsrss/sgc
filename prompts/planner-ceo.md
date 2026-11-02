@@ -106,6 +106,8 @@ rewrite_hints:
   - "rewrite_hint 2, states what the user should add"
 ```
 
+Always include all three top-level keys: `verdict`, `concerns` and `rewrite_hints`. Write `[]` for a list with no items.
+
 ## Input
 
 <input_yaml/>

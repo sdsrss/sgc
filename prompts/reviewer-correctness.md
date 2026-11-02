@@ -36,6 +36,8 @@ findings:
     suggestion: <optional — one-line fix hint>
 ```
 
+Always include all three top-level keys: `verdict`, `severity` and `findings`. With nothing to report, write `findings: []`.
+
 ## Input
 
 <input_yaml/>

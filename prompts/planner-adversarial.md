@@ -152,6 +152,8 @@ failure_modes:
     early_signal: <concrete test / metric / log / page that would catch this first>
 ```
 
+Always include the top-level key `failure_modes`.
+
 ## Input
 
 <input_yaml/>

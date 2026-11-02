@@ -36,6 +36,8 @@ affected_readers_candidates:
   - <list of code areas or modules this change might ripple into>
 ```
 
+Always include all three top-level keys: `level`, `rationale` and `affected_readers_candidates`. With no area to name, write `affected_readers_candidates: []`.
+
 ## Input
 
 <input_yaml/>

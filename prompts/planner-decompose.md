@@ -42,6 +42,8 @@ placeholders ("TBD", "handle edge cases", "add validation" are failures).
 }
 ```
 
+Always include the top-level key `tasks`.
+
 ## Rules
 
 - `kind` must be one of: `test`, `verify-red`, `implement`, `verify-green`, `commit`, `guard`.

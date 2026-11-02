@@ -95,6 +95,8 @@ structural_risks:
     mitigation: <concrete action the user should take>
 ```
 
+Always include all three top-level keys: `verdict`, `concerns` and `structural_risks`. Write `[]` for a list with no items.
+
 ## Input
 
 <input_yaml/>

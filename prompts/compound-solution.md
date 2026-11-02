@@ -111,6 +111,8 @@ what_didnt_work:
     reason_failed: "<why it didn't ship, one sentence>"
 ```
 
+Always include both top-level keys: `solution` and `what_didnt_work`.
+
 ## Input
 
 <input_yaml/>

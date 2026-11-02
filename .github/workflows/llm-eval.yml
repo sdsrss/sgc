@@ -4,12 +4,12 @@ name: llm-eval
 # red run would not say which change broke it). Two uses:
 #
 # 1. Weekly (schedule): is the RUNTIME DEFAULT model still served, and does it
-#    still produce output sgc accepts? Runs tests/eval/planner-eng-llm.test.ts
-#    with no model override, i.e. the model users get. Not the full smoke: on
-#    2026-11-01 the default (anthropic/claude-opus-4.7) failed a
-#    researcher.history quality assertion (30-word reason cap, reference
-#    match) in 2 of 5 smoke runs, which would make a weekly red/green mostly
-#    noise; planner.eng passed in all 6 runs on that model.
+#    still produce output sgc accepts? Runs the smoke suite (researcher-history
+#    + planner-eng) with no model override, i.e. the model users get. v2.0.0
+#    ran planner-eng only, because researcher.history failed on the default
+#    (anthropic/claude-opus-4.7) in 4 of 18 calls. Those were not quality
+#    flakes: the reply dropped its required `warnings` key (OutputShapeMismatch),
+#    which v2.0.1 fixed in the prompt; 30 of 30 calls passed afterwards.
 # 2. Manual (workflow_dispatch): measure a suite against any model.
 #
 # Needs repo secret OPENROUTER_API_KEY. Use a dedicated OpenRouter key with a
@@ -27,10 +27,10 @@ on:
   workflow_dispatch:
     inputs:
       suite:
-        description: "planner-eng (weekly check) | smoke (+ researcher-history) | full (every real-LLM eval)"
+        description: "smoke (weekly check: researcher-history + planner-eng) | planner-eng | full (every real-LLM eval)"
         type: choice
-        options: [planner-eng, smoke, full]
-        default: planner-eng
+        options: [smoke, planner-eng, full]
+        default: smoke
       model:
         description: "OpenRouter model id (empty = sgc's runtime default)"
         type: string
@@ -45,7 +45,7 @@ concurrency:
 
 jobs:
   llm-eval:
-    name: llm eval (${{ inputs.suite || 'planner-eng' }}, ${{ inputs.model || 'runtime default' }})
+    name: llm eval (${{ inputs.suite || 'smoke' }}, ${{ inputs.model || 'runtime default' }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -81,7 +81,7 @@ jobs:
       - name: Run the eval
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          SUITE: ${{ inputs.suite || 'planner-eng' }}
+          SUITE: ${{ inputs.suite || 'smoke' }}
           MODEL: ${{ inputs.model }}
         run: |
           set -o pipefail

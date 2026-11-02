@@ -46,9 +46,12 @@ prior_art:
   - solution_ref: <one of the input candidate refs>
     relevance_score: <float 0.3-1.0>
     relevance_reason: <one sentence, ≤ 30 words, names the transferable pattern>
-warnings:
-  - <optional string per warning>
+warnings: []
 ```
+
+Always include both top-level keys, `prior_art` and `warnings`. With
+nothing to warn about, write `warnings: []`; otherwise list one string per
+warning.
 
 If zero candidates clear the 0.3 floor, return:
 ```yaml

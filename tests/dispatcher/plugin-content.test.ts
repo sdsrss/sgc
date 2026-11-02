@@ -12,9 +12,9 @@
 //   `/status`, which are Claude Code built-ins; plugin commands are /sgc:<name>.
 //   It also pointed at repo paths a user's project does not have.
 
-import { afterAll, describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
-import { mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 
@@ -108,12 +108,40 @@ const withLookup = contentFiles
   .filter(({ text }) => text.includes("${CLAUDE_PLUGIN_ROOT}/bin"))
   .map(({ rel, text }) => ({ rel, block: lookupBlock(text) }))
 
-test("every block's not-found message gives a reinstall that works in an installed plugin", () => {
-  for (const { block } of withLookup) {
-    const notFound = block!.split("\n").at(-1)!
-    expect(notFound).toContain("claude plugin uninstall sgc@sgc")
-    expect(notFound).not.toContain("/plugin install")
-  }
+/** What is wrong with a "sgc CLI not found" advice (empty when nothing).
+ *  Measured on Claude Code 2.1.316 with bin/sgc.mjs deleted from the plugin
+ *  cache: `install` alone answers "already installed", and so does `update`
+ *  ("already at the latest version"); uninstall + install restores the file.
+ *  Both default to user scope: for a project or local install the uninstall
+ *  fails ("enabled at project scope") and the install adds a second,
+ *  user-wide install. A plugin from a local-directory marketplace (`plugin
+ *  list` shows "Read from") or from --plugin-dir is read from that
+ *  directory, where no reinstall changes anything. */
+function reinstallAdviceProblems(text: string): string[] {
+  const problems: string[] = []
+  const list = text.indexOf("claude plugin list")
+  const uninstall = text.indexOf("claude plugin uninstall sgc@sgc --scope <scope>")
+  const install = text.indexOf("claude plugin install sgc@sgc --scope <scope>")
+  if (list === -1) problems.push("no `claude plugin list`, which shows the install's scope")
+  if (uninstall === -1) problems.push("no uninstall with --scope <scope>")
+  if (install === -1) problems.push("no install with --scope <scope>")
+  if (list !== -1 && uninstall !== -1 && list > uninstall) problems.push("the uninstall comes before `claude plugin list`")
+  if (uninstall !== -1 && install !== -1 && uninstall > install) problems.push("the install comes before the uninstall")
+  if (/claude plugin (?:un)?install sgc@sgc(?! --scope <scope>)/.test(text)) problems.push("an (un)install without --scope <scope>")
+  if (!text.includes("Read from") || !text.includes("--plugin-dir")) problems.push("no route for a plugin read from a directory")
+  if (text.includes("/plugin install")) problems.push("`/plugin install`, which only answers already installed")
+  return problems
+}
+
+/** The text a block's not-found line prints. */
+function notFoundMessage(block: string): string {
+  return /echo "([^"]*)" >&2; exit 1; \}$/.exec(block.split("\n").at(-1)!)?.[1] ?? ""
+}
+
+test("every block's not-found message gives the same reinstall, one that works for each kind of install", () => {
+  const messages = withLookup.map(({ block }) => notFoundMessage(block!))
+  expect(reinstallAdviceProblems(messages[0]!)).toEqual([])
+  expect(withLookup.filter((_, i) => messages[i] !== messages[0]).map((x) => x.rel)).toEqual([])
 })
 
 test("bash is available (and zsh where SGC_REQUIRE_ZSH=1), and every file that names the bundled CLI has a lookup block", () => {
@@ -129,18 +157,24 @@ test("bash is available (and zsh where SGC_REQUIRE_ZSH=1), and every file that n
 describe("each CLI lookup block runs the bundled CLI, as Claude Code's Bash tool would run it", () => {
   // No CLAUDE_PLUGIN_ROOT in the environment (the Bash tool has none), no
   // global sgc, no src/sgc.ts in the working directory.
-  const dir = mkdtempSync(join(tmpdir(), "sgc-plugin-content-"))
-  const spaced = join(dir, "plugin root with space")
-  symlinkSync(PLUGIN, spaced)
+  // Created in beforeAll, not while bun collects the tests: when `-t` filters
+  // out this whole describe, bun runs neither hook, so nothing is left behind.
+  let dir = ""
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), "sgc-plugin-content-"))
+    for (const name of [spaced, special, unmatched]) symlinkSync(PLUGIN, join(dir, name))
+    // a plugin whose files are incomplete: bin/ without the CLI
+    mkdirSync(join(dir, broken, "bin"), { recursive: true })
+  })
+  afterAll(() => rmSync(dir, { recursive: true, force: true }))
+  const spaced = "plugin root with space"
   // Claude Code pastes the root into the text verbatim, before any shell
   // quoting applies: none of these characters may change what runs.
-  const special = join(dir, `root $HOME "q" \`false\` 'a' $(false)`)
-  symlinkSync(PLUGIN, special)
+  const special = `root $HOME "q" \`false\` 'a' $(false)`
   // Unmatched quote and parenthesis: bash 3.2 (macOS's /bin/bash) cannot
   // parse a here-document like this inside $(…), even with bin/ on PATH.
-  const unmatched = join(dir, "root o'brien (x")
-  symlinkSync(PLUGIN, unmatched)
-  afterAll(() => rmSync(dir, { recursive: true, force: true }))
+  const unmatched = "root o'brien (x"
+  const broken = "root without the CLI"
 
   // The Bash tool sources a snapshot of the user's shell config (aliases
   // included, with bash's expand_aliases on), then evals the command.
@@ -149,14 +183,19 @@ describe("each CLI lookup block runs the bundled CLI, as Claude Code's Bash tool
     "an sgc alias": `alias sgc='echo ALIAS-SGC'\n`,
     "set -euo pipefail": "set -euo pipefail\n",
   }
+  const run = (sh: string, pre: string, block: string, root: string, path: string, after: string) => {
+    const cmd = block.replaceAll("${CLAUDE_PLUGIN_ROOT}", () => root) + after
+    const outer = `${sh.endsWith("/bash") ? "shopt -s expand_aliases\n" : ""}${pre}eval "$1"`
+    return spawnSync(sh, ["-c", outer, "sh", cmd], { cwd: dir, encoding: "utf8", env: { PATH: path, HOME: dir } })
+  }
   const cases = [
     // the documented mechanism: the plugin's bin/ is on the Bash tool's PATH
-    { name: "bin/ on PATH", root: PLUGIN, path: `${join(PLUGIN, "bin")}:${NODE_DIR}:/usr/bin:/bin` },
+    { name: "bin/ on PATH", root: () => PLUGIN, path: `${join(PLUGIN, "bin")}:${NODE_DIR}:/usr/bin:/bin` },
     // fallback: the substituted ${CLAUDE_PLUGIN_ROOT}
-    { name: "root with a space", root: spaced, path: `${NODE_DIR}:/usr/bin:/bin` },
-    { name: "root with $ \" ` ' and $()", root: special, path: `${NODE_DIR}:/usr/bin:/bin` },
-    { name: "root with an unmatched ' and (", root: unmatched, path: `${NODE_DIR}:/usr/bin:/bin` },
-    { name: "root with an unmatched ' and (, bin/ on PATH", root: unmatched, path: `${join(PLUGIN, "bin")}:${NODE_DIR}:/usr/bin:/bin` },
+    { name: "root with a space", root: () => join(dir, spaced), path: `${NODE_DIR}:/usr/bin:/bin` },
+    { name: "root with $ \" ` ' and $()", root: () => join(dir, special), path: `${NODE_DIR}:/usr/bin:/bin` },
+    { name: "root with an unmatched ' and (", root: () => join(dir, unmatched), path: `${NODE_DIR}:/usr/bin:/bin` },
+    { name: "root with an unmatched ' and (, bin/ on PATH", root: () => join(dir, unmatched), path: `${join(PLUGIN, "bin")}:${NODE_DIR}:/usr/bin:/bin` },
   ]
   for (const sh of SHELLS) {
     const shName = sh.split("/").pop()!
@@ -165,13 +204,7 @@ describe("each CLI lookup block runs the bundled CLI, as Claude Code's Bash tool
         test(`${shName}, ${c.name}, ${pName}: every block reaches sgc ${PKG_VERSION}`, () => {
           const failures: string[] = []
           for (const { rel, block } of withLookup) {
-            const cmd = block!.replaceAll("${CLAUDE_PLUGIN_ROOT}", () => c.root) + "\nsgc.mjs --version\n"
-            const outer = `${shName === "bash" ? "shopt -s expand_aliases\n" : ""}${pre}eval "$1"`
-            const r = spawnSync(sh, ["-c", outer, "sh", cmd], {
-              cwd: dir,
-              encoding: "utf8",
-              env: { PATH: c.path, HOME: dir },
-            })
+            const r = run(sh, pre, block!, c.root(), c.path, "\nsgc.mjs --version\n")
             if (r.status !== 0 || r.stdout.trim() !== PKG_VERSION) {
               failures.push(`${rel}: exit ${r.status} ${`${r.stdout ?? ""}${r.stderr ?? ""}${r.error ?? ""}`.trim().slice(0, 160)}`)
             }
@@ -179,6 +212,21 @@ describe("each CLI lookup block runs the bundled CLI, as Claude Code's Bash tool
           expect(failures).toEqual([])
         }, 120_000)
       }
+    }
+    // The not-found branch: neither bin/ on PATH nor a CLI under the root.
+    // The block must stop there (exit 1, before the CLI line) with its advice
+    // on stderr, not fail in some other way.
+    for (const [pName, pre] of Object.entries(prelude)) {
+      test(`${shName}, plugin files incomplete, ${pName}: every block stops with its reinstall advice`, () => {
+        const failures: string[] = []
+        for (const { rel, block } of withLookup) {
+          const r = run(sh, pre, block!, join(dir, broken), `${NODE_DIR}:/usr/bin:/bin`, "\necho CLI-LINE-REACHED\n")
+          if (r.status !== 1 || r.stdout !== "" || r.stderr.trim() !== notFoundMessage(block!)) {
+            failures.push(`${rel}: exit ${r.status} ${`${r.stdout ?? ""}${r.stderr ?? ""}${r.error ?? ""}`.trim().slice(0, 160)}`)
+          }
+        }
+        expect(failures).toEqual([])
+      }, 120_000)
     }
   }
 })
@@ -204,12 +252,10 @@ describe("bootstrap (injected into sessions)", () => {
     expect(slash.filter((s) => !s.startsWith("/sgc:"))).toEqual([])
   })
 
-  // With the plugin installed, `claude plugin install` answers "already
-  // installed" and restores nothing; uninstall + install does (measured on
-  // Claude Code 2.1.316 with bin/sgc.mjs deleted from the plugin cache).
-  test("its sgc-CLI-not-found advice is a reinstall that restores the files", () => {
-    expect(boot).toContain("claude plugin uninstall sgc@sgc")
-    expect(boot).not.toMatch(/reinstalling the plugin \(`claude plugin install/)
+  test("its sgc-CLI-not-found advice restores the files for each kind of install (see reinstallAdviceProblems)", () => {
+    const advice = boot.split("\n\n").filter((p) => p.includes("sgc CLI not found"))
+    expect(advice.length).toBe(1)
+    expect(reinstallAdviceProblems(advice[0]!)).toEqual([])
   })
 
   test("it points at no repo path a user's project does not have", () => {

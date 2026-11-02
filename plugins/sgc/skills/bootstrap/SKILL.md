@@ -22,7 +22,7 @@ sgc --version
 
 See https://github.com/sdsrss/sgc#install for the canonical install reference.
 
-If a `/sgc:*` command fails with "sgc CLI not found", the plugin's `bin/sgc.mjs` could not be reached: the plugin's files are incomplete, or its install path contains a colon or a newline. Suggest, **once per session**, reinstalling it in a terminal: `claude plugin uninstall sgc@sgc`, then `claude plugin install sgc@sgc` (`install` alone answers "already installed" and changes nothing). The npm install above does not fix it (it puts `sgc` on PATH, not `sgc.mjs`).
+If a `/sgc:*` command fails with "sgc CLI not found", the plugin's `bin/sgc.mjs` could not be reached: the plugin's files are incomplete, or its install path contains a colon or a newline. Suggest, **once per session**, that the user run `claude plugin list` in a terminal in this project. If sgc@sgc shows a `Read from` line (a local-directory marketplace), or Claude Code was started with `--plugin-dir`, the plugin is read from that directory: restore `bin/sgc.mjs` there, since reinstalling changes nothing. Otherwise reinstall it at the `Scope` shown there: `claude plugin uninstall sgc@sgc --scope <scope>`, then `claude plugin install sgc@sgc --scope <scope>`. Both default to the user scope, so without `--scope` the uninstall of a project or local install fails and the install adds a second, user-wide one; `install` alone answers "already installed" and changes nothing. The npm install above does not fix it (it puts `sgc` on PATH, not `sgc.mjs`).
 
 ## When to Use
 

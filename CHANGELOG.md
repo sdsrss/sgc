@@ -15,7 +15,7 @@
   sgc@sgc`, and restart Claude Code.
 - **What a session now gets.** With the plugin loading, its SessionStart
   hook runs at startup, resume, `/clear` and compaction. Only in a project
-  that has a `.sgc/` directory, it adds the sgc bootstrap skill (3,712 bytes)
+  that has a `.sgc/` directory, it adds the sgc bootstrap skill (3,902 bytes)
   and, when there is one, the active task (`.sgc/progress/current-task.md`)
   to the context. Other projects get nothing from the hook. The hook used
   to inject the bootstrap everywhere; it never ran in a Claude Code that
@@ -33,8 +33,9 @@
   later Bash calls. Where `bin/` is not on PATH, the block adds
   `${CLAUDE_PLUGIN_ROOT}/bin` to it for that call, read through a quoted
   here-document, so spaces, `$`, quotes, backticks and parentheses in the
-  install path are taken literally, by macOS's bash 3.2 too. A colon is
-  the one character that cannot work there: PATH splits on it. The blocks
+  install path are taken literally, by macOS's bash 3.2 too. Two
+  characters cannot work there: a colon, on which PATH splits, and a
+  newline, since the block reads one line. The blocks
   work under bash and zsh (the default shell on
   macOS), under `set -euo pipefail`, and when the user's shell defines an
   `sgc` alias (Claude Code loads the user's aliases into the Bash tool).
@@ -91,8 +92,9 @@
   `findings`. With nothing to report, write `findings: []`."). A new test
   requires that sentence in each prompt's reply-format section and checks
   it names every key the manifest requires. It also fails on common ways
-  of calling a key optional anywhere in the prompt; that part is a word
-  list, so a rephrasing can still get past it. Measured on the default model with the full
+  of calling a key optional: in the reply-format section, and in any other
+  sentence of the prompt that names the key in backticks. That part is a
+  word list, so a rephrasing can still get past it. Measured on the default model with the full
   real-LLM eval set, one run each: 32/36 tests passed before the change
   and 35/36 after ($1.45 of key usage for both runs). The run before
   included one dropped key (planner.ceo left out `rewrite_hints`), and the
@@ -114,7 +116,9 @@
   terminal instead. `sgc agent-loop` and the file-poll prompt no longer
   tell you to run `bun src/sgc.ts`.
 - **CI** installs zsh, so the zsh cases of the command-block test run on
-  every push (they fail in CI if zsh is missing).
+  every push; test.yml sets `SGC_REQUIRE_ZSH=1`, which makes them fail
+  there if zsh is missing. publish.yml runs the suite without zsh and
+  skips them. No workflow runs bash 3.2.
 - **Build:** the strip of build-machine paths now decodes the
   `__filename` / `__dirname` literals bun bakes in, rather than searching
   for the checkout root as text. It covers checkouts at `/`, paths with
@@ -138,7 +142,7 @@ were the `warnings` validation error fixed above. The 30-word cap failed
 only on opus-5.5 (3 times) and sonnet-5.5 (9 times), which are not
 defaults.
 
-Full suite 1633 → 1921 pass / 38 skip / 0 fail (+288 tests, with zsh on
+Full suite 1633 → 1923 pass / 38 skip / 0 fail (+290 tests, with zsh on
 PATH as in CI); `tsc --noEmit` 0; `sgc doctor` 72 OK / 0 warn / 0 fail
 (check P added); bundle 1,944,072 → 1,950,051 bytes.
 

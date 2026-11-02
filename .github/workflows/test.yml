@@ -93,7 +93,8 @@ jobs:
       - name: Install zsh
         # The plugin's command blocks run in the user's shell, and Claude
         # Code's Bash tool prefers zsh on macOS. plugin-content.test.ts runs
-        # every block under bash and zsh, and fails in CI when zsh is missing.
+        # every block under bash and zsh; with SGC_REQUIRE_ZSH=1 (set on the
+        # test step below) it fails when zsh is missing.
         run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh
 
       - name: Run dispatcher + eval tests

@@ -49,6 +49,8 @@ describe("plugin content reaches the bundled CLI", () => {
       expect(text.match(/\]\(\.\.\/[^)]*\)/g) ?? []).toEqual([])
       expect(text).not.toMatch(/~\/\.claude\/CLAUDE\.md|CLAUDE-extended\.md|~\/\.ssh\/|On this machine/)
       expect(text).not.toMatch(/`bun src\/sgc\.ts [a-z]+`/)
+      // `sgc qa` without a target fails and uses up the task's append-only qa report
+      expect(text).not.toMatch(/sgc qa --browse/)
     })
 
     if (/^\s*bun src\/sgc\.ts /m.test(text)) {

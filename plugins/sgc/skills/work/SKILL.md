@@ -39,7 +39,13 @@ Execute an approved plan; track completion in `progress/feature-list.md`.
 When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-bun src/sgc.ts work $ARGUMENTS
+if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
+elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
+elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
+fi
+
+$SGC work $ARGUMENTS
 ```
 
 `work` does NOT spawn review agents. Call `sgc review` (and `sgc qa` for L2+) when all features are done.

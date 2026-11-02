@@ -37,7 +37,13 @@ Dispatch reviewer agents (fresh context) against the current task's diff. Review
 When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-bun src/sgc.ts review $ARGUMENTS
+if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
+elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
+elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
+fi
+
+$SGC review $ARGUMENTS
 ```
 
 Re-running `review` for the same task throws `AppendOnly` — reviews are an audit trail, not a retry loop. To ship despite a `fail` verdict, supply `--override "<≥40-char reason>"` at `sgc ship`.

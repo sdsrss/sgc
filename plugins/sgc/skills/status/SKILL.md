@@ -37,7 +37,13 @@ Read-only across the board (the only write is `progress/handoff.md` on explicit 
 When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-bun src/sgc.ts status
+if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
+elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
+elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
+fi
+
+$SGC status
 ```
 
 For richer views (reviews per task, knowledge-base stats), read the files directly — `status` intentionally stays minimal and fast.

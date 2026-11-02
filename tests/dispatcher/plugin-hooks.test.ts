@@ -50,13 +50,24 @@ function sessionStartCommand(): string {
   return groups[0]!.hooks[0]!.command!
 }
 
-function runHook(projectDir: string, env: Record<string, string | undefined>): { status: number | null; out: string } {
-  const r = spawnSync("bash", ["-c", sessionStartCommand()], {
+// Claude Code runs a shell-form hook through /bin/sh (dash on Debian/Ubuntu);
+// run every case under both sh and bash.
+const SHELLS = ["sh", "bash"] as const
+
+function runHookIn(shell: string, projectDir: string, env: Record<string, string | undefined>): { status: number | null; out: string } {
+  const r = spawnSync(shell, ["-c", sessionStartCommand()], {
     cwd: projectDir,
     encoding: "utf8",
     env: { PATH: process.env["PATH"], CLAUDE_PLUGIN_ROOT: PLUGIN, ...env },
   })
   return { status: r.status, out: r.stdout }
+}
+
+/** Runs the hook under every shell, asserts they agree, returns the result. */
+function runHook(projectDir: string, env: Record<string, string | undefined>): { status: number | null; out: string } {
+  const [first, ...rest] = SHELLS.map((sh) => runHookIn(sh, projectDir, env))
+  for (const r of rest) expect(r).toEqual(first!)
+  return first!
 }
 
 describe("SessionStart hook", () => {

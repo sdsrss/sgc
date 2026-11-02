@@ -38,7 +38,13 @@ Plus `spawn:clarifier.*`. No writes — `discover` cannot mutate `.sgc/` state b
 When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-bun src/sgc.ts discover "$ARGUMENTS"
+if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
+elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
+elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
+fi
+
+$SGC discover "$ARGUMENTS"
 ```
 
 Output is structured text with sections Goal / Constraints / Scope / Edge cases / Acceptance / Next. The last section contains the exact `sgc plan ...` command to run after answering.

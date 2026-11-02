@@ -37,7 +37,13 @@ Run the 4-agent compound cluster (`context` / `solution` / `related` / `preventi
 When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-bun src/sgc.ts compound $ARGUMENTS
+if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
+elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
+elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
+fi
+
+$SGC compound $ARGUMENTS
 ```
 
 Outcomes: `compound` (new entry) · `update_existing` (dedup hit; `source_task_ids` merged, `times_referenced` bumped) · `skip` (only via janitor's decision).

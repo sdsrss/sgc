@@ -40,7 +40,13 @@ This skill invokes the dispatcher; process is authoritative in code, not prose.
 When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-bun src/sgc.ts plan "$ARGUMENTS"
+if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
+elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
+elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
+fi
+
+$SGC plan "$ARGUMENTS"
 ```
 
 For L3 tasks, the CLI will prompt for `--signed-by` and require interactive `yes`.

@@ -42934,7 +42934,7 @@ async function runAgentLoop(opts = {}) {
   log(``);
   if (insideClaudeCode()) {
     log(`Inside Claude Code — answer the prompt yourself or hand it to a general-purpose`);
-    log(`subagent, write the YAML to a file, then submit it (sgc.mjs is the plugin's CLI):`);
+    log(`subagent, write the YAML to a file, then submit it (sgc.mjs is the plugin's CLI; from npm it is sgc):`);
     log(`  sgc.mjs agent-loop --submit ${next.spawnId} --from <yaml-file>`);
     log(``);
     log(`(file-poll dispatch is disabled inside Claude Code per P3#10; ` + `set SGC_USE_FILE_AGENTS=0 or use anthropic-sdk/openrouter for direct LLM dispatch)`);

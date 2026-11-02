@@ -22,7 +22,7 @@ sgc --version
 
 See https://github.com/sdsrss/sgc#install for the canonical install reference.
 
-If a command fails with "sgc CLI not found", show this block **once per session** — do not repeat it on every command.
+If a `/sgc:*` command fails with "sgc CLI not found", the plugin's own `bin/sgc.mjs` is missing: suggest reinstalling the plugin (`claude plugin install sgc@sgc` in a terminal), **once per session**. The npm install above does not fix it (it puts `sgc` on PATH, not `sgc.mjs`).
 
 ## When to Use
 

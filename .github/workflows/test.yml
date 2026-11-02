@@ -98,6 +98,9 @@ jobs:
 
       - name: Run dispatcher + eval tests
         id: run_tests
+        env:
+          # plugin-content.test.ts fails when zsh is missing (installed above)
+          SGC_REQUIRE_ZSH: "1"
         run: |
           set -o pipefail
           bun test tests/dispatcher tests/eval 2>&1 | tee test-output.log

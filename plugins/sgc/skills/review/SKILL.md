@@ -37,10 +37,10 @@ Dispatch reviewer agents (fresh context) against the current task's diff. Review
 When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-command -v sgc.mjs >/dev/null 2>&1 || PATH=$(cat <<'SGC_PLUGIN_ROOT'
+command -v sgc.mjs >/dev/null 2>&1 || { IFS= read -r SGC_PLUGIN_BIN <<'SGC_PLUGIN_ROOT'
 ${CLAUDE_PLUGIN_ROOT}/bin
 SGC_PLUGIN_ROOT
-):$PATH
+PATH=$SGC_PLUGIN_BIN:$PATH; }
 command -v sgc.mjs >/dev/null 2>&1 || { echo "sgc CLI not found — /plugin install sgc, see https://github.com/sdsrss/sgc#install" >&2; exit 1; }
 
 sgc.mjs review $ARGUMENTS

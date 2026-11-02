@@ -10,10 +10,10 @@ Append features, mark them done, or list current state. The dispatcher does NOT 
 ## Invocation
 
 ```bash
-command -v sgc.mjs >/dev/null 2>&1 || PATH=$(cat <<'SGC_PLUGIN_ROOT'
+command -v sgc.mjs >/dev/null 2>&1 || { IFS= read -r SGC_PLUGIN_BIN <<'SGC_PLUGIN_ROOT'
 ${CLAUDE_PLUGIN_ROOT}/bin
 SGC_PLUGIN_ROOT
-):$PATH
+PATH=$SGC_PLUGIN_BIN:$PATH; }
 command -v sgc.mjs >/dev/null 2>&1 || { echo "sgc CLI not found — /plugin install sgc, see https://github.com/sdsrss/sgc#install" >&2; exit 1; }
 
 sgc.mjs work                          # list features, highlight active

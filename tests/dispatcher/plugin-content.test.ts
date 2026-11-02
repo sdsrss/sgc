@@ -128,6 +128,10 @@ describe("each CLI lookup block runs the bundled CLI, as Claude Code's Bash tool
   // quoting applies: none of these characters may change what runs.
   const special = join(dir, `root $HOME "q" \`false\` 'a' $(false)`)
   symlinkSync(PLUGIN, special)
+  // Unmatched quote and parenthesis: bash 3.2 (macOS's /bin/bash) cannot
+  // parse a here-document like this inside $(…), even with bin/ on PATH.
+  const unmatched = join(dir, "root o'brien (x")
+  symlinkSync(PLUGIN, unmatched)
   afterAll(() => rmSync(dir, { recursive: true, force: true }))
 
   // The Bash tool sources a snapshot of the user's shell config (aliases
@@ -143,6 +147,8 @@ describe("each CLI lookup block runs the bundled CLI, as Claude Code's Bash tool
     // fallback: the substituted ${CLAUDE_PLUGIN_ROOT}
     { name: "root with a space", root: spaced, path: `${NODE_DIR}:/usr/bin:/bin` },
     { name: "root with $ \" ` ' and $()", root: special, path: `${NODE_DIR}:/usr/bin:/bin` },
+    { name: "root with an unmatched ' and (", root: unmatched, path: `${NODE_DIR}:/usr/bin:/bin` },
+    { name: "root with an unmatched ' and (, bin/ on PATH", root: unmatched, path: `${join(PLUGIN, "bin")}:${NODE_DIR}:/usr/bin:/bin` },
   ]
   for (const sh of SHELLS) {
     const shName = sh.split("/").pop()!

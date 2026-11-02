@@ -9,9 +9,11 @@
 // unavailable -> concern (NEVER false-pass). Prose flows (not a URL/path) are
 // recorded as labels, not navigated (no LLM to synthesize clicks).
 //
-// `playwright` is a dependency of sgc and is --external in the bundle, so the
-// dynamic import resolves at runtime from node_modules; if it (or a browser)
-// is missing the launch throws and we degrade to `concern`.
+// `playwright` is an optional dependency of sgc and is --external in the
+// bundle, so it resolves at runtime (loadPlaywright); if it (or a browser) is
+// missing the launch throws and we degrade to `concern`.
+import { execFileSync } from "node:child_process"
+import { createRequire } from "node:module"
 import { join } from "node:path"
 import type {
   BrowseRunner,
@@ -164,13 +166,72 @@ export function makeBrowseRunner(opts: {
   }
 }
 
-/** Production launcher: dynamic-import Playwright and launch chromium. Set
- *  SGC_QA_BROWSER=chrome to use the system Chrome channel (no playwright
- *  browser download). chromiumSandbox:false handles Ubuntu 23.10+ AppArmor. */
+type Playwright = typeof import("playwright")
+
+export interface PlaywrightLookup {
+  /** `import("playwright")` from the CLI's own location. */
+  importNearCli: () => Promise<Playwright>
+  /** The project under test. */
+  cwd: string
+  /** `npm root -g`, or null when npm is unavailable. */
+  globalRoot: () => string | null
+}
+
+function npmGlobalRoot(): string | null {
+  try {
+    const out = execFileSync("npm", ["root", "-g"], {
+      encoding: "utf8",
+      timeout: 15_000,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim()
+    return out === "" ? null : out
+  } catch {
+    return null
+  }
+}
+
+/** Finds Playwright for `--browse`, in order: next to the CLI (the npm
+ *  install's optional dependency), the project under test (cwd), then the
+ *  global npm root, which covers both `npm i -g @sdsrs/sgc` and `npm i -g
+ *  playwright`. The plugin's copy of the CLI lives in Claude Code's plugin
+ *  cache with no node_modules above it, so only the last two can serve it. */
+export async function loadPlaywright(
+  lookup: PlaywrightLookup = { importNearCli: () => import("playwright"), cwd: process.cwd(), globalRoot: npmGlobalRoot },
+): Promise<Playwright> {
+  let nearCli: unknown
+  try {
+    return await lookup.importNearCli()
+  } catch (e) {
+    nearCli = e
+  }
+  const fromProject = join(lookup.cwd, "noop.js")
+  try {
+    return createRequire(fromProject)("playwright") as Playwright
+  } catch {}
+  const root = lookup.globalRoot()
+  if (root !== null) {
+    try {
+      // Resolving from inside the global @sdsrs/sgc also walks up to the
+      // global root itself, where `npm i -g playwright` puts it.
+      return createRequire(join(root, "@sdsrs", "sgc", "noop.js"))("playwright") as Playwright
+    } catch {}
+  }
+  throw new Error(
+    `Playwright not found next to the CLI (${firstLine((nearCli as Error)?.message ?? String(nearCli))}), ` +
+      `in ${lookup.cwd}, or in the global npm root (${root ?? "npm unavailable"}). ` +
+      "Install it with npm i -g @sdsrs/sgc (or npm i -D playwright in the project), " +
+      "then npx playwright install chromium",
+  )
+}
+
+/** Production launcher: load Playwright (see loadPlaywright) and launch
+ *  chromium. Set SGC_QA_BROWSER=chrome to use the system Chrome channel (no
+ *  playwright browser download). chromiumSandbox:false handles Ubuntu 23.10+
+ *  AppArmor. */
 export async function launchPlaywrightSession(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<BrowserSession> {
-  const pw = (await import("playwright")) as typeof import("playwright")
+  const pw = await loadPlaywright()
   const channel = env["SGC_QA_BROWSER"] === "chrome" ? "chrome" : undefined
   const browser = await pw.chromium.launch({
     headless: true,

@@ -7359,6 +7359,8 @@ acceptance_questions:
 suggested_next: 'sgc plan "<topic>" --motivation "<your consolidated answers as one paragraph, ≥20 words>"'
 \`\`\`
 
+Always include all seven top-level keys: \`topic\`, \`goal_question\`, \`constraint_questions\`, \`scope_questions\`, \`edge_case_questions\`, \`acceptance_questions\` and \`suggested_next\`.
+
 ## Input
 
 <input_yaml/>
@@ -7407,6 +7409,8 @@ rationale: |
 affected_readers_candidates:
   - <list of code areas or modules this change might ripple into>
 \`\`\`
+
+Always include all three top-level keys: \`level\`, \`rationale\` and \`affected_readers_candidates\`. With no area to name, write \`affected_readers_candidates: []\`.
 
 ## Input
 
@@ -7552,6 +7556,8 @@ symptoms:
   # 1-4 items; if none stated, single-element ["(symptom not stated in input)"]
 \`\`\`
 
+Always include all four top-level keys: \`category\`, \`tags\`, \`problem_summary\` and \`symptoms\`.
+
 ## Input
 
 <input_yaml/>
@@ -7662,6 +7668,8 @@ prevention: |
   <2-4 sentences in markdown — single named guardrail, targeted at
   this failure shape, located in the relevant module type>
 \`\`\`
+
+Always include the top-level key \`prevention\`.
 
 ## Input
 
@@ -7786,6 +7794,8 @@ what_didnt_work:
   - approach: "<rejected approach, one sentence>"
     reason_failed: "<why it didn't ship, one sentence>"
 \`\`\`
+
+Always include both top-level keys: \`solution\` and \`what_didnt_work\`.
 
 ## Input
 
@@ -7952,6 +7962,8 @@ failure_modes:
     early_signal: <concrete test / metric / log / page that would catch this first>
 \`\`\`
 
+Always include the top-level key \`failure_modes\`.
+
 ## Input
 
 <input_yaml/>
@@ -7963,7 +7975,7 @@ Write only the YAML above. No prose outside the YAML block.
 var init_planner_adversarial = () => {};
 
 // prompts/planner-decompose.md
-var planner_decompose_default = '# planner.decompose\n\nYou decompose an approved engineering intent into a **file-level task list with\nbite-sized TDD steps**. You write the plan an engineer with zero context for\nthis codebase would need: exact files, complete steps, real commands. NO\nplaceholders ("TBD", "handle edge cases", "add validation" are failures).\n\n## Inputs\n\n- `intent_draft` — the approved task description.\n- `structural_risks` — areas the eng reviewer flagged (area / risk / mitigation).\n- `prior_art` — prior solutions surfaced from the knowledge corpus\n  (`solution_ref` / `relevance_score` / `excerpt`). REUSE these: when a task\n  reuses a prior solution, list its `solution_ref` in that task\'s\n  `prior_art_refs`.\n- `failure_modes` — pre-mortem scenarios (scenario / probability / impact /\n  early_signal). For each, emit a `guard` step (a defensive test or check) in\n  the task most likely to trigger it.\n- `prior_preventions` — known failure shapes to avoid; emit a `guard` step\n  citing the `solution_ref`.\n\n## Output (JSON)\n\n```json\n{\n  "tasks": [\n    {\n      "id": "f1",\n      "title": "<imperative task title>",\n      "files": { "create": ["path"], "modify": ["path"], "test": ["path"] },\n      "steps": [\n        { "kind": "test", "text": "Write the failing test: ..." },\n        { "kind": "verify-red", "text": "Run it", "run": "<cmd>", "expect": "FAIL ..." },\n        { "kind": "implement", "text": "..." },\n        { "kind": "verify-green", "text": "Run it", "run": "<cmd>", "expect": "PASS" },\n        { "kind": "guard", "text": "Guard against <failure_mode>: ..." },\n        { "kind": "commit", "text": "Commit", "run": "git commit -m \\"...\\"" }\n      ],\n      "prior_art_refs": ["<solution_ref reused by this task>"]\n    }\n  ]\n}\n```\n\n## Rules\n\n- `kind` must be one of: `test`, `verify-red`, `implement`, `verify-green`, `commit`, `guard`.\n- Each task is self-contained and independently testable. Split by\n  responsibility, not by technical layer. Smallest diff that works.\n- Every `verify-*` / `commit` step has a real `run` command.\n- Do NOT invent file paths you cannot justify from the intent. If unsure of an\n  exact path, describe the file\'s responsibility in `text` and leave `files`\n  arrays conservative.\n- Banned vocabulary: no "robust", "comprehensive", "significantly",\n  "should work", or baseline-less ratios.\n\n## Input\n\n<input_yaml/>\n';
+var planner_decompose_default = '# planner.decompose\n\nYou decompose an approved engineering intent into a **file-level task list with\nbite-sized TDD steps**. You write the plan an engineer with zero context for\nthis codebase would need: exact files, complete steps, real commands. NO\nplaceholders ("TBD", "handle edge cases", "add validation" are failures).\n\n## Inputs\n\n- `intent_draft` — the approved task description.\n- `structural_risks` — areas the eng reviewer flagged (area / risk / mitigation).\n- `prior_art` — prior solutions surfaced from the knowledge corpus\n  (`solution_ref` / `relevance_score` / `excerpt`). REUSE these: when a task\n  reuses a prior solution, list its `solution_ref` in that task\'s\n  `prior_art_refs`.\n- `failure_modes` — pre-mortem scenarios (scenario / probability / impact /\n  early_signal). For each, emit a `guard` step (a defensive test or check) in\n  the task most likely to trigger it.\n- `prior_preventions` — known failure shapes to avoid; emit a `guard` step\n  citing the `solution_ref`.\n\n## Output (JSON)\n\n```json\n{\n  "tasks": [\n    {\n      "id": "f1",\n      "title": "<imperative task title>",\n      "files": { "create": ["path"], "modify": ["path"], "test": ["path"] },\n      "steps": [\n        { "kind": "test", "text": "Write the failing test: ..." },\n        { "kind": "verify-red", "text": "Run it", "run": "<cmd>", "expect": "FAIL ..." },\n        { "kind": "implement", "text": "..." },\n        { "kind": "verify-green", "text": "Run it", "run": "<cmd>", "expect": "PASS" },\n        { "kind": "guard", "text": "Guard against <failure_mode>: ..." },\n        { "kind": "commit", "text": "Commit", "run": "git commit -m \\"...\\"" }\n      ],\n      "prior_art_refs": ["<solution_ref reused by this task>"]\n    }\n  ]\n}\n```\n\nAlways include the top-level key `tasks`.\n\n## Rules\n\n- `kind` must be one of: `test`, `verify-red`, `implement`, `verify-green`, `commit`, `guard`.\n- Each task is self-contained and independently testable. Split by\n  responsibility, not by technical layer. Smallest diff that works.\n- Every `verify-*` / `commit` step has a real `run` command.\n- Do NOT invent file paths you cannot justify from the intent. If unsure of an\n  exact path, describe the file\'s responsibility in `text` and leave `files`\n  arrays conservative.\n- Banned vocabulary: no "robust", "comprehensive", "significantly",\n  "should work", or baseline-less ratios.\n\n## Input\n\n<input_yaml/>\n';
 var init_planner_decompose = () => {};
 
 // prompts/planner-ceo.md
@@ -8075,6 +8087,8 @@ rewrite_hints:
   - "rewrite_hint 2, states what the user should add"
 \`\`\`
 
+Always include all three top-level keys: \`verdict\`, \`concerns\` and \`rewrite_hints\`. Write \`[]\` for a list with no items.
+
 ## Input
 
 <input_yaml/>
@@ -8182,6 +8196,8 @@ structural_risks:
     risk: <what could break or be missed, specific>
     mitigation: <concrete action the user should take>
 \`\`\`
+
+Always include all three top-level keys: \`verdict\`, \`concerns\` and \`structural_risks\`. Write \`[]\` for a list with no items.
 
 ## Input
 
@@ -8304,6 +8320,8 @@ findings:
     suggestion: <optional — one-line fix hint>
 \`\`\`
 
+Always include all three top-level keys: \`verdict\`, \`severity\` and \`findings\`. With nothing to report, write \`findings: []\`.
+
 ## Input
 
 <input_yaml/>
@@ -8382,6 +8400,8 @@ findings:
     suggestion: <optional — one-line fix hint>
 \`\`\`
 
+Always include all three top-level keys: \`verdict\`, \`severity\` and \`findings\`. With nothing to report, write \`findings: []\`.
+
 ## Input
 
 <input_yaml/>
@@ -8456,6 +8476,8 @@ findings:
     description: <what is untested or unfalsifiable, and what it would still pass against>
     suggestion: <optional — one-line fix hint>
 \`\`\`
+
+Always include all three top-level keys: \`verdict\`, \`severity\` and \`findings\`. With nothing to report, write \`findings: []\`.
 
 ## Input
 
@@ -38235,13 +38257,17 @@ ${dump(input).trimEnd()}
 ` + `Or use the helper:
 
 ` + `\`\`\`bash
-` + `echo 'your YAML here' | bun src/sgc.ts agent-loop --submit ${spawnId}
+` + `echo 'your YAML here' | sgc agent-loop --submit ${spawnId}
 ` + `# or:
-` + `bun src/sgc.ts agent-loop --submit ${spawnId} --from /path/to/result.yaml
+` + `sgc agent-loop --submit ${spawnId} --from /path/to/result.yaml
+` + `# in Claude Code with the sgc plugin, the CLI is sgc.mjs
 ` + `\`\`\`
 `;
   return `${systemPrefix}
 ${inputBlock}`;
+}
+function insideClaudeCode(env2 = process.env) {
+  return env2["CLAUDECODE"] === "1" || Boolean(env2["CLAUDE_PLUGIN_ROOT"]);
 }
 async function pollForResult(resultPath2, timeoutMs, intervalMs) {
   const deadline = Date.now() + timeoutMs;
@@ -38270,8 +38296,8 @@ async function spawn3(agentName, input, opts = {}) {
   const resultPath2 = resultPath(spawnId, stateRoot);
   writeAtomic(promptPath2, formatPrompt(spawnId, manifest, input, tokens, resultPath2));
   const mode = resolveMode(opts, manifest);
-  if (mode === "file-poll" && process.env["CLAUDE_PLUGIN_ROOT"]) {
-    throw new SpawnError(`Agent ${agentName}: file-poll mode is disabled inside Claude Code sessions ` + `(CLAUDE_PLUGIN_ROOT detected). Options: ` + `(1) unset SGC_USE_FILE_AGENTS to use inline/anthropic-sdk/openrouter modes; ` + `(2) set ANTHROPIC_API_KEY or OPENROUTER_API_KEY for direct LLM dispatch; ` + `(3) invoke the agent via Task("${agentName}", input) from your Claude session, ` + `then submit the YAML output via \`sgc agent-loop --submit ${spawnId} --from <file>\`. ` + `Prompt written to: ${promptPath2}`);
+  if (mode === "file-poll" && insideClaudeCode()) {
+    throw new SpawnError(`Agent ${agentName}: file-poll mode is disabled inside Claude Code sessions ` + `(CLAUDECODE or CLAUDE_PLUGIN_ROOT set). Options: ` + `(1) unset SGC_USE_FILE_AGENTS to use inline/anthropic-sdk/openrouter modes; ` + `(2) set ANTHROPIC_API_KEY or OPENROUTER_API_KEY for direct LLM dispatch, or put the \`claude\` CLI on PATH; ` + `(3) run this sgc command from a terminal outside Claude Code: file-poll then waits, ` + `and Claude Code can answer each prompt via \`sgc agent-loop\` (/sgc:agent-loop). ` + `Prompt written to: ${promptPath2}`);
   }
   const logger = opts.logger ?? createLogger({ stateRoot: opts.stateRoot });
   const startTs = Date.now();
@@ -41253,6 +41279,8 @@ async function qaBrowser(input, opts = {}) {
 }
 
 // src/dispatcher/agents/playwright-runner.ts
+import { execFileSync } from "node:child_process";
+import { createRequire as createRequire2 } from "node:module";
 import { join as join5 } from "node:path";
 function firstLine(s2) {
   return (s2.split(`
@@ -41359,8 +41387,39 @@ function makeBrowseRunner(opts) {
     return { verdict, evidence_refs, failed_flows: [...failed_flows, ...notes] };
   };
 }
+function npmGlobalRoot() {
+  try {
+    const out = execFileSync("npm", ["root", "-g"], {
+      encoding: "utf8",
+      timeout: 15000,
+      stdio: ["ignore", "pipe", "ignore"]
+    }).trim();
+    return out === "" ? null : out;
+  } catch {
+    return null;
+  }
+}
+async function loadPlaywright(lookup = { importNearCli: () => import("playwright"), cwd: process.cwd(), globalRoot: npmGlobalRoot }) {
+  let nearCli;
+  try {
+    return await lookup.importNearCli();
+  } catch (e2) {
+    nearCli = e2;
+  }
+  const fromProject = join5(lookup.cwd, "noop.js");
+  try {
+    return createRequire2(fromProject)("playwright");
+  } catch {}
+  const root3 = lookup.globalRoot();
+  if (root3 !== null) {
+    try {
+      return createRequire2(join5(root3, "@sdsrs", "sgc", "noop.js"))("playwright");
+    } catch {}
+  }
+  throw new Error(`Playwright not found next to the CLI (${firstLine(nearCli?.message ?? String(nearCli))}), in ${lookup.cwd}, or in the global npm root (${root3 ?? "npm unavailable"}). Install it with npm i -g @sdsrs/sgc (or npm i -D playwright in the project), then npx playwright install chromium`);
+}
 async function launchPlaywrightSession(env2 = process.env) {
-  const pw = await import("playwright");
+  const pw = await loadPlaywright();
   const channel = env2["SGC_QA_BROWSER"] === "chrome" ? "chrome" : undefined;
   const browser = await pw.chromium.launch({
     headless: true,
@@ -42868,17 +42927,15 @@ async function runAgentLoop(opts = {}) {
     return { action: "interactive" };
   }
   const next = pending[0];
-  const { agentName: nextAgent } = parseSpawnId(next.spawnId);
   log(`Next pending: ${next.spawnId}`);
   log(``);
   log(`Prompt:  ${next.promptPath}`);
   log(`Reply:   ${next.resultPath}`);
   log(``);
-  if (process.env["CLAUDE_PLUGIN_ROOT"]) {
-    log(`Inside Claude Code session — invoke via Task() directly:`);
-    log(`  Task({ subagent_type: "${nextAgent}", prompt: <prompt body>, ... })`);
-    log(`Then submit the YAML output:`);
-    log(`  sgc agent-loop --submit ${next.spawnId} --from <yaml-file>`);
+  if (insideClaudeCode()) {
+    log(`Inside Claude Code — answer the prompt yourself or hand it to a general-purpose`);
+    log(`subagent, write the YAML to a file, then submit it (sgc.mjs is the plugin's CLI):`);
+    log(`  sgc.mjs agent-loop --submit ${next.spawnId} --from <yaml-file>`);
     log(``);
     log(`(file-poll dispatch is disabled inside Claude Code per P3#10; ` + `set SGC_USE_FILE_AGENTS=0 or use anthropic-sdk/openrouter for direct LLM dispatch)`);
   } else {
@@ -42898,6 +42955,7 @@ var init_agent_loop = __esm(() => {
   init_state();
   init_validation();
   init_logger();
+  init_spawn();
 });
 
 // src/dispatcher/agent-facts.ts

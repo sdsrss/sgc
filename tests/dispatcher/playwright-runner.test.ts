@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { mkdtempSync, rmSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
+  loadPlaywright,
   makeBrowseRunner,
   type BrowserSession,
   type LaunchSession,
@@ -156,5 +157,72 @@ describe("playwright makeBrowseRunner", () => {
     })
     await run({ target_url: "http://x/", user_flows: [] })
     expect(closed).toBe(true)
+  })
+})
+
+// v2.0.1: the plugin's CLI (plugins/sgc/bin/sgc.mjs in Claude Code's plugin
+// cache) has no node_modules above it, so `import("playwright")` failed there
+// even when the project under test or a global npm install had Playwright,
+// and `/sgc:qa <url> --browse` always reported `concern` (browser unavailable).
+describe("loadPlaywright: where --browse finds Playwright", () => {
+  /** A fake `playwright` package whose module.exports names where it was found. */
+  function fakePlaywright(nodeModules: string, marker: string): void {
+    const pkg = join(nodeModules, "playwright")
+    mkdirSync(pkg, { recursive: true })
+    writeFileSync(join(pkg, "package.json"), JSON.stringify({ name: "playwright", main: "index.js" }))
+    writeFileSync(join(pkg, "index.js"), `module.exports = { chromium: { marker: ${JSON.stringify(marker)} } }`)
+  }
+  /** What `npm root -g` prints: <prefix>/lib/node_modules. */
+  const globalRoot = () => join(shots(), "lib", "node_modules")
+  const notNearCli = async (): Promise<never> => {
+    throw new Error("Cannot find package 'playwright' imported from /plugin/bin/sgc.mjs")
+  }
+
+  test("next to the CLI first; the project and npm are not consulted", async () => {
+    let asked = false
+    const pw = await loadPlaywright({
+      importNearCli: async () => ({ chromium: { marker: "cli" } }) as never,
+      cwd: shots(),
+      globalRoot: () => {
+        asked = true
+        return null
+      },
+    })
+    expect((pw.chromium as unknown as { marker: string }).marker).toBe("cli")
+    expect(asked).toBe(false)
+  })
+
+  test("then the project under test (cwd)", async () => {
+    const project = shots()
+    fakePlaywright(join(project, "node_modules"), "project")
+    const pw = await loadPlaywright({ importNearCli: notNearCli, cwd: project, globalRoot: () => null })
+    expect((pw.chromium as unknown as { marker: string }).marker).toBe("project")
+  })
+
+  test("then the global npm install of @sdsrs/sgc", async () => {
+    const root = globalRoot()
+    fakePlaywright(join(root, "@sdsrs", "sgc", "node_modules"), "global-sgc")
+    const pw = await loadPlaywright({ importNearCli: notNearCli, cwd: shots(), globalRoot: () => root })
+    expect((pw.chromium as unknown as { marker: string }).marker).toBe("global-sgc")
+  })
+
+  test("or a global `npm i -g playwright`", async () => {
+    const root = globalRoot()
+    fakePlaywright(root, "global-playwright")
+    const pw = await loadPlaywright({ importNearCli: notNearCli, cwd: shots(), globalRoot: () => root })
+    expect((pw.chromium as unknown as { marker: string }).marker).toBe("global-playwright")
+  })
+
+  test("nowhere → one error naming every place it looked and how to install", async () => {
+    const project = shots()
+    const root = shots()
+    const err = await loadPlaywright({ importNearCli: notNearCli, cwd: project, globalRoot: () => root }).catch(
+      (e: Error) => e,
+    )
+    expect(err).toBeInstanceOf(Error)
+    const msg = (err as Error).message
+    expect(msg).toContain(project)
+    expect(msg).toContain(root)
+    expect(msg).toContain("npm i -g @sdsrs/sgc")
   })
 })

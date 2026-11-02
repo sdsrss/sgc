@@ -20,8 +20,7 @@
   sgc@sgc --scope <scope> && claude plugin install sgc@sgc --scope
   <scope>`. The list also shows other projects' project- and local-scope
   installs, and its plain output does not say which project they belong
-  to. An
-  uninstall at a scope where this project has no install fails and
+  to. An uninstall at a scope where this project has no install fails and
   changes nothing, and the `&&` keeps the install from adding one; the
   user then tries the next Scope. For a project install, the reinstall
   rewrites the shared `.claude/settings.json` (the same settings,
@@ -48,9 +47,12 @@
   list`, the `uninstall … && install …` line with `--scope <scope>` on
   both, what to do when the uninstall fails, and the restore of
   `bin/sgc.mjs` for a plugin read from a directory. No file under the
-  plugin's commands/, skills/ or agents/ may name a `claude plugin`
-  install or uninstall of sgc (any spelling Claude Code accepts) other
-  than as that pair, or a `/plugin` install or uninstall.
+  plugin's commands/, skills/ or agents/ may name `claude plugin
+  install|i` or `uninstall|remove` of sgc other than as that pair, or a
+  `/plugin install|i|uninstall|remove`. The check matches only these
+  spellings. Others that Claude Code 2.1.316 also runs get past it, such
+  as `claude plugins install` or `--scope` before the plugin name, and
+  so does a command wrapped across two lines of text.
 - plugin-content.test.ts no longer leaves a temp directory behind when
   `bun test -t` filters out its block tests.
 

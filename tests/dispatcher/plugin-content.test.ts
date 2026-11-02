@@ -139,8 +139,11 @@ function reinstallAdviceProblems(text: string): string[] {
 
 /** A plugin (un)install named anywhere, other than as the REINSTALL pair: an
  *  install outside the pair runs even when its uninstall failed. Counts
- *  every spelling Claude Code accepts (install|i, uninstall|remove, with or
- *  without @sgc) and any `/plugin` (un)install. */
+ *  `claude plugin install|i` and `uninstall|remove` (with or without @sgc)
+ *  and `/plugin install|i|uninstall|remove`. Not counted: the `plugins`
+ *  alias and options before the plugin name (Claude Code 2.1.316 runs
+ *  both), extra whitespace, a quoted name, or a command wrapped across
+ *  lines of text. */
 function reinstallMentionProblems(text: string): string[] {
   const problems: string[] = []
   const pairs = text.split(REINSTALL).length - 1

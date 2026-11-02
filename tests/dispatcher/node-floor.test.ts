@@ -24,9 +24,11 @@ describe("nodeFloorNotice", () => {
     expect(msg).not.toBeNull()
     expect(msg).toContain("v20.20.2")
     expect(msg).toContain(">=22.19.0")
-    // v2.0.1: the command sits in backticks, so copying it cannot pick up
-    // the sentence's punctuation (v2.0.0 had "...sgc," and "...#v1.38.5,")
-    expect(msg).toContain("`npm i -g @sdsrs/sgc@1`")
+    // v2.0.1: the command ends the line, with nothing after it to copy by
+    // accident: v2.0.0 put a comma right after it, and backticks would make
+    // bash run npm's output as a command
+    expect(msg!.endsWith(": npm i -g @sdsrs/sgc@1")).toBe(true)
+    expect(msg).not.toContain("`")
     // v2.0.1: no plugin route back to 1.x. v1.38.5's hooks.json fails to load
     // in current Claude Code, so that route ended in a broken plugin
     expect(msg).not.toContain("/plugin")

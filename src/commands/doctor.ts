@@ -173,9 +173,12 @@ export const NODE_FLOOR_CLAIM_FILES = [
   "plugins/sgc/skills/bootstrap/SKILL.md",
 ] as const
 
-// "Node ≥ 22.19", "Node >= 22.19.0", "node≥22.19.0", and the shields.io badge
-// "runtime-node%20%E2%89%A522.19".
-const NODE_FLOOR_CLAIM_RE = /\b(?:runtime-)?node\s*(?:≥|>=|%20%E2%89%A5|%E2%89%A5)\s*v?(\d+(?:\.\d+){0,2})/gi
+// "Node ≥ 22.19", "Node >= 22.19.0", "node≥22.19.0", "Node.js ≥ 22.19",
+// "**Node** ≥ 22.19", "Node 22.19+", and shields.io badges
+// "runtime-node%20%E2%89%A522.19" / "node-%3E%3D22.19". A bare "requires
+// Node 22" (no ≥ and no +) is not read as a floor claim.
+const NODE_FLOOR_CLAIM_RE =
+  /\b(?:runtime-)?node(?:\.js)?(?:\*\*)?(?:\s*(?:≥|>=|%20%E2%89%A5|%E2%89%A5|-?%3E%3D)\s*v?(\d+(?:\.\d+){0,2})|\s+v?(\d+(?:\.\d+){0,2})\+)/gi
 
 /**
  * v2.0.1: every "Node ≥ X" claim in `files` must equal engines.node's floor,
@@ -194,7 +197,7 @@ export function nodeFloorClaimDrift(
     text.split("\n").forEach((rawLine, i) => {
       const line = rawLine.startsWith("## Implementation Status") ? rawLine.split(" · prior:")[0]! : rawLine
       for (const m of line.matchAll(NODE_FLOOR_CLAIM_RE)) {
-        const parts = m[1]!.split(".").map(Number)
+        const parts = (m[1] ?? m[2])!.split(".").map(Number)
         const ok = parts.length >= 2 && parts.every((n, k) => n === floor[k])
         if (!ok) drifts.push(`${path}:${i + 1} says "${m[0]}", engines.node is ${enginesNode}`)
       }

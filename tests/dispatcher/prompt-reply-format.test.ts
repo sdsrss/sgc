@@ -8,9 +8,11 @@
 // `OutputShapeMismatch ... missing required fields: warnings`. spawn() validates the shape before the agent's
 // coerce step, so `sgc plan` fell back to an empty prior_art.
 //
-// Every top-level manifest output key must appear in the prompt's reply
-// format (a YAML `key:` line or a JSON `"key":`), and the key's own line and
-// the line after it must not call it optional.
+// Every top-level manifest output key must appear in the first code block of
+// the prompt's "## Reply format" (or "## Output …") section, as a YAML `key:`
+// line or a JSON `"key":`. Other examples further down do not count. The
+// key's own line and the line after it must not call it optional or
+// conditional.
 
 import { expect, test } from "bun:test"
 import { existsSync, readFileSync } from "node:fs"
@@ -30,13 +32,18 @@ test("there are prompted agents with declared outputs to check", () => {
 for (const [name, m] of agents) {
   test(`${name}: every required output key is in the reply format and not marked optional`, () => {
     const lines = readFileSync(resolve(REPO, m.prompt_path!), "utf8").split("\n")
+    const head = lines.findIndex((l) => /^## (Reply format|Output)\b/.test(l))
+    expect({ name, replySection: head !== -1 }).toEqual({ name, replySection: true })
+    const open = lines.findIndex((l, i) => i > head && l.startsWith("```"))
+    const close = lines.findIndex((l, i) => i > open && l.startsWith("```"))
+    const block = lines.slice(open + 1, close)
     for (const key of Object.keys(m.outputs as object)) {
-      const yaml = lines.findIndex((l) => l.startsWith(`${key}:`))
-      const json = lines.findIndex((l) => l.includes(`"${key}":`))
-      expect({ key, present: yaml !== -1 || json !== -1 }).toEqual({ key, present: true })
+      const yaml = block.findIndex((l) => l.startsWith(`${key}:`))
+      const json = block.findIndex((l) => l.includes(`"${key}":`))
+      expect({ key, inReplyBlock: yaml !== -1 || json !== -1 }).toEqual({ key, inReplyBlock: true })
       if (yaml !== -1) {
-        const near = lines.slice(yaml, yaml + 2).join("\n")
-        expect({ key, near, optional: /optional/i.test(near) }).toEqual({ key, near, optional: false })
+        const near = block.slice(yaml, yaml + 2).join("\n")
+        expect({ key, near, optional: /optional|if any|omit/i.test(near) }).toEqual({ key, near, optional: false })
       }
     }
   })

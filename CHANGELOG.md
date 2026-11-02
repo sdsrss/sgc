@@ -15,22 +15,33 @@
   sgc@sgc`, and restart Claude Code.
 - **What a session now gets.** With the plugin loading, its SessionStart
   hook runs at startup, resume, `/clear` and compaction. Only in a project
-  that has a `.sgc/` directory, it adds the sgc bootstrap skill (3.5 KB)
+  that has a `.sgc/` directory, it adds the sgc bootstrap skill (3.3 KB)
   and, when there is one, the active task (`.sgc/progress/current-task.md`)
-  to the context. Other projects get nothing. The hook used to inject the
-  bootstrap everywhere; it never ran in a Claude Code that rejected the
-  file. To stop it, disable the plugin: `claude plugin disable sgc@sgc`.
-- The bootstrap text said bun ≥ 1.3 was the runtime in both install modes.
-  The plugin has shipped its own Node CLI since v1.24, and every command
-  uses it first; the text now says so.
+  to the context. Other projects get nothing from the hook. The hook used
+  to inject the bootstrap everywhere; it never ran in a Claude Code that
+  rejected the file. As with any enabled plugin, the descriptions of sgc's
+  26 commands and skills take about 1,000 tokens in every session
+  (`claude plugin details sgc@sgc`). To stop all of it, disable the
+  plugin: `claude plugin disable sgc@sgc`.
+- **The `/sgc:*` commands now find the CLI that ships with the plugin.**
+  They looked for it at `$CLAUDE_PLUGIN_ROOT/bin/sgc.mjs`, but Claude Code
+  substitutes only the braced `${CLAUDE_PLUGIN_ROOT}` in command text and
+  does not export the variable to the Bash tool, so the check always
+  failed. Without a global `npm i -g @sdsrs/sgc` the commands stopped with
+  "sgc CLI not found". Eight skills of the same names ran `bun src/sgc.ts`,
+  which works only inside an sgc source checkout; they now look for the
+  CLI the same way the commands do.
+- The bootstrap text said bun ≥ 1.3 was the runtime in both install modes,
+  sent users to `/plan` and `/status` (Claude Code's own commands; sgc's
+  are `/sgc:plan` and `/sgc:status`), and pointed at repo files a user's
+  project does not have. Corrected.
 - **Correction to v2.0.0's migration note:** the plugin route back to 1.x
   (`/plugin marketplace add sdsrss/sgc#v1.38.5`) installs a plugin that
   fails to load in current Claude Code. The old-Node notice no longer
   offers it. On Node < 22.19, plugin users should upgrade Node; sgc 2
   still starts on 18 and 20, with a one-line warning. npm users can still
-  stay on 1.x with `npm i -g @sdsrs/sgc@1`. The command in the notice is
-  now in backticks; v2.0.0 put a comma right after it, which broke a
-  copy-paste.
+  stay on 1.x with `npm i -g @sdsrs/sgc@1`. That command now ends the
+  notice; v2.0.0 put a comma right after it, which broke a copy-paste.
 
 ### Fixes
 
@@ -41,9 +52,9 @@
   (`OutputShapeMismatch`), and `sgc plan` silently fell back to an empty
   prior-art list. That happened in 4 of 18 calls measured on 2026-11-01.
   The prompt now requires both keys; 10 runs afterwards passed 40/40 tests
-  (30/30 calls, $0.33). A new test checks every prompted agent: each
-  required output key appears in its reply format and is not described as
-  optional.
+  (30/30 calls; $0.33 of key usage over the runs). A new test checks every
+  prompted agent: each required output key appears in the reply-format
+  block of its prompt and is not described as optional.
 - **Build:** the strip of build-machine paths now decodes the
   `__filename` / `__dirname` literals bun bakes in, rather than searching
   for the checkout root as text. It covers checkouts at `/`, paths with
@@ -51,7 +62,8 @@
   Windows paths. An absolute path outside any node_modules fails the build.
 - **`sgc doctor` check P:** the Node floor stated in README.md,
   plugins/sgc/CLAUDE.md, docs/POSITIONING.md, the plugin and marketplace
-  manifests and the bootstrap skill must match `engines.node`.
+  manifests and the bootstrap skill must match `engines.node` ("Node ≥ X",
+  "Node.js >= X", "Node X+", and the shields.io badge forms).
 - **Weekly llm-eval** runs the smoke suite (researcher-history +
   planner-eng) again; v2.0.0 had dropped researcher-history because of the
   failures above.
@@ -65,9 +77,9 @@ were the `warnings` validation error fixed above. The 30-word cap failed
 only on opus-5.5 (3 times) and sonnet-5.5 (9 times), which are not
 defaults.
 
-Full suite 1633 → 1674 pass / 38 skip / 0 fail (+41 tests); `tsc --noEmit`
+Full suite 1633 → 1729 pass / 38 skip / 0 fail (+96 tests); `tsc --noEmit`
 0; `sgc doctor` 72 OK / 0 warn / 0 fail (check P added); bundle 1,944,072
-→ 1,947,248 bytes.
+→ 1,947,318 bytes.
 
 ## v2.0.0 — 2026-11-01 — Node 22.19+, and a proxy that works on every Node it supports
 

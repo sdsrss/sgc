@@ -33,11 +33,12 @@ export function nodeFloorNotice(nodeVersion: string, enginesNode: string): strin
   // Only the npm channel has a way back to 1.x. v2.0.0 also offered plugin
   // users a marketplace pin to v1.38.5, but that version's hooks.json fails to
   // load in current Claude Code, so the route ended in a broken plugin; plugin
-  // users upgrade Node. The command sits in backticks so that copying it
-  // cannot pick up the sentence's punctuation.
+  // users upgrade Node. The npm command ends the line, so nothing after it
+  // gets copied with it (v2.0.0 put a comma there; backticks would make bash
+  // run npm's output as a command).
   return (
     `[sgc] Node ${nodeVersion} is below sgc's supported range (node ${enginesNode}). ` +
     `It may still run, but this version is untested. ` +
-    `Upgrade Node, or, for the npm install, stay on sgc 1.x (Node >=18.17): \`npm i -g @sdsrs/sgc@1\``
+    `Upgrade Node, or, for the npm install, stay on sgc 1.x (Node >=18.17) with: npm i -g @sdsrs/sgc@1`
   )
 }

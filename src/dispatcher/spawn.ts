@@ -629,12 +629,19 @@ export function formatPrompt(
     `Write your YAML to: \`${resultPath}\`\n\n` +
     `Or use the helper:\n\n` +
     `\`\`\`bash\n` +
-    `echo 'your YAML here' | bun src/sgc.ts agent-loop --submit ${spawnId}\n` +
+    `echo 'your YAML here' | sgc agent-loop --submit ${spawnId}\n` +
     `# or:\n` +
-    `bun src/sgc.ts agent-loop --submit ${spawnId} --from /path/to/result.yaml\n` +
+    `sgc agent-loop --submit ${spawnId} --from /path/to/result.yaml\n` +
+    `# in Claude Code with the sgc plugin, the CLI is sgc.mjs\n` +
     `\`\`\`\n`
 
   return `${systemPrefix}\n${inputBlock}`
+}
+
+/** True inside a Claude Code session. Claude Code exports CLAUDECODE=1 to
+ *  commands its Bash tool runs; CLAUDE_PLUGIN_ROOT reaches plugin hooks only. */
+export function insideClaudeCode(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env["CLAUDECODE"] === "1" || Boolean(env["CLAUDE_PLUGIN_ROOT"])
 }
 
 async function pollForResult(
@@ -704,22 +711,20 @@ export async function spawn<I = unknown, O = unknown>(
   // P3#10: file-poll auto-deactivate inside a Claude Code session.
   // file-poll waits for an external actor (human / Claude in a parent
   // session) to write the result file via `sgc agent-loop --submit`.
-  // When the dispatcher is invoked from within an active Claude Code
-  // session (CLAUDE_PLUGIN_ROOT set by the Claude Code runtime when
-  // executing plugin hooks/skills/commands), the spawn would block
-  // forever — Claude has Task() and doesn't need the prompt/result
-  // file-handshake. Fail fast with a Task()-shaped hint instead.
+  // Run from Claude Code's Bash tool, the spawn would block that call until
+  // it timed out: the session that could submit is the one waiting. Fail
+  // fast instead.
   //
   // Thrown before spawn.start fires → §13 Tier 1 paired-event contract
   // preserved (no spawn.start ⇒ no spawn.end owed).
-  if (mode === "file-poll" && process.env["CLAUDE_PLUGIN_ROOT"]) {
+  if (mode === "file-poll" && insideClaudeCode()) {
     throw new SpawnError(
       `Agent ${agentName}: file-poll mode is disabled inside Claude Code sessions ` +
-        `(CLAUDE_PLUGIN_ROOT detected). Options: ` +
+        `(CLAUDECODE or CLAUDE_PLUGIN_ROOT set). Options: ` +
         `(1) unset SGC_USE_FILE_AGENTS to use inline/anthropic-sdk/openrouter modes; ` +
-        `(2) set ANTHROPIC_API_KEY or OPENROUTER_API_KEY for direct LLM dispatch; ` +
-        `(3) invoke the agent via Task("${agentName}", input) from your Claude session, ` +
-        `then submit the YAML output via \`sgc agent-loop --submit ${spawnId} --from <file>\`. ` +
+        `(2) set ANTHROPIC_API_KEY or OPENROUTER_API_KEY for direct LLM dispatch, or put the \`claude\` CLI on PATH; ` +
+        `(3) run this sgc command from a terminal outside Claude Code: file-poll then waits, ` +
+        `and Claude Code can answer each prompt via \`sgc agent-loop\` (/sgc:agent-loop). ` +
         `Prompt written to: ${promptPath}`,
     )
   }

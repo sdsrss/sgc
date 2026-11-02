@@ -27,6 +27,7 @@ import {
 import { serializeFrontmatter, writeAtomic } from "../dispatcher/state"
 import { validateOutputShape } from "../dispatcher/validation"
 import { createLogger, type Logger } from "../dispatcher/logger"
+import { insideClaudeCode } from "../dispatcher/spawn"
 
 export interface AgentLoopOptions {
   stateRoot?: string
@@ -163,19 +164,17 @@ export async function runAgentLoop(opts: AgentLoopOptions = {}): Promise<{
     return { action: "interactive" }
   }
   const next = pending[0]!
-  const { agentName: nextAgent } = parseSpawnId(next.spawnId)
   log(`Next pending: ${next.spawnId}`)
   log(``)
   log(`Prompt:  ${next.promptPath}`)
   log(`Reply:   ${next.resultPath}`)
   log(``)
-  // P3#10: when inside a Claude Code session, prefer Task() invocation —
-  // the file-poll handshake is for headless / parent-Claude orchestration.
-  if (process.env["CLAUDE_PLUGIN_ROOT"]) {
-    log(`Inside Claude Code session — invoke via Task() directly:`)
-    log(`  Task({ subagent_type: "${nextAgent}", prompt: <prompt body>, ... })`)
-    log(`Then submit the YAML output:`)
-    log(`  sgc agent-loop --submit ${next.spawnId} --from <yaml-file>`)
+  // P3#10: inside a Claude Code session the plugin's CLI is sgc.mjs, and no
+  // Claude Code agent type is named after an sgc agent.
+  if (insideClaudeCode()) {
+    log(`Inside Claude Code — answer the prompt yourself or hand it to a general-purpose`)
+    log(`subagent, write the YAML to a file, then submit it (sgc.mjs is the plugin's CLI):`)
+    log(`  sgc.mjs agent-loop --submit ${next.spawnId} --from <yaml-file>`)
     log(``)
     log(`(file-poll dispatch is disabled inside Claude Code per P3#10; ` +
         `set SGC_USE_FILE_AGENTS=0 or use anthropic-sdk/openrouter for direct LLM dispatch)`)

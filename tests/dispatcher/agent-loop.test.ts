@@ -305,26 +305,27 @@ describe("runAgentLoop — interactive (no args)", () => {
   })
 
   // P3#10 — Claude Code session hint variant
-  test("P3#10: pending spawn + CLAUDE_PLUGIN_ROOT set → emits Task() hint instead of poll instructions", async () => {
+  // v2.0.1: the Bash tool has CLAUDECODE=1, not CLAUDE_PLUGIN_ROOT; and no
+  // Claude Code agent type is named after an sgc agent (classifier.level).
+  test("P3#10: pending spawn inside Claude Code (CLAUDECODE=1) → subagent hint, plugin CLI name", async () => {
     const spawnId = "01TESTINGCCSESSION0000000-classifier.level"
     writePromptFile(
       resolve(tmp, "progress/agent-prompts", `${spawnId}.md`),
       "---\nspawn_id: " + spawnId + "\n---\n",
     )
-    process.env["CLAUDE_PLUGIN_ROOT"] = "/fake/plugin/root"
+    delete process.env["CLAUDE_PLUGIN_ROOT"]
+    process.env["CLAUDECODE"] = "1"
     try {
       const logs: string[] = []
       await runAgentLoop({ stateRoot: tmp, log: (m) => logs.push(m) })
       const out = logs.join("\n")
       expect(out).toContain(spawnId)
-      // Task() hint specific to Claude Code session
-      expect(out).toMatch(/Task\(\{.*subagent_type:.*classifier\.level/)
-      // Still shows submit command for the YAML output step
-      expect(out).toContain("sgc agent-loop --submit")
-      // Mentions file-poll deactivation
+      expect(out).not.toMatch(/subagent_type/)
+      expect(out).toContain("general-purpose")
+      expect(out).toContain(`sgc.mjs agent-loop --submit ${spawnId}`)
       expect(out).toMatch(/file-poll dispatch is disabled/)
     } finally {
-      delete process.env["CLAUDE_PLUGIN_ROOT"]
+      delete process.env["CLAUDECODE"]
     }
   })
 })

@@ -5,3 +5,4 @@
 # than scanning the whole repo.
 [test]
 root = "tests"
+preload = ["./tests/preload.ts"]

@@ -241,10 +241,46 @@ describe("spawn — file-poll mode (SGC_USE_FILE_AGENTS=1)", () => {
       ).rejects.toThrow(/file-poll mode is disabled inside Claude Code/)
       await expect(
         spawn("classifier.level", {}, { stateRoot: tmp, ulid: "01CCSESSION00000000000002" }),
-      ).rejects.toThrow(/Task\("classifier\.level"/)
+      ).rejects.toThrow(/outside Claude Code/)
     } finally {
       delete process.env["SGC_USE_FILE_AGENTS"]
       delete process.env["CLAUDE_PLUGIN_ROOT"]
+    }
+  })
+
+  // v2.0.1: Claude Code exports CLAUDE_PLUGIN_ROOT to hooks only. Commands
+  // the Bash tool runs get CLAUDECODE=1 instead, so the gate above never
+  // fired there and a file-poll spawn waited out its whole timeout.
+  test("P3#10 T11b: file-poll + CLAUDECODE=1 (the Bash tool) → throws, and the hint can work", async () => {
+    process.env["SGC_USE_FILE_AGENTS"] = "1"
+    process.env["CLAUDECODE"] = "1"
+    delete process.env["CLAUDE_PLUGIN_ROOT"]
+    try {
+      const err = await spawn("classifier.level", {}, {
+        stateRoot: tmp,
+        ulid: "01CCBASHTOOL0000000000000",
+        timeoutMs: 2_000,
+        pollIntervalMs: 30,
+      }).catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(SpawnError)
+      const msg = (err as Error).message
+      expect(msg).toMatch(/file-poll mode is disabled inside Claude Code/)
+      // no Claude Code agent is named after an sgc agent; this process exits,
+      // so nothing would read a submission made after the throw
+      expect(msg).not.toMatch(/Task\(/)
+      expect(msg).toMatch(/outside Claude Code/)
+      // A templateless agent's prompt carries submit instructions: they name
+      // the installed CLI, not `bun src/sgc.ts` (a source checkout only).
+      await spawn("reviewer.maintainability", {}, { stateRoot: tmp, ulid: "01CCBASHTOOL0000000000001" }).catch(() => {})
+      const prompt = readFileSync(
+        resolve(tmp, "progress/agent-prompts", "01CCBASHTOOL0000000000001-reviewer.maintainability.md"),
+        "utf8",
+      )
+      expect(prompt).not.toContain("bun src/sgc.ts")
+      expect(prompt).toContain("sgc agent-loop --submit 01CCBASHTOOL0000000000001-reviewer.maintainability")
+    } finally {
+      delete process.env["SGC_USE_FILE_AGENTS"]
+      delete process.env["CLAUDECODE"]
     }
   })
 

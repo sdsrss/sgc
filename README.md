@@ -47,7 +47,7 @@ bun --version    # ≥1.3 — dev/build/test runtime only (not needed by end use
 npm run build:cli                                 # rebuild plugins/sgc/bin/sgc.mjs
 ```
 
-In source mode the slash commands fall back to `bun src/sgc.ts` when no bundle/global CLI is found.
+To try the plugin from a checkout, start Claude Code with `claude --plugin-dir plugins/sgc`. Its slash commands run the committed bundle (`plugins/sgc/bin/sgc.mjs`), so rebuild it after changing `src/`.
 </details>
 
 ### Update
@@ -115,7 +115,7 @@ State lives under `.sgc/` in the project (override via `SGC_STATE_ROOT`); it's `
 | `sgc metrics [--json\|--write-baseline]` | Four-化 product self-scorecard (read-only); numbers below are reproduced by this command |
 | `sgc doctor` | Self-check: contracts ↔ prompts ↔ command parity ↔ bundle freshness |
 
-20 commands total — 17 are also exposed as `/sgc:*` slash commands inside Claude Code; `canary`, `watch-ci-failure`, and `land` are CLI-only. Real-browser QA uses **Playwright** (opt-in via `--browse` / `SGC_QA_REAL=1`; needs a browser — `npx playwright install chromium`, or `SGC_QA_BROWSER=chrome` for system Chrome); `sgc qa` defaults to a non-rubber-stamping stub.
+20 commands total — 17 are also exposed as `/sgc:*` slash commands inside Claude Code; `canary`, `watch-ci-failure`, and `land` are CLI-only. Real-browser QA uses **Playwright** (opt-in via `--browse` / `SGC_QA_REAL=1`; needs Playwright, which the npm package installs as an optional dependency and the plugin loads from the project under test or a global npm install, and a browser — `npx playwright install chromium`, or `SGC_QA_BROWSER=chrome` for system Chrome); `sgc qa` defaults to a non-rubber-stamping stub.
 
 **Four-化 scorecard** (run `sgc metrics` to reproduce): 规范化 12/13 · 智能化 13/23 LLM-invokable · 自动化 5/9 · 高效化 1 step·node≥22.19.0. These numbers are produced by `sgc metrics`; see `metrics/metrics-baseline.yaml` — they are not hand-maintained, and `sgc doctor` fails if this line drifts from the live output.
 

@@ -15,7 +15,7 @@
   sgc@sgc`, and restart Claude Code.
 - **What a session now gets.** With the plugin loading, its SessionStart
   hook runs at startup, resume, `/clear` and compaction. Only in a project
-  that has a `.sgc/` directory, it adds the sgc bootstrap skill (3,444 bytes)
+  that has a `.sgc/` directory, it adds the sgc bootstrap skill (3,555 bytes)
   and, when there is one, the active task (`.sgc/progress/current-task.md`)
   to the context. Other projects get nothing from the hook. The hook used
   to inject the bootstrap everywhere; it never ran in a Claude Code that
@@ -28,22 +28,38 @@
   substitutes only the braced `${CLAUDE_PLUGIN_ROOT}` in command text and
   does not export the variable to the Bash tool, so the check always
   failed. Without a global `npm i -g @sdsrs/sgc` the commands stopped with
-  "sgc CLI not found". They now run `sgc.mjs` from the plugin's `bin/`,
-  which Claude Code puts on the Bash tool's PATH, with
-  `${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs` as the fallback. The CLI is called
-  through a shell function, so the commands work under zsh (the default
-  shell on macOS) and with install paths that contain spaces. Eight skills
-  of the same names ran `bun src/sgc.ts`, which works only inside an sgc
-  source checkout; they now look for the CLI the same way.
+  "sgc CLI not found". They now run `sgc.mjs`, which Claude Code puts on
+  the Bash tool's PATH from the plugin's `bin/`, so the name also works in
+  later Bash calls. Where `bin/` is not on PATH, the block adds
+  `${CLAUDE_PLUGIN_ROOT}/bin` to it, read through a quoted heredoc, so no
+  character in the install path (a space, `$`, quotes, backticks) changes
+  what runs. The blocks work under bash and zsh (the default shell on
+  macOS), under `set -euo pipefail`, and when the user's shell defines an
+  `sgc` alias (Claude Code loads the user's aliases into the Bash tool).
+  They no longer fall back to a global `sgc` or to `bun src/sgc.ts`: in a
+  plugin install one of the two paths above always exists. Eight skills of
+  the same names ran `bun src/sgc.ts`, which works only inside an sgc
+  source checkout; they now use the same block.
+- **`/sgc:qa <url> --browse` works through the plugin.** The plugin's CLI
+  looked for Playwright only next to itself, in Claude Code's plugin
+  cache, where it never is, so real-browser QA always reported `concern`
+  (browser unavailable). It now also loads Playwright from the project
+  under test (`npm i -D playwright`) and from the global npm root
+  (`npm i -g @sdsrs/sgc` or `npm i -g playwright`); the browser still
+  comes from `npx playwright install chromium` (or `SGC_QA_BROWSER=chrome`).
+  Set both up before a task's first `--browse` run: qa reports are
+  append-only, one per task.
 - The shipped command and skill text no longer links to repo files with
-  relative paths (they are GitHub links now), no longer tells `/sgc:ship`
-  to run an SSH workaround meant for the author's machine, and no longer
-  cites the author's personal Claude Code configuration. `--browse` (real
-  browser QA) needs Playwright and a browser, which the plugin does not
-  ship; through the plugin it reports `concern` (browser unavailable).
-  For real-browser QA run `sgc qa <url> --browse` in a terminal from the
-  npm install, which includes Playwright, as the task's first qa run (qa
-  reports are append-only).
+  relative paths (they are GitHub links now), no longer names files only
+  the sgc repository has, no longer tells `/sgc:ship` to run an SSH
+  workaround meant for the author's machine, and no longer cites the
+  author's personal Claude Code configuration or shorthand: other plugins'
+  skills appear under their real names (`superpowers:test-driven-development`,
+  gstack's `/ship`).
+- `claude plugin details sgc@sgc` lists **Agents (0)**. Claude Code loads
+  plugin agents only from files directly in `agents/`; sgc's files sit in
+  subfolders and are sgc's registry of the agents its own CLI runs, so no
+  command depends on Claude Code loading them. Unchanged in this release.
 - The bootstrap text said bun ≥ 1.3 was the runtime in both install modes,
   sent users to `/plan` and `/status` (Claude Code's own commands; sgc's
   are `/sgc:plan` and `/sgc:status`), and pointed at repo files a user's
@@ -66,9 +82,32 @@
   (`OutputShapeMismatch`), and `sgc plan` silently fell back to an empty
   prior-art list. That happened in 4 of 18 calls measured on 2026-11-01.
   The prompt now requires both keys; 10 runs afterwards passed 40/40 tests
-  (30/30 calls; $0.33 of key usage over the runs). A new test checks every
-  prompted agent: each required output key appears in the reply-format
-  block of its prompt and is not described as optional.
+  (30/30 calls; $0.33 of key usage over the runs).
+- **Every agent prompt now says to always include each top-level key.**
+  The other 12 prompted agents got the same kind of sentence ("Always
+  include all three top-level keys: `verdict`, `severity` and
+  `findings`. With nothing to report, write `findings: []`."). A new test
+  requires that sentence in each prompt's reply-format section and checks
+  it names every key the manifest requires; it also fails when the section
+  calls a key optional. Measured on the default model with the full
+  real-LLM eval set, one run each: 32/36 tests passed before the change
+  and 35/36 after ($1.45 of key usage for both runs). The run before
+  included one dropped key (planner.ceo left out `rewrite_hints`), and the
+  run after had none. The one remaining failure, clarifier.discover s4,
+  failed in both runs; it is a content check on the suggested `sgc plan`
+  line. The set covers 7 of the 12 prompts changed here: classifier.level,
+  planner.decompose and the three LLM reviewers have no real-LLM eval.
+- **file-poll inside Claude Code.** sgc refuses a file-poll spawn inside a
+  Claude Code session, where it would only wait out its timeout. It
+  detected the session by `CLAUDE_PLUGIN_ROOT`, which Claude Code gives
+  hooks but not the Bash tool, so the check never fired there; it now also
+  checks `CLAUDECODE=1`, which the Bash tool sets. Its message no longer
+  suggests `Task("<sgc agent>")` (Claude Code has no such agent) and names
+  a route that works: run the command from a terminal and answer the
+  prompts with `/sgc:agent-loop`. `sgc agent-loop` and the file-poll
+  prompt no longer tell you to run `bun src/sgc.ts`.
+- **CI** installs zsh, so the zsh cases of the command-block test run on
+  every push (they fail in CI if zsh is missing).
 - **Build:** the strip of build-machine paths now decodes the
   `__filename` / `__dirname` literals bun bakes in, rather than searching
   for the checkout root as text. It covers checkouts at `/`, paths with
@@ -92,9 +131,9 @@ were the `warnings` validation error fixed above. The 30-word cap failed
 only on opus-5.5 (3 times) and sonnet-5.5 (9 times), which are not
 defaults.
 
-Full suite 1633 → 1785 pass / 38 skip / 0 fail (+152 tests; with zsh on
-PATH the command-block cases add 2 more); `tsc --noEmit` 0; `sgc doctor` 72
-OK / 0 warn / 0 fail (check P added); bundle 1,944,072 → 1,947,329 bytes.
+Full suite 1633 → 1909 pass / 38 skip / 0 fail (+276 tests, with zsh on
+PATH as in CI); `tsc --noEmit` 0; `sgc doctor` 72 OK / 0 warn / 0 fail
+(check P added); bundle 1,944,072 → 1,950,031 bytes.
 
 ## v2.0.0 — 2026-11-01 — Node 22.19+, and a proxy that works on every Node it supports
 

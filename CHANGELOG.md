@@ -15,7 +15,7 @@
   sgc@sgc`, and restart Claude Code.
 - **What a session now gets.** With the plugin loading, its SessionStart
   hook runs at startup, resume, `/clear` and compaction. Only in a project
-  that has a `.sgc/` directory, it adds the sgc bootstrap skill (3,555 bytes)
+  that has a `.sgc/` directory, it adds the sgc bootstrap skill (3,712 bytes)
   and, when there is one, the active task (`.sgc/progress/current-task.md`)
   to the context. Other projects get nothing from the hook. The hook used
   to inject the bootstrap everywhere; it never ran in a Claude Code that
@@ -31,9 +31,11 @@
   "sgc CLI not found". They now run `sgc.mjs`, which Claude Code puts on
   the Bash tool's PATH from the plugin's `bin/`, so the name also works in
   later Bash calls. Where `bin/` is not on PATH, the block adds
-  `${CLAUDE_PLUGIN_ROOT}/bin` to it, read through a quoted heredoc, so no
-  character in the install path (a space, `$`, quotes, backticks) changes
-  what runs. The blocks work under bash and zsh (the default shell on
+  `${CLAUDE_PLUGIN_ROOT}/bin` to it for that call, read through a quoted
+  here-document, so spaces, `$`, quotes, backticks and parentheses in the
+  install path are taken literally, by macOS's bash 3.2 too. A colon is
+  the one character that cannot work there: PATH splits on it. The blocks
+  work under bash and zsh (the default shell on
   macOS), under `set -euo pipefail`, and when the user's shell defines an
   `sgc` alias (Claude Code loads the user's aliases into the Bash tool).
   They no longer fall back to a global `sgc` or to `bun src/sgc.ts`: in a
@@ -88,8 +90,9 @@
   include all three top-level keys: `verdict`, `severity` and
   `findings`. With nothing to report, write `findings: []`."). A new test
   requires that sentence in each prompt's reply-format section and checks
-  it names every key the manifest requires; it also fails when the section
-  calls a key optional. Measured on the default model with the full
+  it names every key the manifest requires. It also fails on common ways
+  of calling a key optional anywhere in the prompt; that part is a word
+  list, so a rephrasing can still get past it. Measured on the default model with the full
   real-LLM eval set, one run each: 32/36 tests passed before the change
   and 35/36 after ($1.45 of key usage for both runs). The run before
   included one dropped key (planner.ceo left out `rewrite_hints`), and the
@@ -98,14 +101,18 @@
   line. The set covers 7 of the 12 prompts changed here: classifier.level,
   planner.decompose and the three LLM reviewers have no real-LLM eval.
 - **file-poll inside Claude Code.** sgc refuses a file-poll spawn inside a
-  Claude Code session, where it would only wait out its timeout. It
+  Claude Code session: in a foreground Bash call it would wait out its
+  timeout, since the session that could answer it is the one waiting. It
   detected the session by `CLAUDE_PLUGIN_ROOT`, which Claude Code gives
   hooks but not the Bash tool, so the check never fired there; it now also
   checks `CLAUDECODE=1`, which the Bash tool sets. Its message no longer
   suggests `Task("<sgc agent>")` (Claude Code has no such agent) and names
   a route that works: run the command from a terminal and answer the
-  prompts with `/sgc:agent-loop`. `sgc agent-loop` and the file-poll
-  prompt no longer tell you to run `bun src/sgc.ts`.
+  prompts with `/sgc:agent-loop`. The refusal now also covers a command
+  started as a background Bash call, which v2.0.0 let you answer with
+  `/sgc:agent-loop` from the same session; run such commands from a
+  terminal instead. `sgc agent-loop` and the file-poll prompt no longer
+  tell you to run `bun src/sgc.ts`.
 - **CI** installs zsh, so the zsh cases of the command-block test run on
   every push (they fail in CI if zsh is missing).
 - **Build:** the strip of build-machine paths now decodes the
@@ -131,9 +138,9 @@ were the `warnings` validation error fixed above. The 30-word cap failed
 only on opus-5.5 (3 times) and sonnet-5.5 (9 times), which are not
 defaults.
 
-Full suite 1633 → 1909 pass / 38 skip / 0 fail (+276 tests, with zsh on
+Full suite 1633 → 1921 pass / 38 skip / 0 fail (+288 tests, with zsh on
 PATH as in CI); `tsc --noEmit` 0; `sgc doctor` 72 OK / 0 warn / 0 fail
-(check P added); bundle 1,944,072 → 1,950,031 bytes.
+(check P added); bundle 1,944,072 → 1,950,051 bytes.
 
 ## v2.0.0 — 2026-11-01 — Node 22.19+, and a proxy that works on every Node it supports
 

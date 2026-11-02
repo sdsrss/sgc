@@ -44241,7 +44241,7 @@ var init_doctor = __esm(() => {
     "plugins/sgc/.claude-plugin/plugin.json",
     "plugins/sgc/skills/bootstrap/SKILL.md"
   ];
-  NODE_FLOOR_CLAIM_RE = /\b(?:runtime-)?node(?:\.js)?(?:\*\*)?(?:\s*(?:≥|>=|%20%E2%89%A5|%E2%89%A5|-?%3E%3D)\s*v?(\d+(?:\.\d+){0,2})|\s+v?(\d+(?:\.\d+){0,2})\+)/gi;
+  NODE_FLOOR_CLAIM_RE = /\b(?:runtime-)?node(?:\.js)?(?:\*\*)?(?:[\s-]*(?:≥|>=|%20%E2%89%A5|%E2%89%A5|%20%3E%3D|%3E%3D)\s*v?(\d+(?:\.\d+){0,2})|\s+v?(\d+(?:\.\d+){0,2})\+)/gi;
   REGISTRY_EXEMPT_IDS = new Set(["clarifier.discover", "planner.decompose"]);
   CHECKS = [
     { header: "=== Manifest prompt_path ↔ prompts/ ===", run: checkManifestPromptPath },

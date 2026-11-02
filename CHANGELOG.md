@@ -8,8 +8,8 @@
   `plugins/sgc/hooks/hooks.json` declared `"hooks"` as an array, while
   Claude Code's hooks schema wants an object keyed by event. On Claude
   Code 2.1.316, `claude plugin validate` rejected it (HOOKS_SCHEMA_INVALID)
-  and an installed sgc showed "✘ failed to load", so no `/sgc:*` command,
-  skill or agent was available. The file had been that way since
+  and an installed sgc showed "✘ failed to load", so no `/sgc:*` command
+  or skill was available. The file had been that way since
   2026-05-19, so v1.38.5 and v2.0.0 have it too. Update with
   `claude plugin marketplace update sgc`, then `claude plugin update
   sgc@sgc`, and restart Claude Code.
@@ -28,13 +28,25 @@
   substitutes only the braced `${CLAUDE_PLUGIN_ROOT}` in command text and
   does not export the variable to the Bash tool, so the check always
   failed. Without a global `npm i -g @sdsrs/sgc` the commands stopped with
-  "sgc CLI not found". Eight skills of the same names ran `bun src/sgc.ts`,
-  which works only inside an sgc source checkout; they now look for the
-  CLI the same way the commands do.
+  "sgc CLI not found". They now run `sgc.mjs` from the plugin's `bin/`,
+  which Claude Code puts on the Bash tool's PATH, with
+  `${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs` as the fallback. The CLI is called
+  through a shell function, so the commands work under zsh (the default
+  shell on macOS) and with install paths that contain spaces. Eight skills
+  of the same names ran `bun src/sgc.ts`, which works only inside an sgc
+  source checkout; they now look for the CLI the same way.
+- The shipped command and skill text no longer links to repo files with
+  relative paths (they are GitHub links now), no longer tells `/sgc:ship`
+  to run an SSH workaround meant for the author's machine, and no longer
+  cites the author's personal Claude Code configuration. `/sgc:qa
+  --browse` needs Playwright, which the plugin's bundled CLI cannot load;
+  run `sgc qa --browse` from the npm install, which ships Playwright as an
+  optional dependency.
 - The bootstrap text said bun ≥ 1.3 was the runtime in both install modes,
   sent users to `/plan` and `/status` (Claude Code's own commands; sgc's
   are `/sgc:plan` and `/sgc:status`), and pointed at repo files a user's
-  project does not have. Corrected.
+  project does not have. Corrected; its always-on description now also says
+  it is for projects that use sgc.
 - **Correction to v2.0.0's migration note:** the plugin route back to 1.x
   (`/plugin marketplace add sdsrss/sgc#v1.38.5`) installs a plugin that
   fails to load in current Claude Code. The old-Node notice no longer
@@ -66,7 +78,8 @@
   "Node.js >= X", "Node X+", and the shields.io badge forms).
 - **Weekly llm-eval** runs the smoke suite (researcher-history +
   planner-eng) again; v2.0.0 had dropped researcher-history because of the
-  failures above.
+  failures above. Until the repo secret `OPENROUTER_API_KEY` exists, the
+  weekly run fails at its key check, by design.
 
 ### Correction to v2.0.0's notes
 
@@ -77,9 +90,9 @@ were the `warnings` validation error fixed above. The 30-word cap failed
 only on opus-5.5 (3 times) and sonnet-5.5 (9 times), which are not
 defaults.
 
-Full suite 1633 → 1729 pass / 38 skip / 0 fail (+96 tests); `tsc --noEmit`
-0; `sgc doctor` 72 OK / 0 warn / 0 fail (check P added); bundle 1,944,072
-→ 1,947,318 bytes.
+Full suite 1633 → 1785 pass / 38 skip / 0 fail (+152 tests; with zsh on
+PATH the command-block cases add 2 more); `tsc --noEmit` 0; `sgc doctor` 72
+OK / 0 warn / 0 fail (check P added); bundle 1,944,072 → 1,947,329 bytes.
 
 ## v2.0.0 — 2026-11-01 — Node 22.19+, and a proxy that works on every Node it supports
 

@@ -32,14 +32,15 @@ describe("nodeFloorClaimDrift", () => {
     ])
   })
 
-  test("other wordings of a floor are read too: Node.js, bold, %3E%3D badges, N+", () => {
+  test("other wordings of a floor are read too: Node.js, bold, encoded badges, N+", () => {
     const text = [
       "requires Node.js ≥ 18.17",
       "runs on **Node** ≥ 18.17",
       "![b](https://img.shields.io/badge/node-%3E%3D18.17-green)",
+      "![b](https://img.shields.io/badge/node-%E2%89%A518.17-green)",
       "works on Node 18.17+",
     ].join("\n")
-    expect(nodeFloorClaimDrift([{ path: "a.md", text }], ENGINES)).toHaveLength(4)
+    expect(nodeFloorClaimDrift([{ path: "a.md", text }], ENGINES)).toHaveLength(5)
     const ok = text.replaceAll("18.17", "22.19")
     expect(nodeFloorClaimDrift([{ path: "a.md", text: ok }], ENGINES)).toEqual([])
   })

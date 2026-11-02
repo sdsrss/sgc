@@ -175,10 +175,10 @@ export const NODE_FLOOR_CLAIM_FILES = [
 
 // "Node ≥ 22.19", "Node >= 22.19.0", "node≥22.19.0", "Node.js ≥ 22.19",
 // "**Node** ≥ 22.19", "Node 22.19+", and shields.io badges
-// "runtime-node%20%E2%89%A522.19" / "node-%3E%3D22.19". A bare "requires
-// Node 22" (no ≥ and no +) is not read as a floor claim.
+// "runtime-node%20%E2%89%A522.19" / "node-%E2%89%A522.19" / "node-%3E%3D22.19".
+// A bare "requires Node 22" (no ≥ and no +) is not read as a floor claim.
 const NODE_FLOOR_CLAIM_RE =
-  /\b(?:runtime-)?node(?:\.js)?(?:\*\*)?(?:\s*(?:≥|>=|%20%E2%89%A5|%E2%89%A5|-?%3E%3D)\s*v?(\d+(?:\.\d+){0,2})|\s+v?(\d+(?:\.\d+){0,2})\+)/gi
+  /\b(?:runtime-)?node(?:\.js)?(?:\*\*)?(?:[\s-]*(?:≥|>=|%20%E2%89%A5|%E2%89%A5|%20%3E%3D|%3E%3D)\s*v?(\d+(?:\.\d+){0,2})|\s+v?(\d+(?:\.\d+){0,2})\+)/gi
 
 /**
  * v2.0.1: every "Node ≥ X" claim in `files` must equal engines.node's floor,

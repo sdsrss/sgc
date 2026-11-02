@@ -108,8 +108,10 @@ const withLookup = contentFiles
   .filter(({ text }) => text.includes("${CLAUDE_PLUGIN_ROOT}/bin"))
   .map(({ rel, text }) => ({ rel, block: lookupBlock(text) }))
 
-test("bash is available, and every file that names the bundled CLI has a lookup block", () => {
+test("bash is available (and zsh in CI), and every file that names the bundled CLI has a lookup block", () => {
   expect(SHELLS.some((p) => p.endsWith("/bash"))).toBe(true)
+  // CI installs zsh (test.yml): without it the zsh cases would skip unseen
+  if (process.env["CI"]) expect(SHELLS.some((p) => p.endsWith("/zsh"))).toBe(true)
   expect(withLookup.length).toBeGreaterThanOrEqual(25)
   expect(withLookup.filter((x) => x.block === null).map((x) => x.rel)).toEqual([])
 })

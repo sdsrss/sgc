@@ -90,6 +90,12 @@ jobs:
           git diff --exit-code plugins/sgc/bin/sgc.mjs \
             || (echo "ERROR: committed bundle is stale — run 'npm run build:cli' and commit" >&2; exit 1)
 
+      - name: Install zsh
+        # The plugin's command blocks run in the user's shell, and Claude
+        # Code's Bash tool prefers zsh on macOS. plugin-content.test.ts runs
+        # every block under bash and zsh, and fails in CI when zsh is missing.
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh
+
       - name: Run dispatcher + eval tests
         id: run_tests
         run: |

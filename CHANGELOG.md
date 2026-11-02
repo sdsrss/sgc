@@ -1,5 +1,74 @@
 # Changelog
 
+## v2.0.1 — 2026-11-02 — the plugin loads again, and /plan keeps its prior-art lookup
+
+### Claude Code plugin users: what changes
+
+- **The plugin failed to load in current Claude Code; it loads again.**
+  `plugins/sgc/hooks/hooks.json` declared `"hooks"` as an array, while
+  Claude Code's hooks schema wants an object keyed by event. On Claude
+  Code 2.1.316, `claude plugin validate` rejected it (HOOKS_SCHEMA_INVALID)
+  and an installed sgc showed "✘ failed to load", so no `/sgc:*` command,
+  skill or agent was available. The file had been that way since
+  2026-05-19, so v1.38.5 and v2.0.0 have it too. Update with
+  `claude plugin marketplace update sgc`, then `claude plugin update
+  sgc@sgc`, and restart Claude Code.
+- **What a session now gets.** With the plugin loading, its SessionStart
+  hook runs at startup, resume, `/clear` and compaction. Only in a project
+  that has a `.sgc/` directory, it adds the sgc bootstrap skill (3.5 KB)
+  and, when there is one, the active task (`.sgc/progress/current-task.md`)
+  to the context. Other projects get nothing. The hook used to inject the
+  bootstrap everywhere; it never ran in a Claude Code that rejected the
+  file. To stop it, disable the plugin: `claude plugin disable sgc@sgc`.
+- The bootstrap text said bun ≥ 1.3 was the runtime in both install modes.
+  The plugin has shipped its own Node CLI since v1.24, and every command
+  uses it first; the text now says so.
+- **Correction to v2.0.0's migration note:** the plugin route back to 1.x
+  (`/plugin marketplace add sdsrss/sgc#v1.38.5`) installs a plugin that
+  fails to load in current Claude Code. The old-Node notice no longer
+  offers it. On Node < 22.19, plugin users should upgrade Node; sgc 2
+  still starts on 18 and 20, with a one-line warning. npm users can still
+  stay on 1.x with `npm i -g @sdsrs/sgc@1`. The command in the notice is
+  now in backticks; v2.0.0 put a comma right after it, which broke a
+  copy-paste.
+
+### Fixes
+
+- **researcher.history no longer drops its result.** Its manifest requires
+  a `warnings` list, but the prompt showed it as optional, so the default
+  model (`anthropic/claude-opus-4.7`) left the key out when there was
+  nothing to warn about. The call then failed validation
+  (`OutputShapeMismatch`), and `sgc plan` silently fell back to an empty
+  prior-art list. That happened in 4 of 18 calls measured on 2026-11-01.
+  The prompt now requires both keys; 10 runs afterwards passed 40/40 tests
+  (30/30 calls, $0.33). A new test checks every prompted agent: each
+  required output key appears in its reply format and is not described as
+  optional.
+- **Build:** the strip of build-machine paths now decodes the
+  `__filename` / `__dirname` literals bun bakes in, rather than searching
+  for the checkout root as text. It covers checkouts at `/`, paths with
+  `"`, tabs, newlines or U+2028, a node_modules outside the checkout, and
+  Windows paths. An absolute path outside any node_modules fails the build.
+- **`sgc doctor` check P:** the Node floor stated in README.md,
+  plugins/sgc/CLAUDE.md, docs/POSITIONING.md, the plugin and marketplace
+  manifests and the bootstrap skill must match `engines.node`.
+- **Weekly llm-eval** runs the smoke suite (researcher-history +
+  planner-eng) again; v2.0.0 had dropped researcher-history because of the
+  failures above.
+
+### Correction to v2.0.0's notes
+
+v2.0.0 said most of the measured LLM failures "were researcher.history's
+30-word reason cap and reference match, not runtime errors". On the
+default model that was wrong: all 4 of its researcher.history failures
+were the `warnings` validation error fixed above. The 30-word cap failed
+only on opus-5.5 (3 times) and sonnet-5.5 (9 times), which are not
+defaults.
+
+Full suite 1633 → 1674 pass / 38 skip / 0 fail (+41 tests); `tsc --noEmit`
+0; `sgc doctor` 72 OK / 0 warn / 0 fail (check P added); bundle 1,944,072
+→ 1,947,248 bytes.
+
 ## v2.0.0 — 2026-11-01 — Node 22.19+, and a proxy that works on every Node it supports
 
 ### Migration (breaking): sgc 2 requires Node >= 22.19.0

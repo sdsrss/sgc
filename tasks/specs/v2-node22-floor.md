@@ -58,7 +58,7 @@
 - LLM 实测在 scratchpad 的独立克隆里跑（HEAD 50e2f89），预算上限 $2.80。
 
 - 决策（2026-11-01）：用 undici ^7.30.1，不用 8。实测 bundle 大小：6 → 1,707,646，7 → 1,942,898，8 → 2,220,899 字节（这两个数是在较早的源码上测的；在最终源码 e3e10ab 上复测：7 → 1,944,072，8 → 2,222,073，结论不变）。7 维护到 2028-04-30，晚于下一次升下限的时间（2027-04-30 Node 22 停止维护，届时升到 24），而且配合 undici 自己的 fetch 在三个 Node 版本上都实测通过。`engines` 仍为 `>=22.19.0`，因为这是 CI 实际测试的下限。
-- 决策：不换默认模型。smoke（5 轮 × 8 个测试）：opus-4.7 37/40（95% 区间 80.1–97.4%），opus-4.6 40/40（91.2–100%），opus-5.5 35/40（73.9–94.5%），sonnet-5.5 30/40（59.8–85.8%）。三个 opus 的区间重叠，没有依据更换。失败全部是评测质量门（researcher.history 的 30 词上限和引用匹配、planner.eng 的禁用词、RT-4 门），没有一次是运行时错误。test.yml 注释所说的 opus-4.7 §9 未声明字段问题，在 6 轮运行里没有出现。
+- 决策：不换默认模型。smoke（5 轮 × 8 个测试）：opus-4.7 37/40（95% 区间 80.1–97.4%），opus-4.6 40/40（91.2–100%），opus-5.5 35/40（73.9–94.5%），sonnet-5.5 30/40（59.8–85.8%）。三个 opus 的区间重叠，没有依据更换。失败全部是评测质量门（researcher.history 的 30 词上限和引用匹配、planner.eng 的禁用词、RT-4 门），没有一次是运行时错误。（2026-11-02 更正：这句话对默认模型不成立。opus-4.7 的 4 次 researcher.history 失败全是运行时错误 `OutputShapeMismatch: missing required fields: warnings`，v2.0.1 已修复，见 `v2.0.1-plugin-load-and-agent-fixes.md`。）test.yml 注释所说的 opus-4.7 §9 未声明字段问题，在 6 轮运行里没有出现。
 - 决策：定时 workflow 每周只跑 planner-eng（在默认模型上 0/6 失败），因为 researcher.history 在默认模型上 5 轮里有 2 轮失败，整套 smoke 做每周红绿会大多是误报。手动触发可选 smoke 或 full。
 - 决策：旧 Node 只提示、不阻止运行（实测 18/20 上 bundle 仍能启动）。提示里同时给出插件渠道的退回路径（Claude Code 文档：marketplace add 接受 `#<ref>`），因为插件自带的 CLI 优先于全局 npm 安装，只给 npm 的退回命令对插件用户无效。
 - 遗留：doctor 的 README 分数行检查故意不解析"高效化"段，所以 README 里的 Node 版本说法没有任何检查；这次是手动同步的。

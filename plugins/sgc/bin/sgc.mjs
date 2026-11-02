@@ -42975,6 +42975,12 @@ var init_agent_facts = __esm(() => {
   ];
 });
 
+// src/node-floor.ts
+function engineFloor2(range) {
+  const m2 = /^>=(\d+)\.(\d+)\.(\d+)$/.exec(range.trim());
+  return m2 ? [Number(m2[1]), Number(m2[2]), Number(m2[3])] : null;
+}
+
 // src/dispatcher/loop.ts
 import { existsSync as existsSync22, readdirSync as readdirSync7, readFileSync as readFileSync20 } from "node:fs";
 import { mkdir as mkdir4 } from "node:fs/promises";
@@ -43444,6 +43450,7 @@ __export(exports_doctor, {
   rewriteCliFact: () => rewriteCliFact,
   readmeScorecardDrift: () => readmeScorecardDrift,
   readAgentMdFiles: () => readAgentMdFiles,
+  nodeFloorClaimDrift: () => nodeFloorClaimDrift,
   extractCliSubcommands: () => extractCliSubcommands,
   cliFactDrift: () => cliFactDrift,
   ciPinnedBunVersion: () => ciPinnedBunVersion,
@@ -43451,7 +43458,8 @@ __export(exports_doctor, {
   bundleParityCheck: () => bundleParityCheck,
   bundleMatchSeverity: () => bundleMatchSeverity,
   bundleExecBitOk: () => bundleExecBitOk,
-  agentMetadataDrift: () => agentMetadataDrift
+  agentMetadataDrift: () => agentMetadataDrift,
+  NODE_FLOOR_CLAIM_FILES: () => NODE_FLOOR_CLAIM_FILES
 });
 import { createHash as createHash4 } from "node:crypto";
 import { existsSync as existsSync23, mkdtempSync, readdirSync as readdirSync8, readFileSync as readFileSync22, rmSync, statSync as statSync6, writeFileSync as writeFileSync7 } from "node:fs";
@@ -43516,6 +43524,25 @@ function readmeScorecardDrift(readme, live) {
     if (Number(m2[1]) !== num || Number(m2[2]) !== den) {
       drifts.push(`${label}: README says ${m2[1]}/${m2[2]}, live metrics say ${num}/${den}`);
     }
+  }
+  return drifts;
+}
+function nodeFloorClaimDrift(files, enginesNode) {
+  const floor = engineFloor2(enginesNode);
+  if (!floor)
+    return [`engines.node "${enginesNode}" is not a >=X.Y.Z range; cannot check Node floor claims`];
+  const drifts = [];
+  for (const { path: path2, text } of files) {
+    text.split(`
+`).forEach((rawLine, i2) => {
+      const line = rawLine.startsWith("## Implementation Status") ? rawLine.split(" · prior:")[0] : rawLine;
+      for (const m2 of line.matchAll(NODE_FLOOR_CLAIM_RE)) {
+        const parts = m2[1].split(".").map(Number);
+        const ok = parts.length >= 2 && parts.every((n2, k2) => n2 === floor[k2]);
+        if (!ok)
+          drifts.push(`${path2}:${i2 + 1} says "${m2[0]}", engines.node is ${enginesNode}`);
+      }
+    });
   }
   return drifts;
 }
@@ -44106,6 +44133,43 @@ function checkStatusHeaderFreshness(ctx) {
   }
   return rows;
 }
+function checkNodeFloorClaims(ctx) {
+  const rows = [];
+  if (!ctx.hasSource) {
+    rows.push({ severity: "ok", msg: "  ⓘ Node floor claims skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" });
+    return rows;
+  }
+  const pkgPath = resolve20(ctx.root, "package.json");
+  if (!existsSync23(pkgPath)) {
+    rows.push({ severity: "warn", msg: "  ⚠ package.json not found — Node floor claims not checked" });
+    return rows;
+  }
+  try {
+    const files = NODE_FLOOR_CLAIM_FILES.filter((p) => existsSync23(resolve20(ctx.root, p))).map((p) => ({
+      path: p,
+      text: readFileSync22(resolve20(ctx.root, p), "utf8")
+    }));
+    if (files.length === 0) {
+      rows.push({ severity: "ok", msg: "  ⓘ Node floor claims: none of the user-facing docs exist at this root — nothing to check" });
+      return rows;
+    }
+    const engines = JSON.parse(readFileSync22(pkgPath, "utf8")).engines?.node;
+    if (!engines) {
+      rows.push({ severity: "warn", msg: "  ⚠ package.json has no engines.node — Node floor claims not checked" });
+      return rows;
+    }
+    const drifts = nodeFloorClaimDrift(files, engines);
+    if (drifts.length === 0) {
+      rows.push({ severity: "ok", msg: `  ✓ Node floor claims match engines.node (${engines}) in ${files.length} files` });
+    } else {
+      for (const d2 of drifts)
+        rows.push({ severity: "fail", msg: `  ✗ Node floor claim drift — ${d2}` });
+    }
+  } catch (e2) {
+    rows.push({ severity: "fail", msg: `  ✗ Node floor claim check error: ${e2.message.slice(0, 80)}` });
+  }
+  return rows;
+}
 async function runDoctor(opts = {}) {
   const log = opts.log ?? ((m2) => console.log(m2));
   const root3 = opts.repoRoot ?? repoRoot;
@@ -44156,7 +44220,7 @@ async function runDoctor(opts = {}) {
   log(`${ok} OK · ${warn} warn · ${fail} fail`);
   return { ok, warn, fail, rows };
 }
-var moduleDir2, repoRoot, REGISTRY_EXEMPT_IDS, CHECKS;
+var moduleDir2, repoRoot, NODE_FLOOR_CLAIM_FILES, NODE_FLOOR_CLAIM_RE, REGISTRY_EXEMPT_IDS, CHECKS;
 var init_doctor = __esm(() => {
   init_subprocess();
   init_js_yaml();
@@ -44166,6 +44230,14 @@ var init_doctor = __esm(() => {
   init_metrics();
   moduleDir2 = dirname6(fileURLToPath3(import.meta.url));
   repoRoot = resolve20(moduleDir2, "..", "..");
+  NODE_FLOOR_CLAIM_FILES = [
+    "README.md",
+    "plugins/sgc/CLAUDE.md",
+    "docs/POSITIONING.md",
+    ".claude-plugin/marketplace.json",
+    "plugins/sgc/.claude-plugin/plugin.json"
+  ];
+  NODE_FLOOR_CLAIM_RE = /\b(?:runtime-)?node\s*(?:≥|>=|%20%E2%89%A5|%E2%89%A5)\s*v?(\d+(?:\.\d+){0,2})/gi;
   REGISTRY_EXEMPT_IDS = new Set(["clarifier.discover", "planner.decompose"]);
   CHECKS = [
     { header: "=== Manifest prompt_path ↔ prompts/ ===", run: checkManifestPromptPath },
@@ -44181,7 +44253,8 @@ var init_doctor = __esm(() => {
     { header: "=== agent registry ↔ manifest ===", run: checkAgentRegistry },
     { header: "=== agent description ↔ derived CLI fact ===", run: checkCliFactDerivation },
     { header: "=== README four-化 scorecard parity ===", run: checkReadmeScorecard },
-    { header: "=== plugins/sgc/CLAUDE.md status header freshness ===", run: checkStatusHeaderFreshness }
+    { header: "=== plugins/sgc/CLAUDE.md status header freshness ===", run: checkStatusHeaderFreshness },
+    { header: "=== Node floor claims ↔ engines.node ===", run: checkNodeFloorClaims }
   ];
 });
 

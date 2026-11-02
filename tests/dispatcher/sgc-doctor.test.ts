@@ -451,12 +451,13 @@ test("doctor (B) prompts check uses embedded keys, not readdirSync", async () =>
   expect(skipRow("metrics baseline")).toBe(true) // (K)
   expect(skipRow("CLAUDE.md freshness")).toBe(true) // (L)
   expect(skipRow("README scorecard parity")).toBe(true) // (M)
+  expect(skipRow("Node floor claims")).toBe(true) // (P)
 
   // The skip line no longer claims "no source checkout" — that lie is the defect.
   expect(lines.some((l) => l.includes("no source checkout"))).toBe(false)
 
-  // All nine skips land as `ok` rows, never warn/fail — so the bogus root yields
+  // All ten skips land as `ok` rows, never warn/fail — so the bogus root yields
   // zero warnings beyond embedded-prompt orphans and zero hard failures.
   const skipRowCount = lines.filter((l) => SKIP_RE.test(l)).length
-  expect(skipRowCount).toBe(9)
+  expect(skipRowCount).toBe(10)
 })

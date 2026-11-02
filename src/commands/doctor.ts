@@ -30,6 +30,7 @@ import { load as yamlLoad, dump as yamlDump } from "js-yaml"
 import { getCapabilities, getSubagentManifest } from "../dispatcher/schema"
 import { deriveCliFact, CLI_FACT_MARKER, DERIVED_AGENT_IDS } from "../dispatcher/agent-facts"
 import { EMBEDDED_PROMPTS, listEmbeddedPromptKeys } from "../dispatcher/embedded-data"
+import { engineFloor } from "../node-floor"
 import {
   computeMetricsLive,
   parseBaseline,
@@ -153,6 +154,50 @@ export function readmeScorecardDrift(readme: string, live: FourHuaMetrics): stri
     if (Number(m[1]) !== num || Number(m[2]) !== den) {
       drifts.push(`${label}: README says ${m[1]}/${m[2]}, live metrics say ${num}/${den}`)
     }
+  }
+  return drifts
+}
+
+/**
+ * User-facing files that state the Node floor (v2.0.1). plugins/sgc/AGENTS.md
+ * is a symlink to plugins/sgc/CLAUDE.md, so it is covered. Dated audits,
+ * plans, specs and the CHANGELOG keep their historical numbers and are not
+ * listed.
+ */
+export const NODE_FLOOR_CLAIM_FILES = [
+  "README.md",
+  "plugins/sgc/CLAUDE.md",
+  "docs/POSITIONING.md",
+  ".claude-plugin/marketplace.json",
+  "plugins/sgc/.claude-plugin/plugin.json",
+] as const
+
+// "Node ≥ 22.19", "Node >= 22.19.0", "node≥22.19.0", and the shields.io badge
+// "runtime-node%20%E2%89%A522.19".
+const NODE_FLOOR_CLAIM_RE = /\b(?:runtime-)?node\s*(?:≥|>=|%20%E2%89%A5|%E2%89%A5)\s*v?(\d+(?:\.\d+){0,2})/gi
+
+/**
+ * v2.0.1: every "Node ≥ X" claim in `files` must equal engines.node's floor,
+ * to at least major.minor (a bare "Node ≥ 22" would admit 22.0). In an
+ * "## Implementation Status" line only the part before " · prior:" is
+ * current; the rest is release history. Returns one line per mismatch.
+ */
+export function nodeFloorClaimDrift(
+  files: ReadonlyArray<{ path: string; text: string }>,
+  enginesNode: string,
+): string[] {
+  const floor = engineFloor(enginesNode)
+  if (!floor) return [`engines.node "${enginesNode}" is not a >=X.Y.Z range; cannot check Node floor claims`]
+  const drifts: string[] = []
+  for (const { path, text } of files) {
+    text.split("\n").forEach((rawLine, i) => {
+      const line = rawLine.startsWith("## Implementation Status") ? rawLine.split(" · prior:")[0]! : rawLine
+      for (const m of line.matchAll(NODE_FLOOR_CLAIM_RE)) {
+        const parts = m[1]!.split(".").map(Number)
+        const ok = parts.length >= 2 && parts.every((n, k) => n === floor[k])
+        if (!ok) drifts.push(`${path}:${i + 1} says "${m[0]}", engines.node is ${enginesNode}`)
+      }
+    })
   }
   return drifts
 }
@@ -1033,9 +1078,49 @@ function checkStatusHeaderFreshness(ctx: DoctorCtx): CheckRow[] {
   return rows
 }
 
+// ── (P) Node floor claims in user-facing docs ↔ engines.node ────────────
+function checkNodeFloorClaims(ctx: DoctorCtx): CheckRow[] {
+  const rows: CheckRow[] = []
+  if (!ctx.hasSource) {
+    rows.push({ severity: "ok", msg: "  ⓘ Node floor claims skipped (no src/sgc.ts at the resolved root — bundle/npm channel; dev/CI-only check)" })
+    return rows
+  }
+  const pkgPath = resolve(ctx.root, "package.json")
+  if (!existsSync(pkgPath)) {
+    rows.push({ severity: "warn", msg: "  ⚠ package.json not found — Node floor claims not checked" })
+    return rows
+  }
+  try {
+    const files = NODE_FLOOR_CLAIM_FILES.filter((p) => existsSync(resolve(ctx.root, p))).map((p) => ({
+      path: p,
+      text: readFileSync(resolve(ctx.root, p), "utf8"),
+    }))
+    if (files.length === 0) {
+      rows.push({ severity: "ok", msg: "  ⓘ Node floor claims: none of the user-facing docs exist at this root — nothing to check" })
+      return rows
+    }
+    const engines = (JSON.parse(readFileSync(pkgPath, "utf8")) as {
+      engines?: { node?: string }
+    }).engines?.node
+    if (!engines) {
+      rows.push({ severity: "warn", msg: "  ⚠ package.json has no engines.node — Node floor claims not checked" })
+      return rows
+    }
+    const drifts = nodeFloorClaimDrift(files, engines)
+    if (drifts.length === 0) {
+      rows.push({ severity: "ok", msg: `  ✓ Node floor claims match engines.node (${engines}) in ${files.length} files` })
+    } else {
+      for (const d of drifts) rows.push({ severity: "fail", msg: `  ✗ Node floor claim drift — ${d}` })
+    }
+  } catch (e) {
+    rows.push({ severity: "fail", msg: `  ✗ Node floor claim check error: ${(e as Error).message.slice(0, 80)}` })
+  }
+  return rows
+}
+
 /**
  * The ordered check table. Order == the historical inline order (A B C D E G H
- * I J K N O M L — F is a retired letter) and IS the output order. Each entry's
+ * I J K N O M L, then P — F is a retired letter) and IS the output order. Each entry's
  * `header` is logged before its rows; the runner injects the blank separator
  * line between groups.
  */
@@ -1057,6 +1142,7 @@ const CHECKS: Array<{
   { header: "=== agent description ↔ derived CLI fact ===", run: checkCliFactDerivation },
   { header: "=== README four-化 scorecard parity ===", run: checkReadmeScorecard },
   { header: "=== plugins/sgc/CLAUDE.md status header freshness ===", run: checkStatusHeaderFreshness },
+  { header: "=== Node floor claims ↔ engines.node ===", run: checkNodeFloorClaims },
 ]
 
 export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport> {

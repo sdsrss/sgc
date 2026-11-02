@@ -26,10 +26,10 @@ Run the 4-agent compound cluster (`context` / `solution` / `related` / `preventi
 
 ## Routing
 
-- **Behavior**: [`src/commands/compound.ts`](../../../../src/commands/compound.ts) (`runCompound`)
-- **4-agent cluster**: [`src/dispatcher/agents/compound.ts`](../../../../src/dispatcher/agents/compound.ts)
-- **Dedup**: [`src/dispatcher/dedup.ts`](../../../../src/dispatcher/dedup.ts) — SHA-256 signature + Jaccard on tags ∪ problem tokens; threshold 0.85
-- **State**: `writeSolution` in [`src/dispatcher/state.ts`](../../../../src/dispatcher/state.ts) — refuses writes without a valid `dedup_stamp`
+- **Behavior**: [`src/commands/compound.ts`](https://github.com/sdsrss/sgc/blob/main/src/commands/compound.ts) (`runCompound`)
+- **4-agent cluster**: [`src/dispatcher/agents/compound.ts`](https://github.com/sdsrss/sgc/blob/main/src/dispatcher/agents/compound.ts)
+- **Dedup**: [`src/dispatcher/dedup.ts`](https://github.com/sdsrss/sgc/blob/main/src/dispatcher/dedup.ts) — SHA-256 signature + Jaccard on tags ∪ problem tokens; threshold 0.85
+- **State**: `writeSolution` in [`src/dispatcher/state.ts`](https://github.com/sdsrss/sgc/blob/main/src/dispatcher/state.ts) — refuses writes without a valid `dedup_stamp`
 - **Invariants**: §3 dedup required · §10 cluster is a transaction (any throw = no write)
 
 ## Execution
@@ -37,13 +37,14 @@ Run the 4-agent compound cluster (`context` / `solution` / `related` / `preventi
 When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
-elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
-elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
+elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
+elif command -v sgc >/dev/null 2>&1;             then :
+elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
 else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
 fi
 
-$SGC compound $ARGUMENTS
+sgc compound $ARGUMENTS
 ```
 
 Outcomes: `compound` (new entry) · `update_existing` (dedup hit; `source_task_ids` merged, `times_referenced` bumped) · `skip` (only via janitor's decision).

@@ -28,25 +28,26 @@ Classify the task, dispatch planning agents, produce an immutable intent + featu
 
 This skill invokes the dispatcher; process is authoritative in code, not prose.
 
-- **Behavior**: [`src/commands/plan.ts`](../../../../src/commands/plan.ts) (`runPlan`)
-- **Classifier**: [`src/dispatcher/agents/classifier-level.ts`](../../../../src/dispatcher/agents/classifier-level.ts)
+- **Behavior**: [`src/commands/plan.ts`](https://github.com/sdsrss/sgc/blob/main/src/commands/plan.ts) (`runPlan`)
+- **Classifier**: [`src/dispatcher/agents/classifier-level.ts`](https://github.com/sdsrss/sgc/blob/main/src/dispatcher/agents/classifier-level.ts)
 - **Planner cluster**: `planner.eng` (L1+), `+planner.ceo +researcher.history` (L2+), `+planner.adversarial` (L3)
-- **Manifests**: [`contracts/sgc-capabilities.yaml`](../../../../contracts/sgc-capabilities.yaml)
+- **Manifests**: [`contracts/sgc-capabilities.yaml`](https://github.com/sdsrss/sgc/blob/main/contracts/sgc-capabilities.yaml)
 - **Invariants**: §2 intent immutable · §4 L3 requires `--signed-by` + interactive `yes` · §11 classifier rationale specific
-- **Levels, permissions, escalation**: [`plugins/sgc/CLAUDE.md`](../../CLAUDE.md)
+- **Levels, permissions, escalation**: [`plugins/sgc/CLAUDE.md`](https://github.com/sdsrss/sgc/blob/main/plugins/sgc/CLAUDE.md)
 
 ## Execution
 
 When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
-elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
-elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
+elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
+elif command -v sgc >/dev/null 2>&1;             then :
+elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
 else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
 fi
 
-$SGC plan "$ARGUMENTS"
+sgc plan "$ARGUMENTS"
 ```
 
 For L3 tasks, the CLI will prompt for `--signed-by` and require interactive `yes`.

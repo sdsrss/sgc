@@ -10,15 +10,16 @@ Run the L2+ QA gate. Real-browser mode (a Playwright Chromium smoke: `goto` + co
 ## Invocation
 
 ```bash
-if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
-elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
-elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
+elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
+elif command -v sgc >/dev/null 2>&1;             then :
+elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
 else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
 fi
 
-$SGC qa                                                    # default: stub (concern)
-$SGC qa http://localhost:3000 --browse                     # real Playwright smoke
-$SGC qa http://localhost:3000 --flows /dashboard,/settings --browse   # smoke extra paths
+sgc qa                                                    # default: stub (concern)
+sgc qa http://localhost:3000 --browse                     # real Playwright smoke
+sgc qa http://localhost:3000 --flows /dashboard,/settings --browse   # smoke extra paths
 ```
 
 ## What you should do
@@ -31,4 +32,4 @@ $SGC qa http://localhost:3000 --flows /dashboard,/settings --browse   # smoke ex
 ## Notes
 
 - Real-browser mode needs a browser: `npx playwright install chromium`, or set `SGC_QA_BROWSER=chrome` to use system Chrome.
-- Playwright is already a dependency; the real runner is `src/dispatcher/agents/playwright-runner.ts`.
+- Playwright is an optional dependency of the npm package: `npm i -g @sdsrs/sgc` installs it alongside the CLI. The CLI bundled with the plugin cannot load it, so run `sgc qa --browse` from the npm install.

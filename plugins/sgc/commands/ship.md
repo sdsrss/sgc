@@ -22,18 +22,19 @@ The terminal step. Gates fail closed.
 ## Invocation
 
 ```bash
-if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
-elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
-elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
+elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
+elif command -v sgc >/dev/null 2>&1;             then :
+elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
 else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
 fi
 
-$SGC ship                                          # local ship.md only
-$SGC ship --auto                                   # refused at L3
-$SGC ship --pr                                     # also `gh pr create`
-$SGC ship --pr --pr-title "..." --pr-body "..."
-$SGC ship --janitor-skip-reason "<≥40 chars>"      # opt-out + logged
-$SGC ship --force-compound                         # bypass janitor decision_rules
+sgc ship                                          # local ship.md only
+sgc ship --auto                                   # refused at L3
+sgc ship --pr                                     # also `gh pr create`
+sgc ship --pr --pr-title "..." --pr-body "..."
+sgc ship --janitor-skip-reason "<≥40 chars>"      # opt-out + logged
+sgc ship --force-compound                         # bypass janitor decision_rules
 ```
 
 ## What you should do
@@ -41,10 +42,3 @@ $SGC ship --force-compound                         # bypass janitor decision_rul
 1. If `--pr` is requested, verify `gh auth status` and `git rev-parse @{upstream}` first — abort early if either fails (avoid writing immutable ship.md before push works).
 2. For L3, prompt user explicitly: ship.md is IMMUTABLE; confirm before stdin gate.
 3. After ship succeeds, surface the janitor decision (compound / skip / update_existing) per Invariant §6.
-
-## SSH push gotcha
-
-On this machine, GitHub SSH banner fails in fresh shells. Same-call workaround:
-```bash
-eval "$(ssh-agent -s)" && ssh-add ~/.ssh/id_ed25519_github && git push -u origin "$(git branch --show-current)"
-```

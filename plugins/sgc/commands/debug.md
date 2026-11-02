@@ -10,19 +10,20 @@ Structured root-cause debugging. Opens an investigation, walks the 4 phases, and
 ## Invocation
 
 ```bash
-if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
-elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
-elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
+elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
+elif command -v sgc >/dev/null 2>&1;             then :
+elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
 else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
 fi
 
-$SGC debug start "<one-liner symptom>"   # open an investigation
-$SGC debug close --id <id> \
+sgc debug start "<one-liner symptom>"   # open an investigation
+sgc debug close --id <id> \
   --root-cause "<why it broke>" \
   --fix-commit <7-40 hex sha> \
   --verify-command "<how the fix was proven>"
-$SGC debug --runs                         # list investigations
-$SGC debug --status <id>                  # show one investigation
+sgc debug --runs                         # list investigations
+sgc debug --status <id>                  # show one investigation
 ```
 
 ## What you should do

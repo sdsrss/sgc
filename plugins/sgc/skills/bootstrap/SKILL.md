@@ -1,6 +1,6 @@
 ---
 name: sgc-bootstrap
-description: "Use when starting any conversation - establishes SGC commands, routes tasks to appropriate skills, and enforces system invariants"
+description: "Use when starting a conversation in a project that uses sgc (has a .sgc/ directory) - establishes SGC commands, routes tasks to appropriate skills, and enforces system invariants"
 ---
 
 # SGC Bootstrap
@@ -9,7 +9,7 @@ Load SGC rules, verify `.sgc/` state integrity, route user intent to the correct
 
 ## The CLI ships with the plugin
 
-Every `/sgc:*` command runs the CLI bundled with this plugin (`bin/sgc.mjs`, run with Node ≥ 22.19; no `bun`). There is nothing else to install. Only if that file is missing does a command fall back to a global `sgc`, and then to `bun src/sgc.ts` inside a source checkout of sgc.
+Every `/sgc:*` command runs the CLI bundled with this plugin (`bin/sgc.mjs`). It needs Node ≥ 22.19 on PATH, and no `bun`. Only `/sgc:qa --browse` needs more: Playwright, which the plugin's CLI cannot load; use the npm install for it. If the bundled CLI is missing, a command falls back to a global `sgc`, and then to `bun src/sgc.ts` inside a source checkout of sgc.
 
 **Outside Claude Code** (CI, `npx`, a plain terminal):
 
@@ -60,10 +60,6 @@ Ambiguous intent → ask one clarifying question, don't guess.
 ## Red Flags
 
 Intercept / refuse: `rm -rf $VAR`, `DROP`/`DELETE` without WHERE, `git push --force` to `main`, disabling SSL verification, committing `.env` / credentials, plaintext secrets in logs/commits.
-
-## Agent Namespacing
-
-When the dispatcher writes a spawn prompt, the agent key in `contracts/sgc-capabilities.yaml` short form (e.g. `reviewer.correctness`) maps to the wire format `sgc:reviewer:correctness`. The dispatcher handles the translation; skills do not hand-assemble names.
 
 ## After Bootstrap
 

@@ -30,10 +30,10 @@ Plus `exec:browser` for the headless chromium launch.
 
 ## Routing
 
-- **Behavior**: [`src/commands/qa.ts`](../../../../src/commands/qa.ts) (`runQa`)
-- **Agent**: [`src/dispatcher/agents/qa-browser.ts`](../../../../src/dispatcher/agents/qa-browser.ts) — injectable `browseRunner` for hermetic tests
-- **Real-browser runner**: [`src/dispatcher/agents/playwright-runner.ts`](../../../../src/dispatcher/agents/playwright-runner.ts) — Playwright Chromium smoke (opt-in via `--browse` / `SGC_QA_REAL=1`)
-- **Evidence helper**: `hasQaEvidence` in [`src/dispatcher/state.ts`](../../../../src/dispatcher/state.ts)
+- **Behavior**: [`src/commands/qa.ts`](https://github.com/sdsrss/sgc/blob/main/src/commands/qa.ts) (`runQa`)
+- **Agent**: [`src/dispatcher/agents/qa-browser.ts`](https://github.com/sdsrss/sgc/blob/main/src/dispatcher/agents/qa-browser.ts) — injectable `browseRunner` for hermetic tests
+- **Real-browser runner**: [`src/dispatcher/agents/playwright-runner.ts`](https://github.com/sdsrss/sgc/blob/main/src/dispatcher/agents/playwright-runner.ts) — Playwright Chromium smoke (opt-in via `--browse` / `SGC_QA_REAL=1`)
+- **Evidence helper**: `hasQaEvidence` in [`src/dispatcher/state.ts`](https://github.com/sdsrss/sgc/blob/main/src/dispatcher/state.ts)
 - **Invariants**: §1 qa no-solutions · §6 append-only (one qa review per task)
 
 ## Execution
@@ -41,13 +41,14 @@ Plus `exec:browser` for the headless chromium launch.
 When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
-elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
-elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
+elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
+elif command -v sgc >/dev/null 2>&1;             then :
+elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
 else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
 fi
 
-$SGC qa $ARGUMENTS
+sgc qa $ARGUMENTS
 ```
 
 ## Console classification (reference)

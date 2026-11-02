@@ -10,15 +10,16 @@ Knowledge extraction. Almost always invoked by `janitor.compound` post-ship — 
 ## Invocation
 
 ```bash
-if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
-elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
-elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
+elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
+elif command -v sgc >/dev/null 2>&1;             then :
+elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
 else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
 fi
 
-$SGC compound              # use intent + reviews of active task
-$SGC compound --force      # bypass dedup ≥0.85 threshold
-$SGC compound --slug <s>   # override filename slug
+sgc compound              # use intent + reviews of active task
+sgc compound --force      # bypass dedup ≥0.85 threshold
+sgc compound --slug <s>   # override filename slug
 ```
 
 ## What you should do

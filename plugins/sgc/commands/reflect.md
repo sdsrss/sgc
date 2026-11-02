@@ -10,17 +10,18 @@ Read-only audit of `.sgc/decisions/*/intent.md` motivations against `.sgc/soluti
 ## Invocation
 
 ```bash
-if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
-elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
-elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
+elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
+elif command -v sgc >/dev/null 2>&1;             then :
+elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
 else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
 fi
 
-$SGC reflect                          # audit all decisions/
-$SGC reflect --task <task_id>         # audit one task
-$SGC reflect --since 2026-05-01       # decisions created on/after date
-$SGC reflect --save                   # write reports to reflections/<task_id>.md
-$SGC reflect --json                   # emit ReflectReport[] for tooling
+sgc reflect                          # audit all decisions/
+sgc reflect --task <task_id>         # audit one task
+sgc reflect --since 2026-05-01       # decisions created on/after date
+sgc reflect --save                   # write reports to reflections/<task_id>.md
+sgc reflect --json                   # emit ReflectReport[] for tooling
 ```
 
 ## What you should do

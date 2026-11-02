@@ -25,11 +25,11 @@ Run the ship gate, write immutable `decisions/{id}/ship.md`, optionally open a P
 
 ## Routing
 
-- **Behavior**: [`src/commands/ship.ts`](../../../../src/commands/ship.ts) (`runShip`)
+- **Behavior**: [`src/commands/ship.ts`](https://github.com/sdsrss/sgc/blob/main/src/commands/ship.ts) (`runShip`)
 - **Gate checks** (in order): active task exists · all features done · ≥1 code review · qa evidence for L2+ · no unresolved `fail` verdicts (without `--override` ≥40)
 - **L3 gate**: refuses `--auto`; prompts interactive `yes` confirmation (§4)
-- **PR integration**: [`src/dispatcher/gh-runner.ts`](../../../../src/dispatcher/gh-runner.ts) — `--pr` shells `gh pr create`
-- **Auto-janitor**: [`src/dispatcher/agents/janitor-compound.ts`](../../../../src/dispatcher/agents/janitor-compound.ts) — decision logged even on skip (§6)
+- **PR integration**: [`src/dispatcher/gh-runner.ts`](https://github.com/sdsrss/sgc/blob/main/src/dispatcher/gh-runner.ts) — `--pr` shells `gh pr create`
+- **Auto-janitor**: [`src/dispatcher/agents/janitor-compound.ts`](https://github.com/sdsrss/sgc/blob/main/src/dispatcher/agents/janitor-compound.ts) — decision logged even on skip (§6)
 - **Invariants**: §4 L3 no-auto · §5 override ≥40 · §6 janitor always logged · §10 compound atomic
 
 ## Execution
@@ -37,13 +37,14 @@ Run the ship gate, write immutable `decisions/{id}/ship.md`, optionally open a P
 When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
-elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
-elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
+elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
+elif command -v sgc >/dev/null 2>&1;             then :
+elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
 else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
 fi
 
-$SGC ship $ARGUMENTS
+sgc ship $ARGUMENTS
 ```
 
 ## Gate failure behavior

@@ -10,16 +10,17 @@ The escape hatch when the dispatcher fell back to `file-poll` mode (no `ANTHROPI
 ## Invocation
 
 ```bash
-if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
-elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
-elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
+elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
+elif command -v sgc >/dev/null 2>&1;             then :
+elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
 else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
 fi
 
-$SGC agent-loop --list                     # all spawns with [x]/[ ] markers
-$SGC agent-loop --show <spawn_id>          # print the prompt for one spawn
-$SGC agent-loop --submit <spawn_id>        # read YAML from stdin
-$SGC agent-loop --submit <spawn_id> --from /path/to/result.yaml
+sgc agent-loop --list                     # all spawns with [x]/[ ] markers
+sgc agent-loop --show <spawn_id>          # print the prompt for one spawn
+sgc agent-loop --submit <spawn_id>        # read YAML from stdin
+sgc agent-loop --submit <spawn_id> --from /path/to/result.yaml
 ```
 
 ## What you should do
@@ -30,4 +31,4 @@ $SGC agent-loop --submit <spawn_id> --from /path/to/result.yaml
 
 ## When to skip this
 
-If `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY` is set, the dispatcher uses real LLM modes and this command becomes unnecessary. Check with `bun src/sgc.ts status` — if file-poll spawns are accumulating, an LLM key is the better fix than typing prompts by hand.
+If `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY` is set, the dispatcher uses real LLM modes and this command becomes unnecessary. Check with `/sgc:status` — if file-poll spawns are accumulating, an LLM key is the better fix than typing prompts by hand.

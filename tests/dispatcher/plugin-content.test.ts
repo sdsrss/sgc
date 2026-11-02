@@ -12,9 +12,11 @@
 //   `/status`, which are Claude Code built-ins; plugin commands are /sgc:<name>.
 //   It also pointed at repo paths a user's project does not have.
 
-import { describe, expect, test } from "bun:test"
-import { readdirSync, readFileSync } from "node:fs"
-import { join, resolve } from "node:path"
+import { afterAll, describe, expect, test } from "bun:test"
+import { spawnSync } from "node:child_process"
+import { mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { dirname, join, resolve } from "node:path"
 
 const PLUGIN = resolve(import.meta.dir, "..", "..", "plugins", "sgc")
 
@@ -43,6 +45,12 @@ describe("plugin content reaches the bundled CLI", () => {
       expect(text.match(/\$CLAUDE_PLUGIN_ROOT\b/g) ?? []).toEqual([])
     })
 
+    test(`${rel}: no repo-relative link or author-machine reference (absent in a plugin install)`, () => {
+      expect(text.match(/\]\(\.\.\/[^)]*\)/g) ?? []).toEqual([])
+      expect(text).not.toMatch(/~\/\.claude\/CLAUDE\.md|CLAUDE-extended\.md|~\/\.ssh\/|On this machine/)
+      expect(text).not.toMatch(/`bun src\/sgc\.ts [a-z]+`/)
+    })
+
     if (/^\s*bun src\/sgc\.ts /m.test(text)) {
       test(`${rel}: running sgc from source is only the fallback after the bundled CLI`, () => {
         expect(text).toContain('[ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]')
@@ -52,8 +60,82 @@ describe("plugin content reaches the bundled CLI", () => {
   }
 })
 
+// v2.0.1 delta review: c824a7a's block stored `node <root>/bin/sgc.mjs` in a
+// variable and ran it as an unquoted `$SGC …`. That relies on bash word
+// splitting: under zsh, which Claude Code's Bash tool prefers on macOS, every
+// block failed with "no such file or directory: node …/bin/sgc.mjs"; and a
+// plugin root containing a space (Claude Code substitutes the path verbatim)
+// split into two words under bash too. So the blocks are executed here, the
+// way Claude Code would run them, not just string-matched.
+// Absolute paths: the blocks run with a minimal PATH that need not contain the shell.
+const SHELLS = ["bash", "zsh"].map((s) => Bun.which(s)).filter((p): p is string => p !== null)
+const NODE_DIR = dirname(Bun.which("node")!)
+const PKG_VERSION = (JSON.parse(readFileSync(resolve(PLUGIN, "..", "..", "package.json"), "utf8")) as { version: string })
+  .version
+
+/** The CLI lookup (`if … fi`) of a command or skill file, or null when it has none. */
+function lookupBlock(text: string): string | null {
+  const lines = text.split("\n")
+  const start = lines.findIndex((l) => l.startsWith("if ") && l.includes("sgc.mjs"))
+  if (start === -1) return null
+  const end = lines.findIndex((l, i) => i > start && l === "fi")
+  return lines.slice(start, end + 1).join("\n")
+}
+
+const withLookup = contentFiles
+  .map((f) => ({ rel: f.slice(PLUGIN.length + 1), block: lookupBlock(readFileSync(f, "utf8")) }))
+  .filter((x): x is { rel: string; block: string } => x.block !== null)
+
+test("bash is available, and the lookup blocks were found", () => {
+  expect(SHELLS.some((p) => p.endsWith("/bash"))).toBe(true)
+  expect(withLookup.length).toBeGreaterThanOrEqual(25)
+})
+
+describe("each CLI lookup block runs the bundled CLI, as Claude Code's Bash tool would run it", () => {
+  // No CLAUDE_PLUGIN_ROOT in the environment (the Bash tool has none), no
+  // global sgc, no src/sgc.ts in the working directory.
+  const dir = mkdtempSync(join(tmpdir(), "sgc-plugin-content-"))
+  const spaced = join(dir, "plugin root with space")
+  symlinkSync(PLUGIN, spaced)
+  afterAll(() => rmSync(dir, { recursive: true, force: true }))
+
+  const cases = [
+    // the documented mechanism: the plugin's bin/ is on the Bash tool's PATH
+    { name: "bin/ on PATH", root: PLUGIN, path: `${join(PLUGIN, "bin")}:${NODE_DIR}:/usr/bin:/bin` },
+    // fallback: Claude Code substituted ${CLAUDE_PLUGIN_ROOT}, path has a space
+    { name: "root with a space", root: spaced, path: `${NODE_DIR}:/usr/bin:/bin` },
+  ]
+  for (const sh of SHELLS) {
+    for (const c of cases) {
+      test(`${sh.split("/").pop()}, ${c.name}: every block reaches sgc ${PKG_VERSION}`, () => {
+        const failures: string[] = []
+        for (const { rel, block } of withLookup) {
+          const script = block.replaceAll("${CLAUDE_PLUGIN_ROOT}", c.root) + "\nsgc --version\n"
+          const r = spawnSync(sh, ["-c", script], { cwd: dir, encoding: "utf8", env: { PATH: c.path, HOME: dir } })
+          if (r.status !== 0 || r.stdout.trim() !== PKG_VERSION) {
+            failures.push(`${rel}: exit ${r.status} ${`${r.stdout ?? ""}${r.stderr ?? ""}${r.error ?? ""}`.trim().slice(0, 120)}`)
+          }
+        }
+        expect(failures).toEqual([])
+      }, 120_000)
+    }
+  }
+})
+
 describe("bootstrap (injected into sessions)", () => {
   const boot = readFileSync(join(PLUGIN, "skills", "bootstrap", "SKILL.md"), "utf8")
+
+  test("its always-on description is scoped to projects that use sgc, like the hook", () => {
+    const description = /^description: "(.*)"$/m.exec(boot)?.[1] ?? ""
+    expect(description).toContain(".sgc/")
+    expect(description).not.toMatch(/any conversation/i)
+  })
+
+  test("it names what the bundled CLI needs: Node, and Playwright only for qa --browse", () => {
+    expect(boot).not.toMatch(/nothing else to install/i)
+    expect(boot).toContain("Node ≥ 22.19")
+    expect(boot).toMatch(/--browse[^\n]*Playwright|Playwright[^\n]*--browse/)
+  })
 
   test("every slash command it names is a /sgc: plugin command", () => {
     const slash = [...boot.matchAll(/`(\/[a-z][\w-]*(?::[\w*-]+)?)/g)].map((m) => m[1]!)
@@ -62,6 +144,6 @@ describe("bootstrap (injected into sessions)", () => {
   })
 
   test("it points at no repo path a user's project does not have", () => {
-    expect(boot).not.toMatch(/plugins\/sgc\/CLAUDE\.md|src\/dispatcher|\.\.\/\.\.\//)
+    expect(boot).not.toMatch(/plugins\/sgc\/CLAUDE\.md|src\/dispatcher|contracts\/|\.\.\/\.\.\//)
   })
 })

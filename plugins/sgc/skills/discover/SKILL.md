@@ -29,22 +29,23 @@ Plus `spawn:clarifier.*`. No writes — `discover` cannot mutate `.sgc/` state b
 
 ## Routing
 
-- **Behavior**: [`src/commands/discover.ts`](../../../../src/commands/discover.ts) (`runDiscover`)
-- **Agent**: [`src/dispatcher/agents/clarifier-discover.ts`](../../../../src/dispatcher/agents/clarifier-discover.ts) — heuristic stub keys off auth / data / ui / perf / api keywords to tune the question set
-- **Contract**: `clarifier.discover` manifest in [`contracts/sgc-capabilities.yaml`](../../../../contracts/sgc-capabilities.yaml)
+- **Behavior**: [`src/commands/discover.ts`](https://github.com/sdsrss/sgc/blob/main/src/commands/discover.ts) (`runDiscover`)
+- **Agent**: [`src/dispatcher/agents/clarifier-discover.ts`](https://github.com/sdsrss/sgc/blob/main/src/dispatcher/agents/clarifier-discover.ts) — heuristic stub keys off auth / data / ui / perf / api keywords to tune the question set
+- **Contract**: `clarifier.discover` manifest in [`contracts/sgc-capabilities.yaml`](https://github.com/sdsrss/sgc/blob/main/contracts/sgc-capabilities.yaml)
 
 ## Execution
 
 When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
-elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
-elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
+elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
+elif command -v sgc >/dev/null 2>&1;             then :
+elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
 else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
 fi
 
-$SGC discover "$ARGUMENTS"
+sgc discover "$ARGUMENTS"
 ```
 
 Output is structured text with sections Goal / Constraints / Scope / Edge cases / Acceptance / Next. The last section contains the exact `sgc plan ...` command to run after answering.

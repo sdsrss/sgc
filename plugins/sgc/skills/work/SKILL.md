@@ -27,25 +27,23 @@ Execute an approved plan; track completion in `progress/feature-list.md`.
 
 ## Routing
 
-- **Behavior**: [`src/commands/work.ts`](../../../../src/commands/work.ts) (`runWork`)
-- **State I/O**: feature-list + current-task files in [`src/dispatcher/state.ts`](../../../../src/dispatcher/state.ts)
-- **TDD / debugging / worktree discipline**: authoritative in the user's global spec
-  (`~/.claude/CLAUDE.md` §7 validate, `CLAUDE-extended.md` §6 debug / §7-EXT evidence ladder),
-  not duplicated here.
-- **System overview**: [`plugins/sgc/CLAUDE.md`](../../CLAUDE.md)
+- **Behavior**: [`src/commands/work.ts`](https://github.com/sdsrss/sgc/blob/main/src/commands/work.ts) (`runWork`)
+- **State I/O**: feature-list + current-task files in [`src/dispatcher/state.ts`](https://github.com/sdsrss/sgc/blob/main/src/dispatcher/state.ts)
+- **System overview**: [`plugins/sgc/CLAUDE.md`](https://github.com/sdsrss/sgc/blob/main/plugins/sgc/CLAUDE.md)
 
 ## Execution
 
 When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
-elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
-elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
+elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
+elif command -v sgc >/dev/null 2>&1;             then :
+elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
 else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
 fi
 
-$SGC work $ARGUMENTS
+sgc work $ARGUMENTS
 ```
 
 `work` does NOT spawn review agents. Call `sgc review` (and `sgc qa` for L2+) when all features are done.

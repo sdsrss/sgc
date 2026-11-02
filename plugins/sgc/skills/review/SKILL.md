@@ -25,11 +25,11 @@ Dispatch reviewer agents (fresh context) against the current task's diff. Review
 
 ## Routing
 
-- **Behavior**: [`src/commands/review.ts`](../../../../src/commands/review.ts) (`runReview`)
-- **Base reviewer**: [`src/dispatcher/agents/reviewer-correctness.ts`](../../../../src/dispatcher/agents/reviewer-correctness.ts) — runs at every level
-- **L2+ specialists**: [`src/dispatcher/agents/reviewer-specialists.ts`](../../../../src/dispatcher/agents/reviewer-specialists.ts) — `reviewer.{security,migration,performance,infra}` spawn in parallel when the diff matches their trigger keywords. Heuristic keyword matchers, not LLM-backed. Aggregate verdict = worst-of (`pass < concern < fail`)
-- **Manifest**: 9 reviewers in [`contracts/sgc-capabilities.yaml`](../../../../contracts/sgc-capabilities.yaml). What each one actually is: `correctness` is the only LLM-backed reviewer and runs at every level; `tests` + `maintainability` are always-on at L2+; `security`/`migration`/`performance`/`infra` are diff-conditional at L2+ — all six are heuristic keyword matchers. `adversarial` and `spec` are `status: slot-only`: manifested but NEVER dispatched, so do not route work to them expecting a result.
-- **Scope pin**: `spawn.ts` emits `scope_tokens:` + `FORBIDDEN from: read:solutions` in every reviewer prompt (holistically verified by [`tests/eval/reviewer-isolation.test.ts`](../../../../tests/eval/reviewer-isolation.test.ts))
+- **Behavior**: [`src/commands/review.ts`](https://github.com/sdsrss/sgc/blob/main/src/commands/review.ts) (`runReview`)
+- **Base reviewer**: [`src/dispatcher/agents/reviewer-correctness.ts`](https://github.com/sdsrss/sgc/blob/main/src/dispatcher/agents/reviewer-correctness.ts) — runs at every level
+- **L2+ specialists**: [`src/dispatcher/agents/reviewer-specialists.ts`](https://github.com/sdsrss/sgc/blob/main/src/dispatcher/agents/reviewer-specialists.ts) — `reviewer.{security,migration,performance,infra}` spawn in parallel when the diff matches their trigger keywords. Heuristic keyword matchers, not LLM-backed. Aggregate verdict = worst-of (`pass < concern < fail`)
+- **Manifest**: 9 reviewers in [`contracts/sgc-capabilities.yaml`](https://github.com/sdsrss/sgc/blob/main/contracts/sgc-capabilities.yaml). What each one actually is: `correctness` is the only LLM-backed reviewer and runs at every level; `tests` + `maintainability` are always-on at L2+; `security`/`migration`/`performance`/`infra` are diff-conditional at L2+ — all six are heuristic keyword matchers. `adversarial` and `spec` are `status: slot-only`: manifested but NEVER dispatched, so do not route work to them expecting a result.
+- **Scope pin**: `spawn.ts` emits `scope_tokens:` + `FORBIDDEN from: read:solutions` in every reviewer prompt (holistically verified by [`tests/eval/reviewer-isolation.test.ts`](https://github.com/sdsrss/sgc/blob/main/tests/eval/reviewer-isolation.test.ts))
 - **Invariants**: §1 reviewer no-solutions · §5 override reason ≥40 · §6 append-only per (task, stage, reviewer)
 
 ## Execution
@@ -37,13 +37,14 @@ Dispatch reviewer agents (fresh context) against the current task's diff. Review
 When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
-elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
-elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
+elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
+elif command -v sgc >/dev/null 2>&1;             then :
+elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
 else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
 fi
 
-$SGC review $ARGUMENTS
+sgc review $ARGUMENTS
 ```
 
 Re-running `review` for the same task throws `AppendOnly` — reviews are an audit trail, not a retry loop. To ship despite a `fail` verdict, supply `--override "<≥40-char reason>"` at `sgc ship`.

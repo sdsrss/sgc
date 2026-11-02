@@ -10,20 +10,21 @@ Operator-facing read surface over the Invariant §13 event audit log.
 ## Invocation
 
 ```bash
-if   [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then SGC="node ${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs"
-elif command -v sgc >/dev/null 2>&1;          then SGC=sgc
-elif test -f src/sgc.ts;                      then SGC="bun src/sgc.ts"
+if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
+elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
+elif command -v sgc >/dev/null 2>&1;             then :
+elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
 else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
 fi
 
-$SGC tail                                   # all events, human-readable
-$SGC tail --json                            # raw NDJSON
-$SGC tail --task <task_id>
-$SGC tail --agent 'planner.*'               # glob match
-$SGC tail --event-type 'llm.'               # substring
-$SGC tail --since 2026-05-19T07:00:00Z
-$SGC tail --follow                          # tail -f
-$SGC tail --limit 20                        # last N matching (initial drain)
+sgc tail                                   # all events, human-readable
+sgc tail --json                            # raw NDJSON
+sgc tail --task <task_id>
+sgc tail --agent 'planner.*'               # glob match
+sgc tail --event-type 'llm.'               # substring
+sgc tail --since 2026-05-19T07:00:00Z
+sgc tail --follow                          # tail -f
+sgc tail --limit 20                        # last N matching (initial drain)
 ```
 
 ## What you should do

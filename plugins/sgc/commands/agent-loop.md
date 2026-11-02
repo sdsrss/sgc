@@ -31,4 +31,4 @@ sgc agent-loop --submit <spawn_id> --from /path/to/result.yaml
 
 ## When to skip this
 
-If `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY` is set, the dispatcher uses real LLM modes and this command becomes unnecessary. Check with `/sgc:status` — if file-poll spawns are accumulating, an LLM key is the better fix than typing prompts by hand.
+If `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY` is set, the dispatcher uses real LLM modes and this command becomes unnecessary. Check with `/sgc:agent-loop --list` — if file-poll spawns are accumulating, an LLM key is the better fix than typing prompts by hand.

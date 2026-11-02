@@ -9,7 +9,7 @@ Load SGC rules, verify `.sgc/` state integrity, route user intent to the correct
 
 ## The CLI ships with the plugin
 
-Every `/sgc:*` command runs the CLI bundled with this plugin (`bin/sgc.mjs`). It needs Node ≥ 22.19 on PATH, and no `bun`. Only `/sgc:qa --browse` needs more: Playwright, which the plugin's CLI cannot load; use the npm install for it. If the bundled CLI is missing, a command falls back to a global `sgc`, and then to `bun src/sgc.ts` inside a source checkout of sgc.
+Every `/sgc:*` command runs the CLI bundled with this plugin (`bin/sgc.mjs`). It needs Node ≥ 22.19 on PATH, and no `bun`. Two options need more: `/sgc:ship --pr` needs the GitHub CLI (`gh`), and `--browse` real-browser QA needs Playwright, which the plugin's CLI cannot load (`/sgc:qa` always runs the plugin's CLI), so run `sgc qa --browse` in a terminal from the npm install (`npm i -g @sdsrs/sgc`). If the bundled CLI is missing, a command falls back to a global `sgc`, and then to `bun src/sgc.ts` inside a source checkout of sgc.
 
 **Outside Claude Code** (CI, `npx`, a plain terminal):
 

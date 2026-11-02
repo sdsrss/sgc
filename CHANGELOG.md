@@ -15,7 +15,7 @@
   sgc@sgc`, and restart Claude Code.
 - **What a session now gets.** With the plugin loading, its SessionStart
   hook runs at startup, resume, `/clear` and compaction. Only in a project
-  that has a `.sgc/` directory, it adds the sgc bootstrap skill (3.3 KB)
+  that has a `.sgc/` directory, it adds the sgc bootstrap skill (3,279 bytes)
   and, when there is one, the active task (`.sgc/progress/current-task.md`)
   to the context. Other projects get nothing from the hook. The hook used
   to inject the bootstrap everywhere; it never ran in a Claude Code that
@@ -38,10 +38,10 @@
 - The shipped command and skill text no longer links to repo files with
   relative paths (they are GitHub links now), no longer tells `/sgc:ship`
   to run an SSH workaround meant for the author's machine, and no longer
-  cites the author's personal Claude Code configuration. `/sgc:qa
-  --browse` needs Playwright, which the plugin's bundled CLI cannot load;
-  run `sgc qa --browse` from the npm install, which ships Playwright as an
-  optional dependency.
+  cites the author's personal Claude Code configuration. `--browse` (real
+  browser QA) needs Playwright, which the plugin's bundled CLI cannot load,
+  and `/sgc:qa` always runs that CLI: run `sgc qa --browse` in a terminal
+  from the npm install, which ships Playwright as an optional dependency.
 - The bootstrap text said bun ≥ 1.3 was the runtime in both install modes,
   sent users to `/plan` and `/status` (Claude Code's own commands; sgc's
   are `/sgc:plan` and `/sgc:status`), and pointed at repo files a user's

@@ -32,4 +32,4 @@ sgc qa http://localhost:3000 --flows /dashboard,/settings --browse   # smoke ext
 ## Notes
 
 - Real-browser mode needs a browser: `npx playwright install chromium`, or set `SGC_QA_BROWSER=chrome` to use system Chrome.
-- Playwright is an optional dependency of the npm package: `npm i -g @sdsrs/sgc` installs it alongside the CLI. The CLI bundled with the plugin cannot load it, so run `sgc qa --browse` from the npm install.
+- Playwright is an optional dependency of the npm package: `npm i -g @sdsrs/sgc` installs it alongside the CLI. The CLI bundled with the plugin cannot load it, and `/sgc:qa` always runs that CLI, so run `sgc qa --browse` in a terminal from the npm install.

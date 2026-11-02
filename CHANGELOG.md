@@ -18,8 +18,9 @@
   with `--plugin-dir`, restore `bin/sgc.mjs` in that directory; otherwise,
   for a Scope the list shows for sgc@sgc, run `claude plugin uninstall
   sgc@sgc --scope <scope> && claude plugin install sgc@sgc --scope
-  <scope>`. The list also shows other projects' project-scope installs,
-  and its plain output does not say which project they belong to. An
+  <scope>`. The list also shows other projects' project- and local-scope
+  installs, and its plain output does not say which project they belong
+  to. An
   uninstall at a scope where this project has no install fails and
   changes nothing, and the `&&` keeps the install from adding one; the
   user then tries the next Scope. For a project install, the reinstall
@@ -46,9 +47,10 @@
   must be the same in all 25 blocks and must contain `claude plugin
   list`, the `uninstall … && install …` line with `--scope <scope>` on
   both, what to do when the uninstall fails, and the restore of
-  `bin/sgc.mjs` for a plugin read from a directory. No command, skill or
-  agent file may name an unscoped `claude plugin (un)install sgc@sgc` or
-  `/plugin install`.
+  `bin/sgc.mjs` for a plugin read from a directory. No file under the
+  plugin's commands/, skills/ or agents/ may name a `claude plugin`
+  install or uninstall of sgc (any spelling Claude Code accepts) other
+  than as that pair, or a `/plugin` install or uninstall.
 - plugin-content.test.ts no longer leaves a temp directory behind when
   `bun test -t` filters out its block tests.
 
@@ -69,7 +71,7 @@ show up as skipped.
   project) is the way. On Windows, which sgc is not tested on, Node
   cannot start `npm` this way, and the step is skipped.
 
-Full suite 1923 → 1929 pass / 38 skip / 0 fail (+6 tests, with zsh on
+Full suite 1923 → 1930 pass / 38 skip / 0 fail (+7 tests, with zsh on
 PATH as in test.yml); `tsc --noEmit` 0; `sgc doctor` 72 OK / 0 warn / 0 fail
 
 ## v2.0.1 — 2026-11-02 — the plugin loads again, and /plan keeps its prior-art lookup

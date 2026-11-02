@@ -55,9 +55,6 @@ describe("plugin content reaches the bundled CLI", () => {
       expect(text).not.toMatch(/`bun src\/sgc\.ts [a-z]+`/)
       // `sgc qa` without a target fails and uses up the task's append-only qa report
       expect(text).not.toMatch(/sgc qa --browse/)
-      // anywhere in the file, not only in the not-found advice (see reinstallAdviceProblems)
-      expect(text.match(new RegExp(UNSCOPED, "g")) ?? []).toEqual([])
-      expect(text).not.toContain("/plugin install")
     })
 
     // A user's project has no src/, contracts/ … of sgc's: link to GitHub.
@@ -120,27 +117,56 @@ const withLookup = contentFiles
  *  user-wide install. A plugin from a local-directory marketplace (`plugin
  *  list` shows "Read from") or from --plugin-dir is read from that
  *  directory, where no reinstall changes anything.
- *  `plugin list` also shows other projects' project-scope installs, with
- *  nothing in the plain output to tell them apart, so a listed Scope can be
- *  the wrong one: there `uninstall --scope project` fails and changes
- *  nothing, but an install run anyway adds a project install the user did
- *  not have. Hence `&&`: the install runs only after its uninstall worked. */
+ *  `plugin list` also shows other projects' project- and local-scope
+ *  installs, with nothing in the plain output to tell them apart, so a
+ *  listed Scope can be the wrong one: there the uninstall fails and changes
+ *  nothing, but an install run anyway adds an install the user did not
+ *  have. Hence `&&`: the install runs only after its uninstall worked. */
 const REINSTALL = "claude plugin uninstall sgc@sgc --scope <scope> && claude plugin install sgc@sgc --scope <scope>"
-const UNSCOPED = /claude plugin (?:un)?install sgc@sgc(?! --scope <scope>)/
 function reinstallAdviceProblems(text: string): string[] {
   const problems: string[] = []
   const list = text.indexOf("claude plugin list")
   const reinstall = text.indexOf(REINSTALL)
+  if (!/in a terminal in this project/i.test(text)) problems.push("not run in this project, whose installs plugin list must show")
   if (list === -1) problems.push("no `claude plugin list`, which shows the install's scope")
   if (reinstall === -1) problems.push(`not literally: ${REINSTALL}`)
   if (list !== -1 && reinstall !== -1 && list > reinstall) problems.push("the reinstall comes before `claude plugin list`")
-  if (!/try (?:the next|another) (?:listed )?Scope/.test(text)) problems.push("no next step when the uninstall fails")
-  if (UNSCOPED.test(text)) problems.push("an (un)install without --scope <scope>")
+  if (!/then try the next (?:listed )?Scope/.test(text)) problems.push("no next step when the uninstall fails")
   if (!text.includes("Read from") || !text.includes("--plugin-dir") || !/restore `?bin\/sgc\.mjs`?/.test(text))
     problems.push("no restore of bin/sgc.mjs for a plugin read from a directory")
-  if (text.includes("/plugin install")) problems.push("`/plugin install`, which only answers already installed")
+  return [...problems, ...reinstallMentionProblems(text)]
+}
+
+/** A plugin (un)install named anywhere, other than as the REINSTALL pair: an
+ *  install outside the pair runs even when its uninstall failed. Counts
+ *  every spelling Claude Code accepts (install|i, uninstall|remove, with or
+ *  without @sgc) and any `/plugin` (un)install. */
+function reinstallMentionProblems(text: string): string[] {
+  const problems: string[] = []
+  const pairs = text.split(REINSTALL).length - 1
+  const installs = text.match(/claude plugin (?:install|i)\s+sgc\b/g)?.length ?? 0
+  const uninstalls = text.match(/claude plugin (?:uninstall|remove)\s+sgc\b/g)?.length ?? 0
+  if (installs !== pairs) problems.push(`${installs} claude plugin install(s) for ${pairs} \`uninstall && install\` pair(s)`)
+  if (uninstalls !== pairs) problems.push(`${uninstalls} claude plugin uninstall(s) for ${pairs} \`uninstall && install\` pair(s)`)
+  if (/\/plugin (?:install|i|uninstall|remove)\b/.test(text)) problems.push("a `/plugin` (un)install")
   return problems
 }
+
+/** Every file under commands/, skills/ and agents/, whatever its extension. */
+function allFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? allFiles(join(dir, e.name)) : [join(dir, e.name)],
+  )
+}
+
+test("no command, skill or agent file names a plugin (un)install other than the scoped uninstall && install pair", () => {
+  const files = ["commands", "skills", "agents"].flatMap((d) => allFiles(join(PLUGIN, d)))
+  expect(files.length).toBeGreaterThanOrEqual(contentFiles.length)
+  const failures = files.flatMap((f) =>
+    reinstallMentionProblems(readFileSync(f, "utf8")).map((p) => `${f.slice(PLUGIN.length + 1)}: ${p}`),
+  )
+  expect(failures).toEqual([])
+})
 
 /** The text a block's not-found line prints. */
 function notFoundMessage(block: string): string {

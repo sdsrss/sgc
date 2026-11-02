@@ -9,7 +9,9 @@ Load SGC rules, verify `.sgc/` state integrity, route user intent to the correct
 
 ## The CLI ships with the plugin
 
-Every `/sgc:*` command runs the CLI bundled with this plugin (`bin/sgc.mjs`). It needs Node ≥ 22.19 on PATH, and no `bun`. Two options need more: `/sgc:ship --pr` needs the GitHub CLI (`gh`), and `--browse` (real-browser QA) needs Playwright and a browser, which the plugin does not ship: `/sgc:qa <url> --browse` then reports `concern` (browser unavailable). For real-browser QA use the npm install, which includes Playwright: run `npx playwright install chromium`, then `sgc qa <url> --browse` in a terminal, as the task's first qa run (qa reports are append-only). If the bundled CLI is missing, a command falls back to a global `sgc`, and then to `bun src/sgc.ts` inside a source checkout of sgc.
+Every `/sgc:*` command runs the CLI bundled with this plugin. The plugin's `bin/` is on the Bash tool's PATH, so there the CLI is `sgc.mjs`, in this and every later Bash call (`sgc.mjs status`); `sgc <command>` in these docs names the same CLI, as npm installs it. It needs Node ≥ 22.19 on PATH, and no `bun`.
+
+Two options need more. `/sgc:ship --pr` needs the GitHub CLI (`gh`). `--browse` (real-browser QA) needs Playwright and a browser, which the plugin does not ship: `sgc.mjs qa <url> --browse` loads Playwright from the project under test (`npm i -D playwright`) or from a global npm install (`npm i -g @sdsrs/sgc`), and the browser comes from `npx playwright install chromium` (or set `SGC_QA_BROWSER=chrome`). Without them it reports `concern` (browser unavailable), and that is the task's one qa report (append-only), so set them up before the first `--browse` run.
 
 **Outside Claude Code** (CI, `npx`, a plain terminal):
 
@@ -30,7 +32,6 @@ At the start of a conversation in a project that uses sgc (one with a `.sgc/` di
 
 1. **Check the `.sgc/` structure** (`decisions/`, `progress/`, `solutions/`, `reviews/`). The sgc CLI creates it on first use; nothing to do when part of it is missing.
 2. **Check `.sgc/progress/current-task.md`** — if present, offer to resume or start fresh.
-3. **Read `tasks/lessons.md`** (if present) — apply silently.
 
 ## Routing Table
 

@@ -10,16 +10,15 @@ Independent static review of the current diff. Reviewers are AMNESIAC — they d
 ## Invocation
 
 ```bash
-if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
-elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
-elif command -v sgc >/dev/null 2>&1;             then :
-elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
-else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
-fi
+command -v sgc.mjs >/dev/null 2>&1 || PATH=$(cat <<'SGC_PLUGIN_ROOT'
+${CLAUDE_PLUGIN_ROOT}/bin
+SGC_PLUGIN_ROOT
+):$PATH
+command -v sgc.mjs >/dev/null 2>&1 || { echo "sgc CLI not found — /plugin install sgc, see https://github.com/sdsrss/sgc#install" >&2; exit 1; }
 
-sgc review                                # diff against HEAD
-sgc review --base <ref>                   # diff against specific ref
-sgc review --append-as <suffix>           # follow-up review → <reviewer>.<suffix>.md (F-5)
+sgc.mjs review                                # diff against HEAD
+sgc.mjs review --base <ref>                   # diff against specific ref
+sgc.mjs review --append-as <suffix>           # follow-up review → <reviewer>.<suffix>.md (F-5)
 ```
 
 ## What you should do

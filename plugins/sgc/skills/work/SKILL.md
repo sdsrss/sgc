@@ -36,14 +36,13 @@ Execute an approved plan; track completion in `progress/feature-list.md`.
 When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
-elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
-elif command -v sgc >/dev/null 2>&1;             then :
-elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
-else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
-fi
+command -v sgc.mjs >/dev/null 2>&1 || PATH=$(cat <<'SGC_PLUGIN_ROOT'
+${CLAUDE_PLUGIN_ROOT}/bin
+SGC_PLUGIN_ROOT
+):$PATH
+command -v sgc.mjs >/dev/null 2>&1 || { echo "sgc CLI not found — /plugin install sgc, see https://github.com/sdsrss/sgc#install" >&2; exit 1; }
 
-sgc work $ARGUMENTS
+sgc.mjs work $ARGUMENTS
 ```
 
 `work` does NOT spawn review agents. Call `sgc review` (and `sgc qa` for L2+) when all features are done.
@@ -51,4 +50,4 @@ sgc work $ARGUMENTS
 ## Delegation hint
 
 For TDD discipline during implementation:
-- `sp:test-driven-development` — write failing test first, then implement
+- `superpowers:test-driven-development` (superpowers plugin, if installed) — write failing test first, then implement

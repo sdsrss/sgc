@@ -38,14 +38,13 @@ Plus `spawn:clarifier.*`. No writes — `discover` cannot mutate `.sgc/` state b
 When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
-elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
-elif command -v sgc >/dev/null 2>&1;             then :
-elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
-else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
-fi
+command -v sgc.mjs >/dev/null 2>&1 || PATH=$(cat <<'SGC_PLUGIN_ROOT'
+${CLAUDE_PLUGIN_ROOT}/bin
+SGC_PLUGIN_ROOT
+):$PATH
+command -v sgc.mjs >/dev/null 2>&1 || { echo "sgc CLI not found — /plugin install sgc, see https://github.com/sdsrss/sgc#install" >&2; exit 1; }
 
-sgc discover "$ARGUMENTS"
+sgc.mjs discover "$ARGUMENTS"
 ```
 
 Output is structured text with sections Goal / Constraints / Scope / Edge cases / Acceptance / Next. The last section contains the exact `sgc plan ...` command to run after answering.
@@ -53,7 +52,7 @@ Output is structured text with sections Goal / Constraints / Scope / Edge cases 
 ## Delegation hint
 
 For product-fuzzy requirements exploration beyond sgc's forcing questions:
-- `gs:/office-hours` — YC-style brainstorming for demand reality, wedge identification, and design docs
+- gstack's `/office-hours` skill (if installed) — YC-style brainstorming for demand reality, wedge identification, and design docs
 
 ## Pattern (what the agent emits)
 

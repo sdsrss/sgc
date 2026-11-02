@@ -40,7 +40,7 @@ If a date cutoff is provided, only archive tasks completed before that date. If 
 
 For each candidate:
 
-The destination is fixed by `contracts/sgc-state.schema.yaml` (`archive.destination`).
+The destination is fixed by sgc's state schema ([`contracts/sgc-state.schema.yaml`](https://github.com/sdsrss/sgc/blob/main/contracts/sgc-state.schema.yaml), `archive.destination`).
 Do not invent a path: state moved anywhere else is state the schema cannot find, and
 `planner.history` reads the archive as read-only reference.
 
@@ -74,7 +74,7 @@ Do not invent a path: state moved anywhere else is state the schema cannot find,
 
 ## Output Format
 
-This shape is declared in `contracts/sgc-capabilities.yaml` (`janitor.archive.outputs`).
+This shape is declared in sgc's capability contract ([`contracts/sgc-capabilities.yaml`](https://github.com/sdsrss/sgc/blob/main/contracts/sgc-capabilities.yaml), `janitor.archive.outputs`).
 Invariant §9 rejects undeclared fields — an output with extra or renamed keys is discarded
 whole, not trimmed, so a "successful" run reports nothing.
 

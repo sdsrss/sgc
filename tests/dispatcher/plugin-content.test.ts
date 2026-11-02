@@ -48,17 +48,35 @@ describe("plugin content reaches the bundled CLI", () => {
     test(`${rel}: no repo-relative link or author-machine reference (absent in a plugin install)`, () => {
       expect(text.match(/\]\(\.\.\/[^)]*\)/g) ?? []).toEqual([])
       expect(text).not.toMatch(/~\/\.claude\/CLAUDE\.md|CLAUDE-extended\.md|~\/\.ssh\/|On this machine/)
+      // the author's shorthand for other plugins: the superpowers plugin's
+      // skills are superpowers:<name>, and gstack's are /<name>
+      expect(text.match(/(?<![\w-])(?:sp|gs):[\w/]/g) ?? []).toEqual([])
+      expect(text).not.toContain("tasks/lessons.md")
       expect(text).not.toMatch(/`bun src\/sgc\.ts [a-z]+`/)
       // `sgc qa` without a target fails and uses up the task's append-only qa report
       expect(text).not.toMatch(/sgc qa --browse/)
     })
 
-    if (/^\s*bun src\/sgc\.ts /m.test(text)) {
-      test(`${rel}: running sgc from source is only the fallback after the bundled CLI`, () => {
-        expect(text).toContain('[ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]')
-        expect(text).not.toMatch(/^bun src\/sgc\.ts /m)
-      })
-    }
+    // A user's project has no src/, contracts/ … of sgc's: link to GitHub.
+    // Frontmatter is left out: descriptions are LLM-visible metadata that
+    // doctor check (O) derives from code.
+    test(`${rel}: no bare path into the sgc repository`, () => {
+      const body = text
+        .replace(/^---\n[\s\S]*?\n---\n/, "")
+        .replace(/\[`[^`\]]*`\]\(https:\/\/github\.com\/sdsrss\/sgc\/[^)]*\)/g, "")
+      expect(body.match(/(?<![\w/.-])(?:src|tests|contracts|prompts|metrics|plugins\/sgc|tasks)\/[\w.-]+/g) ?? []).toEqual([])
+    })
+
+    // The blocks run the plugin's own CLI by the name its bin/ puts on PATH.
+    // A bare `sgc` line meets a user's `sgc` alias first, and in a later Bash
+    // call there is no function or variable left to make `sgc` mean the plugin.
+    test(`${rel}: shell lines run sgc.mjs, never a bare sgc or the source checkout`, () => {
+      // (a fence that installs the npm package runs in a terminal, where npm's name is sgc)
+      const shell = [...text.matchAll(/^```(?:bash|sh)\n([\s\S]*?)^```/gm)]
+        .filter((m) => !m[1]!.startsWith("npm install -g @sdsrs/sgc"))
+        .flatMap((m) => m[1]!.split("\n"))
+      expect(shell.filter((l) => /^\s*(?:sgc|bun src\/sgc\.ts)\s/.test(l))).toEqual([])
+    })
   }
 })
 
@@ -75,22 +93,25 @@ const NODE_DIR = dirname(Bun.which("node")!)
 const PKG_VERSION = (JSON.parse(readFileSync(resolve(PLUGIN, "..", "..", "package.json"), "utf8")) as { version: string })
   .version
 
-/** The CLI lookup (`if … fi`) of a command or skill file, or null when it has none. */
+/** The CLI lookup of a command or skill file (from its first `command -v
+ *  sgc.mjs` line to the not-found line), or null when it has none. */
 function lookupBlock(text: string): string | null {
   const lines = text.split("\n")
-  const start = lines.findIndex((l) => l.startsWith("if ") && l.includes("sgc.mjs"))
+  const start = lines.findIndex((l) => l.startsWith("command -v sgc.mjs"))
   if (start === -1) return null
-  const end = lines.findIndex((l, i) => i > start && l === "fi")
-  return lines.slice(start, end + 1).join("\n")
+  const end = lines.findIndex((l, i) => i > start && l.includes("sgc CLI not found"))
+  return end === -1 ? null : lines.slice(start, end + 1).join("\n")
 }
 
 const withLookup = contentFiles
-  .map((f) => ({ rel: f.slice(PLUGIN.length + 1), block: lookupBlock(readFileSync(f, "utf8")) }))
-  .filter((x): x is { rel: string; block: string } => x.block !== null)
+  .map((f) => ({ rel: f.slice(PLUGIN.length + 1), text: readFileSync(f, "utf8") }))
+  .filter(({ text }) => text.includes("${CLAUDE_PLUGIN_ROOT}/bin"))
+  .map(({ rel, text }) => ({ rel, block: lookupBlock(text) }))
 
-test("bash is available, and the lookup blocks were found", () => {
+test("bash is available, and every file that names the bundled CLI has a lookup block", () => {
   expect(SHELLS.some((p) => p.endsWith("/bash"))).toBe(true)
   expect(withLookup.length).toBeGreaterThanOrEqual(25)
+  expect(withLookup.filter((x) => x.block === null).map((x) => x.rel)).toEqual([])
 })
 
 describe("each CLI lookup block runs the bundled CLI, as Claude Code's Bash tool would run it", () => {
@@ -99,27 +120,47 @@ describe("each CLI lookup block runs the bundled CLI, as Claude Code's Bash tool
   const dir = mkdtempSync(join(tmpdir(), "sgc-plugin-content-"))
   const spaced = join(dir, "plugin root with space")
   symlinkSync(PLUGIN, spaced)
+  // Claude Code pastes the root into the text verbatim, before any shell
+  // quoting applies: none of these characters may change what runs.
+  const special = join(dir, `root $HOME "q" \`false\` 'a' $(false)`)
+  symlinkSync(PLUGIN, special)
   afterAll(() => rmSync(dir, { recursive: true, force: true }))
 
+  // The Bash tool sources a snapshot of the user's shell config (aliases
+  // included, with bash's expand_aliases on), then evals the command.
+  const prelude = {
+    plain: "",
+    "an sgc alias": `alias sgc='echo ALIAS-SGC'\n`,
+    "set -euo pipefail": "set -euo pipefail\n",
+  }
   const cases = [
     // the documented mechanism: the plugin's bin/ is on the Bash tool's PATH
     { name: "bin/ on PATH", root: PLUGIN, path: `${join(PLUGIN, "bin")}:${NODE_DIR}:/usr/bin:/bin` },
-    // fallback: Claude Code substituted ${CLAUDE_PLUGIN_ROOT}, path has a space
+    // fallback: the substituted ${CLAUDE_PLUGIN_ROOT}
     { name: "root with a space", root: spaced, path: `${NODE_DIR}:/usr/bin:/bin` },
+    { name: "root with $ \" ` ' and $()", root: special, path: `${NODE_DIR}:/usr/bin:/bin` },
   ]
   for (const sh of SHELLS) {
+    const shName = sh.split("/").pop()!
     for (const c of cases) {
-      test(`${sh.split("/").pop()}, ${c.name}: every block reaches sgc ${PKG_VERSION}`, () => {
-        const failures: string[] = []
-        for (const { rel, block } of withLookup) {
-          const script = block.replaceAll("${CLAUDE_PLUGIN_ROOT}", c.root) + "\nsgc --version\n"
-          const r = spawnSync(sh, ["-c", script], { cwd: dir, encoding: "utf8", env: { PATH: c.path, HOME: dir } })
-          if (r.status !== 0 || r.stdout.trim() !== PKG_VERSION) {
-            failures.push(`${rel}: exit ${r.status} ${`${r.stdout ?? ""}${r.stderr ?? ""}${r.error ?? ""}`.trim().slice(0, 120)}`)
+      for (const [pName, pre] of Object.entries(prelude)) {
+        test(`${shName}, ${c.name}, ${pName}: every block reaches sgc ${PKG_VERSION}`, () => {
+          const failures: string[] = []
+          for (const { rel, block } of withLookup) {
+            const cmd = block!.replaceAll("${CLAUDE_PLUGIN_ROOT}", () => c.root) + "\nsgc.mjs --version\n"
+            const outer = `${shName === "bash" ? "shopt -s expand_aliases\n" : ""}${pre}eval "$1"`
+            const r = spawnSync(sh, ["-c", outer, "sh", cmd], {
+              cwd: dir,
+              encoding: "utf8",
+              env: { PATH: c.path, HOME: dir },
+            })
+            if (r.status !== 0 || r.stdout.trim() !== PKG_VERSION) {
+              failures.push(`${rel}: exit ${r.status} ${`${r.stdout ?? ""}${r.stderr ?? ""}${r.error ?? ""}`.trim().slice(0, 160)}`)
+            }
           }
-        }
-        expect(failures).toEqual([])
-      }, 120_000)
+          expect(failures).toEqual([])
+        }, 120_000)
+      }
     }
   }
 })

@@ -10,26 +10,25 @@ The full sgc pipeline in one command. Chains `plan → [pause work] → review �
 ## Invocation
 
 ```bash
-if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
-elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
-elif command -v sgc >/dev/null 2>&1;             then :
-elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
-else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
-fi
+command -v sgc.mjs >/dev/null 2>&1 || PATH=$(cat <<'SGC_PLUGIN_ROOT'
+${CLAUDE_PLUGIN_ROOT}/bin
+SGC_PLUGIN_ROOT
+):$PATH
+command -v sgc.mjs >/dev/null 2>&1 || { echo "sgc CLI not found — /plugin install sgc, see https://github.com/sdsrss/sgc#install" >&2; exit 1; }
 
-sgc loop "<task — one sentence>" \
+sgc.mjs loop "<task — one sentence>" \
   --motivation "<≥20-word rationale, passed through to plan>" \
   [--level L0|L1|L2|L3] [--signed-by <human_id>]
-sgc loop --resume <run-id>            # continue a paused/failed run
-sgc loop --runs                       # list runs (running/paused/failed/complete)
-sgc loop --status <run-id>            # one run: frontmatter + per-step table
+sgc.mjs loop --resume <run-id>            # continue a paused/failed run
+sgc.mjs loop --runs                       # list runs (running/paused/failed/complete)
+sgc.mjs loop --status <run-id>            # one run: frontmatter + per-step table
 ```
 
 ## What you should do
 
 1. Parse the user's request into `<task>` + `<motivation>` (≥20 words). If motivation is missing, ask once before invoking (same rule as `/sgc:plan`).
 2. Run the CLI; stream output. The loop will PAUSE at `work` — that is expected, not a failure.
-3. When it pauses at `work`, implement the feature (TDD: `sp:test-driven-development` if available), then `--resume <run-id>`.
+3. When it pauses at `work`, implement the feature (TDD: `superpowers:test-driven-development`, if the superpowers plugin is installed), then `--resume <run-id>`.
 4. It pauses again at `ship` for the L3 human gate — surface the run-id and let the user confirm.
 
 ## Notes

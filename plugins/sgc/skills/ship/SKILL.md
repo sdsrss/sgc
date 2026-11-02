@@ -37,14 +37,13 @@ Run the ship gate, write immutable `decisions/{id}/ship.md`, optionally open a P
 When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
-elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
-elif command -v sgc >/dev/null 2>&1;             then :
-elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
-else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
-fi
+command -v sgc.mjs >/dev/null 2>&1 || PATH=$(cat <<'SGC_PLUGIN_ROOT'
+${CLAUDE_PLUGIN_ROOT}/bin
+SGC_PLUGIN_ROOT
+):$PATH
+command -v sgc.mjs >/dev/null 2>&1 || { echo "sgc CLI not found — /plugin install sgc, see https://github.com/sdsrss/sgc#install" >&2; exit 1; }
 
-sgc ship $ARGUMENTS
+sgc.mjs ship $ARGUMENTS
 ```
 
 ## Gate failure behavior
@@ -58,5 +57,5 @@ If the janitor decides `compound` or `update_existing`, `runCompound` executes i
 ## Delegation hint
 
 For git/PR/deploy workflows beyond sgc's ship gate:
-- `gs:/ship` — detect base branch, run tests, bump VERSION, update CHANGELOG, create PR
-- `gs:/land-and-deploy` — merge the PR, wait for CI, verify production health
+- gstack's `/ship` skill (if installed) — detect base branch, run tests, bump VERSION, update CHANGELOG, create PR
+- gstack's `/land-and-deploy` skill (if installed) — merge the PR, wait for CI, verify production health

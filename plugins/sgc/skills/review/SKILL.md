@@ -37,14 +37,13 @@ Dispatch reviewer agents (fresh context) against the current task's diff. Review
 When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
-elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
-elif command -v sgc >/dev/null 2>&1;             then :
-elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
-else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
-fi
+command -v sgc.mjs >/dev/null 2>&1 || PATH=$(cat <<'SGC_PLUGIN_ROOT'
+${CLAUDE_PLUGIN_ROOT}/bin
+SGC_PLUGIN_ROOT
+):$PATH
+command -v sgc.mjs >/dev/null 2>&1 || { echo "sgc CLI not found — /plugin install sgc, see https://github.com/sdsrss/sgc#install" >&2; exit 1; }
 
-sgc review $ARGUMENTS
+sgc.mjs review $ARGUMENTS
 ```
 
 Re-running `review` for the same task throws `AppendOnly` — reviews are an audit trail, not a retry loop. To ship despite a `fail` verdict, supply `--override "<≥40-char reason>"` at `sgc ship`.
@@ -52,7 +51,7 @@ Re-running `review` for the same task throws `AppendOnly` — reviews are an aud
 ## Delegation hint
 
 For broader static analysis beyond sgc's reviewer cluster:
-- `gs:/review` — pre-landing PR review with SQL safety, LLM trust boundary, and structural checks
+- gstack's `/review` skill (if installed) — pre-landing PR review with SQL safety, LLM trust boundary, and structural checks
 
 ## L2+ specialist trigger table
 

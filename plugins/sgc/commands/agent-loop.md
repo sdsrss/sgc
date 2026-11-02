@@ -10,17 +10,16 @@ The escape hatch when the dispatcher fell back to `file-poll` mode (no `ANTHROPI
 ## Invocation
 
 ```bash
-if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
-elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
-elif command -v sgc >/dev/null 2>&1;             then :
-elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
-else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
-fi
+command -v sgc.mjs >/dev/null 2>&1 || PATH=$(cat <<'SGC_PLUGIN_ROOT'
+${CLAUDE_PLUGIN_ROOT}/bin
+SGC_PLUGIN_ROOT
+):$PATH
+command -v sgc.mjs >/dev/null 2>&1 || { echo "sgc CLI not found — /plugin install sgc, see https://github.com/sdsrss/sgc#install" >&2; exit 1; }
 
-sgc agent-loop --list                     # all spawns with [x]/[ ] markers
-sgc agent-loop --show <spawn_id>          # print the prompt for one spawn
-sgc agent-loop --submit <spawn_id>        # read YAML from stdin
-sgc agent-loop --submit <spawn_id> --from /path/to/result.yaml
+sgc.mjs agent-loop --list                     # all spawns with [x]/[ ] markers
+sgc.mjs agent-loop --show <spawn_id>          # print the prompt for one spawn
+sgc.mjs agent-loop --submit <spawn_id>        # read YAML from stdin
+sgc.mjs agent-loop --submit <spawn_id> --from /path/to/result.yaml
 ```
 
 ## What you should do

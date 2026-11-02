@@ -14,14 +14,13 @@ Pre-PR / pre-ship sanity check that the three name registries agree:
 ## Invocation
 
 ```bash
-if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
-elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
-elif command -v sgc >/dev/null 2>&1;             then :
-elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
-else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
-fi
+command -v sgc.mjs >/dev/null 2>&1 || PATH=$(cat <<'SGC_PLUGIN_ROOT'
+${CLAUDE_PLUGIN_ROOT}/bin
+SGC_PLUGIN_ROOT
+):$PATH
+command -v sgc.mjs >/dev/null 2>&1 || { echo "sgc CLI not found — /plugin install sgc, see https://github.com/sdsrss/sgc#install" >&2; exit 1; }
 
-sgc doctor
+sgc.mjs doctor
 ```
 
 ## What you should do
@@ -34,4 +33,4 @@ sgc doctor
 
 - Read-only across all state — no `.sgc/` writes, no LLM calls.
 - Exit code: 0 if `fail == 0`, 1 otherwise. Suitable for CI gates and pre-commit hooks.
-- For runtime LLM routing concerns (which mode resolved + why), see `resolveModeDebug` in `src/dispatcher/spawn.ts` (added in P6 audit follow-up).
+- For runtime LLM routing concerns (which mode resolved + why), see `resolveModeDebug` in [`src/dispatcher/spawn.ts`](https://github.com/sdsrss/sgc/blob/main/src/dispatcher/spawn.ts) (added in P6 audit follow-up).

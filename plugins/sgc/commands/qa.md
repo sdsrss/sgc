@@ -10,16 +10,15 @@ Run the L2+ QA gate. Real-browser mode (a Playwright Chromium smoke: `goto` + co
 ## Invocation
 
 ```bash
-if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
-elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
-elif command -v sgc >/dev/null 2>&1;             then :
-elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
-else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
-fi
+command -v sgc.mjs >/dev/null 2>&1 || PATH=$(cat <<'SGC_PLUGIN_ROOT'
+${CLAUDE_PLUGIN_ROOT}/bin
+SGC_PLUGIN_ROOT
+):$PATH
+command -v sgc.mjs >/dev/null 2>&1 || { echo "sgc CLI not found — /plugin install sgc, see https://github.com/sdsrss/sgc#install" >&2; exit 1; }
 
-sgc qa                                                    # default: stub (concern)
-sgc qa http://localhost:3000 --browse                     # real Playwright smoke
-sgc qa http://localhost:3000 --flows /dashboard,/settings --browse   # smoke extra paths
+sgc.mjs qa                                                    # default: stub (concern)
+sgc.mjs qa http://localhost:3000 --browse                     # real Playwright smoke
+sgc.mjs qa http://localhost:3000 --flows /dashboard,/settings --browse   # smoke extra paths
 ```
 
 ## What you should do
@@ -32,4 +31,4 @@ sgc qa http://localhost:3000 --flows /dashboard,/settings --browse   # smoke ext
 ## Notes
 
 - Real-browser mode needs a browser: `npx playwright install chromium`, or set `SGC_QA_BROWSER=chrome` to use system Chrome.
-- Playwright is an optional dependency of the npm package: `npm i -g @sdsrs/sgc` installs it alongside the CLI. The plugin does not ship it, so through the plugin `--browse` reports `concern` (browser unavailable). For real-browser QA, run `sgc qa <url> --browse` in a terminal from the npm install, as the task's first qa run: qa reports are append-only, so a stub or failed run first blocks it.
+- Playwright is an optional dependency of the npm package. The plugin does not ship it: `--browse` loads it from the project under test (`npm i -D playwright`) or from a global npm install (`npm i -g @sdsrs/sgc`), and reports `concern` (browser unavailable) when neither has it. qa reports are append-only, one per task, so set Playwright and the browser up before the task's first `--browse` run.

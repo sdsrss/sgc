@@ -7,7 +7,7 @@ description: "Use for the L2+ browser-QA gate. Real-browser mode (Playwright Chr
 
 Spawn `qa.browser` to run the QA gate; with the real-browser opt-in (`--browse` / `SGC_QA_REAL=1`) it drives a Playwright Chromium and writes verdict + screenshot refs to `reviews/{task_id}/qa/qa.browser.md`, flipping `hasQaEvidence` true to unblock the L2+ ship gate.
 
-> **Real-browser mode is opt-in (Playwright).** By default `qa.browser` runs a stub that returns `concern` (never `pass`), so the gate is never silently rubber-stamped. Enable it with `--browse` or `SGC_QA_REAL=1` — it launches a Playwright Chromium (`goto` → console/page errors → screenshot → verdict). Needs a browser: `npx playwright install chromium`, or `SGC_QA_BROWSER=chrome` for system Chrome.
+> **Real-browser mode is opt-in (Playwright).** By default `qa.browser` runs a stub that returns `concern` (never `pass`), so the gate is never silently rubber-stamped. Enable it with `--browse` or `SGC_QA_REAL=1` — it launches a Playwright Chromium (`goto` → console/page errors → screenshot → verdict). Needs Playwright, from the project under test (`npm i -D playwright`) or a global npm install (`npm i -g @sdsrs/sgc`), and a browser: `npx playwright install chromium`, or `SGC_QA_BROWSER=chrome` for system Chrome.
 
 **Core principle:** "looks correct" is not evidence — with `--browse` / `SGC_QA_REAL=1`, open the browser (Playwright), run the flow, capture the proof; by default `qa.browser` returns `concern` rather than rubber-stamping.
 
@@ -41,14 +41,13 @@ Plus `exec:browser` for the headless chromium launch.
 When this skill is invoked, dispatch to the sgc CLI:
 
 ```bash
-if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
-elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
-elif command -v sgc >/dev/null 2>&1;             then :
-elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
-else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
-fi
+command -v sgc.mjs >/dev/null 2>&1 || PATH=$(cat <<'SGC_PLUGIN_ROOT'
+${CLAUDE_PLUGIN_ROOT}/bin
+SGC_PLUGIN_ROOT
+):$PATH
+command -v sgc.mjs >/dev/null 2>&1 || { echo "sgc CLI not found — /plugin install sgc, see https://github.com/sdsrss/sgc#install" >&2; exit 1; }
 
-sgc qa $ARGUMENTS
+sgc.mjs qa $ARGUMENTS
 ```
 
 ## Console classification (reference)
@@ -57,9 +56,9 @@ sgc qa $ARGUMENTS
 
 ## Environmental note
 
-If the chromium sandbox is broken (Ubuntu 23.10+ AppArmor user-namespace restriction, RHEL SELinux), the Playwright launch uses `chromiumSandbox: false`. Hermetic tests inject a fake `launch`/`browseRunner` instead of a real browser — see `tests/dispatcher/playwright-runner.test.ts`; the gated real-browser test is `tests/eval/qa-browse-real.test.ts`.
+If the chromium sandbox is broken (Ubuntu 23.10+ AppArmor user-namespace restriction, RHEL SELinux), the Playwright launch uses `chromiumSandbox: false`. Hermetic tests inject a fake `launch`/`browseRunner` instead of a real browser — see [`playwright-runner.test.ts`](https://github.com/sdsrss/sgc/blob/main/tests/dispatcher/playwright-runner.test.ts); the gated real-browser test is [`qa-browse-real.test.ts`](https://github.com/sdsrss/sgc/blob/main/tests/eval/qa-browse-real.test.ts).
 
 ## Delegation hint
 
 For rich interactive browser testing beyond sgc's headless qa.browser:
-- `gs:/browse` — full headless browser with navigation, screenshots, and element interaction
+- gstack's `/browse` skill (if installed) — full headless browser with navigation, screenshots, and element interaction

@@ -22,19 +22,18 @@ The terminal step. Gates fail closed.
 ## Invocation
 
 ```bash
-if   command -v sgc.mjs >/dev/null 2>&1;         then sgc() { sgc.mjs "$@"; }
-elif [ -f "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" ]; then sgc() { node "${CLAUDE_PLUGIN_ROOT}/bin/sgc.mjs" "$@"; }
-elif command -v sgc >/dev/null 2>&1;             then :
-elif [ -f src/sgc.ts ];                          then sgc() { bun src/sgc.ts "$@"; }
-else echo "sgc CLI not found — /plugin install sgc, or npm i -g @sdsrs/sgc, or https://github.com/sdsrss/sgc#install" >&2; exit 1
-fi
+command -v sgc.mjs >/dev/null 2>&1 || PATH=$(cat <<'SGC_PLUGIN_ROOT'
+${CLAUDE_PLUGIN_ROOT}/bin
+SGC_PLUGIN_ROOT
+):$PATH
+command -v sgc.mjs >/dev/null 2>&1 || { echo "sgc CLI not found — /plugin install sgc, see https://github.com/sdsrss/sgc#install" >&2; exit 1; }
 
-sgc ship                                          # local ship.md only
-sgc ship --auto                                   # refused at L3
-sgc ship --pr                                     # also `gh pr create`
-sgc ship --pr --pr-title "..." --pr-body "..."
-sgc ship --janitor-skip-reason "<≥40 chars>"      # opt-out + logged
-sgc ship --force-compound                         # bypass janitor decision_rules
+sgc.mjs ship                                          # local ship.md only
+sgc.mjs ship --auto                                   # refused at L3
+sgc.mjs ship --pr                                     # also `gh pr create`
+sgc.mjs ship --pr --pr-title "..." --pr-body "..."
+sgc.mjs ship --janitor-skip-reason "<≥40 chars>"      # opt-out + logged
+sgc.mjs ship --force-compound                         # bypass janitor decision_rules
 ```
 
 ## What you should do

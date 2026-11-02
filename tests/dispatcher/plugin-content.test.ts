@@ -144,12 +144,18 @@ test("every block's not-found message gives the same reinstall, one that works f
   expect(withLookup.filter((_, i) => messages[i] !== messages[0]).map((x) => x.rel)).toEqual([])
 })
 
-test("bash is available (and zsh where SGC_REQUIRE_ZSH=1), and every file that names the bundled CLI has a lookup block", () => {
+test("bash is available (zsh where SGC_REQUIRE_ZSH=1, bash 3.2 where SGC_REQUIRE_BASH32=1), and every file that names the bundled CLI has a lookup block", () => {
   expect(SHELLS.some((p) => p.endsWith("/bash"))).toBe(true)
   // test.yml installs zsh and sets SGC_REQUIRE_ZSH=1, so the zsh cases
   // cannot skip unseen there. Not keyed to CI: publish.yml runs this suite
   // too, on a runner without zsh.
   if (process.env["SGC_REQUIRE_ZSH"] === "1") expect(SHELLS.some((p) => p.endsWith("/zsh"))).toBe(true)
+  // test.yml's macOS job sets SGC_REQUIRE_BASH32=1: there the bash on PATH
+  // must be Apple's /bin/bash 3.2, or the job would pass on a newer bash.
+  if (process.env["SGC_REQUIRE_BASH32"] === "1") {
+    const bash = SHELLS.find((p) => p.endsWith("/bash"))!
+    expect(spawnSync(bash, ["-c", "echo $BASH_VERSION"], { encoding: "utf8" }).stdout).toStartWith("3.2.")
+  }
   expect(withLookup.length).toBeGreaterThanOrEqual(25)
   expect(withLookup.filter((x) => x.block === null).map((x) => x.rel)).toEqual([])
 })

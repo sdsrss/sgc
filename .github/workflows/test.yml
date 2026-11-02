@@ -122,3 +122,32 @@ jobs:
       # all 8 tests skipped) while pinned to a model since retired. They run in
       # .github/workflows/llm-eval.yml (weekly + manual) against the runtime
       # default model instead.
+
+  # The plugin's command blocks run in the user's shell. On macOS that is
+  # /bin/zsh (the default) or Apple's /bin/bash 3.2.57, which no Linux runner
+  # has: v2.0.1 fixed a here-document that bash 3.2 could not parse, and that
+  # fix was only checked on a hand-built bash. The macos-15 image has no
+  # Homebrew bash, so `bash` on PATH is /bin/bash; SGC_REQUIRE_BASH32=1 makes
+  # plugin-content.test.ts fail if that ever stops being 3.2.
+  macos-shells:
+    name: plugin command blocks (macOS bash 3.2 + zsh)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.5"
+
+      - name: Run the command-block tests
+        env:
+          SGC_FORCE_INLINE: "1"
+          SGC_REQUIRE_ZSH: "1"
+          SGC_REQUIRE_BASH32: "1"
+        run: bun test tests/dispatcher/plugin-content.test.ts tests/dispatcher/plugin-hooks.test.ts

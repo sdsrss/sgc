@@ -15,12 +15,19 @@
   that directory, so no reinstall changes it. The 25 command blocks and
   the bootstrap now say: run `claude plugin list` in a terminal in the
   project; if sgc@sgc shows a "Read from" line, or Claude Code was started
-  with `--plugin-dir`, restore `bin/sgc.mjs` in that directory; otherwise
-  run `claude plugin uninstall sgc@sgc --scope <scope>`, then `claude
-  plugin install sgc@sgc --scope <scope>`, with the Scope the list shows.
-  Measured on Claude Code 2.1.316 with `bin/sgc.mjs` deleted from the
-  plugin cache: the scoped pair restores it at project and local scope;
-  `claude plugin update` does not ("already at the latest version").
+  with `--plugin-dir`, restore `bin/sgc.mjs` in that directory; otherwise,
+  for a Scope the list shows for sgc@sgc, run `claude plugin uninstall
+  sgc@sgc --scope <scope> && claude plugin install sgc@sgc --scope
+  <scope>`. The list also shows other projects' project-scope installs,
+  and its plain output does not say which project they belong to. An
+  uninstall at a scope where this project has no install fails and
+  changes nothing, and the `&&` keeps the install from adding one; the
+  user then tries the next Scope. For a project install, the reinstall
+  rewrites the shared `.claude/settings.json` (the same settings,
+  reordered and reformatted). Measured on Claude Code 2.1.316 with
+  `bin/sgc.mjs` deleted from the plugin cache: the scoped pair restores
+  it at user, project and local scope; `claude plugin update` does not
+  ("already at the latest version").
   If you followed v2.0.1's advice for a project or local install,
   `claude plugin list` may show a second sgc@sgc at user scope; remove it
   with `claude plugin uninstall sgc@sgc --scope user` if you do not want
@@ -31,14 +38,17 @@
 ### Tests and CI
 
 - **CI runs the command blocks on macOS.** A new test.yml job on
-  macos-15 runs the command-block and hook tests with Apple's
-  `/bin/bash` 3.2.57 and `/bin/zsh`, and fails if the bash it finds is
-  not 3.2. v2.0.1's bash 3.2 fix had been checked only on a hand-built
-  bash, outside CI.
+  macos-15 runs the command-block and hook tests with macOS's bash and
+  zsh, and fails unless that bash is 3.2. v2.0.1's bash 3.2 fix had been
+  checked only on a hand-built bash, outside CI.
 - The not-found branch of every command block is now executed under bash
-  and zsh: exit 1, nothing on stdout, the advice on stderr. The advice is
-  checked for its order, its `--scope` on both steps and its route for a
-  plugin read from a directory, and must be the same in all 25 blocks.
+  and zsh: exit 1, nothing on stdout, the advice on stderr. The advice
+  must be the same in all 25 blocks and must contain `claude plugin
+  list`, the `uninstall … && install …` line with `--scope <scope>` on
+  both, what to do when the uninstall fails, and the restore of
+  `bin/sgc.mjs` for a plugin read from a directory. No command, skill or
+  agent file may name an unscoped `claude plugin (un)install sgc@sgc` or
+  `/plugin install`.
 - plugin-content.test.ts no longer leaves a temp directory behind when
   `bun test -t` filters out its block tests.
 

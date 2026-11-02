@@ -55,6 +55,9 @@ describe("plugin content reaches the bundled CLI", () => {
       expect(text).not.toMatch(/`bun src\/sgc\.ts [a-z]+`/)
       // `sgc qa` without a target fails and uses up the task's append-only qa report
       expect(text).not.toMatch(/sgc qa --browse/)
+      // anywhere in the file, not only in the not-found advice (see reinstallAdviceProblems)
+      expect(text.match(new RegExp(UNSCOPED, "g")) ?? []).toEqual([])
+      expect(text).not.toContain("/plugin install")
     })
 
     // A user's project has no src/, contracts/ … of sgc's: link to GitHub.
@@ -116,19 +119,25 @@ const withLookup = contentFiles
  *  fails ("enabled at project scope") and the install adds a second,
  *  user-wide install. A plugin from a local-directory marketplace (`plugin
  *  list` shows "Read from") or from --plugin-dir is read from that
- *  directory, where no reinstall changes anything. */
+ *  directory, where no reinstall changes anything.
+ *  `plugin list` also shows other projects' project-scope installs, with
+ *  nothing in the plain output to tell them apart, so a listed Scope can be
+ *  the wrong one: there `uninstall --scope project` fails and changes
+ *  nothing, but an install run anyway adds a project install the user did
+ *  not have. Hence `&&`: the install runs only after its uninstall worked. */
+const REINSTALL = "claude plugin uninstall sgc@sgc --scope <scope> && claude plugin install sgc@sgc --scope <scope>"
+const UNSCOPED = /claude plugin (?:un)?install sgc@sgc(?! --scope <scope>)/
 function reinstallAdviceProblems(text: string): string[] {
   const problems: string[] = []
   const list = text.indexOf("claude plugin list")
-  const uninstall = text.indexOf("claude plugin uninstall sgc@sgc --scope <scope>")
-  const install = text.indexOf("claude plugin install sgc@sgc --scope <scope>")
+  const reinstall = text.indexOf(REINSTALL)
   if (list === -1) problems.push("no `claude plugin list`, which shows the install's scope")
-  if (uninstall === -1) problems.push("no uninstall with --scope <scope>")
-  if (install === -1) problems.push("no install with --scope <scope>")
-  if (list !== -1 && uninstall !== -1 && list > uninstall) problems.push("the uninstall comes before `claude plugin list`")
-  if (uninstall !== -1 && install !== -1 && uninstall > install) problems.push("the install comes before the uninstall")
-  if (/claude plugin (?:un)?install sgc@sgc(?! --scope <scope>)/.test(text)) problems.push("an (un)install without --scope <scope>")
-  if (!text.includes("Read from") || !text.includes("--plugin-dir")) problems.push("no route for a plugin read from a directory")
+  if (reinstall === -1) problems.push(`not literally: ${REINSTALL}`)
+  if (list !== -1 && reinstall !== -1 && list > reinstall) problems.push("the reinstall comes before `claude plugin list`")
+  if (!/try (?:the next|another) (?:listed )?Scope/.test(text)) problems.push("no next step when the uninstall fails")
+  if (UNSCOPED.test(text)) problems.push("an (un)install without --scope <scope>")
+  if (!text.includes("Read from") || !text.includes("--plugin-dir") || !/restore `?bin\/sgc\.mjs`?/.test(text))
+    problems.push("no restore of bin/sgc.mjs for a plugin read from a directory")
   if (text.includes("/plugin install")) problems.push("`/plugin install`, which only answers already installed")
   return problems
 }

@@ -108,6 +108,14 @@ const withLookup = contentFiles
   .filter(({ text }) => text.includes("${CLAUDE_PLUGIN_ROOT}/bin"))
   .map(({ rel, text }) => ({ rel, block: lookupBlock(text) }))
 
+test("every block's not-found message gives a reinstall that works in an installed plugin", () => {
+  for (const { block } of withLookup) {
+    const notFound = block!.split("\n").at(-1)!
+    expect(notFound).toContain("claude plugin uninstall sgc@sgc")
+    expect(notFound).not.toContain("/plugin install")
+  }
+})
+
 test("bash is available (and zsh where SGC_REQUIRE_ZSH=1), and every file that names the bundled CLI has a lookup block", () => {
   expect(SHELLS.some((p) => p.endsWith("/bash"))).toBe(true)
   // test.yml installs zsh and sets SGC_REQUIRE_ZSH=1, so the zsh cases
@@ -194,6 +202,14 @@ describe("bootstrap (injected into sessions)", () => {
     const slash = [...boot.matchAll(/`(\/[a-z][\w-]*(?::[\w*-]+)?)/g)].map((m) => m[1]!)
     expect(slash.length).toBeGreaterThan(0)
     expect(slash.filter((s) => !s.startsWith("/sgc:"))).toEqual([])
+  })
+
+  // With the plugin installed, `claude plugin install` answers "already
+  // installed" and restores nothing; uninstall + install does (measured on
+  // Claude Code 2.1.316 with bin/sgc.mjs deleted from the plugin cache).
+  test("its sgc-CLI-not-found advice is a reinstall that restores the files", () => {
+    expect(boot).toContain("claude plugin uninstall sgc@sgc")
+    expect(boot).not.toMatch(/reinstalling the plugin \(`claude plugin install/)
   })
 
   test("it points at no repo path a user's project does not have", () => {

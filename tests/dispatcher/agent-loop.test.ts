@@ -323,6 +323,8 @@ describe("runAgentLoop — interactive (no args)", () => {
       expect(out).not.toMatch(/subagent_type/)
       expect(out).toContain("general-purpose")
       expect(out).toContain(`sgc.mjs agent-loop --submit ${spawnId}`)
+      // an npm-only install has `sgc`, not `sgc.mjs`
+      expect(out).toContain("from npm it is sgc")
       expect(out).toMatch(/file-poll dispatch is disabled/)
     } finally {
       delete process.env["CLAUDECODE"]

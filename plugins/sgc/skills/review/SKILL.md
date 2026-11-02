@@ -41,7 +41,7 @@ command -v sgc.mjs >/dev/null 2>&1 || { IFS= read -r SGC_PLUGIN_BIN <<'SGC_PLUGI
 ${CLAUDE_PLUGIN_ROOT}/bin
 SGC_PLUGIN_ROOT
 PATH=$SGC_PLUGIN_BIN:$PATH; }
-command -v sgc.mjs >/dev/null 2>&1 || { echo "sgc CLI not found — /plugin install sgc, see https://github.com/sdsrss/sgc#install" >&2; exit 1; }
+command -v sgc.mjs >/dev/null 2>&1 || { echo "sgc CLI not found — reinstall the sgc plugin in a terminal: claude plugin uninstall sgc@sgc, then claude plugin install sgc@sgc" >&2; exit 1; }
 
 sgc.mjs review $ARGUMENTS
 ```

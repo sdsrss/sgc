@@ -1,5 +1,67 @@
 # Changelog
 
+## v2.0.2 — 2026-11-02 — a reinstall that works where sgc is installed
+
+### Claude Code plugin users: what changes
+
+- **The "sgc CLI not found" advice now fits how sgc is installed.**
+  v2.0.1's advice, `claude plugin uninstall sgc@sgc` then `claude plugin
+  install sgc@sgc`, worked only for an install at user scope, the default
+  of both commands. For a project- or local-scope install the uninstall
+  fails (Claude Code answers that the plugin is enabled at project scope,
+  or installed in local scope), and the install then adds a second
+  install at user scope, which enables sgc in every project. A plugin
+  from a local-directory marketplace or from `--plugin-dir` is read from
+  that directory, so no reinstall changes it. The 25 command blocks and
+  the bootstrap now say: run `claude plugin list` in a terminal in the
+  project; if sgc@sgc shows a "Read from" line, or Claude Code was started
+  with `--plugin-dir`, restore `bin/sgc.mjs` in that directory; otherwise
+  run `claude plugin uninstall sgc@sgc --scope <scope>`, then `claude
+  plugin install sgc@sgc --scope <scope>`, with the Scope the list shows.
+  Measured on Claude Code 2.1.316 with `bin/sgc.mjs` deleted from the
+  plugin cache: the scoped pair restores it at project and local scope;
+  `claude plugin update` does not ("already at the latest version").
+  If you followed v2.0.1's advice for a project or local install,
+  `claude plugin list` may show a second sgc@sgc at user scope; remove it
+  with `claude plugin uninstall sgc@sgc --scope user` if you do not want
+  sgc in every project.
+- Update with `claude plugin marketplace update sgc`, then `claude plugin
+  update sgc@sgc`, and restart Claude Code.
+
+### Tests and CI
+
+- **CI runs the command blocks on macOS.** A new test.yml job on
+  macos-15 runs the command-block and hook tests with Apple's
+  `/bin/bash` 3.2.57 and `/bin/zsh`, and fails if the bash it finds is
+  not 3.2. v2.0.1's bash 3.2 fix had been checked only on a hand-built
+  bash, outside CI.
+- The not-found branch of every command block is now executed under bash
+  and zsh: exit 1, nothing on stdout, the advice on stderr. The advice is
+  checked for its order, its `--scope` on both steps and its route for a
+  plugin read from a directory, and must be the same in all 25 blocks.
+- plugin-content.test.ts no longer leaves a temp directory behind when
+  `bun test -t` filters out its block tests.
+
+### Correction to v2.0.1's notes
+
+v2.0.1's CI note, stated precisely: test.yml runs on pushes and pull
+requests to main, not on every push. With `SGC_REQUIRE_ZSH=1`, a missing
+zsh fails one guard test; the zsh cases are then not created at all.
+publish.yml runs without zsh, so there the zsh cases neither run nor
+show up as skipped.
+
+### Known limits, unchanged
+
+- Through the plugin, `--browse` looks for Playwright in the global npm
+  root by running `npm root -g`. npm 11 prints any UUID-shaped segment of
+  that path as `***`, so with such a global prefix this step finds
+  nothing, and the error's other suggestion (`npm i -D playwright` in the
+  project) is the way. On Windows, which sgc is not tested on, Node
+  cannot start `npm` this way, and the step is skipped.
+
+Full suite 1923 → 1929 pass / 38 skip / 0 fail (+6 tests, with zsh on
+PATH as in test.yml); `tsc --noEmit` 0; `sgc doctor` 72 OK / 0 warn / 0 fail
+
 ## v2.0.1 — 2026-11-02 — the plugin loads again, and /plan keeps its prior-art lookup
 
 ### Claude Code plugin users: what changes

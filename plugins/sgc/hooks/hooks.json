@@ -1,14 +1,15 @@
 {
-  "hooks": [
-    {
-      "matcher": "SessionStart",
-      "hooks": [
-        {
-          "type": "command",
-          "command": "cat \"${CLAUDE_PLUGIN_ROOT}/skills/bootstrap/SKILL.md\" 2>/dev/null || echo 'SGC bootstrap not found'; if [ -f .sgc/progress/current-task.md ]; then echo; echo '---'; echo '## Active sgc task (resumed from .sgc/progress/current-task.md)'; cat .sgc/progress/current-task.md; fi",
-          "async": false
-        }
-      ]
-    }
-  ]
+  "description": "In projects that use sgc (a .sgc/ directory), inject the sgc bootstrap and the active task at session start.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "D=\"${CLAUDE_PROJECT_DIR:-.}\"; [ -d \"$D/.sgc\" ] || exit 0; cat \"${CLAUDE_PLUGIN_ROOT}/skills/bootstrap/SKILL.md\" 2>/dev/null || echo 'SGC bootstrap not found'; if [ -f \"$D/.sgc/progress/current-task.md\" ]; then echo; echo '---'; echo '## Active sgc task (resumed from .sgc/progress/current-task.md)'; cat \"$D/.sgc/progress/current-task.md\"; fi"
+          }
+        ]
+      }
+    ]
+  }
 }

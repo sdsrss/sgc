@@ -44235,7 +44235,8 @@ var init_doctor = __esm(() => {
     "plugins/sgc/CLAUDE.md",
     "docs/POSITIONING.md",
     ".claude-plugin/marketplace.json",
-    "plugins/sgc/.claude-plugin/plugin.json"
+    "plugins/sgc/.claude-plugin/plugin.json",
+    "plugins/sgc/skills/bootstrap/SKILL.md"
   ];
   NODE_FLOOR_CLAIM_RE = /\b(?:runtime-)?node\s*(?:≥|>=|%20%E2%89%A5|%E2%89%A5)\s*v?(\d+(?:\.\d+){0,2})/gi;
   REGISTRY_EXEMPT_IDS = new Set(["clarifier.discover", "planner.decompose"]);
@@ -48735,7 +48736,7 @@ function nodeFloorNotice(nodeVersion, enginesNode) {
   const found = parseVersion(nodeVersion);
   if (!floor || !found || !below(found, floor))
     return null;
-  return `[sgc] Node ${nodeVersion} is below sgc's supported range (node ${enginesNode}). ` + `It may still run, but this version is untested. ` + `Upgrade Node, or stay on sgc 1.x (Node >=18.17): npm i -g @sdsrs/sgc@1; ` + `plugin: /plugin marketplace remove sgc, then /plugin marketplace add sdsrss/sgc#v1.38.5, ` + `then /plugin install sgc@sgc`;
+  return `[sgc] Node ${nodeVersion} is below sgc's supported range (node ${enginesNode}). ` + `It may still run, but this version is untested. ` + `Upgrade Node, or, for the npm install, stay on sgc 1.x (Node >=18.17): \`npm i -g @sdsrs/sgc@1\``;
 }
 
 // node_modules/citty/dist/index.mjs

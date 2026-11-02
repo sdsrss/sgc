@@ -24,18 +24,13 @@ describe("nodeFloorNotice", () => {
     expect(msg).not.toBeNull()
     expect(msg).toContain("v20.20.2")
     expect(msg).toContain(">=22.19.0")
-    expect(msg).toContain("@sdsrs/sgc@1")
-    // the plugin-bundled CLI wins over a global npm install, so the plugin
-    // channel needs its own way back
-    expect(msg).toContain("sdsrss/sgc#v1.38.5")
-    // removing a marketplace uninstalls its plugins, so the way back must end
-    // with a reinstall, in this order
-    const remove = msg!.indexOf("/plugin marketplace remove sgc")
-    const add = msg!.indexOf("/plugin marketplace add sdsrss/sgc#v1.38.5")
-    const install = msg!.indexOf("/plugin install sgc@sgc")
-    expect(remove).toBeGreaterThan(-1)
-    expect(add).toBeGreaterThan(remove)
-    expect(install).toBeGreaterThan(add)
+    // v2.0.1: the command sits in backticks, so copying it cannot pick up
+    // the sentence's punctuation (v2.0.0 had "...sgc," and "...#v1.38.5,")
+    expect(msg).toContain("`npm i -g @sdsrs/sgc@1`")
+    // v2.0.1: no plugin route back to 1.x. v1.38.5's hooks.json fails to load
+    // in current Claude Code, so that route ended in a broken plugin
+    expect(msg).not.toContain("/plugin")
+    expect(msg).not.toContain("#v1.38.5")
     expect(msg).not.toContain("\n")
   })
 

@@ -7,32 +7,20 @@ description: "Use when starting any conversation - establishes SGC commands, rou
 
 Load SGC rules, verify `.sgc/` state integrity, route user intent to the correct command.
 
-## ⚠️ Install the CLI before first command
+## The CLI ships with the plugin
 
-The plugin layer is markdown-only; **every `/sgc:*` command shells out to `sgc <cmd>` (npm-installed) or `bun src/sgc.ts <cmd>` (source-clone)**. If neither is available, every command preflight-fails with help.
+Every `/sgc:*` command runs the CLI bundled with this plugin (`node $CLAUDE_PLUGIN_ROOT/bin/sgc.mjs`; Node ≥ 22.19, no `bun`). There is nothing else to install. Only if that file is missing does a command fall back to a global `sgc`, and then to `bun src/sgc.ts` inside a source checkout of sgc.
 
-**Recommended — npm (global install):**
+**Outside Claude Code** (CI, `npx`, a plain terminal):
 
 ```bash
-npm install -g @sdsrs/sgc       # requires bun >=1.3 as the runtime
+npm install -g @sdsrs/sgc
 sgc --version
 ```
 
-After this, `/sgc:*` commands run from **any** directory.
+See [README.md#install](../../../../README.md#install) for the canonical install reference.
 
-**Alternative — clone from source** (you want to hack on sgc itself or the npm package is unreachable):
-
-```bash
-git clone https://github.com/sdsrss/sgc
-cd sgc
-PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install
-```
-
-In this mode `/sgc:*` commands must run from inside the `sgc/` directory (the preflight checks for `src/sgc.ts` in `cwd`).
-
-`bun ≥1.3` is required as the runtime in **both** modes (`bun --version` to verify). See [README.md#install](../../../../README.md#install) for the canonical install reference.
-
-When a user hits the preflight error, surface this block **once per session** — do not repeat on every command.
+If a command fails with "sgc CLI not found", show this block **once per session** — do not repeat it on every command.
 
 ## When to Use
 

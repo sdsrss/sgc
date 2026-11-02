@@ -170,6 +170,7 @@ export const NODE_FLOOR_CLAIM_FILES = [
   "docs/POSITIONING.md",
   ".claude-plugin/marketplace.json",
   "plugins/sgc/.claude-plugin/plugin.json",
+  "plugins/sgc/skills/bootstrap/SKILL.md",
 ] as const
 
 // "Node ≥ 22.19", "Node >= 22.19.0", "node≥22.19.0", and the shields.io badge
